@@ -1,0 +1,12 @@
+[build]
+target = "index.html"
+dist = "dist"
+filehash = true
+
+[watch]
+watch = ["src", "assets", "../worldline/core", "../worldline/runtime"]
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8787
+open = false
