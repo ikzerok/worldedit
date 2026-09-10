@@ -1,6 +1,6 @@
 //! 试玩及运行状态。
 use super::{PlayState, WorldeditApp};
-use egui::{Color32, Vec2};
+use egui::Color32;
 use worldline_core::{Analysis, Program};
 use worldline_runtime::{Output, Story};
 impl WorldeditApp {
@@ -35,6 +35,7 @@ impl WorldeditApp {
             return;
         }
         let mut restart = false;
+        let mut reading_request = None;
         let cur_version = self.version;
         egui::SidePanel::right("play-side")
             .default_width(300.0)
@@ -43,29 +44,41 @@ impl WorldeditApp {
                 ui.separator();
                 let Some(play) = &mut self.play else { return };
                 if play.error.is_none() && !play.ended {
-                    let choices: Vec<(String, u32)> = play
+                    let choices: Vec<_> = play
                         .story
                         .as_ref()
                         .map(|s| {
                             s.choices()
                                 .iter()
-                                .map(|c| (c.label.clone(), c.line))
+                                .map(|c| (c.label.clone(), c.links.clone()))
                                 .collect()
                         })
                         .unwrap_or_default();
                     if choices.is_empty() {
                         ui.label("(推进中…)");
+                    } else {
+                        ui.label(crate::theme::muted("点击关键词看注释；点击“选择”推进。"));
                     }
-                    for (i, (label, _line)) in choices.iter().enumerate() {
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new(format!("  {}  ", label)).size(15.0),
-                                )
-                                .wrap_mode(egui::TextWrapMode::Wrap)
-                                .min_size(Vec2::new(ui.available_width(), 0.0)),
-                            )
-                            .clicked()
+                    for (i, (label, links)) in choices.iter().enumerate() {
+                        let mut choose = false;
+                        ui.push_id(i, |ui| {
+                            ui.group(|ui| {
+                                if let Some(snapshot) = &self.snapshot {
+                                    if let Some(target) = super::wiki::keyword_text(
+                                        ui,
+                                        label,
+                                        &snapshot.wiki,
+                                        &snapshot.result.analysis.catalog,
+                                        links,
+                                        15.0,
+                                    ) {
+                                        reading_request = Some(target);
+                                    }
+                                }
+                                choose = ui.button("选择").clicked();
+                            });
+                        });
+                        if choose
                             && play
                                 .story
                                 .as_mut()
@@ -217,11 +230,22 @@ impl WorldeditApp {
                         for o in outputs {
                             match o {
                                 Output::Text {
-                                    content, new_line, ..
+                                    content,
+                                    new_line,
+                                    links,
+                                    ..
                                 } => {
                                     if new_line && !play.transcript.is_empty() {
                                         play.transcript.push('\n');
                                     }
+                                    let offset = play.transcript.len();
+                                    play.transcript_links.extend(links.into_iter().map(
+                                        |mut link| {
+                                            link.start += offset;
+                                            link.end += offset;
+                                            link
+                                        },
+                                    ));
                                     play.transcript.push_str(&content);
                                     self.play_scroll_bottom = true;
                                 }
@@ -236,14 +260,18 @@ impl WorldeditApp {
                 .auto_shrink([false, false])
                 .stick_to_bottom(self.play_scroll_bottom)
                 .show(ui, |ui| {
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(&play.transcript)
-                                .size(16.0)
-                                .line_height(Some(26.0)),
-                        )
-                        .wrap_mode(egui::TextWrapMode::Wrap),
-                    );
+                    if let Some(snapshot) = &self.snapshot {
+                        if let Some(target) = super::wiki::keyword_text(
+                            ui,
+                            &play.transcript,
+                            &snapshot.wiki,
+                            &snapshot.result.analysis.catalog,
+                            &play.transcript_links,
+                            16.0,
+                        ) {
+                            reading_request = Some(target);
+                        }
+                    }
                 });
             self.play_scroll_bottom = false;
             if play.ended {
@@ -256,6 +284,9 @@ impl WorldeditApp {
                 });
             }
         });
+        if let Some(target) = reading_request {
+            self.open_reading(target);
+        }
     }
 
     pub(super) fn start_play(&mut self) {
@@ -273,6 +304,7 @@ impl WorldeditApp {
                 self.play = Some(PlayState {
                     story: Some(story),
                     transcript: String::new(),
+                    transcript_links: Vec::new(),
                     ended: false,
                     error: None,
                     version: self.version,
@@ -283,6 +315,7 @@ impl WorldeditApp {
                 self.play = Some(PlayState {
                     story: None,
                     transcript: String::new(),
+                    transcript_links: Vec::new(),
                     ended: true,
                     error: Some(e.to_string()),
                     version: self.version,

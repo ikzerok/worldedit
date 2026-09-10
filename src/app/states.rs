@@ -181,7 +181,7 @@ impl WorldeditApp {
                             }
                         ));
                         if let Some(note) = &change.note {
-                            ui.label(note);
+                            self.wiki_text(ui, note);
                         }
                         for context in &change.contexts {
                             ui.label(theme::muted(context));

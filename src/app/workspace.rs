@@ -96,6 +96,7 @@ impl WorldeditApp {
                     Tab::Characters,
                     Tab::World,
                     Tab::Catalog,
+                    Tab::Wiki,
                     Tab::Overview,
                     Tab::Edit,
                 ] {

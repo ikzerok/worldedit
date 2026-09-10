@@ -14,6 +14,7 @@ mod states;
 mod tags;
 mod temporal;
 mod views;
+mod wiki;
 mod workspace;
 
 use crate::{
@@ -46,6 +47,7 @@ enum Tab {
     Graph,
     Characters,
     Catalog,
+    Wiki,
     World,
     Edit,
     Play,
@@ -58,6 +60,7 @@ impl Tab {
             Self::Graph => "事件关系图",
             Self::Characters => "人物",
             Self::Catalog => "资料与状态",
+            Self::Wiki => "Wiki 词条",
             Self::World => "世界观",
             Self::Edit => "源文件",
             Self::Play => "试玩",
@@ -66,11 +69,13 @@ impl Tab {
 }
 struct Snapshot {
     result: CompileResult,
+    wiki: worldline_core::wiki::KeywordIndex,
 }
 struct PlayState {
     // 延续运行时借用接口;每次重开产生一个会话快照。
     story: Option<Story<'static>>,
     transcript: String,
+    transcript_links: Vec<worldline_core::navigation::RenderedLink>,
     ended: bool,
     error: Option<String>,
     version: u64,
@@ -131,6 +136,10 @@ pub struct WorldeditApp {
     overview_query: String,
     overview_cache: Option<(u64, Vec<(PathBuf, EventDraft)>)>,
     reading_target: Option<worldline_core::catalog::TargetRef>,
+    reading_history: Vec<worldline_core::catalog::TargetRef>,
+    wiki_query: String,
+    wiki_target: Option<worldline_core::catalog::TargetRef>,
+    wiki_editor: Option<wiki::WikiEditor>,
     alias_input: String,
     link_query: String,
     state_editor: Option<(Option<String>, worldline_core::states::StateDraft)>,
@@ -192,6 +201,10 @@ impl WorldeditApp {
             overview_query: String::new(),
             overview_cache: None,
             reading_target: None,
+            reading_history: Vec::new(),
+            wiki_query: String::new(),
+            wiki_target: None,
+            wiki_editor: None,
             alias_input: String::new(),
             link_query: String::new(),
             search: String::new(),
@@ -224,9 +237,9 @@ impl WorldeditApp {
 
     fn recompile(&mut self) {
         self.version += 1;
-        self.snapshot = Some(Snapshot {
-            result: self.project.compile(),
-        });
+        let result = self.project.compile();
+        let wiki = worldline_core::wiki::KeywordIndex::new(&result);
+        self.snapshot = Some(Snapshot { result, wiki });
     }
     fn diagnostics(&self) -> &[Diagnostic] {
         self.snapshot
@@ -282,6 +295,10 @@ impl WorldeditApp {
     fn reset_views(&mut self) {
         self.stale_form = false;
         self.reading_target = None;
+        self.reading_history.clear();
+        self.wiki_query.clear();
+        self.wiki_target = None;
+        self.wiki_editor = None;
         self.alias_input.clear();
         self.link_query.clear();
         self.play = None;
@@ -538,6 +555,7 @@ impl eframe::App for WorldeditApp {
             && self.tag_editor.is_none()
             && self.state_editor.is_none()
             && self.anchor_editor.is_none()
+            && self.wiki_editor.is_none()
         {
             self.stale_form = false;
         }
@@ -626,12 +644,14 @@ impl eframe::App for WorldeditApp {
             Tab::Edit => self.source_tab(ctx),
             Tab::Characters => self.characters_tab(ctx),
             Tab::Catalog => self.catalog_tab(ctx),
+            Tab::Wiki => self.wiki_tab(ctx),
             Tab::World => self.world_tab(ctx),
             Tab::Play => self.play_tab(ctx),
         }
         self.dialogs(ctx);
         self.project_search(ctx);
         self.reading_window(ctx);
+        self.wiki_editor_window(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         crate::chrome::resize_edges(ctx);
         #[cfg(target_arch = "wasm32")]

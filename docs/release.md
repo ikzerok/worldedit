@@ -1,5 +1,11 @@
 # 构建与发布
 
+## 0.2.0 更新
+
+Wiki 已集成到编辑器：可按关键词、ID 和别名查找资料，创建或修改独立词条、释义与别名。正文、资料、源码预览和演练中的关键词自动链接；同名词条提供候选，显式链接保留指定目标。注释索引显示全部出现位置并可跳回源码，查阅演练词条不会推进回合。
+
+本版本需要同级 worldline 0.2.0。使用方式见 [Wiki 词条](wiki.md)，已完成的自动检查和桌面操作见 [验证记录](verification.md)。
+
 ## 源码仓库
 
 worldedit 和 worldline 分别上传各自目录，克隆到同级位置。各仓库保留 Cargo.toml、Cargo.lock、rust-toolchain.toml、LICENSE、README、AGENTS、源码、测试和持续集成。worldedit 另保留图标、开放字体与许可证、Web 入口、启动脚本和 .agent 创作技能。
@@ -29,4 +35,4 @@ target、dist、releases、日志和临时文件不是源码，不上传。父�
 
 上传 source/worldline 的内容到 worldline 仓库，上传 source/worldedit 的内容到 worldedit 仓库；不要把 source 或本地组合父目录作为第三层套入仓库。两者默认分支使用 main，编辑器 CI 默认读取同一所有者的 worldline 默认分支，先上传 worldline，再上传 worldedit。保留隐藏的 .github、.agent、.gitignore 和 Cargo.lock。父目录原有 .git 历史不在源码包中。
 
-Windows/Web ZIP 与 SHA256SUMS.txt 作为 GitHub Release 附件；不提交到源码树。本次提供本地发布候选包，不代表已创建远程仓库或公开发布。
+Windows/Web ZIP 与 SHA256SUMS.txt 作为 GitHub Release 附件；不提交到源码树。是否完成线上发布以 GitHub Release 页面及附件为准。
