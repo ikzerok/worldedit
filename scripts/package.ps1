@@ -19,7 +19,7 @@ function Run-Cargo([string[]]$Arguments) {
 function Copy-PublicSource([string]$Source, [string]$Destination) {
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     Get-ChildItem -LiteralPath $Source -Force | Where-Object {
-        $_.Name -notin @('target', 'dist', 'releases', '.git', '.idea', '.vscode', '.mimosa', '.zcode', 'node_modules', '__pycache__', '.DS_Store', 'Thumbs.db') -and
+        $_.Name -notin @('target', 'dist', 'releases', '.git', '.idea', '.vscode', '.zcode', 'node_modules', '__pycache__', '.DS_Store', 'Thumbs.db') -and
         $_.Name -notlike '.env*' -and $_.Name -notlike '*.save.json' -and
         $_.Extension -notin @('.log', '.tmp', '.bak', '.swp', '.pyc', '.pem', '.key', '.pfx')
     } | ForEach-Object {
