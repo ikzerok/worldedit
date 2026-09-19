@@ -14,7 +14,7 @@ target、dist、releases、日志和临时文件不是源码，不上传。父�
 
 ## 门禁
 
-分别在两个目录执行 fmt、test、clippy。worldline 使用 --workspace；worldedit 还执行 wasm32 clippy。工具链由各自 rust-toolchain 固定。CI 的 worldedit 流程从同一 GitHub 所有者的 worldline 仓库读取依赖；若托管位置不同，修改 checkout 的 repository 字段。
+在 worldedit 目录执行 `./scripts/check-pair.ps1`，分别检查两仓 fmt、test、clippy 并实际构建原生及编辑器 WASM 目标。工具链由各自 rust-toolchain 固定。CI 从 `compatibility.json` 读取 worldline 仓库及完整 SHA；变更托管位置时同步更新兼容记录和 workflow 的仓库校验。版本升级、回滚及日志归档见[配对构建与回归基线](paired-ci.md)。
 
 ## Windows 和 Web 包
 
@@ -33,6 +33,6 @@ target、dist、releases、日志和临时文件不是源码，不上传。父�
 
 ## 公开上传范围
 
-上传 source/worldline 的内容到 worldline 仓库，上传 source/worldedit 的内容到 worldedit 仓库；不要把 source 或本地组合父目录作为第三层套入仓库。两者默认分支使用 main，编辑器 CI 默认读取同一所有者的 worldline 默认分支，先上传 worldline，再上传 worldedit。保留隐藏的 .github、.agent、.gitignore 和 Cargo.lock。父目录原有 .git 历史不在源码包中。
+上传 source/worldline 的内容到 worldline 仓库，上传 source/worldedit 的内容到 worldedit 仓库；不要把 source 或本地组合父目录作为第三层套入仓库。两者默认分支使用 main，但编辑器 CI 只检出 `compatibility.json` 指定的 worldline SHA；先确保该提交在指定远端可获取，再上传 worldedit。保留隐藏的 .github、.agent、.gitignore、Cargo.lock 和兼容记录。父目录原有 .git 历史不在源码包中。
 
 Windows/Web ZIP 与 SHA256SUMS.txt 作为 GitHub Release 附件；不提交到源码树。是否完成线上发布以 GitHub Release 页面及附件为准。

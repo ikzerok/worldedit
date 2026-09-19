@@ -7,18 +7,39 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
+        shell: pwsh
         working-directory: worldedit
     steps:
       - uses: actions/checkout@v4
         with:
           path: worldedit
+      - name: 读取固定配对
+        id: pair
+        run: |
+          $pair = Get-Content compatibility.json -Raw | ConvertFrom-Json
+          if ($pair.worldline.repository -ne 'ikzerok/worldline' -or $pair.worldline.sha -cnotmatch '^[0-9a-f]{40}$') {
+            throw '兼容记录必须指定 worldline 仓库和完整提交 SHA'
+          }
+          "repository=$($pair.worldline.repository)" >> $env:GITHUB_OUTPUT
+          "sha=$($pair.worldline.sha)" >> $env:GITHUB_OUTPUT
       - uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/worldline
+          repository: ${{ steps.pair.outputs.repository }}
+          ref: ${{ steps.pair.outputs.sha }}
           path: worldline
-      - run: rustup show active-toolchain
-      - run: cargo fmt --all -- --check
-      - run: cargo test --locked
-      - run: cargo clippy --all-targets --locked -- -D warnings
-      - run: rustup target add wasm32-unknown-unknown
-      - run: cargo clippy --target wasm32-unknown-unknown --locked -- -D warnings
+      - name: 安装仓库工具链
+        run: |
+          rustup show active-toolchain
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          rustup target add wasm32-unknown-unknown
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: 配对构建与回归
+        run: ./scripts/check-pair.ps1
+      - name: 归档配对与测试证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paired-check-${{ github.sha }}
+          path: worldedit/target/paired-check/
+          if-no-files-found: warn
+          retention-days: 90

@@ -1,0 +1,10 @@
+{
+  "worldline": {
+    "repository": "ikzerok/worldline",
+    "sha": "5443226192b424edb01c6d5644694188c3a8ef4c"
+  },
+  "baseline": {
+    "worldline": "dcb6479873f86b08354ba92b098dc260aa976624",
+    "worldedit": "b0955adcccd740d9b3b46cee1d0f503ad25f5257"
+  }
+}

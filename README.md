@@ -35,6 +35,8 @@ Ctrl+S 保存全部，Ctrl+O 选择工作区，Ctrl+Shift+F 搜索。修改前�
 
 ## 源码构建
 
+版本选择与复测请先阅读[配对构建与回归基线](docs/paired-ci.md)；worldline 必须检出本仓库 `compatibility.json` 指定的完整 SHA。
+
 把两个 GitHub 仓库克隆到同级目录，名称保持如下；worldline 的实际 GitHub 地址由仓库所有者提供：
 
 ```text
