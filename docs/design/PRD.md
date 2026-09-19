@@ -5,7 +5,7 @@
 **代码基线：`b0955adcccd740d9b3b46cee1d0f503ad25f5257`（工具0.2.0）**\
 **产品定位：共同编写世界内容，并以资料、地图、关系网络和故事多视图呈现的作者工作台。**
 
-本PRD与[架构文档](ARCHITECTURE.md)、[共同契约](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/spec/presentation.md)、[需求清单](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/docs/design/shared/REQUIREMENTS.md)配套。新增能力是设计目标，不是已上线功能；R/E来源见[研究记录](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/docs/design/shared/RESEARCH.md)。
+本PRD与[架构文档](ARCHITECTURE.md)、[共同契约](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/spec/presentation.md)、[需求清单](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/docs/design/shared/REQUIREMENTS.md)配套。新增能力是设计目标，不是已上线功能；R/E来源见[研究记录](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/docs/design/shared/RESEARCH.md)。
 
 ## 1. 产品问题与目标
 
@@ -133,9 +133,9 @@ M1先正确处理文件冲突和保存，M4提供对象/关系/标记批注、�
 
 ## 10. 质量目标
 
-M1验收负载：1,000内容对象、一张2048×2048栅格图层、500标记与数千矢量图元；M2增加3,000条关系。测试机、浏览器版本与DPI在M0登记。性能目标以[共同契约阈值登记](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/spec/presentation.md)为单源：交互绘制帧P95≤33ms在M1记录不阻断、M2起为发布门；已加载本地对象查询P95≤150ms、暖态资料切换P95≤200ms自M2验收。首次打开和大文件保存另行记录，不混入帧预算。
+M1验收负载：1,000内容对象、一张2048×2048栅格图层、500标记与数千矢量图元；M2增加3,000条关系。测试机、浏览器版本与DPI在M0登记。性能目标以[共同契约阈值登记](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/spec/presentation.md)为单源：交互绘制帧P95≤33ms在M1记录不阻断、M2起为发布门；已加载本地对象查询P95≤150ms、暖态资料切换P95≤200ms自M2验收。首次打开和大文件保存另行记录，不混入帧预算。
 
-栅格图层尺寸与内存预算按平台分档，单源见[共同契约阈值登记](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/spec/presentation.md)（桌面≤4096×4096且≤16,777,216像素；WASM默认≤2048×2048）。CPU/GPU副本分别记账。数值是初始安全与验收建议，需原型实测修订；不是对现有代码的性能承诺。
+栅格图层尺寸与内存预算按平台分档，单源见[共同契约阈值登记](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/spec/presentation.md)（桌面≤4096×4096且≤16,777,216像素；WASM默认≤2048×2048）。CPU/GPU副本分别记账。数值是初始安全与验收建议，需原型实测修订；不是对现有代码的性能承诺。
 
 保存/读回、中文路径、缩放定位、一次拖动一次Undo、无内容污染和旧工程兼容为发布硬门槛。其余平台未经GUI验证不得写“已全面支持”。
 
@@ -143,7 +143,7 @@ M1验收负载：1,000内容对象、一张2048×2048栅格图层、500标记与
 
 M0固定配对版本和测试基线；M1完成矢量画布上的地图阅读/标记与基础线面绘制/图层/保存；M2加入通用实体、跨类型关系、子地图和反查；M3完善16类内容模板与历史叙事；M4完成展示预设、专题、批注及提案。
 
-每阶段都有可用结果，不以新语言全面完成或完整知识图谱为地图前置。具体PR和依赖见[实施计划](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/docs/design/shared/IMPLEMENTATION.md)。
+每阶段都有可用结果，不以新语言全面完成或完整知识图谱为地图前置。具体PR和依赖见[实施计划](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/docs/design/shared/IMPLEMENTATION.md)。
 
 ## 12. 最终验收故事
 

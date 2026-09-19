@@ -2,7 +2,7 @@
 
 版本0.2，待评审（0.2修订：矢量画布与栅格图层管线，预算指向契约阈值登记）；基线`b0955adcccd740d9b3b46cee1d0f503ad25f5257`。本设计保留Rust/egui作者工作台，新增地图展示和跨类型关联，不构建世界模拟引擎。
 
-需求依据见[PRD](PRD.md)及[需求清单](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/docs/design/shared/REQUIREMENTS.md)；持久字段以[共同契约](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/spec/presentation.md)为准。事实来源R/E编号见[研究记录](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/docs/design/shared/RESEARCH.md)。
+需求依据见[PRD](PRD.md)及[需求清单](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/docs/design/shared/REQUIREMENTS.md)；持久字段以[共同契约](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/spec/presentation.md)为准。事实来源R/E编号见[研究记录](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/docs/design/shared/RESEARCH.md)。
 
 ## 1. 当前基础
 
@@ -77,7 +77,7 @@ M1可以先用少量文件实现，但模块边界要保持。不要在app.rs新
 5. 缓存以内容hash、显示变体和颜色处理选项为键；旧结果不覆盖已更换图层。
 6. 当前地图不再使用时按LRU释放CPU/GPU副本；原素材仍在工作区。
 
-候选image 0.25.8提供Limits，但max_alloc不是所有解码器都严格遵守，必须额外控制宽高/像素、任务并发和缓存预算。[E02] 预算按平台分档，单源见[共同契约阈值登记](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/spec/presentation.md)：桌面≤4096×4096且≤16,777,216像素，WASM默认≤2048×2048；桌面纹理缓存起始上限128MiB、Web64MiB，CPU解码缓存独立预算。预算含不了的纹理要拒绝或降级，不能先无条件解码。
+候选image 0.25.8提供Limits，但max_alloc不是所有解码器都严格遵守，必须额外控制宽高/像素、任务并发和缓存预算。[E02] 预算按平台分档，单源见[共同契约阈值登记](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/spec/presentation.md)：桌面≤4096×4096且≤16,777,216像素，WASM默认≤2048×2048；桌面纹理缓存起始上限128MiB、Web64MiB，CPU解码缓存独立预算。预算含不了的纹理要拒绝或降级，不能先无条件解码。
 
 WASM上的async函数不代表解码离开主线程。M1若没有Worker验证，必须用严格尺寸限制，并测量实际阻塞；M4再评审Worker或受控预览/瓦片加载，不能在架构中承诺不存在的后台能力。
 
@@ -131,7 +131,7 @@ Delete键作用于当前展示选择；删除资料必须从内容详情的明�
 
 ## 8. 世界关系图
 
-数据来源仅为core的SemanticRelation查询；原事件关系图保留。默认局部一层、250节点/500边以内（阈值以[共同契约](https://github.com/ikzerok/worldline/blob/cf4cdeac3ed56fb62bf840d5adfc2047d0d5d912/spec/presentation.md)登记为准），可按对象类型、关系类型、方向和作者范围筛选。
+数据来源仅为core的SemanticRelation查询；原事件关系图保留。默认局部一层、250节点/500边以内（阈值以[共同契约](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/spec/presentation.md)登记为准），可按对象类型、关系类型、方向和作者范围筛选。
 
 布局器在UI层只接收节点/边和固定位置，输出显示坐标；M2先用确定性分组/环形/层级布局，复杂力导向不是前置。布局结果不进入内容索引。个人拖动不自动共享，明确保存后生成GraphViewDocument命令。
 

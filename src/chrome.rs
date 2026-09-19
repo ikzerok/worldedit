@@ -327,6 +327,7 @@ mod tests {
                                         assert!(title.rect.right() < width - 126.0);
                                     });
                                 });
+                            #[cfg(not(target_arch = "wasm32"))]
                             resize_edges(ctx);
                         });
                         let commands = &output.viewport_output[&egui::ViewportId::ROOT].commands;

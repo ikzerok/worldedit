@@ -6,6 +6,7 @@ mod catalog;
 mod characters;
 mod choices;
 mod inspector;
+mod maps;
 mod overview;
 mod play;
 mod reading;
@@ -21,7 +22,7 @@ use crate::{
     fonts::install_cjk_fonts,
     theme::{self, *},
 };
-use egui::Pos2;
+use egui::{Pos2, Vec2};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use worldline_core::authoring::{CharacterDraft, EventDraft, WorldDraft};
@@ -45,6 +46,7 @@ enum Tab {
     Overview,
     Timeline,
     Graph,
+    Map,
     Characters,
     Catalog,
     Wiki,
@@ -58,6 +60,7 @@ impl Tab {
             Self::Overview => "正文概览",
             Self::Timeline => "时间线",
             Self::Graph => "事件关系图",
+            Self::Map => "地图画布",
             Self::Characters => "人物",
             Self::Catalog => "资料与状态",
             Self::Wiki => "Wiki 词条",
@@ -70,6 +73,7 @@ impl Tab {
 struct Snapshot {
     result: CompileResult,
     wiki: worldline_core::wiki::KeywordIndex,
+    map_index: worldline_core::presentation::MapIndex,
 }
 struct PlayState {
     // 延续运行时借用接口;每次重开产生一个会话快照。
@@ -163,6 +167,8 @@ pub struct WorldeditApp {
     directory: Option<DirectoryDialog>,
     new_file: Option<String>,
     new_period: Option<(String, String, Option<String>)>,
+    map_canvas: maps::MapCanvas,
+    map_selection: Option<String>,
 }
 
 impl WorldeditApp {
@@ -227,6 +233,10 @@ impl WorldeditApp {
             directory: None,
             new_file: None,
             new_period: None,
+            map_canvas: maps::MapCanvas::new(maps::MapRenderSnapshot::empty(Vec2::new(
+                2048.0, 1536.0,
+            ))),
+            map_selection: None,
         };
         if let Some(path) = initial_file {
             app.load_project(path);
@@ -237,9 +247,15 @@ impl WorldeditApp {
 
     fn recompile(&mut self) {
         self.version += 1;
+        self.map_canvas.invalidate_rasters();
         let result = self.project.compile();
         let wiki = worldline_core::wiki::KeywordIndex::new(&result);
-        self.snapshot = Some(Snapshot { result, wiki });
+        let map_index = self.project.map_index();
+        self.snapshot = Some(Snapshot {
+            result,
+            wiki,
+            map_index,
+        });
     }
     fn diagnostics(&self) -> &[Diagnostic] {
         self.snapshot
@@ -321,6 +337,8 @@ impl WorldeditApp {
         self.dragging = None;
         self.search.clear();
         self.focus_event = None;
+        self.map_selection = None;
+        self.map_canvas.clear();
     }
     fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
         if self.project.is_dirty() {
@@ -640,6 +658,7 @@ impl eframe::App for WorldeditApp {
                 self.event_inspector(ctx);
                 self.canvas_tab(ctx);
             }
+            Tab::Map => self.map_tab(ctx),
             Tab::Overview => self.overview_tab(ctx),
             Tab::Edit => self.source_tab(ctx),
             Tab::Characters => self.characters_tab(ctx),

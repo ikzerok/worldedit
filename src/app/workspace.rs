@@ -31,6 +31,28 @@ fn nav_icon(painter: &egui::Painter, center: egui::Pos2, tab: Tab, color: egui::
                 painter.circle_filled(center + p, 2.5, color);
             }
         }
+        Tab::Map => {
+            painter.rect_stroke(
+                egui::Rect::from_center_size(center, egui::vec2(8.0, 8.0)),
+                1.0,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(-8.0, 0.0),
+                    center + egui::vec2(8.0, 0.0),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    center + egui::vec2(0.0, -8.0),
+                    center + egui::vec2(0.0, 8.0),
+                ],
+                stroke,
+            );
+        }
         Tab::Characters => {
             painter.circle_stroke(center + vec2(0.0, -4.0), 3.0, stroke);
             painter.add(egui::Shape::line(
@@ -93,6 +115,7 @@ impl WorldeditApp {
                 for tab in [
                     Tab::Timeline,
                     Tab::Graph,
+                    Tab::Map,
                     Tab::Characters,
                     Tab::World,
                     Tab::Catalog,

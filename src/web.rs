@@ -103,6 +103,12 @@ pub fn take_event() -> Option<FileEvent> {
 pub fn imported() -> Files {
     IMPORTED.with(|files| files.borrow().clone())
 }
+
+pub fn imported_size(path: &Path) -> Option<usize> {
+    let relative = path.strip_prefix(Path::new("/world")).ok()?;
+    IMPORTED.with(|files| files.borrow().get(relative).map(Vec::len))
+}
+
 pub fn mount(files: Files) {
     GENERATION.set(GENERATION.get().wrapping_add(1));
     worldline_core::file_access::mount(
