@@ -1881,7 +1881,11 @@ impl super::WorldeditApp {
             .width_range(260.0..=420.0)
             .frame(crate::theme::panel())
             .show(ctx, |ui| {
-                ui.heading("地图浏览");
+                egui::ScrollArea::vertical()
+                    .id_salt("map-inspector-scroll")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.heading("地图浏览");
                 ui.label(crate::theme::muted("地图选择、图层和标记信息"));
                 if let Some(map_navigation) = self.map_navigation.as_ref() {
                     let breadcrumbs = map_navigation.breadcrumbs();
@@ -2389,6 +2393,7 @@ impl super::WorldeditApp {
                             }
                         });
                 }
+                    });
             });
 
         if back_requested {
