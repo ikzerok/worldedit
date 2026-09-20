@@ -7,6 +7,8 @@ mod characters;
 mod choices;
 #[cfg(not(target_arch = "wasm32"))]
 mod conflicts;
+#[cfg(not(target_arch = "wasm32"))]
+mod frame_profile;
 mod inspector;
 mod map_creation;
 mod maps;
@@ -44,6 +46,28 @@ fn draft_root() -> PathBuf {
     {
         PathBuf::from("/world")
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn frame_profile_input_active(ctx: &egui::Context) -> bool {
+    ctx.input(|input| {
+        input.events.iter().any(|event| {
+            matches!(
+                event,
+                egui::Event::Copy
+                    | egui::Event::Cut
+                    | egui::Event::Paste(_)
+                    | egui::Event::Text(_)
+                    | egui::Event::Key { .. }
+                    | egui::Event::PointerMoved(_)
+                    | egui::Event::MouseMoved(_)
+                    | egui::Event::PointerButton { .. }
+                    | egui::Event::Zoom(_)
+                    | egui::Event::Touch { .. }
+                    | egui::Event::MouseWheel { .. }
+            )
+        })
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,6 +152,8 @@ pub struct WorldeditApp {
     io_error: Option<String>,
     #[cfg(not(target_arch = "wasm32"))]
     conflict_view: conflicts::ConflictView,
+    #[cfg(not(target_arch = "wasm32"))]
+    frame_profile: Option<frame_profile::FrameProfiler>,
     stale_form: bool,
     message: Option<String>,
     tab: Tab,
@@ -204,6 +230,8 @@ impl WorldeditApp {
             io_error: None,
             #[cfg(not(target_arch = "wasm32"))]
             conflict_view: conflicts::ConflictView::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            frame_profile: frame_profile::FrameProfiler::from_env(),
             stale_form: false,
             message: None,
             tab: Tab::Timeline,
@@ -640,6 +668,16 @@ impl eframe::App for WorldeditApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(not(target_arch = "wasm32"))]
+        let input_active = self
+            .frame_profile
+            .as_ref()
+            .filter(|profile| profile.is_active())
+            .map(|_| frame_profile_input_active(ctx));
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(profile) = self.frame_profile.as_mut() {
+            profile.begin_frame(_frame.info().cpu_usage);
+        }
         if self.event_editor.is_none()
             && self.character_editor.is_none()
             && self.world_editor.is_none()
@@ -750,6 +788,12 @@ impl eframe::App for WorldeditApp {
         crate::chrome::resize_edges(ctx);
         #[cfg(target_arch = "wasm32")]
         crate::web::set_dirty(self.project.is_dirty() && !self.allow_close);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(input_active) = input_active {
+            if let Some(profile) = self.frame_profile.as_mut() {
+                profile.finish_frame(self.tab == Tab::Map, input_active, ctx.pixels_per_point());
+            }
+        }
     }
 }
 
