@@ -5,7 +5,10 @@ mod browser;
 mod catalog;
 mod characters;
 mod choices;
+#[cfg(not(target_arch = "wasm32"))]
+mod conflicts;
 mod inspector;
+mod map_creation;
 mod maps;
 mod overview;
 #[cfg(not(target_arch = "wasm32"))]
@@ -123,6 +126,8 @@ pub struct WorldeditApp {
     version: u64,
     snapshot: Option<Snapshot>,
     io_error: Option<String>,
+    #[cfg(not(target_arch = "wasm32"))]
+    conflict_view: conflicts::ConflictView,
     stale_form: bool,
     message: Option<String>,
     tab: Tab,
@@ -171,6 +176,9 @@ pub struct WorldeditApp {
     new_period: Option<(String, String, Option<String>)>,
     map_canvas: maps::MapCanvas,
     map_selection: Option<String>,
+    map_navigation: Option<maps::navigation::MapNavigationController>,
+    pending_map_camera: Option<maps::navigation::CameraState>,
+    map_creation: map_creation::MapCreationForm,
     map_revision: worldline_core::presentation_commands::Revision,
     map_form: maps::PlacementForm,
     map_search: String,
@@ -194,6 +202,8 @@ impl WorldeditApp {
             version: 0,
             snapshot: None,
             io_error: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            conflict_view: conflicts::ConflictView::default(),
             stale_form: false,
             message: None,
             tab: Tab::Timeline,
@@ -244,6 +254,9 @@ impl WorldeditApp {
                 2048.0, 1536.0,
             ))),
             map_selection: None,
+            map_navigation: None,
+            pending_map_camera: None,
+            map_creation: map_creation::MapCreationForm::default(),
             map_revision: worldline_core::presentation_commands::Revision::default(),
             map_form: maps::PlacementForm::default(),
             map_search: String::new(),
@@ -336,6 +349,10 @@ impl WorldeditApp {
         }
     }
     fn reset_views(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.conflict_view = conflicts::ConflictView::default();
+        }
         self.stale_form = false;
         self.reading_target = None;
         self.reading_history.clear();
@@ -365,6 +382,9 @@ impl WorldeditApp {
         self.search.clear();
         self.focus_event = None;
         self.map_selection = None;
+        self.map_navigation = None;
+        self.pending_map_camera = None;
+        self.map_creation = map_creation::MapCreationForm::default();
         self.map_revision = worldline_core::presentation_commands::Revision::default();
         self.map_form = maps::PlacementForm::default();
         self.map_search.clear();
@@ -725,6 +745,8 @@ impl eframe::App for WorldeditApp {
         self.reading_window(ctx);
         self.wiki_editor_window(ctx);
         #[cfg(not(target_arch = "wasm32"))]
+        self.conflict_view.show(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
         crate::chrome::resize_edges(ctx);
         #[cfg(target_arch = "wasm32")]
         crate::web::set_dirty(self.project.is_dirty() && !self.allow_close);
@@ -795,6 +817,12 @@ impl WorldeditApp {
                                 self.request_action(Pending::Open(self.project.entry.clone()), ctx);
                                 ui.close();
                             }
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if ui.button("查看冲突差异").clicked() {
+                                self.conflict_view =
+                                    conflicts::ConflictView::capture(&self.project);
+                                ui.close();
+                            }
                         });
                     });
                 });
@@ -805,6 +833,10 @@ impl WorldeditApp {
                 .show(ctx, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         ui.colored_label(ERROR, error);
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if ui.small_button("查看冲突差异").clicked() {
+                            self.conflict_view = conflicts::ConflictView::capture(&self.project);
+                        }
                         if ui.small_button("关闭").clicked() {
                             self.io_error = None;
                         }

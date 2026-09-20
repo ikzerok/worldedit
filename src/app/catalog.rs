@@ -53,6 +53,30 @@ impl WorldeditApp {
             return;
         };
         let catalog = snapshot.result.analysis.catalog.clone();
+        let impact = worldline_core::reference_impact::deletion_impact(
+            &snapshot.result,
+            &snapshot.map_index,
+            target,
+        );
+        let map_references = impact
+            .map_placements
+            .into_iter()
+            .map(|reference| (reference, "标记"))
+            .chain(
+                impact
+                    .map_scopes
+                    .into_iter()
+                    .map(|reference| (reference, "作用域")),
+            )
+            .map(|(reference, kind)| {
+                let title = snapshot
+                    .map_index
+                    .map(&reference.map_id)
+                    .map(|map| map.title.clone())
+                    .unwrap_or_else(|| reference.map_id.clone());
+                (reference, title, kind)
+            })
+            .collect::<Vec<_>>();
         if ui.button("阅读完整资料 / 管理别名").clicked() {
             self.open_reading(target.clone());
         }
@@ -272,36 +296,84 @@ impl WorldeditApp {
                 }
             });
         });
-        let references = catalog.references_to(target);
-        egui::CollapsingHeader::new(format!("引用来源 · {} 处", references.len()))
-            .id_salt(("references", target))
-            .show(ui, |ui| {
-                for (i, reference) in references.iter().enumerate() {
-                    ui.push_id(i, |ui| {
-                        let source = catalog.object(&reference.source);
-                        let display = source
-                            .map(|o| o.display.as_str())
-                            .unwrap_or(&reference.source.id);
-                        if ui
-                            .button(format!("{} · {display}", reference.kind))
-                            .clicked()
-                        {
-                            self.jump_to_file(&reference.file, reference.line, 1);
-                        }
-                        ui.label(theme::muted(format!(
-                            "{}:{}",
-                            std::path::Path::new(&reference.file)
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy(),
-                            reference.line
-                        )));
-                    });
+        let references = impact.content_references;
+        egui::CollapsingHeader::new(format!(
+            "引用来源 · {} 处",
+            references.len() + map_references.len() + impact.map_rasters.len()
+        ))
+        .id_salt(("references", target))
+        .default_open(target.kind == "event")
+        .show(ui, |ui| {
+            if !impact.complete {
+                ui.colored_label(ERROR, "引用检查不完整，修复诊断前不能删除资料。");
+                for diagnostic in impact
+                    .diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.severity == worldline_core::Severity::Error)
+                {
+                    ui.label(theme::muted(&diagnostic.message));
                 }
-                if references.is_empty() {
-                    ui.label(theme::muted("尚无直接引用"));
+            }
+            for (i, reference) in references.iter().enumerate() {
+                ui.push_id(i, |ui| {
+                    let source = catalog.object(&reference.source);
+                    let display = source
+                        .map(|o| o.display.as_str())
+                        .unwrap_or(&reference.source.id);
+                    if ui
+                        .button(format!("{} · {display}", reference.kind))
+                        .clicked()
+                    {
+                        self.jump_to_file(&reference.file, reference.line, 1);
+                    }
+                    ui.label(theme::muted(format!(
+                        "{}:{}",
+                        std::path::Path::new(&reference.file)
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy(),
+                        reference.line
+                    )));
+                });
+            }
+            for (reference, title, kind) in &map_references {
+                if ui
+                    .button(format!("地图{kind} · {title} · {}", reference.placement_id))
+                    .clicked()
+                {
+                    self.locate_reference(&reference.map_id, &reference.placement_id);
                 }
-            });
+            }
+            for reference in &impact.map_rasters {
+                if ui
+                    .button(format!(
+                        "地图底图 · {} · {} · 打开引用文档",
+                        reference.map_id, reference.raster_layer_id
+                    ))
+                    .clicked()
+                {
+                    match worldline_core::presentation_commands::map_document_path(
+                        &self.project,
+                        &reference.map_id,
+                    ) {
+                        Ok(path) => self.jump_to_file(&path.to_string_lossy(), 1, 1),
+                        Err(error) => self.io_error = Some(error.to_string()),
+                    }
+                }
+            }
+            if !map_references.is_empty() || !impact.map_rasters.is_empty() {
+                ui.label(theme::muted(
+                    "删除资料前须先明确解除或重新绑定这些地图引用；删除标记不会删除资料。",
+                ));
+            }
+            if impact.complete
+                && references.is_empty()
+                && map_references.is_empty()
+                && impact.map_rasters.is_empty()
+            {
+                ui.label(theme::muted("尚无直接引用"));
+            }
+        });
     }
 
     pub(super) fn catalog_tab(&mut self, ctx: &egui::Context) {

@@ -2,6 +2,7 @@
 
 mod camera;
 mod geometry;
+pub(super) mod navigation;
 mod raster;
 
 use camera::Camera2D;
@@ -51,6 +52,7 @@ impl Default for MapStyle {
 pub(super) struct MapPlacement {
     pub(super) id: String,
     pub(super) target_ref: Option<TargetRef>,
+    pub(super) navigation: Option<navigation::MapNavigationDto>,
     pub(super) annotation: String,
     pub(super) role: String,
     pub(super) label_override: Option<String>,
@@ -123,14 +125,18 @@ pub(super) fn render_snapshot(document: &MapDocument) -> MapRenderSnapshot {
                 .placements
                 .values()
                 .filter(|placement| placement.layer_id == layer.id)
-                .map(|placement| MapPlacement {
-                    id: placement.id.clone(),
-                    target_ref: placement.target_ref.clone(),
-                    annotation: placement.annotation.clone(),
-                    role: placement.role.clone(),
-                    label_override: placement.label_override.clone(),
-                    geometry: geometry_from_core(&placement.geometry),
-                    style: MapStyle::default(),
+                .map(|placement| {
+                    let navigation = navigation::project_placement_navigation(placement);
+                    MapPlacement {
+                        id: navigation.placement_id,
+                        target_ref: placement.target_ref.clone(),
+                        navigation: navigation.navigation,
+                        annotation: placement.annotation.clone(),
+                        role: placement.role.clone(),
+                        label_override: placement.label_override.clone(),
+                        geometry: geometry_from_core(&placement.geometry),
+                        style: MapStyle::default(),
+                    }
                 })
                 .collect(),
         });
@@ -231,6 +237,33 @@ pub(super) struct PlacementForm {
     pub(super) role: String,
     pub(super) label_override: String,
     pub(super) editing_placement: Option<String>,
+}
+
+impl PlacementForm {
+    pub(super) fn has_uncommitted_work(&self) -> bool {
+        self.editing_placement.is_some()
+            || self.target.is_some()
+            || !self.target_query.trim().is_empty()
+            || !self.annotation.trim().is_empty()
+            || !self.role.trim().is_empty()
+            || !self.label_override.trim().is_empty()
+    }
+
+    pub(super) fn clear(&mut self) {
+        *self = Self::default();
+    }
+
+    pub(super) fn clipboard_text(&self) -> String {
+        let target = self
+            .target
+            .as_ref()
+            .map(|target| format!("{}:{}", target.kind, target.id))
+            .unwrap_or_default();
+        format!(
+            "target: {target}\nquery: {}\nannotation: {}\nrole: {}\nlabel: {}",
+            self.target_query, self.annotation, self.role, self.label_override
+        )
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -357,14 +390,19 @@ impl MapCanvas {
         self.source_version != source_version || self.snapshot.map_id != map_id
     }
 
-    pub(super) fn set_snapshot(&mut self, source_version: u64, snapshot: MapRenderSnapshot) {
+    pub(super) fn set_snapshot(
+        &mut self,
+        source_version: u64,
+        snapshot: MapRenderSnapshot,
+    ) -> bool {
         let same_map = self.snapshot.map_id == snapshot.map_id
             && self.snapshot.extent == snapshot.extent
             && !snapshot.map_id.is_empty();
+        if !same_map && self.has_uncommitted_work() {
+            return false;
+        }
         let same_source = self.source_version == source_version;
-        let preserve_local = same_map
-            && !same_source
-            && (self.drag.is_some() || self.draft.is_some() || !self.edit_intents.is_empty());
+        let preserve_local = same_map && !same_source && self.has_uncommitted_work();
         let preserved_geometry = if preserve_local {
             self.selected.as_ref().and_then(|(placement_id, _)| {
                 self.snapshot
@@ -433,6 +471,7 @@ impl MapCanvas {
         self.source_version = source_version;
         self.core_snapshot = core_snapshot;
         self.snapshot = display_snapshot;
+        true
     }
 
     #[cfg(test)]
@@ -630,6 +669,35 @@ impl MapCanvas {
                 }
             }
         }
+    }
+
+    pub(super) fn camera_state(&self) -> navigation::CameraState {
+        let (zoom, pan) = self.camera.state();
+        navigation::CameraState { zoom, pan }
+    }
+
+    pub(super) fn restore_camera(&mut self, state: navigation::CameraState) {
+        self.camera.restore(state.zoom, state.pan);
+        self.fit_pending = false;
+    }
+
+    pub(super) fn reset_for_navigation(&mut self) -> bool {
+        if self.has_uncommitted_work() {
+            return false;
+        }
+        self.camera = Camera2D::new(self.snapshot.extent);
+        self.fit_pending = true;
+        self.selected = None;
+        self.drag = None;
+        self.last_error = None;
+        true
+    }
+
+    pub(super) fn has_uncommitted_work(&self) -> bool {
+        self.drag.is_some()
+            || self.draft.is_some()
+            || !self.edit_intents.is_empty()
+            || self.intent_baselines.iter().any(Option::is_some)
     }
 
     #[cfg(test)]
@@ -1467,6 +1535,8 @@ impl super::WorldeditApp {
                         self.map_canvas.restore_failed_preview(&pending);
                         self.remember_failed_map_command(&map_id, pending);
                         break;
+                    } else {
+                        self.map_form.clear();
                     }
                 }
                 EditIntent::Create(geometry) => {
@@ -1514,6 +1584,8 @@ impl super::WorldeditApp {
                         self.map_canvas.restore_failed_preview(&pending);
                         self.remember_failed_map_command(&map_id, pending);
                         break;
+                    } else {
+                        self.map_form.clear();
                     }
                 }
                 EditIntent::Delete { placement } => {
@@ -1532,7 +1604,7 @@ impl super::WorldeditApp {
                         self.remember_failed_map_command(&map_id, pending);
                         break;
                     }
-                    self.map_form.editing_placement = None;
+                    self.map_form.clear();
                 }
             }
         }
@@ -1548,6 +1620,100 @@ impl super::WorldeditApp {
             index += 1;
         }
         format!("marker_{index}")
+    }
+
+    pub(super) fn map_navigation_blocked(&mut self) -> bool {
+        if self.map_canvas.has_uncommitted_work()
+            || self.map_failed_command.is_some()
+            || self.map_form.has_uncommitted_work()
+            || self.map_creation.open
+        {
+            self.message =
+                Some("当前地图有未提交的展示修改，请保存、重试或取消后再切换地图。".into());
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(super) fn cancel_map_form(&mut self) {
+        self.map_form.clear();
+        self.message = Some("已取消未提交的标记表单".into());
+    }
+
+    fn ensure_map_navigation(&mut self, map_id: &str, title: &str) {
+        let reset = self
+            .map_navigation
+            .as_ref()
+            .is_none_or(|navigation| navigation.current().map_id != map_id);
+        if reset {
+            self.map_navigation = Some(navigation::MapNavigationController::new(
+                map_id,
+                title,
+                self.map_canvas.camera_state(),
+            ));
+            self.pending_map_camera = None;
+        }
+    }
+
+    /// 由地图标记的“进入地图”操作调用；只改变个人浏览状态。
+    pub(super) fn enter_submap(&mut self, target: navigation::MapNavigationDto) -> bool {
+        if self.map_navigation_blocked() {
+            return false;
+        }
+        if !target.available {
+            self.message = Some(format!(
+                "目标地图 `{}` 不可用，请打开地图原文修复后再进入",
+                target.map_id
+            ));
+            return false;
+        }
+        let Some(title) = self.snapshot.as_ref().and_then(|snapshot| {
+            snapshot
+                .map_index
+                .maps
+                .get(&target.map_id)
+                .map(|map| map.title.clone())
+        }) else {
+            self.message = Some(format!(
+                "目标地图 `{}` 的文档不可用，请打开地图原文修复后再进入",
+                target.map_id
+            ));
+            return false;
+        };
+        let Some(map_navigation) = self.map_navigation.as_mut() else {
+            self.message = Some("当前没有可用的地图导航上下文".into());
+            return false;
+        };
+        map_navigation.update_current_camera(self.map_canvas.camera_state());
+        if !map_navigation.enter(&target, title, navigation::CameraState::default()) {
+            return false;
+        }
+        self.map_selection = Some(target.map_id);
+        self.pending_map_camera = None;
+        if !self.map_canvas.reset_for_navigation() {
+            self.message =
+                Some("当前地图有未提交的展示修改，请保存、重试或取消后再切换地图。".into());
+            return false;
+        }
+        true
+    }
+
+    /// 返回实际访问路径中的上一个地图，并安排恢复它离开时的个人镜头。
+    pub(super) fn back_from_map_navigation(&mut self) -> bool {
+        if self.map_navigation_blocked() {
+            return false;
+        }
+        let Some(map_navigation) = self.map_navigation.as_mut() else {
+            return false;
+        };
+        map_navigation.update_current_camera(self.map_canvas.camera_state());
+        let Some(previous) = map_navigation.back() else {
+            return false;
+        };
+        self.map_selection = Some(previous.map_id);
+        self.pending_map_camera = Some(previous.camera);
+        true
     }
 
     pub(super) fn map_tab(&mut self, ctx: &egui::Context) {
@@ -1567,17 +1733,75 @@ impl super::WorldeditApp {
                 )
             })
             .unwrap_or_default();
-        if self
-            .map_selection
-            .as_ref()
-            .is_none_or(|id| !map_ids.iter().any(|map_id| map_id == id))
-        {
+        let has_canvas_snapshot = !self.map_canvas.map_id().is_empty()
+            || !self.map_canvas.snapshot.layers.is_empty()
+            || !self.map_canvas.snapshot.raster_layers.is_empty();
+        let mut selection_invalidated = false;
+        if map_ids.is_empty() {
+            let had_navigation = self.map_navigation.is_some() || has_canvas_snapshot;
+            self.map_navigation = None;
+            self.pending_map_camera = None;
+            self.map_selection = None;
+            if had_navigation {
+                if self.map_navigation_blocked() {
+                    self.message = Some(
+                        "当前地图已失效；未提交的展示修改仍保留，请保存、重试或取消后处理。".into(),
+                    );
+                } else {
+                    self.map_canvas.clear();
+                    self.message = Some("当前没有可用地图，已清除失效的地图访问路径。".into());
+                }
+            }
+        } else if let Some(selected) = self.map_selection.clone() {
+            if !map_ids.iter().any(|map_id| map_id == &selected) {
+                self.map_navigation = None;
+                self.pending_map_camera = None;
+                if self.map_navigation_blocked() {
+                    self.map_selection = None;
+                    self.message = Some(
+                        "当前地图已失效；未提交的展示修改仍保留，请保存、重试或取消后选择地图。"
+                            .into(),
+                    );
+                } else {
+                    self.map_canvas.clear();
+                    self.map_selection = map_ids.first().cloned();
+                    selection_invalidated = true;
+                    self.message =
+                        Some("当前地图文档不可用，已清除失效的地图访问路径并选择可用地图。".into());
+                }
+            }
+        } else if !self.map_navigation_blocked() {
             self.map_selection = map_ids.first().cloned();
+        } else {
+            self.message =
+                Some("当前地图有未提交的展示修改，请保存、重试或取消后再选择地图。".into());
+        }
+
+        if let (Some(selected), Some(current)) = (
+            self.map_selection.clone(),
+            self.map_navigation
+                .as_ref()
+                .map(|navigation| navigation.current().map_id.clone())
+                .or_else(|| {
+                    (!self.map_canvas.map_id().is_empty()).then(|| self.map_canvas.map_id().into())
+                }),
+        ) {
+            if selected != current && self.map_navigation_blocked() {
+                self.map_selection = Some(current);
+            }
         }
         let selected_map_id = self.map_selection.clone();
         let has_document = selected_map_id
             .as_ref()
-            .is_some_and(|id| map_ids.iter().any(|map_id| map_id == id));
+            .is_some_and(|id| !selection_invalidated && map_ids.iter().any(|map_id| map_id == id));
+        if let Some(map_id) = selected_map_id.as_deref().filter(|_| has_document) {
+            let title = map_summaries
+                .iter()
+                .find(|(id, _)| id == map_id)
+                .map(|(_, title)| title.as_str())
+                .unwrap_or(map_id);
+            self.ensure_map_navigation(map_id, title);
+        }
         if let Some(map_id) = selected_map_id.as_deref().filter(|_| has_document) {
             if self.map_canvas.needs_snapshot(self.version, map_id) {
                 let document = self
@@ -1585,11 +1809,25 @@ impl super::WorldeditApp {
                     .as_ref()
                     .and_then(|snapshot| snapshot.map_index.maps.get(map_id));
                 if let Some(document) = document {
-                    self.map_canvas
-                        .set_snapshot(self.version, render_snapshot(document));
+                    if !self
+                        .map_canvas
+                        .set_snapshot(self.version, render_snapshot(document))
+                    {
+                        self.map_selection = Some(self.map_canvas.map_id().to_owned());
+                        self.message = Some(
+                            "当前地图有未提交的展示修改，请保存、重试或取消后再切换地图。".into(),
+                        );
+                    }
                 } else {
-                    self.map_canvas.clear();
+                    self.map_navigation = None;
+                    self.pending_map_camera = None;
+                    if !self.map_navigation_blocked() {
+                        self.map_canvas.clear();
+                    }
                 }
+            }
+            if let Some(camera) = self.pending_map_camera.take() {
+                self.map_canvas.restore_camera(camera);
             }
             self.map_canvas.prepare_rasters(ctx, &self.project.root);
             if let Some(request) = self.map_locate_request.clone() {
@@ -1604,9 +1842,10 @@ impl super::WorldeditApp {
                     }
                 }
             }
-        } else if !self.map_canvas.map_id().is_empty()
+        } else if (!self.map_canvas.map_id().is_empty()
             || !self.map_canvas.snapshot.layers.is_empty()
-            || !self.map_canvas.snapshot.raster_layers.is_empty()
+            || !self.map_canvas.snapshot.raster_layers.is_empty())
+            && !self.map_navigation_blocked()
         {
             self.map_canvas.clear();
         }
@@ -1634,6 +1873,8 @@ impl super::WorldeditApp {
                 })
             })
         });
+        let mut back_requested = false;
+        let mut enter_requested = None;
         egui::SidePanel::right("map-inspector")
             .resizable(true)
             .default_width(310.0)
@@ -1642,6 +1883,28 @@ impl super::WorldeditApp {
             .show(ctx, |ui| {
                 ui.heading("地图浏览");
                 ui.label(crate::theme::muted("地图选择、图层和标记信息"));
+                if let Some(map_navigation) = self.map_navigation.as_ref() {
+                    let breadcrumbs = map_navigation.breadcrumbs();
+                    if map_navigation.history_len() > 0 {
+                        ui.separator();
+                        ui.label(egui::RichText::new("访问路径").strong());
+                        ui.horizontal_wrapped(|ui| {
+                            for (index, breadcrumb) in breadcrumbs.iter().enumerate() {
+                                if index > 0 {
+                                    ui.label(crate::theme::muted("›"));
+                                }
+                                if index + 1 == breadcrumbs.len() {
+                                    ui.label(egui::RichText::new(&breadcrumb.title).strong());
+                                } else {
+                                    ui.label(&breadcrumb.title);
+                                }
+                            }
+                        });
+                        if ui.small_button("返回上一级").clicked() {
+                            back_requested = true;
+                        }
+                    }
+                }
                 ui.separator();
                 ui.label(egui::RichText::new("已注册地图").strong());
                 if map_summaries.is_empty() {
@@ -1659,6 +1922,7 @@ impl super::WorldeditApp {
                                         label,
                                     ))
                                     .clicked()
+                                    && !self.map_navigation_blocked()
                                 {
                                     self.map_selection = Some(id.clone());
                                 }
@@ -1666,6 +1930,7 @@ impl super::WorldeditApp {
                         });
                 }
 
+                self.map_creation_panel(ui);
                 if has_document {
                     ui.separator();
                     ui.label(egui::RichText::new("图层").strong());
@@ -1893,7 +2158,7 @@ impl super::WorldeditApp {
                                         "{}  ·  {}:{}",
                                         object.display, object.target.kind, object.target.id
                                     ))
-                                    .clicked()
+                                .clicked()
                                 {
                                     self.map_form.target = Some(object.target);
                                     self.map_form.target_query.clear();
@@ -1914,6 +2179,11 @@ impl super::WorldeditApp {
                         ui.text_edit_singleline(&mut self.map_form.role);
                         ui.label("自定义标签（可选）");
                         ui.text_edit_singleline(&mut self.map_form.label_override);
+                        if self.map_form.has_uncommitted_work()
+                            && ui.small_button("取消当前表单").clicked()
+                        {
+                            self.cancel_map_form();
+                        }
                         if let Some(selected) = selected_placement.as_ref() {
                             if ui.small_button("载入当前标记到表单").clicked() {
                                 self.map_form.editing_placement = Some(selected.id.clone());
@@ -1926,7 +2196,7 @@ impl super::WorldeditApp {
                         }
                         if let Some(placement_id) = self.map_form.editing_placement.clone() {
                             if ui.button("保存当前标记说明").clicked() {
-                                let _ = self.apply_map_command(
+                                let applied = self.apply_map_command(
                                     selected_map_id.as_deref().unwrap_or_default(),
                                     worldline_core::presentation_commands::Command::UpdatePlacement {
                                         map_id: selected_map_id.clone().unwrap_or_default(),
@@ -1943,6 +2213,9 @@ impl super::WorldeditApp {
                                     },
                                     "已保存标记说明",
                                 );
+                                if applied {
+                                    self.map_form.clear();
+                                }
                             }
                             if ui.button("删除标记（资料仍保留）").clicked() {
                                 let _ = self.apply_map_command(
@@ -2034,9 +2307,57 @@ impl super::WorldeditApp {
                                 self.open_reading(target);
                             }
                         }
+                        if let Some(target) = placement.navigation.clone() {
+                            let target_in_index = self.snapshot.as_ref().is_some_and(|snapshot| {
+                                snapshot.map_index.maps.contains_key(&target.map_id)
+                            });
+                            if target.available && target_in_index {
+                                if ui.small_button("进入子地图").clicked() {
+                                    enter_requested = Some(target);
+                                }
+                            } else {
+                                ui.colored_label(
+                                    crate::theme::GOLD,
+                                    if target.available {
+                                        "目标地图文档不可用，请修复原文"
+                                    } else {
+                                        "目标地图未注册或不可用"
+                                    },
+                                );
+                                if ui.small_button("打开目标地图原文修复").clicked() {
+                                    match worldline_core::presentation_commands::map_document_path(
+                                        &self.project,
+                                        &target.map_id,
+                                    ) {
+                                        Ok(path) => {
+                                            let file = path.to_string_lossy().into_owned();
+                                            self.jump_to_file(&file, 1, 1);
+                                        }
+                                        Err(error) => self.io_error = Some(error.to_string()),
+                                    }
+                                }
+                            }
+                        }
                     } else {
                         ui.label(crate::theme::muted("点击画布上的标记查看信息。"));
                     }
+                } else if self.map_form.has_uncommitted_work() {
+                    ui.separator();
+                    ui.label(egui::RichText::new("保留的标记表单").strong());
+                    ui.colored_label(
+                        crate::theme::GOLD,
+                        "当前地图文档不可用，表单输入已保留；修复地图或取消表单后才能切换。",
+                    );
+                    ui.label(crate::theme::muted(self.map_form.clipboard_text()));
+                    ui.horizontal(|ui| {
+                        if ui.small_button("复制保留输入").clicked() {
+                            ui.ctx().copy_text(self.map_form.clipboard_text());
+                            self.message = Some("已复制保留的标记表单输入".into());
+                        }
+                        if ui.small_button("取消当前表单").clicked() {
+                            self.cancel_map_form();
+                        }
+                    });
                 }
 
                 if !map_diagnostics.is_empty() {
@@ -2069,6 +2390,13 @@ impl super::WorldeditApp {
                         });
                 }
             });
+
+        if back_requested {
+            self.back_from_map_navigation();
+        }
+        if let Some(target) = enter_requested {
+            self.enter_submap(target);
+        }
 
         let mut retry_failed = false;
         let mut cancel_failed = false;
@@ -2139,6 +2467,7 @@ mod tests {
                 placements: vec![MapPlacement {
                     id: "point".into(),
                     target_ref: None,
+                    navigation: None,
                     annotation: String::new(),
                     role: String::new(),
                     label_override: None,
@@ -2811,6 +3140,394 @@ mod tests {
         root
     }
 
+    fn navigation_workspace(name: &str) -> std::path::PathBuf {
+        let root = test_workspace(name);
+        std::fs::write(
+            root.join(".world/project.json"),
+            r#"{
+  "schema_version": 1,
+  "language_version": "1.9",
+  "entry": "world.wl",
+  "required_features": ["presentation.maps.v1"],
+  "maps": {
+    "harbor": ".world/maps/harbor.json",
+    "city": ".world/maps/city.json"
+  },
+  "graph_views": {},
+  "extensions": {}
+}"#,
+        )
+        .expect("navigation manifest");
+        let harbor_path = root.join(".world/maps/harbor.json");
+        let harbor = std::fs::read_to_string(&harbor_path).expect("navigation harbor map");
+        std::fs::write(
+            harbor_path,
+            harbor.replacen(
+                r#""navigation": null"#,
+                r#""navigation": {"map_id": "city"}"#,
+                1,
+            ),
+        )
+        .expect("navigation harbor entry");
+        std::fs::write(
+            root.join(".world/maps/city.json"),
+            r#"{
+  "schema_version": 1,
+  "id": "city",
+  "title": "城内地图",
+  "raster_layers": [],
+  "canvas": {"width": 800, "height": 500, "unit": "normalized"},
+  "layer_order": ["places"],
+  "layers": {"places": {"title": "地点", "visible_default": true, "locked": false}},
+  "placements": {
+    "harbor-return": {
+      "layer_id": "places",
+      "target_ref": null,
+      "geometry": {"kind": "point", "position": [0.8, 0.7]},
+      "annotation": "返回雾港",
+      "role": "地图入口",
+      "label_override": null,
+      "navigation": {"map_id": "harbor"},
+      "scope_refs": []
+    }
+  },
+  "extensions": {}
+}"#,
+        )
+        .expect("navigation child map");
+        root
+    }
+
+    #[test]
+    fn map_navigation_entry_and_back_keep_path_and_camera() {
+        let root = navigation_workspace("submap-entry-back");
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        let sources_before = app.project.sources();
+        let revision_before = app.map_revision;
+        let documents_before = app
+            .project
+            .authoring_documents
+            .iter()
+            .map(|(path, document)| (path.clone(), document.bytes().to_vec()))
+            .collect::<Vec<_>>();
+        assert!(!app.project.is_dirty());
+        app.tab = super::super::Tab::Map;
+        app.map_selection = Some("harbor".into());
+        let screen_rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0));
+        let frame = || RawInput {
+            screen_rect: Some(screen_rect),
+            ..Default::default()
+        };
+
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert_eq!(app.map_selection.as_deref(), Some("harbor"));
+        app.map_canvas.camera.pan_by(vec2(37.0, -19.0));
+        let harbor_camera = *app.map_canvas.camera();
+        let target = app.map_canvas.snapshot.layers[0].placements[0]
+            .navigation
+            .clone()
+            .expect("child map navigation");
+
+        assert!(app.enter_submap(target));
+        assert_eq!(app.map_selection.as_deref(), Some("city"));
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert_eq!(app.map_canvas.map_id(), "city");
+        assert_eq!(
+            app.map_navigation
+                .as_ref()
+                .expect("navigation state")
+                .breadcrumbs()
+                .iter()
+                .map(|crumb| crumb.map_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["harbor", "city"]
+        );
+
+        app.map_canvas.camera.pan_by(vec2(-11.0, 23.0));
+        let city_camera = *app.map_canvas.camera();
+        let return_target = app.map_canvas.snapshot.layers[0].placements[0]
+            .navigation
+            .clone()
+            .expect("return map navigation");
+        assert!(app.enter_submap(return_target));
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert_eq!(app.map_canvas.map_id(), "harbor");
+        assert_eq!(
+            app.map_navigation
+                .as_ref()
+                .expect("navigation state")
+                .breadcrumbs()
+                .iter()
+                .map(|crumb| crumb.map_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["harbor", "city", "harbor"]
+        );
+
+        assert!(app.back_from_map_navigation());
+        assert_eq!(app.map_selection.as_deref(), Some("city"));
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert_eq!(app.map_canvas.map_id(), "city");
+        assert_eq!(*app.map_canvas.camera(), city_camera);
+        assert!(app.back_from_map_navigation());
+        assert_eq!(app.map_selection.as_deref(), Some("harbor"));
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert_eq!(app.map_canvas.map_id(), "harbor");
+        assert_eq!(*app.map_canvas.camera(), harbor_camera);
+        assert_eq!(
+            app.map_navigation
+                .as_ref()
+                .expect("navigation state")
+                .breadcrumbs()
+                .len(),
+            1
+        );
+
+        assert_eq!(app.project.sources(), sources_before);
+        assert_eq!(app.map_revision, revision_before);
+        assert!(!app.project.is_dirty());
+        assert!(app.history.is_empty());
+        assert_eq!(
+            app.project
+                .authoring_documents
+                .iter()
+                .map(|(path, document)| (path.clone(), document.bytes().to_vec()))
+                .collect::<Vec<_>>(),
+            documents_before
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn navigation_refuses_to_leave_with_unsubmitted_canvas_or_form_state() {
+        let root = navigation_workspace("navigation-pending-guard");
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        app.tab = super::super::Tab::Map;
+        app.map_selection = Some("harbor".into());
+        let frame = || RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0))),
+            ..Default::default()
+        };
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        let target = app.map_canvas.snapshot.layers[0].placements[0]
+            .navigation
+            .clone()
+            .expect("child map navigation");
+        let source_before = app.project.sources();
+        let revision_before = app.map_revision;
+        let bytes_before = app
+            .project
+            .authoring_documents
+            .iter()
+            .map(|(path, document)| (path.clone(), document.bytes().to_vec()))
+            .collect::<Vec<_>>();
+        let history_before = app.history.len();
+
+        app.map_canvas.draft = Some(MapGeometry::Point(NormalizedPoint::new(0.2, 0.3)));
+        app.map_form.annotation = "尚未提交的说明".into();
+        assert!(!app.enter_submap(target));
+        assert_eq!(app.map_selection.as_deref(), Some("harbor"));
+        assert_eq!(app.map_canvas.map_id(), "harbor");
+        assert!(app.map_canvas.draft.is_some());
+        assert_eq!(app.map_form.annotation, "尚未提交的说明");
+        assert!(app
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("提交") && message.contains("取消")));
+        assert_eq!(app.project.sources(), source_before);
+        assert_eq!(app.map_revision, revision_before);
+        assert_eq!(app.history.len(), history_before);
+        assert_eq!(
+            app.project
+                .authoring_documents
+                .iter()
+                .map(|(path, document)| (path.clone(), document.bytes().to_vec()))
+                .collect::<Vec<_>>(),
+            bytes_before
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn navigation_refuses_return_with_a_failed_preview() {
+        let root = navigation_workspace("navigation-failed-preview-guard");
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        app.tab = super::super::Tab::Map;
+        app.map_selection = Some("harbor".into());
+        let frame = || RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0))),
+            ..Default::default()
+        };
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        let target = app.map_canvas.snapshot.layers[0].placements[0]
+            .navigation
+            .clone()
+            .expect("child map navigation");
+        assert!(app.enter_submap(target));
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        app.map_failed_command = Some(PendingMapCommand {
+            map_id: "city".into(),
+            intent: EditIntent::Create(MapGeometry::Point(NormalizedPoint::new(0.4, 0.4))),
+        });
+        assert!(!app.back_from_map_navigation());
+        assert_eq!(app.map_selection.as_deref(), Some("city"));
+        assert_eq!(
+            app.map_navigation
+                .as_ref()
+                .expect("navigation state")
+                .history_len(),
+            1
+        );
+        assert!(app
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("提交") && message.contains("取消")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn manual_map_switch_with_pending_form_keeps_current_map() {
+        let root = navigation_workspace("navigation-manual-switch-guard");
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        app.tab = super::super::Tab::Map;
+        app.map_selection = Some("harbor".into());
+        let frame = || RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0))),
+            ..Default::default()
+        };
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        app.map_form.target_query = "未提交查询".into();
+        app.map_selection = Some("city".into());
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert_eq!(app.map_selection.as_deref(), Some("harbor"));
+        assert_eq!(app.map_canvas.map_id(), "harbor");
+        assert_eq!(app.map_form.target_query, "未提交查询");
+        assert!(app
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("提交") && message.contains("取消")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn locating_reference_with_pending_geometry_keeps_current_map() {
+        let root = navigation_workspace("navigation-locate-guard");
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        app.tab = super::super::Tab::Map;
+        app.map_selection = Some("harbor".into());
+        let frame = || RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0))),
+            ..Default::default()
+        };
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        app.map_canvas.draft = Some(MapGeometry::Point(NormalizedPoint::new(0.5, 0.5)));
+        app.locate_reference("city", "harbor-return");
+        assert_eq!(app.map_selection.as_deref(), Some("harbor"));
+        assert!(app.map_locate_request.is_none());
+        assert_eq!(app.tab, super::super::Tab::Map);
+        assert!(app
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("提交") && message.contains("取消")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn invalid_selected_map_clears_navigation_and_canvas() {
+        let root = navigation_workspace("navigation-invalid-selection");
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        app.tab = super::super::Tab::Map;
+        app.map_selection = Some("harbor".into());
+        let frame = || RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0))),
+            ..Default::default()
+        };
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert!(app.map_navigation.is_some());
+        assert!(!app.map_canvas.map_id().is_empty());
+
+        app.map_selection = Some("deleted-map".into());
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert!(app.map_navigation.is_none());
+        assert!(app.map_canvas.map_id().is_empty());
+        assert!(app.map_canvas.snapshot.layers.is_empty());
+        assert!(app.map_canvas.snapshot.raster_layers.is_empty());
+        assert!(app
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("不可用") || message.contains("失效")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn invalid_map_keeps_form_until_cancel_then_allows_another_map() {
+        let root = navigation_workspace("navigation-invalid-form");
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        app.tab = super::super::Tab::Map;
+        app.map_selection = Some("harbor".into());
+        let frame = || RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0))),
+            ..Default::default()
+        };
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        app.map_form.annotation = "外部失效时仍需保留".into();
+        app.map_selection = Some("deleted-map".into());
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert!(app.map_navigation.is_none());
+        assert_eq!(app.map_selection, None);
+        assert_eq!(app.map_canvas.map_id(), "harbor");
+        assert_eq!(app.map_form.annotation, "外部失效时仍需保留");
+
+        app.cancel_map_form();
+        app.map_selection = Some("city".into());
+        let _ = ctx.run(frame(), |ctx| app.map_tab(ctx));
+        assert_eq!(app.map_selection.as_deref(), Some("city"));
+        assert_eq!(app.map_canvas.map_id(), "city");
+        assert!(!app.map_form.has_uncommitted_work());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn snapshot_switch_rejects_unsubmitted_canvas_state() {
+        let mut canvas = point_canvas();
+        canvas.draft = Some(MapGeometry::Point(NormalizedPoint::new(0.6, 0.7)));
+        let snapshot = MapRenderSnapshot {
+            map_id: "other".into(),
+            title: "另一张地图".into(),
+            extent: vec2(500.0, 300.0),
+            raster_layers: Vec::new(),
+            layers: Vec::new(),
+        };
+        canvas.set_snapshot(1, snapshot);
+        assert_eq!(canvas.map_id(), "map");
+        assert!(canvas.draft.is_some());
+    }
+
+    #[test]
+    fn navigation_reset_rejects_unsubmitted_canvas_state() {
+        let mut canvas = point_canvas();
+        canvas
+            .edit_intents
+            .push(EditIntent::Create(MapGeometry::Point(
+                NormalizedPoint::new(0.6, 0.7),
+            )));
+        canvas.reset_for_navigation();
+        assert_eq!(canvas.edit_intents().len(), 1);
+    }
+
     #[test]
     fn pointer_zoom_keeps_anchor_without_dirtying_project() {
         let ctx = egui::Context::default();
@@ -2879,6 +3596,7 @@ mod tests {
                 placements: vec![MapPlacement {
                     id: "point".into(),
                     target_ref: None,
+                    navigation: None,
                     annotation: String::new(),
                     role: String::new(),
                     label_override: None,
@@ -2962,6 +3680,7 @@ mod tests {
                 placements: vec![MapPlacement {
                     id: "point".into(),
                     target_ref: None,
+                    navigation: None,
                     annotation: String::new(),
                     role: String::new(),
                     label_override: None,
@@ -3063,6 +3782,7 @@ mod tests {
                 placements: vec![MapPlacement {
                     id: "point".into(),
                     target_ref: None,
+                    navigation: None,
                     annotation: String::new(),
                     role: String::new(),
                     label_override: None,
@@ -3137,6 +3857,7 @@ mod tests {
                 placements: vec![MapPlacement {
                     id: "point".into(),
                     target_ref: None,
+                    navigation: None,
                     annotation: String::new(),
                     role: String::new(),
                     label_override: None,
@@ -3232,6 +3953,7 @@ mod tests {
                 placements: vec![MapPlacement {
                     id: "point".into(),
                     target_ref: None,
+                    navigation: None,
                     annotation: String::new(),
                     role: String::new(),
                     label_override: None,
@@ -3269,6 +3991,7 @@ mod tests {
                     placements: vec![MapPlacement {
                         id: "point".into(),
                         target_ref: None,
+                        navigation: None,
                         annotation: String::new(),
                         role: String::new(),
                         label_override: None,
@@ -3299,6 +4022,7 @@ mod tests {
         let placement = |id: &str, x: f32| MapPlacement {
             id: id.into(),
             target_ref: None,
+            navigation: None,
             annotation: String::new(),
             role: String::new(),
             label_override: None,
@@ -3485,5 +4209,62 @@ mod tests {
                 egui::CentralPanel::default().show(ctx, |ui| canvas.show(ui));
             },
         );
+    }
+    #[test]
+    fn legacy_content_project_creates_map_from_form_and_undo_restores_it_once() {
+        let root = std::env::temp_dir().join(format!(
+            "worldedit-create-map-ui-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut project = worldline_core::project::Project::new(&root);
+        let entry = project.entry.clone();
+        project
+            .set_text(&entry, "world empty as \"空白资料集\"\n".into())
+            .unwrap();
+        project.save().unwrap();
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx);
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.clone()));
+        let sources = app.project.sources();
+        let content_generation = app.map_revision.content_generation;
+        assert!(!app.create_map_from_form());
+        assert!(!app.project.is_dirty());
+        app.map_canvas.set_mode(CanvasMode::Edit);
+        app.map_creation.open_with_defaults(
+            app.map_revision,
+            worldline_core::map_creation::MISSING_DOCUMENT_HASH.into(),
+        );
+        app.map_creation.id = "harbor".into();
+        app.map_creation.title = "港口草图".into();
+        app.map_creation.width = "0".into();
+        assert!(!app.create_map_from_form());
+        assert!(app.map_creation.open);
+        assert_eq!(app.map_creation.title, "港口草图");
+        assert!(app.history.is_empty());
+        app.map_creation.width = "640".into();
+        assert!(app.create_map_from_form());
+        assert_eq!(app.map_selection.as_deref(), Some("harbor"));
+        assert!(app
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .map_index
+            .maps
+            .contains_key("harbor"));
+        assert_eq!(app.history.len(), 1);
+        assert_eq!(app.project.sources(), sources);
+        assert_eq!(app.map_revision.content_generation, content_generation);
+        assert!(!root.join(".world/project.json").exists());
+        app.undo(false);
+        assert!(app.snapshot.as_ref().unwrap().map_index.maps.is_empty());
+        assert_eq!(app.project.sources(), sources);
+        assert_eq!(app.map_revision.content_generation, content_generation);
+        assert!(app.history.is_empty());
+        assert_eq!(app.redo.len(), 1);
+        let _ = std::fs::remove_dir_all(root);
     }
 }

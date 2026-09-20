@@ -22,6 +22,9 @@ pub(super) fn property_label(key: &str) -> &str {
 impl WorldeditApp {
     /// 所有资料入口共用的地图引用定位；显隐确认由地图视图处理。
     pub(super) fn locate_reference(&mut self, map_id: &str, placement_id: &str) {
+        if self.map_navigation_blocked() {
+            return;
+        }
         let layer_id = self.snapshot.as_ref().and_then(|snapshot| {
             snapshot
                 .map_index

@@ -39,6 +39,19 @@ impl Camera2D {
         self.map_extent * self.zoom
     }
 
+    pub(super) fn state(&self) -> (f32, [f32; 2]) {
+        (self.zoom, [self.pan.x, self.pan.y])
+    }
+
+    pub(super) fn restore(&mut self, zoom: f32, pan: [f32; 2]) {
+        if zoom.is_finite() {
+            self.zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+        }
+        if pan.iter().all(|value| value.is_finite()) {
+            self.pan = Vec2::new(pan[0], pan[1]);
+        }
+    }
+
     #[cfg(test)]
     pub fn pan(&self) -> Vec2 {
         self.pan
