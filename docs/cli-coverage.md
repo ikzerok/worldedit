@@ -10,6 +10,10 @@
 | 人物、标签、状态、锚点、素材、别名、正文链接 | catalog | analyze.catalog | 查找与源码定位 |
 | 1.10 实体目录与属性 | catalog --kind entity | project.open / project.analyze | 同一 core 目录；同名实体和旧词条保持独立 |
 | 创建、修改、删除 1.10 实体 | entity create / update / delete | entity.create / entity.update / entity.delete | 显式1.10工程；按基线与引用保护写入磁盘，桌面随后刷新 |
+| 工作区检查、地图与标记反查 | workspace check / maps list | workspace.check / maps.list | 核心分域诊断及地图索引；读取已保存作品，不连接编辑器缓冲 |
+| 独立关系查询与分页 | relations --target KIND:ID；续页 --offset | relation.query（offset） | 同一 core 邻接查询，保留修订和筛选；事件控制流仍使用 graph |
+| 关系类型及实例编辑 | relation-type / relation create、update、delete | relation.type.* / relation.create、update、delete | 1.10 Project 事务、基线与引用保护 |
+| 旧人物关系显式提升 | relations promote preview / commit | relation.promote.preview / commit | 预览新关系及旧项移除、保存兼容影响；提交时校验基线和预览一致性 |
 | 试玩、选择、当前状态 | play | session.* | 独立会话，不连接 UI 当前试玩 |
 | 演练存读档 | play --load/--save | session.open/save | 各自会话存档 |
 | 创建/修改人物、事件和设定 | 无写入命令 | 无写入方法 | 编辑 `.wl` 或 Rust Project API；桌面刷新 |

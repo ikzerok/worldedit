@@ -91,14 +91,7 @@ pub fn layout_job(text: &str, size: f32, language_version: LanguageVersion) -> L
     let mut in_block = false;
     let mut pos = 0usize;
     for line in text.split('\n') {
-        highlight_line(
-            &mut job,
-            line,
-            pos,
-            &mut in_block,
-            size,
-            language_version.supports_entities(),
-        );
+        highlight_line(&mut job, line, pos, &mut in_block, size, language_version);
         pos += line.len() + 1; // 含换行符
     }
     job
@@ -130,7 +123,7 @@ fn highlight_line(
     base: usize,
     in_block: &mut bool,
     size: f32,
-    entities_enabled: bool,
+    language_version: LanguageVersion,
 ) {
     if *in_block {
         if let Some(end) = line.find("*/") {
@@ -141,7 +134,7 @@ fn highlight_line(
                 &line[end + 2..],
                 base + end + 2,
                 size,
-                entities_enabled,
+                language_version,
             );
         } else {
             push(job, base..base + line.len(), c_comment(), size);
@@ -173,7 +166,7 @@ fn highlight_line(
             _ => i += 1,
         }
     }
-    classify(job, &line[..code_end], base, size, entities_enabled);
+    classify(job, &line[..code_end], base, size, language_version);
     if let Some(bs) = block {
         let rest = &line[bs..];
         if let Some(end) = rest.find("*/") {
@@ -183,7 +176,7 @@ fn highlight_line(
                 &rest[end + 2..],
                 base + bs + end + 2,
                 size,
-                entities_enabled,
+                language_version,
             );
         } else {
             push(job, base + bs..base + line.len(), c_comment(), size);
@@ -195,7 +188,13 @@ fn highlight_line(
 }
 
 /// 代码段分类:关键字行 / 跃迁行 / 正文行。
-fn classify(job: &mut LayoutJob, code: &str, base: usize, size: f32, entities_enabled: bool) {
+fn classify(
+    job: &mut LayoutJob,
+    code: &str,
+    base: usize,
+    size: f32,
+    language_version: LanguageVersion,
+) {
     let bytes = code.as_bytes();
     let mut i = 0;
     while i < bytes.len() && bytes[i] == b' ' {
@@ -223,7 +222,11 @@ fn classify(job: &mut LayoutJob, code: &str, base: usize, size: f32, entities_en
     }
     let word = &code[i..j];
     let after_word_boundary = j >= bytes.len() || bytes[j] == b' ' || bytes[j] == b'"';
-    let keyword = KEYWORDS.contains(&word) || (entities_enabled && word == "entity" && i == 0);
+    let keyword = KEYWORDS.contains(&word)
+        || (i == 0
+            && ((language_version.supports_entities() && word == "entity")
+                || (language_version.supports_relations()
+                    && matches!(word, "relation_type" | "relation_def"))));
     if keyword && after_word_boundary {
         push(job, base + i..base + j, c_keyword(), size);
         inline(job, code, j, base, size);

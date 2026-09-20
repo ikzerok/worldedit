@@ -258,17 +258,57 @@ impl WorldeditApp {
             if let Some(entity) = entity {
                 ui.label(theme::muted(format!("分类：{}", entity.entity_type)));
             }
+            let relation = catalog
+                .relations
+                .get(&target.id)
+                .filter(|_| target.kind == "relation");
+            if let Some(relation) = relation {
+                let relation_type = catalog.relation_types.get(&relation.relation_type);
+                let display = relation_type
+                    .map(|kind| kind.display.as_str())
+                    .unwrap_or(&relation.relation_type);
+                ui.label(format!("关系类型：{display}"));
+                if let Some(kind) = relation_type {
+                    ui.label(match kind.direction {
+                        worldline_core::RelationDirection::Directed => "方向：有向",
+                        worldline_core::RelationDirection::Undirected => "方向：无向",
+                    });
+                    if let Some(inverse) = &kind.inverse_display {
+                        ui.label(theme::muted(format!("反向读取名称：{inverse}")));
+                    }
+                }
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("起点：");
+                    self.reading_link(ui, &catalog, &relation.from_ref);
+                    ui.label("终点：");
+                    self.reading_link(ui, &catalog, &relation.to_ref);
+                });
+                if let Some(source) = &relation.source_note {
+                    ui.label(RichText::new("来源").strong());
+                    self.wiki_text(ui, source);
+                }
+                if !relation.scope_refs.is_empty() {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label("作者范围：");
+                        for scope in &relation.scope_refs {
+                            self.reading_link(ui, &catalog, scope);
+                        }
+                    });
+                }
+            }
             let properties = character
                 .as_ref()
                 .map(|c| &c.properties)
                 .or_else(|| world.as_ref().map(|w| &w.properties))
                 .or_else(|| tag.map(|t| &t.properties))
-                .or_else(|| entity.map(|entity| &entity.properties));
+                .or_else(|| entity.map(|entity| &entity.properties))
+                .or_else(|| relation.map(|relation| &relation.properties));
             let description = world
                 .as_ref()
                 .map(|w| w.description.as_str())
                 .or_else(|| tag.map(|t| t.description.as_str()))
                 .or_else(|| entity.map(|entity| entity.description.as_str()))
+                .or_else(|| relation.map(|relation| relation.description.as_str()))
                 .or_else(|| {
                     catalog
                         .anchors
