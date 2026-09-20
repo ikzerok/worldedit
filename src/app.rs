@@ -169,6 +169,11 @@ pub struct WorldeditApp {
     new_period: Option<(String, String, Option<String>)>,
     map_canvas: maps::MapCanvas,
     map_selection: Option<String>,
+    map_revision: worldline_core::presentation_commands::Revision,
+    map_form: maps::PlacementForm,
+    map_search: String,
+    map_locate_request: Option<maps::LocateRequest>,
+    map_failed_command: Option<maps::PendingMapCommand>,
 }
 
 impl WorldeditApp {
@@ -237,6 +242,11 @@ impl WorldeditApp {
                 2048.0, 1536.0,
             ))),
             map_selection: None,
+            map_revision: worldline_core::presentation_commands::Revision::default(),
+            map_form: maps::PlacementForm::default(),
+            map_search: String::new(),
+            map_locate_request: None,
+            map_failed_command: None,
         };
         if let Some(path) = initial_file {
             app.load_project(path);
@@ -247,15 +257,30 @@ impl WorldeditApp {
 
     fn recompile(&mut self) {
         self.version += 1;
+        self.map_revision.content_generation = self.map_revision.content_generation.wrapping_add(1);
         self.map_canvas.invalidate_rasters();
         let result = self.project.compile();
         let wiki = worldline_core::wiki::KeywordIndex::new(&result);
-        let map_index = self.project.map_index();
+        let map_index =
+            worldline_core::presentation_commands::map_index_with_content(&self.project, &result);
         self.snapshot = Some(Snapshot {
             result,
             wiki,
             map_index,
         });
+    }
+
+    fn refresh_presentation_after_map_command(&mut self) {
+        self.version += 1;
+        self.map_canvas.invalidate_rasters();
+        let Some(content) = self.snapshot.as_ref().map(|snapshot| &snapshot.result) else {
+            return;
+        };
+        let map_index =
+            worldline_core::presentation_commands::map_index_with_content(&self.project, content);
+        if let Some(snapshot) = self.snapshot.as_mut() {
+            snapshot.map_index = map_index;
+        }
     }
     fn diagnostics(&self) -> &[Diagnostic] {
         self.snapshot
@@ -338,6 +363,11 @@ impl WorldeditApp {
         self.search.clear();
         self.focus_event = None;
         self.map_selection = None;
+        self.map_revision = worldline_core::presentation_commands::Revision::default();
+        self.map_form = maps::PlacementForm::default();
+        self.map_search.clear();
+        self.map_locate_request = None;
+        self.map_failed_command = None;
         self.map_canvas.clear();
     }
     fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
@@ -449,7 +479,12 @@ impl WorldeditApp {
     }
     fn jump_to_file(&mut self, file: &str, line: u32, column: u32) {
         let path = PathBuf::from(file);
-        if self.project.documents.contains_key(&path) {
+        let known_source = self.project.documents.contains_key(&path)
+            || self
+                .project
+                .authoring_document(&path)
+                .is_ok_and(|document| !document.is_deleted());
+        if known_source {
             self.active_file = path;
             self.tab = Tab::Edit;
             self.jump = Some((line, column));
@@ -543,7 +578,16 @@ impl WorldeditApp {
         };
         if let Some(previous) = previous {
             let current = self.project.clone();
-            self.project.restore(previous);
+            let source_before = self.project.sources();
+            if !self.project.restore(previous.clone()) {
+                if forward {
+                    self.redo.push(previous);
+                } else {
+                    self.history.push(previous);
+                }
+                self.io_error = Some("撤销快照已因外部刷新失效，未改变当前工程".into());
+                return;
+            }
             if forward {
                 self.history.push(current);
             } else {
@@ -555,7 +599,14 @@ impl WorldeditApp {
             self.event_editor = None;
             self.character_editor = None;
             self.world_editor = None;
-            self.recompile();
+            self.map_failed_command = None;
+            self.map_canvas.reset_local_preview();
+            if source_before == self.project.sources() {
+                self.map_revision = self.map_revision.next_presentation();
+                self.refresh_presentation_after_map_command();
+            } else {
+                self.recompile();
+            }
             self.io_error = None;
         }
     }

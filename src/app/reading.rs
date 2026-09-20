@@ -20,6 +20,32 @@ pub(super) fn property_label(key: &str) -> &str {
 }
 
 impl WorldeditApp {
+    /// 所有资料入口共用的地图引用定位；显隐确认由地图视图处理。
+    pub(super) fn locate_reference(&mut self, map_id: &str, placement_id: &str) {
+        let layer_id = self.snapshot.as_ref().and_then(|snapshot| {
+            snapshot
+                .map_index
+                .maps
+                .get(map_id)?
+                .placements
+                .get(placement_id)
+                .map(|placement| placement.layer_id.clone())
+        });
+        let Some(layer_id) = layer_id else {
+            self.message = Some("该地图标记已不存在，请刷新资料后重试".into());
+            return;
+        };
+        self.map_selection = Some(map_id.into());
+        self.map_locate_request = Some(super::maps::LocateRequest {
+            map_id: map_id.into(),
+            placement_id: placement_id.into(),
+            layer_id,
+        });
+        self.tab = super::Tab::Map;
+        self.reading_target = None;
+        self.reading_history.clear();
+    }
+
     pub(super) fn open_reading(&mut self, target: TargetRef) {
         if let Some(previous) = &self.reading_target {
             if *previous != target {
@@ -158,6 +184,27 @@ impl WorldeditApp {
             ui.label(theme::muted(
                 "按当前工程内容汇总；表单修改应用后会更新此页。",
             ));
+            let placements = self
+                .snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.map_index.placements_for(&target))
+                .unwrap_or_default();
+            ui.collapsing("地图中的位置", |ui| {
+                if placements.is_empty() {
+                    ui.label(theme::muted("未放置在地图上"));
+                }
+                for placement in placements {
+                    if ui
+                        .button(format!(
+                            "定位 {} / {}",
+                            placement.map_id, placement.placement_id
+                        ))
+                        .clicked()
+                    {
+                        self.locate_reference(&placement.map_id, &placement.placement_id);
+                    }
+                }
+            });
             ui.separator();
             ui.label(RichText::new("别名").strong());
             let names = catalog.aliases_for(&target);
