@@ -8,6 +8,8 @@ mod choices;
 mod inspector;
 mod maps;
 mod overview;
+#[cfg(not(target_arch = "wasm32"))]
+mod package;
 mod play;
 mod reading;
 mod search;
@@ -783,6 +785,11 @@ impl WorldeditApp {
                             if ui.button("另存工程…").clicked() {
                                 self.directory_dialog(false);
                                 ui.close();
+                            }
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if ui.button("导出 ZIP 工程包…").clicked() {
+                                ui.close();
+                                self.export_package();
                             }
                             if ui.button("从磁盘重新载入").clicked() {
                                 self.request_action(Pending::Open(self.project.entry.clone()), ctx);

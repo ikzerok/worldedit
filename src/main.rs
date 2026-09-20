@@ -1,12 +1,13 @@
 //! worldedit —— worldline 作者工作台(egui)。
 
 mod app;
-#[cfg(any(target_arch = "wasm32", test))]
 mod archive;
 mod chrome;
 mod fonts;
 mod highlight;
 mod media;
+#[cfg(any(target_arch = "wasm32", test))]
+mod save_flow;
 mod theme;
 mod visual;
 #[cfg(target_arch = "wasm32")]

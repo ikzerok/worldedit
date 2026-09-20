@@ -17,11 +17,21 @@ pub enum FileAction {
 }
 pub type FileEvent = (FileAction, Result<Files, String>);
 
+/// 浏览器包的两个持久化边界：下载只是发起导出，本地快照成功才代表
+/// 浏览器存储已接收当前缓冲。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SnapshotRevisions {
+    pub last_export_revision: Option<u64>,
+    pub local_snapshot_revision: Option<u64>,
+}
+
 thread_local! {
     static EVENTS: RefCell<VecDeque<FileEvent>> = const { RefCell::new(VecDeque::new()) };
     static IMPORTED: RefCell<Files> = const { RefCell::new(Files::new()) };
     static DIRTY: Cell<bool> = const { Cell::new(false) };
     static GENERATION: Cell<u64> = const { Cell::new(0) };
+    static LAST_EXPORT_REVISION: Cell<Option<u64>> = const { Cell::new(None) };
+    static LOCAL_SNAPSHOT_REVISION: Cell<Option<u64>> = const { Cell::new(None) };
     static SAVED_BASELINE: RefCell<Option<String>> = const { RefCell::new(None) };
     static PICKER: RefCell<Option<Picker>> = const { RefCell::new(None) };
 }
@@ -87,6 +97,23 @@ pub fn start() {
 
 pub fn set_dirty(value: bool) {
     DIRTY.set(value);
+}
+
+pub fn snapshot_revisions() -> SnapshotRevisions {
+    SnapshotRevisions {
+        last_export_revision: LAST_EXPORT_REVISION.get(),
+        local_snapshot_revision: LOCAL_SNAPSHOT_REVISION.get(),
+    }
+}
+
+/// 记录已交给浏览器下载机制的工程版本；不代表用户已写入磁盘。
+pub fn record_export_revision(revision: u64) {
+    LAST_EXPORT_REVISION.set(Some(revision));
+}
+
+/// 仅在 localStorage 写入成功后记录本地快照版本。
+pub fn record_local_snapshot_revision(revision: u64) {
+    LOCAL_SNAPSHOT_REVISION.set(Some(revision));
 }
 
 pub fn toggle_fullscreen() {
@@ -211,6 +238,7 @@ async fn read_files(list: Option<web_sys::FileList>, folder: bool) -> Result<Fil
             return Err("选择了同名文件，请改为选择整个工程文件夹".into());
         }
     }
+    archive::validate_files(&files)?;
     Ok(files)
 }
 
@@ -245,9 +273,7 @@ pub fn add_files(files: Files, assets: bool) -> Result<Vec<PathBuf>, String> {
         paths.push(Path::new("/world").join(&destination));
         current.insert(destination, bytes);
     }
-    if current.values().map(|v| v.len() as u64).sum::<u64>() > MAX_BYTES {
-        return Err("工程素材总大小超过 64 MiB".into());
-    }
+    archive::validate_files(&current)?;
     mount(current);
     Ok(paths)
 }
@@ -315,8 +341,43 @@ pub fn restore() -> Result<Option<Files>, String> {
     let Some(encoded) = storage.get_item(STORAGE_KEY).map_err(error)? else {
         return Ok(None);
     };
-    SAVED_BASELINE.with(|baseline| *baseline.borrow_mut() = Some(encoded.clone()));
     let binary = window.atob(&encoded).map_err(error)?;
     let bytes: Vec<_> = binary.chars().map(|c| c as u8).collect();
-    archive::decode(&bytes).map(Some)
+    let files = archive::decode(&bytes)?;
+    archive::entry(&files)?;
+    SAVED_BASELINE.with(|baseline| *baseline.borrow_mut() = Some(encoded));
+    Ok(Some(files))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn revisions_follow_download_and_local_storage_boundaries() {
+        LAST_EXPORT_REVISION.set(None);
+        LOCAL_SNAPSHOT_REVISION.set(None);
+        assert_eq!(snapshot_revisions(), SnapshotRevisions::default());
+
+        // A package or download failure records neither boundary.
+        // Once the browser accepts a download, localStorage may still fail;
+        // that must leave the local snapshot at its previous revision.
+        record_export_revision(4);
+        assert_eq!(
+            snapshot_revisions(),
+            SnapshotRevisions {
+                last_export_revision: Some(4),
+                local_snapshot_revision: None,
+            }
+        );
+        record_local_snapshot_revision(4);
+        record_export_revision(5);
+        assert_eq!(
+            snapshot_revisions(),
+            SnapshotRevisions {
+                last_export_revision: Some(5),
+                local_snapshot_revision: Some(4),
+            }
+        );
+    }
 }
