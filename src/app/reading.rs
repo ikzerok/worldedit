@@ -62,9 +62,13 @@ impl WorldeditApp {
     }
 
     pub(super) fn linked_source(&mut self, ui: &mut egui::Ui, source: &str, file: &str) {
-        for (index, parts) in worldline_core::navigation::reading_lines(source, file)
-            .into_iter()
-            .enumerate()
+        for (index, parts) in worldline_core::navigation::reading_lines_with_options(
+            source,
+            file,
+            self.project.compile_options(),
+        )
+        .into_iter()
+        .enumerate()
         {
             ui.push_id(index, |ui| {
                 ui.horizontal_wrapped(|ui| {
@@ -247,15 +251,24 @@ impl WorldeditApp {
                 .tags
                 .get(&target.id)
                 .filter(|_| target.kind == "tag");
+            let entity = catalog
+                .entities
+                .get(&target.id)
+                .filter(|_| target.kind == "entity");
+            if let Some(entity) = entity {
+                ui.label(theme::muted(format!("分类：{}", entity.entity_type)));
+            }
             let properties = character
                 .as_ref()
                 .map(|c| &c.properties)
                 .or_else(|| world.as_ref().map(|w| &w.properties))
-                .or_else(|| tag.map(|t| &t.properties));
+                .or_else(|| tag.map(|t| &t.properties))
+                .or_else(|| entity.map(|entity| &entity.properties));
             let description = world
                 .as_ref()
                 .map(|w| w.description.as_str())
                 .or_else(|| tag.map(|t| t.description.as_str()))
+                .or_else(|| entity.map(|entity| entity.description.as_str()))
                 .or_else(|| {
                     catalog
                         .anchors

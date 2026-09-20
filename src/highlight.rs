@@ -4,6 +4,7 @@
 
 use egui::text::{LayoutJob, LayoutSection, TextFormat};
 use egui::{Color32, FontId};
+use worldline_core::LanguageVersion;
 
 const KEYWORDS: &[&str] = &[
     "alias",
@@ -82,7 +83,7 @@ fn c_interp() -> Color32 {
 }
 
 /// 生成整段源码的 LayoutJob(逐行状态机,支持跨行块注释)。
-pub fn layout_job(text: &str, size: f32) -> LayoutJob {
+pub fn layout_job(text: &str, size: f32, language_version: LanguageVersion) -> LayoutJob {
     let mut job = LayoutJob {
         text: text.into(),
         ..Default::default()
@@ -90,7 +91,14 @@ pub fn layout_job(text: &str, size: f32) -> LayoutJob {
     let mut in_block = false;
     let mut pos = 0usize;
     for line in text.split('\n') {
-        highlight_line(&mut job, line, pos, &mut in_block, size);
+        highlight_line(
+            &mut job,
+            line,
+            pos,
+            &mut in_block,
+            size,
+            language_version.supports_entities(),
+        );
         pos += line.len() + 1; // 含换行符
     }
     job
@@ -116,12 +124,25 @@ fn push(job: &mut LayoutJob, range: std::ops::Range<usize>, color: Color32, size
     });
 }
 
-fn highlight_line(job: &mut LayoutJob, line: &str, base: usize, in_block: &mut bool, size: f32) {
+fn highlight_line(
+    job: &mut LayoutJob,
+    line: &str,
+    base: usize,
+    in_block: &mut bool,
+    size: f32,
+    entities_enabled: bool,
+) {
     if *in_block {
         if let Some(end) = line.find("*/") {
             push(job, base..base + end + 2, c_comment(), size);
             *in_block = false;
-            classify(job, &line[end + 2..], base + end + 2, size);
+            classify(
+                job,
+                &line[end + 2..],
+                base + end + 2,
+                size,
+                entities_enabled,
+            );
         } else {
             push(job, base..base + line.len(), c_comment(), size);
         }
@@ -152,12 +173,18 @@ fn highlight_line(job: &mut LayoutJob, line: &str, base: usize, in_block: &mut b
             _ => i += 1,
         }
     }
-    classify(job, &line[..code_end], base, size);
+    classify(job, &line[..code_end], base, size, entities_enabled);
     if let Some(bs) = block {
         let rest = &line[bs..];
         if let Some(end) = rest.find("*/") {
             push(job, base + bs..base + bs + end + 2, c_comment(), size);
-            classify(job, &rest[end + 2..], base + bs + end + 2, size);
+            classify(
+                job,
+                &rest[end + 2..],
+                base + bs + end + 2,
+                size,
+                entities_enabled,
+            );
         } else {
             push(job, base + bs..base + line.len(), c_comment(), size);
             *in_block = true;
@@ -168,7 +195,7 @@ fn highlight_line(job: &mut LayoutJob, line: &str, base: usize, in_block: &mut b
 }
 
 /// 代码段分类:关键字行 / 跃迁行 / 正文行。
-fn classify(job: &mut LayoutJob, code: &str, base: usize, size: f32) {
+fn classify(job: &mut LayoutJob, code: &str, base: usize, size: f32, entities_enabled: bool) {
     let bytes = code.as_bytes();
     let mut i = 0;
     while i < bytes.len() && bytes[i] == b' ' {
@@ -196,7 +223,8 @@ fn classify(job: &mut LayoutJob, code: &str, base: usize, size: f32) {
     }
     let word = &code[i..j];
     let after_word_boundary = j >= bytes.len() || bytes[j] == b' ' || bytes[j] == b'"';
-    if KEYWORDS.contains(&word) && after_word_boundary {
+    let keyword = KEYWORDS.contains(&word) || (entities_enabled && word == "entity" && i == 0);
+    if keyword && after_word_boundary {
         push(job, base + i..base + j, c_keyword(), size);
         inline(job, code, j, base, size);
     } else {

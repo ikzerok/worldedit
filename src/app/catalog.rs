@@ -14,6 +14,7 @@ pub(super) fn kind_label(kind: &str) -> &str {
         "event" => "事件",
         "scene" => "场景",
         "character" => "人物",
+        "entity" => "实体",
         "world" => "世界观",
         "storyline" => "故事线",
         "period" => "时段",

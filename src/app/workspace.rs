@@ -440,6 +440,7 @@ impl WorldeditApp {
                 let id = egui::Id::new(("source", &path));
                 let target = self.jump.take();
                 let mut changed = false;
+                let language_version = self.project.language_version_kind();
                 egui::ScrollArea::both()
                     .id_salt(("source-scroll", &path))
                     .auto_shrink([false, false])
@@ -463,7 +464,11 @@ impl WorldeditApp {
                             let mut layouter =
                                 |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, _: f32| {
                                     ui.fonts(|f| {
-                                        f.layout_job(highlight::layout_job(buffer.as_str(), 14.0))
+                                        f.layout_job(highlight::layout_job(
+                                            buffer.as_str(),
+                                            14.0,
+                                            language_version,
+                                        ))
                                     })
                                 };
                             let mut output = egui::TextEdit::multiline(&mut text)

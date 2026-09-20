@@ -934,7 +934,10 @@ impl WorldeditApp {
                         ui.label(theme::muted(message));
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(theme::muted("WORLDLINE 1.9  ·  UTF-8"));
+                        ui.label(theme::muted(format!(
+                            "WORLDLINE {}  ·  UTF-8",
+                            self.project.language_version()
+                        )));
                         if ui
                             .add_enabled(!self.redo.is_empty(), egui::Button::new("重做").small())
                             .clicked()

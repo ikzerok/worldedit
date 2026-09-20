@@ -4,7 +4,7 @@ use super::inspector::field;
 use super::{Tab, WorldeditApp};
 use crate::theme;
 use egui::RichText;
-use worldline_core::anchors::{AnchorDraft, ANCHOR_TARGET_KINDS};
+use worldline_core::anchors::{anchor_target_kinds, AnchorDraft};
 use worldline_core::ast::ChangeKind;
 use worldline_core::catalog::{Catalog, TargetRef};
 
@@ -77,7 +77,7 @@ impl WorldeditApp {
             ui.label(theme::muted(
                 "同时关联状态与事件，可查看该事件中此状态的变化出处。",
             ));
-            for kind in ANCHOR_TARGET_KINDS {
+            for kind in anchor_target_kinds(self.project.compile_options()) {
                 ui.collapsing(kind_label(kind), |ui| {
                     for object in catalog.objects.iter().filter(|o| &o.target.kind == kind) {
                         let mut selected = draft.targets.contains(&object.target);
