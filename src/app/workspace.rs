@@ -24,7 +24,7 @@ fn nav_icon(painter: &egui::Painter, center: egui::Pos2, tab: Tab, color: egui::
             line([-3.0, 0.0], [8.0, 0.0]);
             line([-8.0, 5.0], [3.0, 5.0]);
         }
-        Tab::Graph => {
+        Tab::Graph | Tab::Network => {
             line([-5.0, -5.0], [5.0, 4.0]);
             line([-5.0, 5.0], [5.0, 4.0]);
             for p in [vec2(-5.0, -5.0), vec2(-5.0, 5.0), vec2(5.0, 4.0)] {
@@ -115,6 +115,7 @@ impl WorldeditApp {
                 for tab in [
                     Tab::Timeline,
                     Tab::Graph,
+                    Tab::Network,
                     Tab::Map,
                     Tab::Characters,
                     Tab::World,

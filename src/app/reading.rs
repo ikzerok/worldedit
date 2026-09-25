@@ -183,6 +183,10 @@ impl WorldeditApp {
                     self.tab = super::Tab::Wiki;
                     self.reading_target = None;
                 }
+                if ui.button("查看关联").clicked() {
+                    self.open_network(target.clone());
+                    self.reading_target = None;
+                }
                 if ui.button("定位源文件").clicked() {
                     self.jump_to_file(&object.file, object.line, 1);
                     self.reading_target = None;

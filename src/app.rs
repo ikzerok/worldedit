@@ -17,6 +17,8 @@ mod frame_profile;
 mod inspector;
 mod map_creation;
 mod maps;
+mod network;
+mod network_state;
 mod overview;
 #[cfg(not(target_arch = "wasm32"))]
 mod package;
@@ -81,6 +83,7 @@ enum Tab {
     Overview,
     Timeline,
     Graph,
+    Network,
     Map,
     Characters,
     Catalog,
@@ -95,6 +98,7 @@ impl Tab {
             Self::Overview => "正文概览",
             Self::Timeline => "时间线",
             Self::Graph => "事件关系图",
+            Self::Network => "世界关联",
             Self::Map => "地图画布",
             Self::Characters => "人物",
             Self::Catalog => "资料与状态",
@@ -221,6 +225,11 @@ pub struct WorldeditApp {
     map_search: String,
     map_locate_request: Option<maps::LocateRequest>,
     map_failed_command: Option<maps::PendingMapCommand>,
+    network_state: network_state::NetworkState,
+    network_loaded_view: Option<String>,
+    network_view_id: String,
+    network_view_title: String,
+    network_selected: Option<worldline_core::catalog::TargetRef>,
 }
 
 impl WorldeditApp {
@@ -305,6 +314,11 @@ impl WorldeditApp {
             map_search: String::new(),
             map_locate_request: None,
             map_failed_command: None,
+            network_state: network_state::NetworkState::default(),
+            network_loaded_view: None,
+            network_view_id: String::new(),
+            network_view_title: String::new(),
+            network_selected: None,
         };
         if let Some(path) = initial_file {
             app.load_project(path);
@@ -444,6 +458,11 @@ impl WorldeditApp {
         self.map_locate_request = None;
         self.map_failed_command = None;
         self.map_canvas.clear();
+        self.network_state = network_state::NetworkState::default();
+        self.network_loaded_view = None;
+        self.network_view_id.clear();
+        self.network_view_title.clear();
+        self.network_selected = None;
     }
     fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
         if self.project.is_dirty() {
@@ -803,6 +822,7 @@ impl eframe::App for WorldeditApp {
                 self.canvas_tab(ctx);
             }
             Tab::Map => self.map_tab(ctx),
+            Tab::Network => self.network_tab(ctx),
             Tab::Overview => self.overview_tab(ctx),
             Tab::Edit => self.source_tab(ctx),
             Tab::Characters => self.characters_tab(ctx),
@@ -828,7 +848,11 @@ impl eframe::App for WorldeditApp {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(input_active) = input_active {
             if let Some(profile) = self.frame_profile.as_mut() {
-                profile.finish_frame(self.tab == Tab::Map, input_active, ctx.pixels_per_point());
+                profile.finish_frame(
+                    matches!(self.tab, Tab::Map | Tab::Network),
+                    input_active,
+                    ctx.pixels_per_point(),
+                );
             }
         }
     }
