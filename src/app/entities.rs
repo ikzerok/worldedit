@@ -6,12 +6,22 @@ use crate::theme;
 use worldline_core::TargetRef;
 
 pub(super) const ENTITY_KINDS: &[(&str, &str)] = &[
-    ("place", "地点"),
-    ("organization", "组织"),
-    ("item", "物品"),
-    ("concept", "概念"),
-    ("history", "历史条目"),
-    ("species", "物种"),
+    ("cosmology", "宇宙观与位面"),
+    ("place", "地理与地点"),
+    ("species", "生态与物种"),
+    ("daily_life", "日常生活"),
+    ("culture", "文化与社会"),
+    ("language", "语言与命名"),
+    ("organization", "组织与制度"),
+    ("economy", "经济与技艺"),
+    ("technology", "技术与知识"),
+    ("belief", "宗教与思想"),
+    ("ability", "魔法与能力"),
+    ("item_building", "物品与建筑"),
+    ("history", "历史与史料"),
+    ("narrative", "故事与叙事"),
+    ("item", "物品（通用）"),
+    ("concept", "概念（通用）"),
 ];
 impl WorldeditApp {
     pub(super) fn edit_entity(&mut self, id: Option<&str>) {
@@ -83,6 +93,21 @@ impl WorldeditApp {
                     .desired_rows(12)
                     .desired_width(f32::INFINITY),
             );
+            if let Some(suggestion) = super::templates::template_panel(
+                ui,
+                "entity",
+                Some(&form.draft.entity_type),
+                &mut form.draft.properties,
+            ) {
+                if let Some(id) = form.original.clone() {
+                    self.edit_relation(None, Some(TargetRef::new("entity", &id)));
+                    self.message = Some(format!(
+                        "已按“{suggestion}”打开关系草稿；仍需明确选择关系类型和另一端"
+                    ));
+                } else {
+                    self.message = Some("请先保存新资料，再从模板建议打开关系草稿".into());
+                }
+            }
             egui::CollapsingHeader::new("自定义属性")
                 .show(ui, |ui| properties(ui, &mut form.draft.properties));
             egui::CollapsingHeader::new("稳定身份与来源文件").show(ui, |ui| {

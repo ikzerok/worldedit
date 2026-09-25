@@ -446,7 +446,26 @@ impl WorldeditApp {
                     ui.add(egui::TextEdit::multiline(&mut draft.description).desired_rows(7).desired_width(f32::INFINITY).hint_text("时代、地域、规则、历史与叙事基调…"));
                 });
                 ui.add_space(12.0);
-                theme::card().show(ui, |ui| { ui.label(RichText::new("共同属性").strong().size(16.0)); properties(ui, &mut draft.properties); });
+                theme::card().show(ui, |ui| {
+                    ui.label(RichText::new("共同属性").strong().size(16.0));
+                    properties(ui, &mut draft.properties);
+                    if let Some(suggestion) =
+                        super::templates::template_panel(ui, "world", None, &mut draft.properties)
+                    {
+                        if let Some(world) = &world {
+                            self.edit_relation(
+                                None,
+                                Some(worldline_core::TargetRef::new("world", &world.id)),
+                            );
+                            self.message = Some(format!(
+                                "已按“{suggestion}”打开关系草稿；仍需明确关系类型和另一端"
+                            ));
+                        } else {
+                            self.message =
+                                Some("请先保存世界观，再从模板建议打开关系草稿".into());
+                        }
+                    }
+                });
                 ui.add_space(12.0);
                 if ui.add(theme::primary("应用世界观")).clicked() { self.commit("世界观已更新", |p| p.write_world(&draft)); }
                 if let Some(world) = &world { self.object_links(ui, &worldline_core::catalog::TargetRef::new("world", &world.id)); }

@@ -29,6 +29,7 @@ mod relation_editor;
 mod search;
 mod states;
 mod tags;
+mod templates;
 mod temporal;
 mod views;
 mod wiki;

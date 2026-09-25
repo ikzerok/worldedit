@@ -315,3 +315,61 @@ fn rename_preview_and_apply_are_two_explicit_ui_steps_with_undo() {
     app.undo(false);
     assert_eq!(app.project.content_baseline(), baseline);
 }
+
+#[test]
+fn template_fields_preserve_body_and_custom_values_and_suggestions_only_open_drafts() {
+    let (ctx, mut app) = app();
+    app.edit_entity(None);
+    {
+        let form = app.entity_editor.as_mut().unwrap();
+        form.draft.display = "模板地点".into();
+        form.draft.description = "第一段\n第二段正文".into();
+        form.draft.properties.push((
+            "custom_unknown".into(),
+            worldline_core::ast::PropertyValue::Str("保留".into()),
+        ));
+    }
+    click(&ctx, &mut app, 0, "创作模板 · 地理与地点");
+    click(&ctx, &mut app, 0, "＋ 视觉与感官印象");
+    {
+        let form = app.entity_editor.as_mut().unwrap();
+        let field = form
+            .draft
+            .properties
+            .iter_mut()
+            .find(|(key, _)| key == "place_1")
+            .unwrap();
+        field.1 = worldline_core::ast::PropertyValue::Str("海风与白石".into());
+        form.draft.entity_type = "organization".into();
+    }
+    click(&ctx, &mut app, 0, "应用资料");
+    let id = app.catalog_target.as_ref().unwrap().id.clone();
+    let entity = &app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .result
+        .analysis
+        .catalog
+        .entities[&id];
+    assert_eq!(entity.description, "第一段\n第二段正文");
+    assert_eq!(
+        entity.properties["custom_unknown"],
+        worldline_core::ast::PropertyValue::Str("保留".into())
+    );
+    assert_eq!(
+        entity.properties["place_1"],
+        worldline_core::ast::PropertyValue::Str("海风与白石".into())
+    );
+
+    let baseline = app.project.content_baseline();
+    app.edit_entity(Some(&id));
+    click(&ctx, &mut app, 0, "创作模板 · 组织与制度");
+    click(&ctx, &mut app, 0, "任职于");
+    assert!(app.relation_editor.is_some());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app
+        .relation_editor
+        .as_ref()
+        .is_some_and(|form| form.draft.from == TargetRef::new("entity", &id)));
+}

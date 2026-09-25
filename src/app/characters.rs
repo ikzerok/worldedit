@@ -367,6 +367,25 @@ impl WorldeditApp {
                             "栏目可留空；例句是创作参考，不会成为发生过的事件。",
                         ));
                         properties(ui, &mut editor.draft.properties);
+                        if let Some(suggestion) = super::templates::template_panel(
+                            ui,
+                            "character",
+                            None,
+                            &mut editor.draft.properties,
+                        ) {
+                            if let Some(id) = editor.original.clone() {
+                                self.edit_relation(
+                                    None,
+                                    Some(worldline_core::TargetRef::new("character", &id)),
+                                );
+                                self.message = Some(format!(
+                                    "已按“{suggestion}”打开关系草稿；仍需明确关系类型和另一端"
+                                ));
+                            } else {
+                                self.message =
+                                    Some("请先保存新人物，再从模板建议打开关系草稿".into());
+                            }
+                        }
                         ui.separator();
                         ui.label(RichText::new("人物关系").strong());
                         let ids = self
