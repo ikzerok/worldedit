@@ -39,6 +39,8 @@ impl WorldeditApp {
                 self.tab = Tab::Characters;
             }
             "world" => self.tab = Tab::World,
+            "entity" => self.edit_entity(Some(&object.target.id)),
+            "relation" => self.edit_relation(Some(&object.target.id), None),
             "tag" | "asset" | "state" | "anchor" => {
                 self.catalog_target = Some(object.target.clone());
                 self.tag_editor = None;
@@ -55,9 +57,10 @@ impl WorldeditApp {
             return;
         };
         let catalog = snapshot.result.analysis.catalog.clone();
-        let impact = worldline_core::reference_impact::deletion_impact(
+        let impact = worldline_core::reference_impact::deletion_impact_with_views(
             &snapshot.result,
             &snapshot.map_index,
+            &snapshot.graph_index,
             target,
         );
         let map_references = impact
@@ -79,6 +82,13 @@ impl WorldeditApp {
                 (reference, title, kind)
             })
             .collect::<Vec<_>>();
+        if matches!(target.kind.as_str(), "entity" | "relation")
+            && ui.button("编辑这份资料").clicked()
+        {
+            if let Some(object) = catalog.object(target) {
+                self.navigate_object(object);
+            }
+        }
         if ui.button("阅读完整资料 / 管理别名").clicked() {
             self.open_reading(target.clone());
         }
@@ -346,6 +356,17 @@ impl WorldeditApp {
                     self.locate_reference(&reference.map_id, &reference.placement_id);
                 }
             }
+            for reference in &impact.graph_views {
+                if ui
+                    .button(format!(
+                        "共享布局 · {} · {} · 打开引用文档",
+                        reference.view_id, reference.field
+                    ))
+                    .clicked()
+                {
+                    self.jump_to_file(&reference.file, 1, 1);
+                }
+            }
             for reference in &impact.map_rasters {
                 if ui
                     .button(format!(
@@ -372,6 +393,7 @@ impl WorldeditApp {
                 && references.is_empty()
                 && map_references.is_empty()
                 && impact.map_rasters.is_empty()
+                && impact.graph_views.is_empty()
             {
                 ui.label(theme::muted("尚无直接引用"));
             }
@@ -389,8 +411,10 @@ impl WorldeditApp {
             .frame(theme::panel())
             .show(ctx, |ui| {
                 ui.label(RichText::new("世界资料索引").strong().size(17.0));
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     for (id, name) in [
+                        ("entity", "通用资料"),
+                        ("relation", "独立关系"),
                         ("tag", "标签"),
                         ("state", "状态"),
                         ("anchor", "锚点"),
@@ -418,8 +442,16 @@ impl WorldeditApp {
                             let selected = self.catalog_target.as_ref() == Some(&object.target);
                             if ui
                                 .add_sized(
-                                    [ui.available_width(), 38.0],
-                                    egui::Button::selectable(selected, &object.display),
+                                    [ui.available_width(), 48.0],
+                                    egui::Button::selectable(
+                                        selected,
+                                        format!(
+                                            "{}\n{} · {}",
+                                            object.display,
+                                            kind_label(&object.target.kind),
+                                            object.target.id
+                                        ),
+                                    ),
                                 )
                                 .on_hover_text(format!(
                                     "{} · {}",
@@ -437,12 +469,22 @@ impl WorldeditApp {
                     });
             });
         egui::CentralPanel::default().frame(theme::panel().fill(BG)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.vertical(|ui| { ui.heading("资料与状态"); ui.label(theme::muted(format!("{} 个标签 · {} 个状态 · {} 份素材", catalog.tags.len(), catalog.states.len(), catalog.assets.len()))); });
                 if ui.button("全部标签").clicked() {
                     self.catalog_filter = "tag".into(); self.catalog_query.clear(); self.catalog_target = None;
                     self.tag_editor = None; self.state_editor = None; self.anchor_editor = None;
                 }
+                if ui.button("＋ 通用资料").clicked() { self.edit_entity(None); }
+                if ui.button("＋ 独立关系").clicked() { self.edit_relation(None, self.catalog_target.clone()); }
+                ui.menu_button("关系类型", |ui| {
+                    if ui.button("＋ 新建关系类型").clicked() { self.edit_relation_type(None); ui.close(); }
+                    for kind in catalog.relation_types.values() {
+                        if ui.button(format!("{} · {}", kind.display, kind.id)).clicked() {
+                            self.edit_relation_type(Some(&kind.id)); ui.close();
+                        }
+                    }
+                });
                 if ui.button("＋ 新建锚点").clicked() { self.new_anchor(); }
                 if ui.button("＋ 新建状态").clicked() {
                     let target = self.catalog_target.clone().or_else(|| catalog.objects.first().map(|o| o.target.clone()));

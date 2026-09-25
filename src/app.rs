@@ -1,5 +1,8 @@
 //! 多文件作者工作台:共享工程快照驱动所有视图。
 mod anchors;
+mod authoring_forms;
+#[cfg(test)]
+mod authoring_ui_tests;
 #[cfg(target_arch = "wasm32")]
 mod browser;
 mod catalog;
@@ -7,6 +10,8 @@ mod characters;
 mod choices;
 #[cfg(not(target_arch = "wasm32"))]
 mod conflicts;
+mod deletion;
+mod entities;
 #[cfg(not(target_arch = "wasm32"))]
 mod frame_profile;
 mod inspector;
@@ -17,6 +22,7 @@ mod overview;
 mod package;
 mod play;
 mod reading;
+mod relation_editor;
 mod search;
 mod states;
 mod tags;
@@ -103,6 +109,7 @@ struct Snapshot {
     result: CompileResult,
     wiki: worldline_core::wiki::KeywordIndex,
     map_index: worldline_core::presentation::MapIndex,
+    graph_index: worldline_core::graph_views::GraphViewIndex,
 }
 struct PlayState {
     // 延续运行时借用接口;每次重开产生一个会话快照。
@@ -177,6 +184,10 @@ pub struct WorldeditApp {
     wiki_query: String,
     wiki_target: Option<worldline_core::catalog::TargetRef>,
     wiki_editor: Option<wiki::WikiEditor>,
+    entity_editor: Option<authoring_forms::EntityForm>,
+    relation_editor: Option<authoring_forms::RelationForm>,
+    relation_type_editor: Option<authoring_forms::RelationTypeForm>,
+    delete_form: Option<authoring_forms::DeleteForm>,
     alias_input: String,
     link_query: String,
     state_editor: Option<(Option<String>, worldline_core::states::StateDraft)>,
@@ -256,6 +267,10 @@ impl WorldeditApp {
             wiki_query: String::new(),
             wiki_target: None,
             wiki_editor: None,
+            entity_editor: None,
+            relation_editor: None,
+            relation_type_editor: None,
+            delete_form: None,
             alias_input: String::new(),
             link_query: String::new(),
             search: String::new(),
@@ -306,7 +321,10 @@ impl WorldeditApp {
         let wiki = worldline_core::wiki::KeywordIndex::new(&result);
         let map_index =
             worldline_core::presentation_commands::map_index_with_content(&self.project, &result);
+        let graph_index =
+            worldline_core::graph_views::build_graph_view_index(&self.project, &result);
         self.snapshot = Some(Snapshot {
+            graph_index,
             result,
             wiki,
             map_index,
@@ -321,7 +339,10 @@ impl WorldeditApp {
         };
         let map_index =
             worldline_core::presentation_commands::map_index_with_content(&self.project, content);
+        let graph_index =
+            worldline_core::graph_views::build_graph_view_index(&self.project, content);
         if let Some(snapshot) = self.snapshot.as_mut() {
+            snapshot.graph_index = graph_index;
             snapshot.map_index = map_index;
         }
     }
@@ -393,6 +414,10 @@ impl WorldeditApp {
         self.event_editor = None;
         self.character_editor = None;
         self.world_editor = None;
+        self.entity_editor = None;
+        self.relation_editor = None;
+        self.relation_type_editor = None;
+        self.delete_form = None;
         self.catalog_target = None;
         self.tag_editor = None;
         self.state_editor = None;
@@ -649,6 +674,10 @@ impl WorldeditApp {
             self.event_editor = None;
             self.character_editor = None;
             self.world_editor = None;
+            self.entity_editor = None;
+            self.relation_editor = None;
+            self.relation_type_editor = None;
+            self.delete_form = None;
             self.map_failed_command = None;
             self.map_canvas.reset_local_preview();
             if source_before == self.project.sources() {
@@ -685,6 +714,10 @@ impl eframe::App for WorldeditApp {
             && self.state_editor.is_none()
             && self.anchor_editor.is_none()
             && self.wiki_editor.is_none()
+            && self.entity_editor.is_none()
+            && self.relation_editor.is_none()
+            && self.relation_type_editor.is_none()
+            && self.delete_form.is_none()
         {
             self.stale_form = false;
         }
@@ -782,6 +815,10 @@ impl eframe::App for WorldeditApp {
         self.project_search(ctx);
         self.reading_window(ctx);
         self.wiki_editor_window(ctx);
+        self.entity_editor_window(ctx);
+        self.relation_editor_window(ctx);
+        self.relation_type_editor_window(ctx);
+        self.content_deletion_window(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.conflict_view.show(ctx);
         #[cfg(not(target_arch = "wasm32"))]
