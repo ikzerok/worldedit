@@ -82,12 +82,17 @@ impl WorldeditApp {
                 (reference, title, kind)
             })
             .collect::<Vec<_>>();
-        if matches!(target.kind.as_str(), "entity" | "relation")
-            && ui.button("编辑这份资料").clicked()
-        {
-            if let Some(object) = catalog.object(target) {
-                self.navigate_object(object);
-            }
+        if matches!(target.kind.as_str(), "entity" | "relation") {
+            ui.horizontal_wrapped(|ui| {
+                if ui.button("编辑这份资料").clicked() {
+                    if let Some(object) = catalog.object(target) {
+                        self.navigate_object(object);
+                    }
+                }
+                if ui.button("更改稳定 ID…").clicked() {
+                    self.plan_target_rename(target.clone());
+                }
+            });
         }
         if ui.button("阅读完整资料 / 管理别名").clicked() {
             self.open_reading(target.clone());

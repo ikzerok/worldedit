@@ -39,6 +39,7 @@ fn frame(
             1 => app.relation_editor_window(ctx),
             2 => app.relation_type_editor_window(ctx),
             4 => app.network_tab(ctx),
+            5 => app.target_rename_window(ctx),
             _ => app.content_deletion_window(ctx),
         },
     )
@@ -276,4 +277,41 @@ fn network_release_profile_meets_m2_frame_and_reading_gates() {
         p95_reading <= 200.0,
         "暖态资料切换 P95 {p95_reading:.3}ms 超过 200ms"
     );
+}
+
+#[test]
+fn rename_preview_and_apply_are_two_explicit_ui_steps_with_undo() {
+    let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
+    app.plan_target_rename(TargetRef::new("entity", "a"));
+    app.rename_form.as_mut().unwrap().new_id = "alpha".into();
+
+    click(&ctx, &mut app, 5, "预览重命名");
+    assert!(app.rename_form.as_ref().unwrap().plan.is_some());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+
+    click(&ctx, &mut app, 5, "应用跨视图重命名");
+    assert!(app.rename_form.is_none(), "{:?}", app.io_error);
+    assert!(app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .result
+        .analysis
+        .catalog
+        .entities
+        .contains_key("alpha"));
+    assert!(!app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .result
+        .analysis
+        .catalog
+        .entities
+        .contains_key("a"));
+    assert_eq!(app.history.len(), 1);
+    app.undo(false);
+    assert_eq!(app.project.content_baseline(), baseline);
 }

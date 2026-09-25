@@ -1,6 +1,6 @@
 #[path = "../src/app/authoring_forms.rs"]
 mod authoring_forms;
-use authoring_forms::{EntityForm, FormGuard, RelationForm, RelationTypeForm};
+use authoring_forms::{EntityForm, FormGuard, RelationForm, RelationTypeForm, RenameForm};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use worldline_core::project::Project;
 use worldline_core::{RelationDirection, TargetRef};
@@ -150,4 +150,29 @@ fn deletion_requires_confirmation_and_rechecks_current_baseline() {
         .catalog
         .entities
         .contains_key(&entity.draft.id));
+}
+
+#[test]
+fn rename_form_requires_preview_and_rejects_stale_application() {
+    let mut p = project();
+    let catalog = p.compile().analysis.catalog;
+    let mut entity = EntityForm::open(&p, &catalog, 0, None, p.entry.clone()).unwrap();
+    entity.draft.display = "重命名对象".into();
+    entity.apply(&mut p, 0).unwrap();
+    let target = TargetRef::new("entity", &entity.draft.id);
+    let mut form = RenameForm::open(&p, 1, target.clone());
+    form.new_id = "renamed".into();
+
+    assert!(form.apply(&mut p, 1).is_err());
+    form.preview(&p, 1).unwrap();
+    let before = p.content_baseline();
+    assert!(form.plan.is_some());
+    assert!(form.apply(&mut p, 2).is_err());
+    assert_eq!(p.content_baseline(), before);
+    form.apply(&mut p, 1).unwrap();
+    let catalog = p.compile().analysis.catalog;
+    assert!(catalog.object(&target).is_none());
+    assert!(catalog
+        .object(&TargetRef::new("entity", "renamed"))
+        .is_some());
 }

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use worldline_core::authoring::EntityDraft;
 use worldline_core::catalog::{Catalog, TargetRef};
 use worldline_core::project::Project;
+use worldline_core::refactor::RenamePlan;
 use worldline_core::{RelationDraft, RelationTypeDraft};
 
 #[derive(Clone)]
@@ -204,5 +205,33 @@ impl DeleteForm {
             "relation" => project.remove_relation(&target.id),
             _ => Err("此面板仅处理通用实体和独立关系".into()),
         }
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct RenameForm {
+    pub target: TargetRef,
+    pub new_id: String,
+    pub plan: Option<RenamePlan>,
+    pub guard: FormGuard,
+}
+impl RenameForm {
+    pub fn open(project: &Project, version: u64, target: TargetRef) -> Self {
+        Self {
+            new_id: target.id.clone(),
+            target,
+            plan: None,
+            guard: FormGuard::capture(project, version),
+        }
+    }
+    pub fn preview(&mut self, project: &Project, version: u64) -> Result<(), String> {
+        self.guard.check(project, version)?;
+        self.plan = Some(project.plan_rename_target(&self.target, self.new_id.trim())?);
+        Ok(())
+    }
+    pub fn apply(&self, project: &mut Project, version: u64) -> Result<(), String> {
+        self.guard.check(project, version)?;
+        let plan = self.plan.as_ref().ok_or("请先预览跨视图影响")?;
+        project.apply_rename_plan(plan)
     }
 }

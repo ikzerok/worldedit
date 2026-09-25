@@ -24,6 +24,7 @@ mod overview;
 mod package;
 mod play;
 mod reading;
+mod refactor_ui;
 mod relation_editor;
 mod search;
 mod states;
@@ -192,6 +193,7 @@ pub struct WorldeditApp {
     relation_editor: Option<authoring_forms::RelationForm>,
     relation_type_editor: Option<authoring_forms::RelationTypeForm>,
     delete_form: Option<authoring_forms::DeleteForm>,
+    rename_form: Option<authoring_forms::RenameForm>,
     alias_input: String,
     link_query: String,
     state_editor: Option<(Option<String>, worldline_core::states::StateDraft)>,
@@ -280,6 +282,7 @@ impl WorldeditApp {
             relation_editor: None,
             relation_type_editor: None,
             delete_form: None,
+            rename_form: None,
             alias_input: String::new(),
             link_query: String::new(),
             search: String::new(),
@@ -432,6 +435,7 @@ impl WorldeditApp {
         self.relation_editor = None;
         self.relation_type_editor = None;
         self.delete_form = None;
+        self.rename_form = None;
         self.catalog_target = None;
         self.tag_editor = None;
         self.state_editor = None;
@@ -697,6 +701,7 @@ impl WorldeditApp {
             self.relation_editor = None;
             self.relation_type_editor = None;
             self.delete_form = None;
+            self.rename_form = None;
             self.map_failed_command = None;
             self.map_canvas.reset_local_preview();
             if source_before == self.project.sources() {
@@ -737,6 +742,7 @@ impl eframe::App for WorldeditApp {
             && self.relation_editor.is_none()
             && self.relation_type_editor.is_none()
             && self.delete_form.is_none()
+            && self.rename_form.is_none()
         {
             self.stale_form = false;
         }
@@ -839,6 +845,7 @@ impl eframe::App for WorldeditApp {
         self.relation_editor_window(ctx);
         self.relation_type_editor_window(ctx);
         self.content_deletion_window(ctx);
+        self.target_rename_window(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.conflict_view.show(ctx);
         #[cfg(not(target_arch = "wasm32"))]
