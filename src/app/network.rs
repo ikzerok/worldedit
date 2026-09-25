@@ -41,7 +41,7 @@ impl WorldeditApp {
         self.tab = Tab::Network;
     }
 
-    fn load_graph_view(&mut self, id: &str) {
+    pub(super) fn load_graph_view(&mut self, id: &str) {
         let Some(view) = self
             .snapshot
             .as_ref()
@@ -213,6 +213,27 @@ impl WorldeditApp {
         if ui.add(theme::primary("保存共享布局")).clicked() {
             self.save_graph_view();
         }
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("新建展示预设…").clicked() {
+                self.open_preset_editor(None);
+            }
+            if let Some(snapshot) = &self.snapshot {
+                let presets = snapshot
+                    .preset_index
+                    .presets
+                    .values()
+                    .map(|preset| (preset.draft.id.clone(), preset.draft.title.clone()))
+                    .collect::<Vec<_>>();
+                ui.menu_button("应用预设", |ui| {
+                    for (id, title) in presets {
+                        if ui.button(format!("{title} · {id}")).clicked() {
+                            self.apply_presentation_preset(&id);
+                            ui.close();
+                        }
+                    }
+                });
+            }
+        });
         ui.label(theme::muted(
             "拖动、缩放、隐藏关系默认仅属于当前个人浏览；上方按钮才写共享文档。",
         ));

@@ -40,6 +40,7 @@ fn frame(
             2 => app.relation_type_editor_window(ctx),
             4 => app.network_tab(ctx),
             5 => app.target_rename_window(ctx),
+            6 => app.preset_editor_window(ctx),
             _ => app.content_deletion_window(ctx),
         },
     )
@@ -216,6 +217,49 @@ fn network_browsing_is_personal_until_shared_layout_is_saved() {
         .views
         .contains_key("view_a"));
     assert_ne!(app.project.content_baseline(), baseline);
+}
+
+#[test]
+fn presentation_preset_save_is_explicit_and_apply_is_personal() {
+    let (ctx, mut app) = app();
+    let entry = app.project.entry.clone();
+    let mut source = app.project.sources()[&entry].clone();
+    source.push_str("relation_def r type knows from entity a to entity b\n");
+    app.project.set_text(&entry, source).unwrap();
+    app.recompile();
+    app.open_network(TargetRef::new("entity", "a"));
+    app.network_view_id = "view_a".into();
+    app.network_view_title = "A 的关联".into();
+    click(&ctx, &mut app, 4, "保存共享布局");
+
+    let before_preset = app.project.content_baseline();
+    let history_before = app.history.len();
+    app.open_preset_editor(None);
+    {
+        let form = app.preset_editor.as_mut().unwrap();
+        form.draft.id = "preset_a".into();
+        form.draft.title = "A 的专题".into();
+        form.draft.map_id = None;
+        form.draft.graph_view_id = Some("view_a".into());
+    }
+    click(&ctx, &mut app, 6, "保存展示预设");
+    assert!(app.io_error.is_none(), "{:?}", app.io_error);
+    assert_eq!(app.history.len(), history_before + 1);
+    assert_ne!(app.project.content_baseline(), before_preset);
+    assert!(app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .preset_index
+        .presets
+        .contains_key("preset_a"));
+
+    let saved = app.project.content_baseline();
+    let history_after_save = app.history.len();
+    app.apply_presentation_preset("preset_a");
+    assert_eq!(app.project.content_baseline(), saved);
+    assert_eq!(app.history.len(), history_after_save);
+    assert_eq!(app.network_state.focus, Some(TargetRef::new("entity", "a")));
 }
 
 #[cfg(not(debug_assertions))]

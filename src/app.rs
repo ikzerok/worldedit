@@ -23,6 +23,7 @@ mod overview;
 #[cfg(not(target_arch = "wasm32"))]
 mod package;
 mod play;
+mod presets;
 mod reading;
 mod refactor_ui;
 mod relation_editor;
@@ -116,6 +117,7 @@ struct Snapshot {
     wiki: worldline_core::wiki::KeywordIndex,
     map_index: worldline_core::presentation::MapIndex,
     graph_index: worldline_core::graph_views::GraphViewIndex,
+    preset_index: worldline_core::presentation_presets::PresentationPresetIndex,
 }
 struct PlayState {
     // 延续运行时借用接口;每次重开产生一个会话快照。
@@ -195,6 +197,7 @@ pub struct WorldeditApp {
     relation_type_editor: Option<authoring_forms::RelationTypeForm>,
     delete_form: Option<authoring_forms::DeleteForm>,
     rename_form: Option<authoring_forms::RenameForm>,
+    preset_editor: Option<presets::PresetEditor>,
     alias_input: String,
     link_query: String,
     state_editor: Option<(Option<String>, worldline_core::states::StateDraft)>,
@@ -233,6 +236,7 @@ pub struct WorldeditApp {
     network_view_id: String,
     network_view_title: String,
     network_selected: Option<worldline_core::catalog::TargetRef>,
+    pending_preset_layers: Option<(String, std::collections::BTreeMap<String, bool>)>,
 }
 
 impl WorldeditApp {
@@ -284,6 +288,7 @@ impl WorldeditApp {
             relation_type_editor: None,
             delete_form: None,
             rename_form: None,
+            preset_editor: None,
             alias_input: String::new(),
             link_query: String::new(),
             search: String::new(),
@@ -323,6 +328,7 @@ impl WorldeditApp {
             network_view_id: String::new(),
             network_view_title: String::new(),
             network_selected: None,
+            pending_preset_layers: None,
         };
         if let Some(path) = initial_file {
             app.load_project(path);
@@ -341,8 +347,15 @@ impl WorldeditApp {
             worldline_core::presentation_commands::map_index_with_content(&self.project, &result);
         let graph_index =
             worldline_core::graph_views::build_graph_view_index(&self.project, &result);
+        let preset_index = worldline_core::presentation_presets::build_preset_index(
+            &self.project,
+            &result,
+            &map_index,
+            &graph_index,
+        );
         self.snapshot = Some(Snapshot {
             graph_index,
+            preset_index,
             result,
             wiki,
             map_index,
@@ -359,8 +372,15 @@ impl WorldeditApp {
             worldline_core::presentation_commands::map_index_with_content(&self.project, content);
         let graph_index =
             worldline_core::graph_views::build_graph_view_index(&self.project, content);
+        let preset_index = worldline_core::presentation_presets::build_preset_index(
+            &self.project,
+            content,
+            &map_index,
+            &graph_index,
+        );
         if let Some(snapshot) = self.snapshot.as_mut() {
             snapshot.graph_index = graph_index;
+            snapshot.preset_index = preset_index;
             snapshot.map_index = map_index;
         }
     }
@@ -437,6 +457,7 @@ impl WorldeditApp {
         self.relation_type_editor = None;
         self.delete_form = None;
         self.rename_form = None;
+        self.preset_editor = None;
         self.catalog_target = None;
         self.tag_editor = None;
         self.state_editor = None;
@@ -468,6 +489,7 @@ impl WorldeditApp {
         self.network_view_id.clear();
         self.network_view_title.clear();
         self.network_selected = None;
+        self.pending_preset_layers = None;
     }
     fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
         if self.project.is_dirty() {
@@ -847,6 +869,7 @@ impl eframe::App for WorldeditApp {
         self.relation_type_editor_window(ctx);
         self.content_deletion_window(ctx);
         self.target_rename_window(ctx);
+        self.preset_editor_window(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.conflict_view.show(ctx);
         #[cfg(not(target_arch = "wasm32"))]

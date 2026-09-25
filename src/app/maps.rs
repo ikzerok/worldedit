@@ -1829,6 +1829,14 @@ impl super::WorldeditApp {
             if let Some(camera) = self.pending_map_camera.take() {
                 self.map_canvas.restore_camera(camera);
             }
+            if let Some((pending_map, visibility)) = self.pending_preset_layers.clone() {
+                if pending_map == map_id && self.map_canvas.map_id() == map_id {
+                    for (layer_id, visible) in visibility {
+                        self.map_canvas.set_layer_visible(&layer_id, visible);
+                    }
+                    self.pending_preset_layers = None;
+                }
+            }
             self.map_canvas.prepare_rasters(ctx, &self.project.root);
             if let Some(request) = self.map_locate_request.clone() {
                 if request.map_id == map_id {
@@ -1886,6 +1894,9 @@ impl super::WorldeditApp {
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         ui.heading("地图浏览");
+                        if ui.button("展示预设…").clicked() {
+                            self.open_preset_editor(None);
+                        }
                 ui.label(crate::theme::muted("地图选择、图层和标记信息"));
                 if let Some(map_navigation) = self.map_navigation.as_ref() {
                     let breadcrumbs = map_navigation.breadcrumbs();

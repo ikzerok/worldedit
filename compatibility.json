@@ -1,10 +1,10 @@
-{
-  "worldline": {
-    "repository": "ikzerok/worldline",
-    "sha": "6dbc6424a03c6829747f3fea9e605921bbeeecdf"
-  },
-  "baseline": {
-    "worldline": "dcb6479873f86b08354ba92b098dc260aa976624",
-    "worldedit": "b0955adcccd740d9b3b46cee1d0f503ad25f5257"
-  }
+﻿{
+    "worldline":  {
+                      "repository":  "ikzerok/worldline",
+                      "sha":  "de54f7870bfb9befc3dfabdddbd28d2a23b34183"
+                  },
+    "baseline":  {
+                     "worldline":  "dcb6479873f86b08354ba92b098dc260aa976624",
+                     "worldedit":  "b0955adcccd740d9b3b46cee1d0f503ad25f5257"
+                 }
 }

@@ -93,6 +93,8 @@ struct LocalView {
     filters: GraphViewFilters,
     positions: BTreeMap<String, [f64; 2]>,
     hidden: BTreeSet<String>,
+    scope_refs: Vec<TargetRef>,
+    include_unscoped: bool,
     camera: GraphCamera,
     offset: usize,
     pages: Vec<usize>,
@@ -104,10 +106,19 @@ pub struct NetworkState {
     pub result: Option<RelationQueryResult>,
     pub positions: BTreeMap<String, [f64; 2]>,
     pub hidden: BTreeSet<String>,
+    pub scope_refs: Vec<TargetRef>,
+    pub include_unscoped: bool,
     pub camera: GraphCamera,
     pub offset: usize,
     pages: Vec<usize>,
-    cache: Option<(u64, TargetRef, GraphViewFilters, usize)>,
+    cache: Option<(
+        u64,
+        TargetRef,
+        GraphViewFilters,
+        Vec<TargetRef>,
+        bool,
+        usize,
+    )>,
     drag: Option<(String, [f64; 2])>,
     history: Vec<LocalView>,
 }
@@ -118,6 +129,8 @@ impl NetworkState {
         self.result = None;
         self.positions.clear();
         self.hidden.clear();
+        self.scope_refs.clear();
+        self.include_unscoped = false;
         self.camera = GraphCamera::default();
         self.offset = 0;
         self.pages.clear();
@@ -137,6 +150,8 @@ impl NetworkState {
                 filters: self.filters.clone(),
                 positions: self.positions.clone(),
                 hidden: self.hidden.clone(),
+                scope_refs: self.scope_refs.clone(),
+                include_unscoped: self.include_unscoped,
                 camera: self.camera.clone(),
                 offset: self.offset,
                 pages: self.pages.clone(),
@@ -155,6 +170,8 @@ impl NetworkState {
         self.filters = view.filters;
         self.positions = view.positions;
         self.hidden = view.hidden;
+        self.scope_refs = view.scope_refs;
+        self.include_unscoped = view.include_unscoped;
         self.camera = view.camera;
         self.offset = view.offset;
         self.pages = view.pages;
@@ -167,9 +184,17 @@ impl NetworkState {
         let Some(target) = self.focus.clone() else {
             return false;
         };
-        if self.cache.as_ref().is_some_and(|(old, focus, filters, _)| {
-            *old != generation || focus != &target || filters != &self.filters
-        }) {
+        if self
+            .cache
+            .as_ref()
+            .is_some_and(|(old, focus, filters, scopes, include_unscoped, _)| {
+                *old != generation
+                    || focus != &target
+                    || filters != &self.filters
+                    || scopes != &self.scope_refs
+                    || *include_unscoped != self.include_unscoped
+            })
+        {
             self.offset = 0;
             self.pages.clear();
             self.cancel_drag();
@@ -178,14 +203,19 @@ impl NetworkState {
             generation,
             target.clone(),
             self.filters.clone(),
+            self.scope_refs.clone(),
+            self.include_unscoped,
             self.offset,
         );
         if self.cache.as_ref() == Some(&key) {
             return false;
         }
+        let mut options = self.filters.query_options(self.offset);
+        options.scope_refs = self.scope_refs.clone();
+        options.include_unscoped = self.include_unscoped;
         self.result = catalog
             .object(&target)
-            .map(|_| catalog.query_relations(&target, self.filters.query_options(self.offset)));
+            .map(|_| catalog.query_relations(&target, options));
         self.cache = Some(key);
         self.populate_positions();
         true
