@@ -6,7 +6,9 @@ use crate::{
 };
 use std::path::Path;
 
-struct BrowserSaveHost;
+struct BrowserSaveHost {
+    checkpoint_session_id: String,
+}
 
 impl crate::save_flow::SaveHost for BrowserSaveHost {
     fn request_download(&mut self, name: &str, bytes: &[u8], mime: &str) -> Result<(), String> {
@@ -14,7 +16,7 @@ impl crate::save_flow::SaveHost for BrowserSaveHost {
     }
 
     fn persist(&mut self, bytes: &[u8]) -> Result<(), String> {
-        web::persist(bytes)
+        web::persist(bytes, &self.checkpoint_session_id)
     }
 
     fn record_export_revision(&mut self, revision: u64) {
@@ -29,8 +31,8 @@ impl crate::save_flow::SaveHost for BrowserSaveHost {
 impl WorldeditApp {
     pub(crate) fn restore_browser_save(&mut self) {
         match web::restore() {
-            Ok(Some(files)) => {
-                self.browser_open_with_mode(files, false);
+            Ok(Some((files, checkpoint_session_id))) => {
+                self.browser_open_with_mode(files, false, checkpoint_session_id);
                 if self.io_error.is_none() {
                     self.browser_pending_save = false;
                     web::record_local_snapshot_revision(self.version);
@@ -43,7 +45,7 @@ impl WorldeditApp {
     }
 
     pub(super) fn browser_open(&mut self, files: Files) {
-        self.browser_open_with_mode(files, true);
+        self.browser_open_with_mode(files, true, None);
         if self.io_error.is_none() {
             self.browser_pending_save = true;
         }
@@ -55,7 +57,8 @@ impl WorldeditApp {
         message: String,
     ) -> Result<(), String> {
         self.io_error = None;
-        self.browser_open_with_mode(files, false);
+        let checkpoint_session_id = self.project.checkpoint_session_id().to_owned();
+        self.browser_open_with_mode(files, false, Some(checkpoint_session_id));
         if let Some(error) = self.io_error.take() {
             Err(error)
         } else {
@@ -65,7 +68,12 @@ impl WorldeditApp {
         }
     }
 
-    fn browser_open_with_mode(&mut self, mut files: Files, preflight: bool) {
+    fn browser_open_with_mode(
+        &mut self,
+        mut files: Files,
+        preflight: bool,
+        checkpoint_session_id: Option<String>,
+    ) {
         let result = (|| {
             if preflight {
                 files = archive::prepare_import(files)?;
@@ -82,7 +90,16 @@ impl WorldeditApp {
             let previous = web::imported();
             web::mount(files);
             match worldline_core::project::Project::open(&Path::new("/world").join(entry)) {
-                Ok(project) => Ok(project),
+                Ok(mut project) => {
+                    if let Some(checkpoint_session_id) = checkpoint_session_id.as_deref() {
+                        if let Err(error) = project.set_checkpoint_session_id(checkpoint_session_id)
+                        {
+                            web::mount(previous);
+                            return Err(error);
+                        }
+                    }
+                    Ok(project)
+                }
                 Err(error) => {
                     web::mount(previous);
                     Err(error)
@@ -188,7 +205,9 @@ impl WorldeditApp {
         let revision = self.version;
         let files = self.browser_package()?;
         let bytes = archive::encode(&files)?;
-        let mut host = BrowserSaveHost;
+        let mut host = BrowserSaveHost {
+            checkpoint_session_id: self.project.checkpoint_session_id().to_owned(),
+        };
         let result = crate::save_flow::save_project_package(&mut host, revision, &bytes, || {
             web::mount(files);
             self.project.mark_saved();

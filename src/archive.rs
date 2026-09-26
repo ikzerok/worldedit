@@ -8,6 +8,56 @@ pub const MAX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_FILES: usize = 4096;
 pub const MANIFEST: &str = "worldedit-project.json";
 
+#[cfg(any(target_arch = "wasm32", test))]
+#[derive(serde::Serialize, serde::Deserialize)]
+struct StoredBrowserProject {
+    version: u32,
+    checkpoint_session_id: String,
+    archive_base64: String,
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn encode_browser_snapshot(
+    archive_base64: &str,
+    checkpoint_session_id: &str,
+) -> Result<String, String> {
+    serde_json::to_string(&StoredBrowserProject {
+        version: 1,
+        checkpoint_session_id: checkpoint_session_id.to_owned(),
+        archive_base64: archive_base64.to_owned(),
+    })
+    .map_err(|error| format!("无法编码浏览器工程快照：{error}"))
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn decode_browser_snapshot(stored: &str) -> Result<(String, Option<String>), String> {
+    if !stored.trim_start().starts_with('{') {
+        // The original localStorage format stored the ZIP as a bare base64 string.
+        return Ok((stored.to_owned(), None));
+    }
+    let snapshot: StoredBrowserProject =
+        serde_json::from_str(stored).map_err(|error| format!("浏览器工程快照格式无效：{error}"))?;
+    if snapshot.version != 1 {
+        return Err("浏览器工程快照版本不受支持".into());
+    }
+    if !valid_checkpoint_session_id(&snapshot.checkpoint_session_id) {
+        return Err("浏览器工程快照中的检查点会话标识无效".into());
+    }
+    Ok((
+        snapshot.archive_base64,
+        Some(snapshot.checkpoint_session_id),
+    ))
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+fn valid_checkpoint_session_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 96
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ArchiveEntryKind {
@@ -332,6 +382,27 @@ mod tests {
         ] {
             assert!(relative_path(path).is_err(), "{path}");
         }
+    }
+
+    #[test]
+    fn browser_snapshot_roundtrip_keeps_checkpoint_session_and_reads_legacy_base64() {
+        let stored = encode_browser_snapshot("UEsDBA==", "browser-session-a").unwrap();
+        assert_eq!(
+            decode_browser_snapshot(&stored).unwrap(),
+            ("UEsDBA==".into(), Some("browser-session-a".into()))
+        );
+        assert_eq!(
+            decode_browser_snapshot("UEsDBA==").unwrap(),
+            ("UEsDBA==".into(), None)
+        );
+        assert!(decode_browser_snapshot(
+            r#"{"version":2,"checkpoint_session_id":"browser-session-a","archive_base64":"UEsDBA=="}"#
+        )
+        .is_err());
+        assert!(decode_browser_snapshot(
+            r#"{"version":1,"checkpoint_session_id":"../other","archive_base64":"UEsDBA=="}"#
+        )
+        .is_err());
     }
 
     #[test]

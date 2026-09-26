@@ -313,10 +313,11 @@ pub fn download(name: &str, bytes: &[u8], mime: &str) -> Result<(), String> {
 }
 
 const STORAGE_KEY: &str = "worldedit.project.v1";
-pub fn persist(bytes: &[u8]) -> Result<(), String> {
+pub fn persist(bytes: &[u8], checkpoint_session_id: &str) -> Result<(), String> {
     let window = web_sys::window().unwrap();
     let binary: String = bytes.iter().map(|b| char::from(*b)).collect();
-    let encoded = window.btoa(&binary).map_err(error)?;
+    let archive_base64 = window.btoa(&binary).map_err(error)?;
+    let encoded = archive::encode_browser_snapshot(&archive_base64, checkpoint_session_id)?;
     let storage = window
         .local_storage()
         .map_err(error)?
@@ -334,7 +335,7 @@ pub fn persist(bytes: &[u8]) -> Result<(), String> {
     SAVED_BASELINE.with(|baseline| *baseline.borrow_mut() = Some(encoded));
     Ok(())
 }
-pub fn restore() -> Result<Option<Files>, String> {
+pub fn restore() -> Result<Option<(Files, Option<String>)>, String> {
     let window = web_sys::window().unwrap();
     let Some(storage) = window.local_storage().map_err(error)? else {
         return Ok(None);
@@ -342,12 +343,13 @@ pub fn restore() -> Result<Option<Files>, String> {
     let Some(encoded) = storage.get_item(STORAGE_KEY).map_err(error)? else {
         return Ok(None);
     };
-    let binary = window.atob(&encoded).map_err(error)?;
+    let (archive_base64, checkpoint_session_id) = archive::decode_browser_snapshot(&encoded)?;
+    let binary = window.atob(&archive_base64).map_err(error)?;
     let bytes: Vec<_> = binary.chars().map(|c| c as u8).collect();
     let files = archive::decode(&bytes)?;
     archive::entry(&files)?;
     SAVED_BASELINE.with(|baseline| *baseline.borrow_mut() = Some(encoded));
-    Ok(Some(files))
+    Ok(Some((files, checkpoint_session_id)))
 }
 
 #[cfg(test)]
