@@ -1,9 +1,11 @@
 //! 协作审阅 UI：只编排 core 的批注/提案事务，不实现第二套合并逻辑。
 use super::{Tab, WorldeditApp};
 use crate::theme::{self, *};
+use std::collections::BTreeMap;
 use worldline_core::collaboration::{
     self, AnchorStatus, ApplyProposalCommand, CommentAnchor, CommentCommand, CommentDraft,
-    ProposalCommand, ProposalPreview, ProposalStatus,
+    ProposalCommand, ProposalConflict, ProposalFilePreview, ProposalPreview, ProposalResolution,
+    ProposalStatus,
 };
 
 #[derive(Clone)]
@@ -22,12 +24,22 @@ pub(super) struct CommentEditor {
     pub version: u64,
 }
 
+#[derive(Clone, Default)]
+pub(super) struct ProposalResolutionDraft {
+    value: String,
+    deletion: bool,
+    resolved: bool,
+}
+pub(super) type ProposalResolutionDrafts =
+    BTreeMap<String, BTreeMap<String, BTreeMap<String, ProposalResolutionDraft>>>;
+
 pub(super) struct ReviewState {
     pub author: String,
     pub reason: String,
     pub proposal_id: String,
     pub selected_proposal: Option<String>,
     pub preview: Option<ProposalPreviewState>,
+    pub conflict_resolutions: ProposalResolutionDrafts,
     pub preview_side: usize,
     pub comment_editor: Option<CommentEditor>,
     pub text_path: String,
@@ -43,6 +55,7 @@ impl Default for ReviewState {
             proposal_id: String::new(),
             selected_proposal: None,
             preview: None,
+            conflict_resolutions: BTreeMap::new(),
             preview_side: 1,
             comment_editor: None,
             text_path: "world.wl".into(),
@@ -50,6 +63,153 @@ impl Default for ReviewState {
             text_end: "1".into(),
         }
     }
+}
+
+fn proposal_resolution_draft<'a>(
+    proposal_id: &str,
+    conflict: &ProposalConflict,
+    drafts: &'a mut ProposalResolutionDrafts,
+) -> &'a mut ProposalResolutionDraft {
+    if !drafts.contains_key(proposal_id) {
+        drafts.insert(proposal_id.to_owned(), BTreeMap::new());
+    }
+    let proposal_drafts = drafts.get_mut(proposal_id).unwrap();
+    if !proposal_drafts.contains_key(conflict.path.as_str()) {
+        proposal_drafts.insert(conflict.path.clone(), BTreeMap::new());
+    }
+    let file_drafts = proposal_drafts.get_mut(conflict.path.as_str()).unwrap();
+    if !file_drafts.contains_key(conflict.location.as_str()) {
+        file_drafts.insert(
+            conflict.location.clone(),
+            ProposalResolutionDraft::default(),
+        );
+    }
+    file_drafts.get_mut(conflict.location.as_str()).unwrap()
+}
+
+fn proposal_conflicts_resolved(
+    proposal_id: &str,
+    conflicts: &[ProposalConflict],
+    drafts: &ProposalResolutionDrafts,
+) -> bool {
+    conflicts.iter().all(|conflict| {
+        drafts
+            .get(proposal_id)
+            .and_then(|files| files.get(conflict.path.as_str()))
+            .and_then(|locations| locations.get(conflict.location.as_str()))
+            .is_some_and(|draft| draft.resolved)
+    })
+}
+
+fn proposal_resolutions(
+    proposal_id: &str,
+    conflicts: &[ProposalConflict],
+    drafts: &ProposalResolutionDrafts,
+) -> Vec<ProposalResolution> {
+    conflicts
+        .iter()
+        .filter_map(|conflict| {
+            let draft = drafts
+                .get(proposal_id)?
+                .get(conflict.path.as_str())?
+                .get(conflict.location.as_str())?;
+            draft.resolved.then(|| ProposalResolution {
+                path: conflict.path.clone(),
+                location: conflict.location.clone(),
+                value: (!draft.deletion).then(|| draft.value.clone()),
+            })
+        })
+        .collect()
+}
+
+fn show_conflict_resolution(
+    ui: &mut egui::Ui,
+    proposal_id: &str,
+    file: &ProposalFilePreview,
+    conflict: &ProposalConflict,
+    drafts: &mut ProposalResolutionDrafts,
+) {
+    let draft = proposal_resolution_draft(proposal_id, conflict, drafts);
+    let sides = file
+        .differences
+        .iter()
+        .find(|difference| difference.path == conflict.location)
+        .map(|difference| {
+            [
+                ("基底", difference.base.as_deref()),
+                ("当前", difference.current.as_deref()),
+                ("提议", difference.proposed.as_deref()),
+            ]
+        })
+        .unwrap_or([
+            ("基底", file.raw.base.as_deref()),
+            ("当前", file.raw.current.as_deref()),
+            ("提议", file.raw.proposed.as_deref()),
+        ]);
+
+    ui.group(|ui| {
+        ui.colored_label(
+            ERROR,
+            format!(
+                "冲突 {}{} · {}",
+                conflict.path, conflict.location, conflict.message
+            ),
+        );
+        if file.truncated {
+            ui.colored_label(
+                theme::GOLD,
+                "预览已截断；请先打开原文，并在下方输入完整解决内容",
+            );
+        }
+        ui.horizontal_wrapped(|ui| {
+            for (side, value) in sides {
+                let label = if value.is_some() {
+                    format!("采用{side}")
+                } else {
+                    format!("采用{side}（删除）")
+                };
+                if ui
+                    .add_enabled(!file.truncated, egui::Button::new(label))
+                    .clicked()
+                {
+                    draft.value = value.unwrap_or_default().to_owned();
+                    draft.deletion = value.is_none();
+                    draft.resolved = true;
+                }
+            }
+        });
+        if draft.deletion {
+            ui.label(theme::muted("解决方案：删除对应字段或文件"));
+            if ui.small_button("改为编辑解决方案").clicked() {
+                draft.deletion = false;
+                draft.resolved = true;
+            }
+        } else {
+            let hint = if file.domain == "presentation" {
+                if conflict.location.is_empty() {
+                    "编辑完整 JSON 文档"
+                } else {
+                    "编辑 JSON 值"
+                }
+            } else {
+                "编辑完整文件文本"
+            };
+            let response = ui.add(
+                egui::TextEdit::multiline(&mut draft.value)
+                    .desired_rows(if conflict.location.is_empty() { 6 } else { 2 })
+                    .desired_width(f32::INFINITY)
+                    .hint_text(hint),
+            );
+            if response.changed() {
+                draft.resolved = true;
+            }
+        }
+        ui.label(theme::muted(if draft.resolved {
+            "已选择；采纳时 core 会重新验证"
+        } else {
+            "尚未解决"
+        }));
+    });
 }
 
 impl WorldeditApp {
@@ -212,38 +372,61 @@ impl WorldeditApp {
     }
 
     fn apply_selected_proposal(&mut self, id: &str) {
-        let Some(preview) = self.review.preview.as_ref() else {
+        let Some(preview_state) = self.review.preview.as_ref() else {
             self.io_error = Some("请先比较提案再采纳".into());
             return;
         };
-        if preview.proposal_id != id
-            || preview.revision != self.map_revision
-            || preview.baseline != self.project.content_baseline()
+        if preview_state.proposal_id != id
+            || preview_state.revision != self.map_revision
+            || preview_state.baseline != self.project.content_baseline()
         {
             self.io_error = Some("审阅预览已过期，请重新比较后采纳".into());
             return;
         }
-        if !preview
-            .result
-            .as_ref()
-            .is_ok_and(ProposalPreview::can_apply)
-        {
-            self.io_error = Some("提案仍有冲突，请先处理并重新比较".into());
-            return;
-        }
+        let (baseline, resolutions, had_conflicts) = match &preview_state.result {
+            Ok(preview) => {
+                let resolutions = proposal_resolutions(
+                    id,
+                    &preview.conflicts,
+                    &self.review.conflict_resolutions,
+                );
+                if resolutions.len() != preview.conflicts.len() {
+                    self.io_error = Some("请逐项选择或编辑所有冲突解决方案".into());
+                    return;
+                }
+                (
+                    preview_state.baseline.clone(),
+                    resolutions,
+                    !preview.conflicts.is_empty(),
+                )
+            }
+            Err(error) => {
+                self.io_error = Some(error.clone());
+                return;
+            }
+        };
         let before = self.project.clone();
         let command = ApplyProposalCommand {
             expected_revision: self.map_revision,
-            expected_baseline: preview.baseline.clone(),
+            expected_baseline: baseline,
             proposal_id: id.into(),
         };
-        match collaboration::apply_proposal(&mut self.project, &mut self.map_revision, command) {
+        match collaboration::apply_proposal_with_resolutions(
+            &mut self.project,
+            &mut self.map_revision,
+            command,
+            &resolutions,
+        ) {
             Ok(_) => {
                 self.remember(before);
                 self.recompile();
                 self.review.preview = None;
                 self.io_error = None;
-                self.message = Some("提案已采纳；内容与版式差异已按三方规则提交".into());
+                self.message = Some(if had_conflicts {
+                    "逐项解决方案已由 core 复验；提案与解决后的内容已一并提交".into()
+                } else {
+                    "提案已采纳；内容与版式差异已按三方规则提交".into()
+                });
             }
             Err(error) => self.io_error = Some(error),
         }
@@ -661,31 +844,40 @@ impl WorldeditApp {
                                                     "引用影响不完整，请打开原文核对",
                                                 );
                                             }
+                                            for conflict in &file.conflicts {
+                                                show_conflict_resolution(
+                                                    ui,
+                                                    &id,
+                                                    file,
+                                                    conflict,
+                                                    &mut self.review.conflict_resolutions,
+                                                );
+                                            }
                                         }
-                                        for conflict in &preview.conflicts {
-                                            ui.colored_label(
-                                                ERROR,
-                                                format!(
-                                                    "{}{} · {}",
-                                                    conflict.path,
-                                                    conflict.location,
-                                                    conflict.message
-                                                ),
-                                            );
+                                        let conflicts_resolved = proposal_conflicts_resolved(
+                                            &id,
+                                            &preview.conflicts,
+                                            &self.review.conflict_resolutions,
+                                        );
+                                        if !preview.conflicts.is_empty() {
+                                            ui.label(format!(
+                                                "待逐项解决冲突 {} 项",
+                                                preview.conflicts.len()
+                                            ));
                                         }
                                         let open = proposal.status == ProposalStatus::Open;
                                         if ui
                                             .add_enabled(
-                                                open && preview.can_apply() && !stale,
+                                                open && conflicts_resolved && !stale,
                                                 theme::primary("采纳提案"),
                                             )
                                             .clicked()
                                         {
                                             self.apply_selected_proposal(&id);
                                         }
-                                        if !preview.can_apply() {
+                                        if !conflicts_resolved {
                                             ui.label(theme::muted(
-                                                "存在冲突时不会部分写入；打开当前原文手工解决后重新比较，或更新提案。",
+                                                "逐项选择基底、当前或提议值，也可编辑解决方案；提交时 core 会重新验证。",
                                             ));
                                         }
                                     }

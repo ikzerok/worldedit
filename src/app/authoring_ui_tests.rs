@@ -4322,6 +4322,181 @@ fn narrow_review_switches_between_selectable_three_way_text() {
     assert_eq!(app.project.document(&entry).unwrap(), original);
 }
 
+fn prepare_proposal_title_conflict(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+) -> (std::path::PathBuf, String) {
+    let manifest_path = app.project.root.join(".world/project.json");
+    let mut manifest: serde_json::Value = serde_json::from_slice(
+        app.project
+            .authoring_document(&manifest_path)
+            .unwrap()
+            .bytes(),
+    )
+    .unwrap();
+    manifest["required_features"]
+        .as_array_mut()
+        .unwrap()
+        .push("presentation.maps.v1".into());
+    manifest["maps"]["review"] = ".world/maps/review.json".into();
+    app.project
+        .set_authoring_document(&manifest_path, serde_json::to_vec(&manifest).unwrap())
+        .unwrap();
+
+    let map_path = app.project.root.join(".world/maps/review.json");
+    let base = serde_json::json!({
+        "schema_version": 1,
+        "id": "review",
+        "title": "基底",
+        "raster_layers": [],
+        "canvas": {"width": 1000, "height": 800, "unit": "normalized"},
+        "layer_order": [],
+        "layers": {},
+        "placements": {},
+        "extensions": {}
+    });
+    let base_text = serde_json::to_string(&base).unwrap();
+    app.project
+        .create_authoring_document(&map_path, base_text.as_bytes().to_vec())
+        .unwrap();
+    app.project.save().unwrap();
+    app.recompile();
+
+    let mut proposed = base.clone();
+    proposed["title"] = "提议".into();
+    let proposed_text = serde_json::to_string(&proposed).unwrap();
+    app.project
+        .set_authoring_document(&map_path, proposed_text.as_bytes().to_vec())
+        .unwrap();
+    app.recompile();
+    app.review.author = "审阅者".into();
+    app.review.reason = "解决同字段冲突".into();
+    app.review.proposal_id = "proposal_resolution".into();
+    click(ctx, app, 7, "保存修改提案");
+
+    let mut current = base;
+    current["title"] = "当前".into();
+    app.project
+        .set_authoring_document(
+            &map_path,
+            serde_json::to_vec(&current).unwrap(),
+        )
+        .unwrap();
+    app.recompile();
+    click(ctx, app, 7, "重新比较提案");
+    (map_path, proposed_text)
+}
+
+#[test]
+fn proposal_conflict_can_be_resolved_from_a_side_and_undone() {
+    let (ctx, mut app) = app();
+    let (map_path, proposed_text) = prepare_proposal_title_conflict(&ctx, &mut app);
+    let proposal = &app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .proposal_index
+        .proposals["proposal_resolution"]
+        .draft;
+    let preview = worldline_core::collaboration::preview_proposal(&app.project, proposal).unwrap();
+    assert_eq!(preview.conflicts.len(), 1, "{:?}", preview.conflicts);
+
+    click(&ctx, &mut app, 7, "采纳提案");
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(
+            app.project.authoring_document(&map_path).unwrap().bytes()
+        )
+        .unwrap()["title"],
+        "当前"
+    );
+
+    click(&ctx, &mut app, 7, "采用提议");
+    let history_before_apply = app.history.len();
+    click(&ctx, &mut app, 7, "采纳提案");
+    let resolved: serde_json::Value =
+        serde_json::from_slice(app.project.authoring_document(&map_path).unwrap().bytes())
+            .unwrap();
+    assert_eq!(resolved["title"], "提议", "{:?}", app.io_error);
+    assert_eq!(app.history.len(), history_before_apply + 1);
+    let proposal = &app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .proposal_index
+        .proposals["proposal_resolution"];
+    assert_eq!(proposal.draft.status, worldline_core::collaboration::ProposalStatus::Accepted);
+    assert_eq!(
+        proposal.draft.changes[0].proposed.as_deref(),
+        Some(proposed_text.as_str())
+    );
+
+    app.undo(false);
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(
+            app.project.authoring_document(&map_path).unwrap().bytes()
+        )
+        .unwrap()["title"],
+        "当前"
+    );
+    assert_eq!(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .proposal_index
+            .proposals["proposal_resolution"]
+            .draft
+            .status,
+        worldline_core::collaboration::ProposalStatus::Open
+    );
+}
+
+#[test]
+fn proposal_conflict_can_be_edited_before_core_application() {
+    let (ctx, mut app) = app();
+    let (map_path, _) = prepare_proposal_title_conflict(&ctx, &mut app);
+    replace_text_area(&ctx, &mut app, 7, "编辑 JSON 值", "\"已解决\"");
+    let mut updated_current: serde_json::Value =
+        serde_json::from_slice(app.project.authoring_document(&map_path).unwrap().bytes()).unwrap();
+    updated_current["title"] = "当前更新".into();
+    app.project
+        .set_authoring_document(
+            &map_path,
+            serde_json::to_vec(&updated_current).unwrap(),
+        )
+        .unwrap();
+    app.recompile();
+    let output = frame(&ctx, &mut app, Vec::new(), 7);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("当前差异已过期"), "{rendered}");
+    click(&ctx, &mut app, 7, "采纳提案");
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(
+            app.project.authoring_document(&map_path).unwrap().bytes()
+        )
+        .unwrap()["title"],
+        "当前更新"
+    );
+    click(&ctx, &mut app, 7, "重新比较提案");
+    click(&ctx, &mut app, 7, "采纳提案");
+    let resolved: serde_json::Value =
+        serde_json::from_slice(app.project.authoring_document(&map_path).unwrap().bytes())
+            .unwrap();
+    assert_eq!(resolved["title"], "已解决", "{:?}", app.io_error);
+    assert_eq!(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .proposal_index
+            .proposals["proposal_resolution"]
+            .draft
+            .status,
+        worldline_core::collaboration::ProposalStatus::Accepted
+    );
+}
+
 #[test]
 fn reader_publish_entry_is_separate_and_explains_the_offline_boundary() {
     let (ctx, mut app) = app();
