@@ -23,12 +23,13 @@
 - worldedit#32 / EDS-01：[官方交互观察与证据边界](design/editor-system/20260926/eds01-evidence.md)。四主样本各四条 DOC 观察卡及失败/恢复路径，五补充样本、12 模式反例和替代方案。GUI/RUN/USER 缺口明确保留，ticket 未关闭。
 - worldedit#33 / EDS-02：[任务、对象与入口草案](design/editor-system/20260926/eds02-tasks-and-objects.md)。四条任务旅程、对象生命周期、五类结构和旧 12 页面映射；频率与角色标为假设，不冒充用户访谈。后台研究连接中断后由主任务依据已核查代码补齐，仍待作者验证。
 - worldedit#34 / EDS-03：[编辑器状态、身份与事件路由契约](design/editor-system/20260926/eds03-state-contract.md)。定义六种“当前”、类型化身份、状态所属域、事务转换及 owner/IME/冲突负例；这是设计契约和验收清单，不宣称生产 UI 已全面实现。
-- worldedit#35 / EDS-04：[六区域显隐与 A/B/C 比较](design/editor-system/20260926/eds04-layout-comparison.md)。三种结构用同一组任务与示例数据比较，B 暂列下一轮验证首选，完整自由 dock 暂不采用；抛弃式交互原型单独保存在 `codex/eds04-prototype` 的 `ae23509`，尚待实际作者评估。
+- worldedit#35 / EDS-04：[六区域显隐与 A/B/C 比较](design/editor-system/20260926/eds04-layout-comparison.md)。三种结构用同一组任务与示例数据比较，B 暂列下一轮验证首选，完整自由 dock 暂不采用；抛弃式交互原型单独保存在 `codex/eds04-prototype` 的 `bbdcc4d`，尚待实际作者评估。
 - worldedit#36 / EDS-05：[跨投影交互契约](design/editor-system/20260926/eds05-cross-projection.md)。定义类型化导航与返回点、临时/固定资料库、拖放零写入、长标签文字后备与 core 实际 250 节点/500 边上限；仍需真实事件和作者可达性验收。
 - worldedit#37 / EDS-06：[检查器、参数与正文草稿契约](design/editor-system/20260926/eds06-inspector-drafts.md)。列出跟随/固定及多选矩阵、默认/缺失/未知值、渐进分组、重置范围、三方比较与 IME/陈旧负例；这是设计，未声称生产界面完成。
 - worldedit#38 / EDS-07：[时间、控制流、书稿与关系图视觉语法](design/editor-system/20260926/eds07-graph-grammar.md)。四种投影分开命名与图例，区分选择、预览和运行位置；为并行边、自环、长标签与截断定义文字后备和负例。未做作者理解测试。
 - worldedit#39 / EDS-08：[正文、临时侧览与可恢复专注](design/editor-system/20260926/eds08-writing-preview.md)。区分主编辑、临时/固定旁查和阅读投影，定义选文/IME/无鼠标、专注恢复、窄窗与长文验收；行宽仍待实际验证。
 - worldedit#40 / EDS-09：[统一命令、焦点路由与撤销边界](design/editor-system/20260926/eds09-command-routing.md)。统一命令描述和按钮/菜单/快捷键语义，列出模态→IME→焦点区→全局矩阵、分层取消及非拖动替代；仍需生产接入与真实事件验证。
+- worldedit#41 / EDS-10：[基于状态的视觉系统与组件规范](design/editor-system/20260926/eds10-visual-system.md)。列出八类 token、12 种组件状态、四任务/明暗/密度的验证矩阵与 Web 参考阈值；低保真主题比较在 `codex/eds04-prototype`，高保真与完整无障碍验证仍缺。
 
 ## 已决定的排除
 
