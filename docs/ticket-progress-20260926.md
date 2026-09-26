@@ -21,8 +21,8 @@
 ### worldedit#13 / CAP-01B
 
 - 正文源码中的 `@` 候选按 kind+ID 消歧，支持方向键/Enter 与 Esc；选文建档走 core 组合事务，正文链接可回到原编辑光标。
-- IME 组合与外部刷新同时发生时保留本地草稿并阻止覆盖。egui 真实事件回归、123 项测试及 WASM 检查通过，提交 `e5eb266`。原生桌面在独立 `D:/Temp/worldedit-cap01b-gui-20260926` 作品实际输入 `@林舟`、看到人物/状态同名候选、Enter 生成 `[[character:lin|林舟]]`、保存后磁盘第 4 行含稳定引用。Web、真实 OS 输入法、返回光标及完整保存重开路径仍待验收，票保持开放。
-- `6723573` 补相对活动源码路径的 egui 回归：方向键/Enter、稳定 `entity:b` 引用、点击后返回原光标通过。但修复后的 Web bundle 仍报“源文件必须是工作区内已载入的活动源码”；真实 Web 路径身份仍在诊断，保存/刷新/导出和真实 OS 中文 IME 未验收，#13 保持开放。
+- IME 组合与外部刷新同时发生时保留本地草稿并阻止覆盖。egui 真实事件回归、123 项测试及 WASM 检查通过，提交 `e5eb266`。原生桌面在独立 `D:/Temp/worldedit-cap01b-gui-20260926` 作品实际输入 `@林舟`、看到人物/状态同名候选、Enter 生成 `[[character:lin|林舟]]`、保存后磁盘第 4 行含稳定引用；真实 OS 输入法仍未验收。
+- `6723573` 规范化相对活动源码；Web 实际根路径 `/world/world.wl` 在 Windows 测试环境不是 `Path::is_absolute`，由 core `a9e9b3e` 按已载入工作区身份校验，editor `8a3a755` 保留虚拟根路径。Edge 153 实际方向键/Enter 插入 `[[entity:b|同名]]`、链接打开同名 b、返回源码、保存刷新和 ZIP 导出对照通过；证据在 `../qa-cap01b-web-evidence/edge-acceptance.json`。真实 OS 中文 IME 组合/取消未验收，#13 保持开放。
 
 ### worldline#14 / CAP-02A
 
