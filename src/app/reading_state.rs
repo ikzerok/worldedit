@@ -68,3 +68,50 @@ impl ReadingPanels {
         self.panels.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pinned_panels_keep_independent_identity_and_bounded_history() {
+        let mut panels = ReadingPanels::default();
+        let entity = TargetRef::new("entity", "same-id");
+        let character = TargetRef::new("character", "same-id");
+        let first = panels.pin(entity.clone()).unwrap();
+        let second = panels.pin(character.clone()).unwrap();
+
+        assert_ne!(first, second);
+        assert!(panels.pin(TargetRef::new("world", "third")).is_none());
+
+        panels.navigate(first, TargetRef::new("event", "one"));
+        panels.navigate(first, TargetRef::new("event", "two"));
+        let first_panel = panels.get(first).unwrap();
+        assert_eq!(first_panel.target, TargetRef::new("event", "two"));
+        assert_eq!(
+            first_panel.history,
+            vec![entity.clone(), TargetRef::new("event", "one")]
+        );
+        let second_panel = panels.get(second).unwrap();
+        assert_eq!(second_panel.target, character);
+        assert!(second_panel.history.is_empty());
+
+        panels.back(first);
+        assert_eq!(
+            panels.get(first).unwrap().target,
+            TargetRef::new("event", "one")
+        );
+        panels.back(first);
+        assert_eq!(panels.get(first).unwrap().target, entity);
+        assert_eq!(panels.get(second).unwrap().target.kind, "character");
+
+        for index in 0..=HISTORY_LIMIT {
+            panels.navigate(first, TargetRef::new("event", &format!("next-{index}")));
+        }
+        assert_eq!(panels.get(first).unwrap().history.len(), HISTORY_LIMIT);
+        panels.clear();
+        let replacement = panels.pin(TargetRef::new("entity", "replacement")).unwrap();
+        assert!(replacement > second, "window identity must not be reused");
+        assert!(panels.get(first).is_none());
+    }
+}
