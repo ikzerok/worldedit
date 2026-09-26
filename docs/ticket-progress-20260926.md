@@ -60,6 +60,10 @@
 
 - Markdown 迁移 core `52e6389`、`2fce0bb` 提供预算内 dry-run、来源与链接映射、冲突/损失清单、确认后基线保护应用；`dbb1831` 接入 CLI/RPC 等价入口和协议。12 项 Markdown 回归及合并后 workspace 全量测试、严格 Clippy 通过；契约外 Markdown 结构报告损失，导入向导由 worldedit#21 跟踪。
 
+### worldedit#20 / CAP-06B
+
+- editor `3e02fa7` 已接入路径录制/重放、状态差异、条件解释、覆盖与失败定位、暂停/停止/取消及窄屏调试视图。真实 egui 事件回归覆盖过期路径和浏览零写入；集成后 136 项单元、16 项集成及严格原生 Clippy 通过。真实浏览器交互与取消、CLI 结果逐项对照仍待证据，票保持开放。
+
 ## 研究交付
 
 - worldedit#32 / EDS-01：[官方交互观察与证据边界](design/editor-system/20260926/eds01-evidence.md)。四主样本各四条 DOC 观察卡及失败/恢复路径，五补充样本、12 模式反例和替代方案。GUI/RUN/USER 缺口明确保留，研究票已按文档交付关闭。
