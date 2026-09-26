@@ -1,0 +1,1643 @@
+{
+  "meta": {
+    "schema_version": 1,
+    "batch": "20260926",
+    "scope": "两项独立需求：同类产品能力补齐 / 编辑器视觉与交互优化",
+    "source_commit": "357b1a17d96bddf08838ba7d66e94d93eb3239b7",
+    "research_commit": "4a0ee5dfa10c091a7033e3461e48af6441bf5420",
+    "worldline_baseline": "889febe99f7999f8da4c28583320da61e6be13e2",
+    "worldedit_release_baseline": "218d0ed5dbda70b4ce803aaae36197905d1a9708",
+    "branch": "planning/capabilities-ux-tickets-20260926",
+    "status_policy": "所有新增工单保持 OPEN；研究建议不是排期承诺；本地实现不等于合并或发布；无指派、无截止日期。"
+  },
+  "sources": {
+    "S1": [
+      "World Anvil",
+      "https://www.worldanvil.com/"
+    ],
+    "S2": [
+      "World Anvil Chronicles",
+      "https://www.worldanvil.com/features/chronicles"
+    ],
+    "S3": [
+      "World Anvil Family Trees",
+      "https://www.worldanvil.com/features/family-trees"
+    ],
+    "S4": [
+      "Campfire Manuscript",
+      "https://campfirewriting.com/word-processor"
+    ],
+    "S5": [
+      "Campfire Worldbuilding",
+      "https://campfirewriting.com/worldbuilding-tools"
+    ],
+    "S6": [
+      "Campfire Timeline",
+      "https://campfirewriting.com/timeline-maker"
+    ],
+    "S7": [
+      "LegendKeeper Current / Planned Features",
+      "https://www.legendkeeper.com/features/"
+    ],
+    "S8": [
+      "Kanka 权限验证",
+      "https://docs.kanka.io/en/latest/guides/testing-permissions.html"
+    ],
+    "S9": [
+      "articy:draft 功能表",
+      "https://www.articy.com/en/articydraft/feature-list/"
+    ],
+    "S10": [
+      "articy Simulation / Checkup Tools",
+      "https://www.articy.com/en/articydraft/feature-list/"
+    ],
+    "S11": [
+      "articy Localization / Engine Integration",
+      "https://www.articy.com/en/articydraft/feature-list/"
+    ],
+    "S12": [
+      "Twine",
+      "https://twinery.org/"
+    ],
+    "S13": [
+      "Twine 官方手册",
+      "https://twinery.org/reference/en/"
+    ],
+    "S14": [
+      "Ink / Inky",
+      "https://www.inklestudios.com/ink/"
+    ],
+    "S15": [
+      "novelWriter",
+      "https://novelwriter.io/"
+    ],
+    "S16": [
+      "novelWriter Manuscript Build",
+      "https://novelwriter.io/docs/user_interface/manuscript.html"
+    ],
+    "D1": [
+      "Linear 视觉层级参考（非能力竞品）",
+      "https://linear.app/changelog/2026-03-12-ui-refresh"
+    ],
+    "D2": [
+      "novelWriter 阅读/专注模式参考",
+      "https://novelwriter.io/features.html"
+    ],
+    "D3": [
+      "W3C 对比度参考（不代表全应用认证）",
+      "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html"
+    ]
+  },
+  "maps": [
+    {
+      "key": "CAP-MAP",
+      "repo": "ikzerok/worldedit",
+      "title": "同类产品能力路线：九个能力包与跨仓实施总览",
+      "workstream": "capability"
+    },
+    {
+      "key": "UX-MAP",
+      "repo": "ikzerok/worldedit",
+      "title": "编辑器视觉优化：独立审阅、全页面收口与双端验收",
+      "workstream": "visual"
+    }
+  ],
+  "tickets": [
+    {
+      "key": "CAP-01A",
+      "repo": "ikzerok/worldline",
+      "title": "就地建档与稳定引用的组合事务",
+      "priority": "P0",
+      "size": "M",
+      "depends": [],
+      "goal": "把新建资料、替换选中文字为显式引用、可选地图入口作为一个经预检的作者意图。",
+      "existing": "已有 EntityDraft、TargetRef、Project 写入和地图命令；缺的是跨正文/资料/标记的组合入口，不重写这些底层能力。",
+      "scope": [
+        "先定义组合命令、选择范围/来源文件、expected_revision/基线和结构化结果契约，再实现 core。",
+        "支持引用已有对象或显式创建新实体；调用方传入真实源位置与独立 ID。",
+        "返回全部变更文件及引用影响，提供 CLI/RPC 等价入口或在协议中明确分期边界。"
+      ],
+      "acceptance": [
+        "同名不同 kind/ID 不合并；越界源文件、失效选区及未授权 1.10 能力拒绝。",
+        "源文本、对象和地图标记先在候选 Project 中校验；任一失败不部分更新缓冲。",
+        "取消和预览零写入；成功的组合意图可被编辑器记录为一次撤销。",
+        "未知字段、别名、中文/emoji/转义及原文未选部分保持保真。",
+        "普通提及不新增 relation_def；地图引用不推断位于/隶属关系。",
+        "可恢复磁盘保存复用既有保存协议，不声称跨文件磁盘原子性。"
+      ],
+      "tests": [
+        "公开 Project 回归：新建/复用/同名/陈旧选区/坏地图/未知能力/撤销重做。",
+        "core、CLI/RPC 与原生/WASM 配对回归；运行指纹按既有对象类型规则断言。"
+      ],
+      "excluded": [
+        "自然语言抽取关系、自动升级旧工程、UI 内另写解析器。"
+      ],
+      "sources": [
+        "S1",
+        "S7"
+      ],
+      "paths": [
+        "worldline/core/src/authoring.rs",
+        "worldline/core/src/graph_views.rs",
+        "worldline/core/src/presentation_commands.rs",
+        "worldline/spec/agent-protocol.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-01B",
+      "repo": "ikzerok/worldedit",
+      "title": "正文内 @ 引用、选文建档与返回原编辑位置",
+      "priority": "P0",
+      "size": "M",
+      "depends": [
+        "CAP-01A"
+      ],
+      "goal": "写到“白塔议会”时就地选择已有资料或建档，插入稳定链接后继续写作。",
+      "existing": "当前实体/关系表单与阅读导航已有，但创建资料需离开原编辑上下文。",
+      "scope": [
+        "在正文编辑器提供 @ 候选与选文建档操作；搜索名称/ID/别名并显示类型。",
+        "新建表单保留原文草稿、光标和滚动位置；提交只调用组合事务。",
+        "键盘选择、取消及中文输入法组合态与触发行为明确。"
+      ],
+      "acceptance": [
+        "同名候选显示 kind+ID，不能静默选第一项。",
+        "确认后插入稳定引用；Esc、关闭表单均不改 Project，不丢原输入。",
+        "应用一次、撤销一次恢复对象与原文；源文件外部变化时保留输入并阻止覆盖。",
+        "点击已有链接进入资料后能回到原编辑位置；失效引用显示可修复状态。",
+        "桌面/Web 的 Unicode、IME、无鼠标流程验证通过。"
+      ],
+      "tests": [
+        "egui 真实事件回归含输入法组合、取消、陈旧表单与一次撤销。",
+        "原生与浏览器实际走通就地创建/复用/返回流程，记录源码前后差异。"
+      ],
+      "excluded": [
+        "富文本存储替换、自动生成语义关系。"
+      ],
+      "sources": [
+        "S1",
+        "S7"
+      ],
+      "paths": [
+        "worldedit/src/app/authoring_forms.rs",
+        "worldedit/src/app/entities.rs",
+        "worldedit/src/app/reading.rs",
+        "worldedit/src/app/search.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-01C",
+      "repo": "ikzerok/worldedit",
+      "title": "地图上新建地点资料并放置入口",
+      "priority": "P0",
+      "size": "M",
+      "depends": [
+        "CAP-01A"
+      ],
+      "goal": "地图编辑展示模式下，从一个落点新建或选择地点资料，并在同次操作中生成入口。",
+      "existing": "已有点线面与标记表单；本票只补“建档并放置”的连续流程。",
+      "scope": [
+        "在地图上下文中打开资料候选/创建表单，保留地图、图层、落点。",
+        "调用组合 core 命令，不通过坐标或图层名称推断地理语义。",
+        "地图不可用、只读、锁层和页面切换时保留/取消草稿的行为一致。"
+      ],
+      "acceptance": [
+        "浏览模式不能借此创建或修改标记。",
+        "锁定层/非法坐标/陈旧基线失败时不留下孤立实体或半成品标记。",
+        "对象和标记保持不同稳定 ID；删除入口不删除资料。",
+        "成功一次撤销恢复两者；取消保留原地图状态。",
+        "新对象可从地图、资料库、正文引用到达同一来源。"
+      ],
+      "tests": [
+        "core 组合事务负例配合 egui 地图交互回归。",
+        "桌面/Web 同一夹具新建—撤销—重做—保存—重开。"
+      ],
+      "excluded": [
+        "地图坐标自动解释为国家/组织归属，重做几何引擎。"
+      ],
+      "sources": [
+        "S7"
+      ],
+      "paths": [
+        "worldedit/src/app/maps.rs",
+        "worldedit/src/app/entities.rs",
+        "worldedit/src/app/map_creation.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-02A",
+      "repo": "ikzerok/worldline",
+      "title": "书稿编排文档、章节引用与统计契约",
+      "priority": "P0",
+      "size": "L",
+      "depends": [],
+      "goal": "提供卷/章/场景阅读编排，引用既有正文，而不是复制正文或修改世界时间。",
+      "existing": "当前跨文件概览和长文保真已存在；尚无独立书稿装配模型。",
+      "scope": [
+        "先定稿书稿文档 schema、注册/能力协商、稳定章节 ID、正文目标引用、摘要/视角/状态/目标。",
+        "定义引用可执行事件/场景与纯内容实体的粒度，以及删改影响；阅读顺序独立于时间偏序和运行出口。",
+        "core 提供可分页章节投影、来源定位及明确的中文字符/词/代码排除统计口径。"
+      ],
+      "acceptance": [
+        "章节重排、目标/状态编辑不重排事件或修改执行语义。",
+        "引用同一正文不生成新的内容真源；悬空目标诊断且不擅自删章。",
+        "未知字段往返；重复 ID、环形层级、非法来源与越界路径拒绝。",
+        "预览零写入，应用受完整基线保护并纳入保存/撤销/导出生命周期。",
+        "保存重开保持树/顺序/摘要/统计；1.9 旧项目不被隐式迁移。"
+      ],
+      "tests": [
+        "schema 正负样例、章节重排不变指纹、跨文件重命名/删除影响。",
+        "长篇夹具含中文/emoji/多场景/缺失对象，测量统计和投影预算。"
+      ],
+      "excluded": [
+        "精确历法、自动故事排序、一次性替换富文本存储。"
+      ],
+      "sources": [
+        "S4",
+        "S15",
+        "S16"
+      ],
+      "paths": [
+        "worldline/spec/presentation.md",
+        "worldline/core/src/project.rs",
+        "worldline/core/src/reference_impact.rs",
+        "worldline/core/tests/long_content.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-02B",
+      "repo": "ikzerok/worldedit",
+      "title": "书稿与章节工作台：组织、状态、目标和阅读预览",
+      "priority": "P0",
+      "size": "L",
+      "depends": [
+        "CAP-02A"
+      ],
+      "goal": "作者可按卷/章/场景组织作品，知道写到哪里，并预览读者阅读顺序。",
+      "existing": "overview_tab 目前是事件草稿概览；本票不是重命名该页面后宣称已有书稿功能。",
+      "scope": [
+        "章节树与可切换的列表/卡片视图；摘要、视角人物、草稿状态和字数目标。",
+        "重排/插入以 core 书稿命令执行；同页打开正文编辑并保留未提交输入。",
+        "阅读预览按书稿顺序，明确区分世界时间、控制流、阅读编排。"
+      ],
+      "acceptance": [
+        "重排章节不改事件出口和时间约束；显示真实源文件。",
+        "选择已有正文、不复制实例；同名章节可消歧。",
+        "中文统计口径与 core 一致，目标进度不以保存次数虚增。",
+        "取消/失效基线/切图保持草稿；一次操作一次撤销。",
+        "长文预览可持续滚动，缺失章节对象提供修复入口。"
+      ],
+      "tests": [
+        "egui 树重排、保留草稿、统计及撤销回归。",
+        "桌面/Web 创建书稿、编排、修改正文、保存重开、预览完整路径。"
+      ],
+      "excluded": [
+        "DOCX/EPUB 直接输出见 CAP-07E；不会为了章节功能重写运行时。"
+      ],
+      "sources": [
+        "S4",
+        "S15",
+        "S16"
+      ],
+      "paths": [
+        "worldedit/src/app/overview.rs",
+        "worldedit/src/app.rs",
+        "worldedit/src/app/reading.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-02C",
+      "repo": "ikzerok/worldedit",
+      "title": "可钉住的多资料阅读面板与创作旁查",
+      "priority": "P0",
+      "size": "M",
+      "depends": [],
+      "goal": "写作时同时查看人物、地点和设定，资料互相跳转不再覆盖唯一阅读窗口。",
+      "existing": "应用只有一个 reading_target 和固定 object-reading 窗口；现有阅读列美化不等于多面板能力。",
+      "scope": [
+        "支持至少两个独立钉住的阅读面板，分别保存目标与浏览历史。",
+        "明确主编辑区、临时阅读与钉住面板的切换/关闭规则；窄窗口退化为切换式面板。",
+        "个人布局与源内容分离，限制打开面板数量和缓存。"
+      ],
+      "acceptance": [
+        "各面板链接/返回独立；同名对象以 kind+ID 消歧。",
+        "钉住/关闭/调整尺寸/阅读不使工程变脏，不进入内容撤销。",
+        "对象更新、重命名、删除后明确刷新或显示失效，不展示错误对象。",
+        "切换工程清理旧项目目标，未提交编辑表单不被静默丢弃。",
+        "1040×660 与宽屏可到达所有面板和关闭控件；键盘焦点可返回编辑区。"
+      ],
+      "tests": [
+        "个人导航状态单元测试、egui 多窗口点击与不变基线断言。",
+        "原生/Web 双面板旁查与窄屏退化实测。"
+      ],
+      "excluded": [
+        "本票不制定新知识图谱格式；颜色/排版统一单独归 UX。"
+      ],
+      "sources": [
+        "S4",
+        "S7",
+        "S15"
+      ],
+      "paths": [
+        "worldedit/src/app.rs",
+        "worldedit/src/app/reading.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-03A",
+      "repo": "ikzerok/worldline",
+      "title": "资料库组合查询、保存查询与待办投影",
+      "priority": "P0",
+      "size": "L",
+      "depends": [],
+      "goal": "用可解释条件找出某组织相关、仍为草稿且缺少来源的资料，并汇总明确的未完成事项。",
+      "existing": "已有目录、关系查询、诊断、失锚批注和提案索引；尚无统一组合查询协议。",
+      "scope": [
+        "先定义带版本的查询 AST/DTO：类型、名称/别名、标签、属性、明确关系、作者范围与缺值条件。",
+        "明确同维度 OR、跨维度 AND、否定与不存在值的语义，提供可见条件摘要。",
+        "汇总断链、待建条目、失锚批注、待审提案；持久待办必须先确定身份和文档归属。",
+        "保存查询定义与个人收藏边界分开，CLI/RPC 复用 core；查询只读当前缓冲。"
+      ],
+      "acceptance": [
+        "每条结果带 TargetRef、来源位置及命中原因，确定性排序与分页。",
+        "游标绑定查询和快照；工程变更不重复/漏读旧游标结果，应明确失效。",
+        "循环关系、空集合、未知属性类型、大集合预算与取消行为有明确结果。",
+        "缺少来源只表示资料完整性提醒，不判断自然语言真伪或自动生成事实。",
+        "保存查询不改变故事运行指纹；未知查询版本/能力不可破坏原文件。"
+      ],
+      "tests": [
+        "query schema、组合逻辑、空值/否定、稳定分页、陈旧游标等公开 API 测试。",
+        "D5 1000 对象/3000 关系及长文数据，分离冷/暖态，记录样本和 P95，不将目标当成绩。"
+      ],
+      "excluded": [
+        "自然语言语义搜索服务、全量图自动推断、云索引。"
+      ],
+      "sources": [
+        "S1",
+        "S9"
+      ],
+      "paths": [
+        "worldline/core/src/catalog.rs",
+        "worldline/core/src/relations.rs",
+        "worldline/core/src/collaboration.rs",
+        "worldline/spec/agent-protocol.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-03B",
+      "repo": "ikzerok/worldedit",
+      "title": "资料库筛选器、常用集合与统一待办入口",
+      "priority": "P0",
+      "size": "M",
+      "depends": [
+        "CAP-03A"
+      ],
+      "goal": "不用拼源码即可保存组合筛选，并从统一列表处理断链、待建资料和审稿事项。",
+      "existing": "project_search 目前主要搜索名称/ID/别名或源码行，不应将其描述为完全没有搜索。",
+      "scope": [
+        "组合条件编辑器、可删除的条件标签、命中原因、结果分页与保存查询。",
+        "区分共享查询定义和本地收藏；待办按类别和来源聚合，跳到真实对象/段落。",
+        "空结果、查询失效、索引诊断和取消状态可见；避免新增大量同级主菜单。"
+      ],
+      "acceptance": [
+        "筛选只调用 core，不在 UI 复刻关系/属性语义。",
+        "保存后重开能恢复定义；改筛选不改对象或作者范围。",
+        "多条件逻辑可读；缺失来源、未知值与空文本不混为一类。",
+        "结果变更/分页/陈旧游标不误定位；同名可消歧。",
+        "处理待办须有显式内容动作；打开、筛选、查看不使工程变脏。"
+      ],
+      "tests": [
+        "真实 egui 条件编辑、分页、保存与跳转回归。",
+        "原生/Web 组合查询—定位—修复—刷新闭环，含大结果和空结果。"
+      ],
+      "excluded": [
+        "全局搜索取代所有已有导航、自动修复内容事实。"
+      ],
+      "sources": [
+        "S1",
+        "S9"
+      ],
+      "paths": [
+        "worldedit/src/app/search.rs",
+        "worldedit/src/app/catalog.rs",
+        "worldedit/src/app/collaboration_ui.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-04A",
+      "repo": "ikzerok/worldline",
+      "title": "提案逐字段/逐段落三方差异与引用影响 DTO",
+      "priority": "P0",
+      "size": "M",
+      "depends": [],
+      "goal": "让审阅者看清 base/current/proposed 到底改了什么，而不只看到文件数量和冲突报错。",
+      "existing": "collaboration 已有保守三方合并和零部分提交；本票深化只读差异与影响表达，不替换合并规则。",
+      "scope": [
+        "为对象属性、正文段落、展示文档分别提供三方差异 DTO、稳定路径/源范围和引用影响。",
+        "定义字段增加/修改/删除、文本冲突与未知结构的展示；无法结构化时提供完整原文后备。",
+        "预览包含可验证基线，采纳重新验证；导出机器可读审阅结果。"
+      ],
+      "acceptance": [
+        "预览不写 Project、磁盘或提案状态。",
+        "差异可追踪到原始字节，不把 UI 格式化引起的变化当作作者语义修改。",
+        "同字段、删改、数组顺序与正文并发冲突没有默认赢家。",
+        "存在未解决冲突时整批不采纳；提案状态和实际内容在同一候选提交。",
+        "大文本差异有上限/截断提示；不能悄悄省略受影响引用。",
+        "过期预览不能授权覆盖新内容，错误保留双方输入。"
+      ],
+      "tests": [
+        "扩充 collaboration 公共回归：不同键合并、相同字段/删改/数组/正文冲突及未知字段。",
+        "构造长篇差异预算测试并确保正文/引用/运行指纹语义不回归。"
+      ],
+      "excluded": [
+        "UI 计算第二套合并规则、默认采用提案或当前稿。"
+      ],
+      "sources": [
+        "S4",
+        "S9"
+      ],
+      "paths": [
+        "worldline/core/src/collaboration.rs",
+        "worldline/core/src/reference_impact.rs",
+        "worldline/core/tests/collaboration.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-04B",
+      "repo": "ikzerok/worldedit",
+      "title": "三栏审稿、差异定位与明确冲突处理",
+      "priority": "P0",
+      "size": "M",
+      "depends": [
+        "CAP-04A"
+      ],
+      "goal": "在审阅面板里理解和处理三方差异，不必打开原始 JSON 猜测变更。",
+      "existing": "当前已显示文件分域计数和冲突；本票补完整可视化，不把安全采纳当作缺失。",
+      "scope": [
+        "base/current/proposed 三栏或窄屏三标签，分开内容和版式差异。",
+        "属性/段落级高亮、同步定位、引用影响列表和上下文展开。",
+        "显式选择/编辑解决方案后交 core 校验，保留所有原稿与未解决冲突。"
+      ],
+      "acceptance": [
+        "没有鼠标也能到达差异与源位置；长文不整体挤到不可读的小列。",
+        "颜色之外同时有增加/删除/修改标记，未知结构有原文查看入口。",
+        "过期时显示重新比较入口，保留编辑输入，不直接采纳。",
+        "未解决冲突时采纳禁用；成功状态与实际内容一致且可按现有历史撤销。",
+        "原生/Web 文本选择复制、IME、滚动与误触关闭路径通过。"
+      ],
+      "tests": [
+        "egui 三方展示/冲突禁用/重新比较/一次撤销测试。",
+        "真实桌面与浏览器审阅同字段冲突、删改冲突和安全的不同字段合并。"
+      ],
+      "excluded": [
+        "持久历史由 CAP-04C/D 单独交付，视觉主题由 UX 管理。"
+      ],
+      "sources": [
+        "S4",
+        "S9"
+      ],
+      "paths": [
+        "worldedit/src/app/collaboration_ui.rs",
+        "worldedit/src/app/conflicts.rs",
+        "worldedit/src/app/authoring_ui_tests.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-04C",
+      "repo": "ikzerok/worldline",
+      "title": "有容量限制的本地检查点与受保护恢复",
+      "priority": "P1",
+      "size": "L",
+      "depends": [],
+      "goal": "为文件/对象审阅提供显式历史检查点，恢复时仍尊重当前稿和外部修改。",
+      "existing": "现有恢复事务、保存基线和会话撤销不是跨会话检查点；不能把两者混称版本历史。",
+      "scope": [
+        "先写 ADR 决定检查点存储域、快照格式、对象到来源文件的关联、保留/回收和删除策略。",
+        "支持显式创建、列举、差异预览与按计划恢复；core 提供平台中立结果。",
+        "桌面路径、Web 快照/配额、工作区导出是否包含历史必须明确，历史不默认混入读者包。"
+      ],
+      "acceptance": [
+        "容量/数量边界和失败行为可测试；不通过覆盖作者原文件制造自动保存。",
+        "恢复绑定当前基线，外部修改/只读/坏记录时零部分写入并保留稿件。",
+        "包含新增/删除文件与未知字节；文件级恢复影响相关对象必须列出。",
+        "检查点创建/浏览不改变运行指纹；恢复内容的指纹变化按正常规则报告。",
+        "故障后的历史可辨认，不将损坏/截断快照标为可恢复。"
+      ],
+      "tests": [
+        "小配额、写入故障、半完成记录、外部改动、恢复撤销和文件删除负例。",
+        "原生与 WASM 可编译的平台抽象；公开恢复 API 的基线验证。"
+      ],
+      "excluded": [
+        "Git 替代品、自动分支合并、无上限自动备份、上传云端。"
+      ],
+      "sources": [
+        "S4",
+        "S9"
+      ],
+      "paths": [
+        "worldline/core/src/project.rs",
+        "worldline/core/src/workspace_snapshot.rs",
+        "worldline/spec/workspace.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-04D",
+      "repo": "ikzerok/worldedit",
+      "title": "检查点历史面板、对比与恢复确认",
+      "priority": "P1",
+      "size": "M",
+      "depends": [
+        "CAP-04C",
+        "CAP-04A"
+      ],
+      "goal": "按文件/对象查看持久历史，确认差异和引用影响后恢复，而非覆盖当前工作。",
+      "existing": "已有撤销/重做和冲突界面；本票明确新增跨会话历史入口。",
+      "scope": [
+        "显示检查点时间/名称/范围、容量占用和保留策略。",
+        "查看历史只读，复用三方差异投影；恢复前显示当前未保存内容和目标变化。",
+        "Web 配额/持久化失败保脏并允许救援，不把下载请求等同磁盘保存成功。"
+      ],
+      "acceptance": [
+        "查看/比较/筛选检查点不写 Project。",
+        "恢复须明确确认，过期后必须重新预览；不可恢复记录不能点击执行。",
+        "取消和恢复失败保留当前稿；成功恢复进入一次可追踪历史。",
+        "历史删除与正文删除分开，删除检查点不删除当前内容。",
+        "切换工程隔离历史，窄屏/键盘均可完成比较和取消。"
+      ],
+      "tests": [
+        "egui 查看/取消/确认/过期/配额失败路径。",
+        "桌面/Web 实际创建检查点—改稿—重启—比较—恢复—重开；保留输入前后哈希。"
+      ],
+      "excluded": [
+        "把本地历史伪装为多人权限或远端备份。"
+      ],
+      "sources": [
+        "S4"
+      ],
+      "paths": [
+        "worldedit/src/app.rs",
+        "worldedit/src/app/conflicts.rs",
+        "worldedit/src/app/browser.rs",
+        "worldedit/src/save_flow.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-05A",
+      "repo": "ikzerok/worldline",
+      "title": "工程级自定义模板、类型校验与无损升级",
+      "priority": "P1",
+      "size": "L",
+      "depends": [],
+      "goal": "把 16 个内置模板作为起点，允许工程定义自己的字段、栏目与规则。",
+      "existing": "content_templates 已有内置目录；实例值仍属于正文/属性，不应迁移到模板文件。",
+      "scope": [
+        "先定稿工程模板注册、schema 版本、命名空间、字段稳定 ID 与引用策略。",
+        "支持文本、数值、布尔、枚举、对象引用和栏目分组；必要的属性类型扩展先修 spec。",
+        "提供模板导入/替换/删除影响预览和可选完整性校验；内置与项目覆盖规则明确。"
+      ],
+      "acceptance": [
+        "未知可选字段保真；未知必需能力只读；重复键/字段 ID 和非法目标诊断可定位。",
+        "切换/删除模板不删除正文、别名或自定义实例值。",
+        "改变字段类型先预览不能无提示强转；空值/缺失/默认值不混淆。",
+        "对象引用参与重构与删除保护，字符串不擅自提升为引用。",
+        "不执行模板脚本/远程资源；作者显式应用前零实例写入。",
+        "枚举及对象引用的序列化、旧 1.9/1.10 兼容和语言诊断同步说明。"
+      ],
+      "tests": [
+        "16 个内置模板回归及工程模板 schema 正负例。",
+        "字段重命名/删除/改类型、坏模板隔离、长文/未知值/别名保存重开与基线失败。"
+      ],
+      "excluded": [
+        "任意可执行模板代码、强制所有作者使用固定模板。"
+      ],
+      "sources": [
+        "S5",
+        "S9"
+      ],
+      "paths": [
+        "worldline/core/src/content_templates.rs",
+        "worldline/spec/schemas/templates.schema.json",
+        "worldline/core/src/workspace_documents.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-05B",
+      "repo": "ikzerok/worldedit",
+      "title": "模板管理器与按字段类型渲染的创作表单",
+      "priority": "P1",
+      "size": "M",
+      "depends": [
+        "CAP-05A"
+      ],
+      "goal": "作者能管理工程模板，并用类型正确的表单填写资料而不破坏已有内容。",
+      "existing": "当前界面主要从内置 matching_template 提供可选文本栏目。",
+      "scope": [
+        "创建/复制/导入/导出/停用工程模板，显示内置或项目来源与版本。",
+        "按 core widget 类型显示枚举、数值、布尔、对象选择与分组字段。",
+        "模板更新展示实例影响，明确区分模板定义和当前资料编辑。"
+      ],
+      "acceptance": [
+        "删除/停用模板不删除实例内容；编辑中切换模板保留所有输入。",
+        "字段名称与稳定 ID 分开；引用候选能消歧，错误定位到具体字段。",
+        "只读模板和未知 widget 提供可读原值或原因，不把未知字段覆盖为空。",
+        "类型迁移必须预览并明确确认；陈旧表单阻止覆盖。",
+        "原生/Web 保存重开呈现一致，取消不改模板或对象。"
+      ],
+      "tests": [
+        "动态 widget、空值、类型错误、模板切换、升级拒绝的 egui 回归。",
+        "真实工程从自定义模板建档—改模板—查看影响—取消/应用—重开。"
+      ],
+      "excluded": [
+        "UI 自行推导 schema、模板脚本执行。"
+      ],
+      "sources": [
+        "S5",
+        "S9"
+      ],
+      "paths": [
+        "worldedit/src/app/templates.rs",
+        "worldedit/src/app/entities.rs",
+        "worldedit/src/app/characters.rs",
+        "worldedit/src/app/inspector.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-06A",
+      "repo": "ikzerok/worldline",
+      "title": "确定性叙事重放、检查点与条件解释协议",
+      "priority": "P1",
+      "size": "L",
+      "depends": [],
+      "goal": "保存一条选择路径和随机种子，改稿后受控重放并解释状态变化或选项不可用原因。",
+      "existing": "runtime 有状态/保存和演练基础；本票新增版本绑定的调试轨迹，不改变正常故事语义。",
+      "scope": [
+        "先定义 trace/checkpoint 的 schema、代码版本/指纹、稳定选择标识、初始状态与随机种子。",
+        "实现逐步重放、停止位置、状态差异、只读条件解释及访问覆盖投影。",
+        "CLI/RPC 使用同一调试能力，长路径/循环的步数和时间预算明确。"
+      ],
+      "acceptance": [
+        "相同程序、输入和种子可重复得到同一结果；不得使用当前不可见的全局随机源。",
+        "节点/选择消失、语义变更或路径不匹配时停止并定位，不静默改选。",
+        "解释条件不能触发副作用或推进故事；诊断表达不能重写真实求值语义。",
+        "调试状态与 Project 内容隔离；重放不重复污染作者工程。",
+        "从中间测试必须记录初始状态，不冒充完整故事路径通过。",
+        "覆盖只声明已访问节点/选择，不承诺一般程序路径可穷尽。"
+      ],
+      "tests": [
+        "固定种子、重入/循环、条件失败、失效轨迹、存档兼容与旧 runtime 全量回归。",
+        "CLI/RPC 参数错误与故事失败分域；长路径预算、取消、重复运行测试。"
+      ],
+      "excluded": [
+        "世界自动演化、任意状态无痕跳转、穷尽所有分支证明。"
+      ],
+      "sources": [
+        "S10",
+        "S14"
+      ],
+      "paths": [
+        "worldline/runtime/src",
+        "worldline/spec/semantics.md",
+        "worldline/spec/states.md",
+        "worldline/spec/agent-protocol.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-06B",
+      "repo": "ikzerok/worldedit",
+      "title": "叙事调试器：路径重放、状态对比与失败条件定位",
+      "priority": "P1",
+      "size": "L",
+      "depends": [
+        "CAP-06A"
+      ],
+      "goal": "缩短改一段正文后重复走分支的循环，并明确看到执行的是哪个版本。",
+      "existing": "play_tab 会提示旧演练版本并提供重新开始；这不等于自动路径重放。",
+      "scope": [
+        "录制/命名/选择路径，修改后显式重放、暂停/停止、查看检查点。",
+        "步骤前后变量/状态差异、当前源节点与选项不可用理由。",
+        "事件图显示本次访问覆盖；窄屏保留正文和调试信息的切换入口。"
+      ],
+      "acceptance": [
+        "版本/指纹/种子/初始状态可查看，不用旧结果冒充新稿结果。",
+        "失效路径明确中止并定位；无默认替代选择。",
+        "打开条件解释不推进演练；切页面不向工程写调试状态。",
+        "长路径可取消，取消后可保留调试记录但不改正文。",
+        "已访问与未测试状态不用颜色单独表达；记录导入受格式和资源边界检查。"
+      ],
+      "tests": [
+        "egui 录制/重放/过期/中止/取消及状态差异回归。",
+        "原生/Web 修改节点和删除选择的真实重放负例；与 CLI 同 trace 比对。"
+      ],
+      "excluded": [
+        "在 UI 重新实现解释器、自动覆盖旧存档。"
+      ],
+      "sources": [
+        "S10",
+        "S14"
+      ],
+      "paths": [
+        "worldedit/src/app/play.rs",
+        "worldedit/src/app/graph.rs",
+        "worldedit/src/app.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-07A",
+      "repo": "ikzerok/worldline",
+      "title": "Markdown 资料迁移：预检、映射、稳定引用与原子应用",
+      "priority": "P1",
+      "size": "L",
+      "depends": [],
+      "goal": "把已有 Markdown 世界资料安全迁入工程，同时能清楚看到格式损失与引用映射。",
+      "existing": "目前有完整工作区/ZIP 导入导出；外部 Markdown 转换是新的迁移能力，不能混称已有。",
+      "scope": [
+        "先定义支持的 Markdown 子集、front matter/附件/标题/链接映射和不支持项报告。",
+        "dry-run 生成稳定 ID 方案、同名冲突候选、来源追踪与将修改的全部文件。",
+        "通过 core 候选事务应用到新工程或显式选择的已有工程。"
+      ],
+      "acceptance": [
+        "同名不自动合并；非法 ID、断链、附件冲突需要预览可解释。",
+        "路径穿越、符号链接/联接、远程资源、脚本和超预算输入拒绝或显式隔离。",
+        "未支持结构保留原文或报告损失，不能静默丢段落。",
+        "导入预览零写入，应用检查当前基线，任一失败不部分提交。",
+        "中文/emoji/相对链接/转义/未引用附件有确定的保留策略；来源文档不改写。"
+      ],
+      "tests": [
+        "固定 Markdown 夹具与恶意路径/重复名/脚本/大文件/坏编码负例。",
+        "CLI/RPC dry-run 与 apply 结果一致；迁移后保存重开、引用检查和未知字段回归。"
+      ],
+      "excluded": [
+        "本票不顺带做 DOCX/EPUB，也不运行导入的 HTML/脚本。"
+      ],
+      "sources": [
+        "S4",
+        "S15",
+        "S16"
+      ],
+      "paths": [
+        "worldline/core/src/project.rs",
+        "worldline/core/src/workspace_snapshot.rs",
+        "worldline/spec/workspace.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-07B",
+      "repo": "ikzerok/worldedit",
+      "title": "Markdown 导入向导与冲突/损失预览",
+      "priority": "P1",
+      "size": "M",
+      "depends": [
+        "CAP-07A"
+      ],
+      "goal": "作者在真正写入前看懂文件、对象、引用和附件如何迁移。",
+      "existing": "已有原生/浏览器工程包入口；本票为外部格式增加独立导入流程。",
+      "scope": [
+        "选择新工程或已有工程、预览对象/附件映射、同名候选和损失报告。",
+        "显式确认 ID/引用冲突解决，显示进度与取消路径。",
+        "保留完整原工程导入菜单，不把外部格式转换伪装为无损工作区打开。"
+      ],
+      "acceptance": [
+        "预览和取消不创建半成品项目、不覆盖当前未保存稿。",
+        "必需问题未解决时禁止应用；同名消歧和来源链接始终可见。",
+        "浏览器只处理导入快照，不声明持续观察源目录。",
+        "失败保留输入与错误报告，成功提示实际导入数量和未转换内容。",
+        "支持键盘和窄屏完成向导，桌面/Web 使用相同 core 结果。"
+      ],
+      "tests": [
+        "egui 多步骤取消/重试/同名/未知字段与基线失效。",
+        "原生/Web 文件选择、合法迁移、非法包拒绝和导入后再次导出重开。"
+      ],
+      "excluded": [
+        "UI 自行解析 Markdown，默默接受网络附件。"
+      ],
+      "sources": [
+        "S4",
+        "S15"
+      ],
+      "paths": [
+        "worldedit/src/app/browser.rs",
+        "worldedit/src/app/package.rs",
+        "worldedit/src/archive.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-07C",
+      "repo": "ikzerok/worldline",
+      "title": "独立静态阅读包与公开内容边界",
+      "priority": "P1",
+      "size": "L",
+      "depends": [
+        "CAP-02A"
+      ],
+      "goal": "输出给读者的资料/书稿站点，不把完整作者工程连同未公开内容一起交付。",
+      "existing": "完整工作区导出必须保留未引用文件；公开阅读包则要有独立命令与明确选择策略，两者不可互相替代。",
+      "scope": [
+        "先定义 reader-export 选择清单、公开范围、引用闭包、附件白名单和排除报告。",
+        "输出不含编辑器的静态阅读页面、导航和仅覆盖已公开内容的搜索索引；对象与书稿入口分别支持。",
+        "显式处理指向被排除内容的链接、标题、摘要、路径及占位信息，避免侧信道泄露。"
+      ],
+      "acceptance": [
+        "导出清单列出所有包含/排除内容，不以地图隐藏状态推定权限。",
+        "未公开正文、源文件、批注、提案、归档、历史、搜索缓存和私有附件均不得从包中恢复。",
+        "所有 URL/附件位于输出边界内；HTML/脚本/远程引用按静态安全策略处理。",
+        "纯内容工程合法；预览只读当前缓冲，失败不覆盖已有输出。",
+        "稳定链接可验证，缺失目标有可理解降级；包能脱离编辑器运行。",
+        "本地包过滤不是在线身份认证；不宣称实现多人账号权限。"
+      ],
+      "tests": [
+        "使用带唯一秘密哨兵的夹具检查全文、索引、文件名、资源与生成脚本。",
+        "静态站点断链/附件边界/坏编码/大书稿回归，公开包与完整备份的差异断言。"
+      ],
+      "excluded": [
+        "云托管、登录鉴权、服务器实时同步、交互游戏播放器（另作目标决策）。"
+      ],
+      "sources": [
+        "S8",
+        "S12",
+        "S14",
+        "S16"
+      ],
+      "paths": [
+        "worldline/core/src/workspace_snapshot.rs",
+        "worldline/spec/workspace.md",
+        "worldline/core/src/catalog.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-07D",
+      "repo": "ikzerok/worldedit",
+      "title": "读者发布向导、隐私预览与静态包交付",
+      "priority": "P1",
+      "size": "M",
+      "depends": [
+        "CAP-07C"
+      ],
+      "goal": "用单独的“发布给读者”流程选择公开范围，并验证读者实际看到的内容。",
+      "existing": "当前“导出工程”属于完整作者备份，不是公开发布。",
+      "scope": [
+        "与完整备份分开的入口、对象/书稿/附件选择、包含/排除清单和泄露风险提示。",
+        "本地只读读者视角预览，显示断链/排除引用的处理。",
+        "生成静态包的进度、取消、输出位置及校验说明，原生/Web 一致。"
+      ],
+      "acceptance": [
+        "默认不把全部私有资料导出；必须有明确范围和最终确认。",
+        "预览与实际发布使用同一 core 清单，内容数/资源数和包校验一致。",
+        "不能由“隐藏图层”推断已安全排除；保留完整工程导出原有语义。",
+        "下载失败/配额问题不虚报成功，发布不改变作者原稿或保存基线。",
+        "读者包在无编辑器环境可读且搜索不泄露秘密哨兵。"
+      ],
+      "tests": [
+        "egui 选择范围/确认/取消/失败与预览一致性。",
+        "桌面生成包—浏览器读者模式加载—全文搜索—检查静态资源，含未公开引用负例。"
+      ],
+      "excluded": [
+        "在线账号权限与云发布服务不在本票。"
+      ],
+      "sources": [
+        "S8",
+        "S12",
+        "S14"
+      ],
+      "paths": [
+        "worldedit/src/app/package.rs",
+        "worldedit/src/app/browser.rs",
+        "worldedit/src/save_flow.rs",
+        "worldedit/docs/release.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-07E",
+      "repo": "ikzerok/worldline",
+      "title": "DOCX/EPUB 导入导出选型与保真原型评估",
+      "priority": "P2",
+      "size": "M",
+      "depends": [],
+      "goal": "为后续外部书稿互通确定可执行的小范围方案，避免先承诺所有格式无损。",
+      "existing": "调研建议先做 Markdown 与静态阅读包；DOCX/EPUB 尚未有受认可的格式契约。",
+      "scope": [
+        "研究可用的 Rust 解析/生成方案、许可证、WASM 适用性、内存与压缩炸弹边界。",
+        "制作格式损失矩阵：章节、标题、链接、图片、注释、样式和未知字段。",
+        "用固定样例做可丢弃原型，输出 ADR：先支持哪种方向/子集、拒绝项与后续 core/editor 实施拆分。"
+      ],
+      "acceptance": [
+        "结论包括继续/延期/不采用，理由和可复现样例齐全。",
+        "不以能打开 ZIP 或 XML 当作格式保真成功。",
+        "中文/emoji、脚注/批注、相对图片和损坏/超限文件记录实际行为。",
+        "原型不进入默认工程加载路径，不修改语言语义。",
+        "明确依赖与支持矩阵；未批准前不发布产品能力承诺。"
+      ],
+      "tests": [
+        "样例输入、预期输出、差异报告与资源测量脚本可复现。",
+        "在决策中区分纯文本可保留内容和无法还原样式。"
+      ],
+      "excluded": [
+        "本研究票不交付完整 DOCX/EPUB 产品功能，不引入宏执行。"
+      ],
+      "sources": [
+        "S4",
+        "S16"
+      ],
+      "paths": [
+        "worldline/spec/workspace.md",
+        "worldline/docs/release.md"
+      ],
+      "status": "decision-gate",
+      "kind": "research",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-08A",
+      "repo": "ikzerok/worldline",
+      "title": "家族/组织与人物弧线的显式关系投影",
+      "priority": "P2",
+      "size": "L",
+      "depends": [],
+      "goal": "在既有语义关系上生成专题投影，查看亲属/组织结构以及人物或地点的相关历史。",
+      "existing": "已有通用关系和偏序时间线；专用投影不能新建一套重复真源或自动推断家谱。",
+      "scope": [
+        "先定义专题类型到作者关系类型的显式映射，支持生亲/养亲/成员/上下级等可区分含义。",
+        "输出稳定节点/边、来源和循环/不完整提示；人物弧线引用事件/锚点，不制造新剧情。",
+        "范围/版本筛选沿既有语义，日期不明和冲突保留为不确定。"
+      ],
+      "acceptance": [
+        "无映射时不猜测关系语义；反向名称不另存反向边。",
+        "同端点多关系、养亲/生亲和不同作者范围不被合并。",
+        "循环/多父母/组织多归属可解释展示而不是崩溃或静默删边。",
+        "投影有明确上限和截断；布局操作不改变内容或时间约束。",
+        "纯内容对象及无日期历史可参与；不存在强制全序。"
+      ],
+      "tests": [
+        "家族循环/多关系/争议日期/同名对象/版本筛选的公共查询回归。",
+        "D5 局部投影预算和确定性顺序；编译/指纹不变断言。"
+      ],
+      "excluded": [
+        "推断血缘、自动生成历史、世界时钟与自主模拟。"
+      ],
+      "sources": [
+        "S2",
+        "S3",
+        "S6",
+        "S7"
+      ],
+      "paths": [
+        "worldline/core/src/relations.rs",
+        "worldline/core/src/catalog.rs",
+        "worldline/spec/presentation.md"
+      ],
+      "status": "decision-gate",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-08B",
+      "repo": "ikzerok/worldedit",
+      "title": "家族树、组织图与人物/地点历史专题视图",
+      "priority": "P2",
+      "size": "L",
+      "depends": [
+        "CAP-08A"
+      ],
+      "goal": "以专题形式阅读明确关系，而不是让作者在通用网络中手工辨认全部模式。",
+      "existing": "已有局部网络、地图和时间线；本票复用它们的导航/布局基础。",
+      "scope": [
+        "关系类型映射向导与专题切换；清楚显示作者定义和来源。",
+        "家族/组织布局及人物弧线/地点事件列表，支持明确范围筛选。",
+        "个人排布不保存；显式共享配置走既有命令并保留未知字段。"
+      ],
+      "acceptance": [
+        "生亲/养亲、多重归属、不确定日期和冲突状态可辨识。",
+        "循环和截断有提示与继续入口，不出现伪造祖先/后代。",
+        "点击节点/事件回到同一 TargetRef 和源码；名称相同不误跳。",
+        "浏览/拖动/筛选不新增语义关系；显式保存与一次撤销一致。",
+        "窄屏/键盘可访问列表后备，不能只依赖大画布。"
+      ],
+      "tests": [
+        "egui 映射/筛选/节点跳转/布局不变基线测试。",
+        "实际家族、多归属组织和无日期人物弧线夹具检查。"
+      ],
+      "excluded": [
+        "自定义历法由 CAP-08C 决策；不提前实现世界运行。"
+      ],
+      "sources": [
+        "S2",
+        "S3",
+        "S6",
+        "S7"
+      ],
+      "paths": [
+        "worldedit/src/app/network.rs",
+        "worldedit/src/app/temporal.rs",
+        "worldedit/src/app/presets.rs"
+      ],
+      "status": "decision-gate",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-08C",
+      "repo": "ikzerok/worldline",
+      "title": "自定义历法与不确定日期的范围决策 ADR",
+      "priority": "P2",
+      "size": "M",
+      "depends": [],
+      "goal": "评估是否需要作者历法标注，并确保不会越过现有排除世界时钟的产品边界。",
+      "existing": "现行规范使用时段嵌套与偏序；精确历法尚未批准，世界自主运行明确不在范围内。",
+      "scope": [
+        "记录目标作者场景与不采用历法也能完成的替代流程。",
+        "比较多历法、相对日期、模糊区间、争议版本、无日期与原有偏序的兼容方案。",
+        "如决定继续，提交新格式/能力协商草案、core/UI 分工与迁移负例；实施另开票。"
+      ],
+      "acceptance": [
+        "给出采用/延期/拒绝的明确 ADR 与成本，不把研究当产品已实现。",
+        "默认保持旧项目语义和偏序，不强加绝对日期。",
+        "多历法换算仅允许作者明确规则，不自动插补历史事实。",
+        "未获范围批准前不修改 core/runtime 的执行时间或世界状态。",
+        "列明需要用户确认的问题以及对应后续验收门。"
+      ],
+      "tests": [
+        "桌面文档级样例：无日期、相对序、不确定区间、冲突版本和跨历法。",
+        "可选原型只验证格式表达，不宣称生产性能或完整兼容。"
+      ],
+      "excluded": [
+        "世界时钟、角色自主行动、历史自动演化。"
+      ],
+      "sources": [
+        "S2",
+        "S7"
+      ],
+      "paths": [
+        "worldline/spec/presentation.md",
+        "worldline/spec/semantics.md",
+        "worldline/docs/adr"
+      ],
+      "status": "decision-gate",
+      "kind": "research",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-09A",
+      "repo": "ikzerok/worldline",
+      "title": "游戏生产方向与首个引擎接入的范围决策",
+      "priority": "P2",
+      "size": "M",
+      "depends": [],
+      "goal": "先明确是否服务游戏团队以及首个接入场景，再承担引擎、本地化和台词生产成本。",
+      "existing": "已有 CLI/RPC 和独立运行时，不等于已有完整游戏内容生产管线。",
+      "scope": [
+        "调研首个目标引擎/版本、运行时嵌入还是离线导出、更新/存档兼容及授权限制。",
+        "确定文本/选择/状态/锚点/资源需要输出的最小协议，兼容本地文件和纯世界资料作者。",
+        "提交 ADR 与可复现的最小往返原型；后续本地化与适配器按独立票实施。"
+      ],
+      "acceptance": [
+        "明确继续/暂缓结论、试点引擎和非目标，不默认承诺支持所有引擎。",
+        "保留 core 单源分析和运行时语义，不能让引擎端重新解释出另一套规则。",
+        "写明导出版本/稳定 ID/缺失资源/错误契约以及兼容策略。",
+        "新增路径默认可选，不改变纯内容项目保存/发布。",
+        "研究成果含真实样例和失败场景，未完成的集成标为未验证。"
+      ],
+      "tests": [
+        "协议草案的故事失败/协议错误、纯内容工程、跨版本状态样例。",
+        "依赖许可证和原生/WASM 约束记录。"
+      ],
+      "excluded": [
+        "本票不交付多引擎 SDK、联网协作或自动本地化。"
+      ],
+      "sources": [
+        "S9",
+        "S11",
+        "S14"
+      ],
+      "paths": [
+        "worldline/spec/agent-protocol.md",
+        "worldline/runtime",
+        "worldline/cli",
+        "worldline/agent"
+      ],
+      "status": "decision-gate",
+      "kind": "research",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-09B",
+      "repo": "ikzerok/worldline",
+      "title": "稳定本地化字符串 ID 与翻译往返校验",
+      "priority": "P2",
+      "size": "L",
+      "depends": [
+        "CAP-09A"
+      ],
+      "goal": "台词、选项和可见文本可稳定交给翻译，再安全导回更新稿件。",
+      "existing": "当前运行时能输出文本与链接；没有经批准的翻译字符串生命周期契约。",
+      "scope": [
+        "定义字符串 ID 与事件/场景/片段身份、源文修订、占位符、链接和说话者上下文。",
+        "提供提取、导出、导回预览、缺译/过期/重复 ID/无效占位符诊断。",
+        "支持批量校验和 CLI/RPC 结果；保持正文作者格式与语义完整。"
+      ],
+      "acceptance": [
+        "移动/改显示名不无故重建 ID；源文改动必须标记译文待复核。",
+        "占位符/变量/显式链接不可静默丢失或变为可执行代码。",
+        "翻译导入受版本和基线约束；冲突或不兼容时零部分提交。",
+        "中文/RTL/emoji 与多行文本的编码路径有样例，未支持排版明示。",
+        "导出不泄露未选私有内容，格式包含源引用可追踪。"
+      ],
+      "tests": [
+        "提取—源稿变更—导回的 roundtrip、重复 ID、缺译和占位符负例。",
+        "既有 runtime/save/fingerprint 回归，记录语言变更对指纹的批准口径。"
+      ],
+      "excluded": [
+        "机器翻译服务、给纯世界资料作者强制添加翻译字段。"
+      ],
+      "sources": [
+        "S9",
+        "S11"
+      ],
+      "paths": [
+        "worldline/core",
+        "worldline/runtime",
+        "worldline/spec/agent-protocol.md"
+      ],
+      "status": "decision-gate",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-09C",
+      "repo": "ikzerok/worldline",
+      "title": "首个引擎导出适配器与协议一致性校验",
+      "priority": "P2",
+      "size": "L",
+      "depends": [
+        "CAP-09A"
+      ],
+      "goal": "让被选定的一个引擎消费可版本化的故事产物，明确更新和失败边界。",
+      "existing": "复用现有 core/runtime/CLI，不把 JSON 导出本身当作完整引擎接入。",
+      "scope": [
+        "按照范围 ADR 实现单一试点适配器及版本化导出 manifest。",
+        "校验资源路径、稳定节点/选择 ID、变量类型和缺失内容；包含最小运行样例。",
+        "提供内容更新/缓存失效/存档不兼容时的拒绝或迁移说明。"
+      ],
+      "acceptance": [
+        "试点范围之外明确不支持，不把示例跑通泛化为所有引擎支持。",
+        "导出与 core 运行结果针对固定路径一致，条件与随机性不产生第二套语义。",
+        "输出不含本机绝对路径和未选私人文档。",
+        "坏资源、错误版本、越界路径在构建或加载时明确失败。",
+        "可选依赖不影响无引擎模式下独立构建和纯内容工程。"
+      ],
+      "tests": [
+        "同一 trace 在 CLI/runtime 与适配器最小样例中比较输出。",
+        "旧产物/新 runtime、资源丢失与配置错误的可复现负例。"
+      ],
+      "excluded": [
+        "所有引擎一次覆盖、UI 解析器或未经选型的 SDK。"
+      ],
+      "sources": [
+        "S11",
+        "S14"
+      ],
+      "paths": [
+        "worldline/cli",
+        "worldline/runtime",
+        "worldline/spec/agent-protocol.md"
+      ],
+      "status": "decision-gate",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-09D",
+      "repo": "ikzerok/worldedit",
+      "title": "游戏项目可选入口：台词审阅、本地化与引擎导出",
+      "priority": "P2",
+      "size": "L",
+      "depends": [
+        "CAP-09B",
+        "CAP-09C"
+      ],
+      "goal": "面向明确选用游戏生产流程的作者提供工作台，而不干扰纯世界设定写作。",
+      "existing": "已有试玩和工程导出；本票需要新的翻译/引擎协议后才实施。",
+      "scope": [
+        "按项目启用游戏生产面板，显示台词上下文、翻译状态和批量校验。",
+        "导出配置/结果可追踪，显示选定引擎与协议版本。",
+        "失败定位到原始对象/源行，导入译文必须预览与确认。"
+      ],
+      "acceptance": [
+        "关闭游戏模式不删除内容，不强加额外运行/联网依赖。",
+        "过期译文、缺译和占位符错误明显且不静默导回。",
+        "所有文本提取、校验和导出调用 core/CLI 协议，不在 UI 自行解释。",
+        "取消、未保存输入、旧基线和失败导出保留作者内容。",
+        "原生/Web 各自支持范围写清，未实测引擎不标通过。"
+      ],
+      "tests": [
+        "egui 配置/状态/预览/取消路径及 runtime 接口配对测试。",
+        "试点引擎完整台词导出—翻译导回—验证—产物加载证据。"
+      ],
+      "excluded": [
+        "全平台引擎安装器、自动配音、实时团队权限。"
+      ],
+      "sources": [
+        "S9",
+        "S11",
+        "S14"
+      ],
+      "paths": [
+        "worldedit/src/app/play.rs",
+        "worldedit/src/app/package.rs",
+        "worldedit/docs/cli-coverage.md"
+      ],
+      "status": "decision-gate",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "CAP-QA",
+      "repo": "ikzerok/worldedit",
+      "title": "能力路线分阶段集成、迁移与发布验收",
+      "priority": "P1",
+      "size": "L",
+      "depends": [
+        "CAP-01B",
+        "CAP-01C",
+        "CAP-02B",
+        "CAP-02C",
+        "CAP-03B",
+        "CAP-04B",
+        "CAP-04D",
+        "CAP-05B",
+        "CAP-06B",
+        "CAP-07B",
+        "CAP-07D"
+      ],
+      "goal": "为新增能力建立逐阶段可复现验收，不再用旧 WP-17 的 65 项 PASS 代替本轮新增能力验证。",
+      "existing": "已有配对构建与历史验收；本票新增本轮 CAP 的覆盖矩阵与关闭标准。",
+      "scope": [
+        "按 CAP-01/03/04 最小闭环、书稿、生产/交付分别验收，记录每个新票证据。",
+        "为 spec/schema、CLI/RPC、编辑器入口、旧工程兼容和原生/Web 往返建立映射。",
+        "可选 CAP-08/09 与 DOCX/EPUB 按范围决策另列，不暗示全部已实现；任何排除必须有决定记录。"
+      ],
+      "acceptance": [
+        "每项有实现 SHA、配对 SHA、真实测试入口和失败用例；未测/延期单独登记。",
+        "1.9/1.10、未知必需能力、坏文件、陈旧表单、只读与外部冲突不回归。",
+        "完整备份与读者包分别验证；秘密哨兵、未引用文件和容量负例不能省略。",
+        "性能分别记录冷/暖、数据规模、环境、样本与 P95，不复用历史数字作新结果。",
+        "两仓 fmt/test/strict clippy/native/WASM 构建、公开 CI 和实际桌面/Web 关键交互通过后才进入发布。",
+        "UI 视觉路线独立验收，不把换肤结果算成功能能力补齐。"
+      ],
+      "tests": [
+        "新回归夹具与端到端步骤纳入仓库；原始日志保留可下载证据而非只写 PASS。",
+        "本票按每阶段清单推进，原生依赖表示完整路线收口，不阻止各阶段单独发布。"
+      ],
+      "excluded": [
+        "当前任务不直接实现这些功能、合并代码或重发 v0.3.0。"
+      ],
+      "sources": [
+        "S1",
+        "S4",
+        "S7",
+        "S9",
+        "S14",
+        "S16"
+      ],
+      "paths": [
+        "worldedit/scripts/check-pair.ps1",
+        "worldedit/docs/paired-ci.md",
+        "worldedit/docs/wp17-acceptance.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "capability"
+    },
+    {
+      "key": "UX-01",
+      "repo": "ikzerok/worldedit",
+      "title": "已实现视觉基础改动的审阅与集成",
+      "priority": "P0",
+      "size": "M",
+      "depends": [],
+      "goal": "审阅现有视觉优化提交，确认方向与交互无回归后再合入；不重新创建同一套实现任务。",
+      "existing": "本地 357b1a17d96bddf08838ba7d66e94d93eb3239b7 已实现石墨灰/青绿主题、12 页面分组导航、侧栏收起、工具栏/状态栏层级与阅读列。已有 108 项本地测试通过及 Windows 时间线/事件图、Edge headless 截图；未合入 main、未替换 v0.3.0。",
+      "scope": [
+        "按独立视觉设计报告审阅 theme/navigation/workspace/chrome/overview/reading 的改动。",
+        "逐项核对页面完整性、主操作、导航可读性、长标题与不变 Project 基线。",
+        "保留现有测试，补审阅发现；单独 PR/合并决策，不依赖 CAP 新功能完成。"
+      ],
+      "acceptance": [
+        "所有 12 个旧页面和原有关键操作仍可到达，没有以简化界面为由删功能。",
+        "浏览、收起侧栏、阅读排版不改 Project、文件和内容撤销历史。",
+        "确认主要动作与非主要动作层级；标题/辅助字/对比度/焦点样式有统一 token。",
+        "同一雾港夹具的前后截图审阅通过，注明设备尺寸/DPI，不能用概念图代替运行界面。",
+        "精确待合并 SHA 的原生/WASM 检查和 CI 通过，审阅批准后才标已合入。",
+        "存在其他页面未验收时如实保留缺口，后续 UX-02—06 承接。"
+      ],
+      "tests": [
+        "已有本地结果：108 tests、fmt、native/WASM strict clippy、native/WASM release、Trunk 全部成功。",
+        "原始日志为 target/ui-polish-20260926/results.json、browser-result.json；本机截图尚非远端验收附件。",
+        "本票需补精确提交的远端检查与审阅结论，不把资源 HTTP 200 当所有功能通过。"
+      ],
+      "excluded": [
+        "不实现 CAP 能力、不改 core/spec、当前 ticket 整理不授权直接合并或重发版本。"
+      ],
+      "sources": [
+        "D1",
+        "D2",
+        "D3"
+      ],
+      "paths": [
+        "worldedit/src/theme.rs",
+        "worldedit/src/app/navigation.rs",
+        "worldedit/src/app/workspace.rs",
+        "worldedit/src/chrome.rs",
+        "worldedit/src/app/authoring_ui_tests.rs"
+      ],
+      "status": "implemented-unmerged",
+      "kind": "task",
+      "workstream": "visual"
+    },
+    {
+      "key": "UX-02",
+      "repo": "ikzerok/worldedit",
+      "title": "12 页面与创作表单的视觉一致性收口",
+      "priority": "P1",
+      "size": "L",
+      "depends": [
+        "UX-01"
+      ],
+      "goal": "让时间线之外的资料、关系、地图、协作和源码页面同样遵循新视觉系统。",
+      "existing": "前轮实际截图只覆盖时间线/事件图及 Web 初始视图，不代表所有页面完成审美与布局验收。",
+      "scope": [
+        "逐页审计标题层级、分组、间距、表单标签、按钮主次、图标和空态；覆盖实体/关系/模板/预设/批注弹窗。",
+        "统一正常/空数据/加载/只读/错误/未保存/冲突状态的表达，显示清晰下一步。",
+        "从 theme token 取值，清除无必要的局部硬编码；不添加虚假状态或新语义。"
+      ],
+      "acceptance": [
+        "建立 12 页面×关键状态的审阅矩阵，每个结论有实际截图或可复现操作。",
+        "长中文标题、同名对象、长 ID、辅助提示和校验错误不遮挡主操作。",
+        "相同动作保持一致文案与层级；危险动作与普通关闭可辨识。",
+        "窄屏仍可滚动到全部字段/按钮，正文和画布主区域不被辅助面板完全挤走。",
+        "键盘焦点、hover/selected/disabled/read-only 状态明确；输入错误不清空草稿。",
+        "所有调整不改保存、撤销、引用、演练的既有语义。"
+      ],
+      "tests": [
+        "可复现多状态 UI 夹具及 egui 布局/点击回归。",
+        "Windows 与浏览器人工检查正文/目录/地图/关系/协作/源码页及代表性表单。"
+      ],
+      "excluded": [
+        "新书稿/模板能力属于 CAP，不以设计票偷偷扩大数据格式。"
+      ],
+      "sources": [
+        "D1",
+        "D2"
+      ],
+      "paths": [
+        "worldedit/src/app",
+        "worldedit/src/theme.rs",
+        "worldedit/docs/research/editor-visual-refresh-20260926.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "visual"
+    },
+    {
+      "key": "UX-03",
+      "repo": "ikzerok/worldedit",
+      "title": "图形工作区可读性：连线、标签、图例与选择层级",
+      "priority": "P1",
+      "size": "L",
+      "depends": [
+        "UX-01"
+      ],
+      "goal": "提高时间线、事件图、世界关联和地图在密集数据下的辨识度，而不是只更换背景颜色。",
+      "existing": "已有箭头、关系标签与局部图；截图暴露需要复核的连线文字拥挤情形，不能预先宣称所有图布局有同一缺陷。",
+      "scope": [
+        "审计节点标题/辅助字段、连线与方向箭头、平行边/自环、选择和焦点样式。",
+        "明确语义关系/提及/控制流/地图入口的视觉区分，图例与实际类别一致。",
+        "优化标签避让、缩放时信息层级和裁剪；小规模先确定行为，大规模按预算退化。"
+      ],
+      "acceptance": [
+        "同端点多关系保持各自身份，可阅读/查看详情，不靠合并语义边解决拥挤。",
+        "文本与节点/箭头不无意义重叠；被裁剪或隐藏的信息有可到达的详情入口。",
+        "图例、来源、选中和警告不用颜色作为唯一线索。",
+        "缩放、平移、拖动、隐藏仍是个人状态；明确保存共享布局才写 Project。",
+        "命中区域与视觉位置一致，DPI/缩放变化不误选。",
+        "与相同基线数据比较帧耗时，任何性能回退有证据，不破坏250节点/500边既有查询边界。"
+      ],
+      "tests": [
+        "D5 1000 对象/3000 关系，平行边/循环/长标签/无关系和选中状态截图。",
+        "真实 pointer/keyboard/zoom 回归，原生/Web 暖态性能及资源测量。"
+      ],
+      "excluded": [
+        "通过自动改变关系/事件顺序美化图、重写核心图语义。"
+      ],
+      "sources": [
+        "D1",
+        "D3"
+      ],
+      "paths": [
+        "worldedit/src/app/network.rs",
+        "worldedit/src/app/graph.rs",
+        "worldedit/src/app/temporal.rs",
+        "worldedit/src/app/maps.rs",
+        "worldedit/src/visual.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "visual"
+    },
+    {
+      "key": "UX-04",
+      "repo": "ikzerok/worldedit",
+      "title": "长文排版、文字缩放与个人显示偏好",
+      "priority": "P1",
+      "size": "M",
+      "depends": [
+        "UX-01"
+      ],
+      "goal": "让正文、资料与审稿长时间阅读更舒适，同时保留小窗口可用性。",
+      "existing": "本地已增加最大 880 逻辑点阅读列并调整字号；尚不等于所有阅读/编辑区域和个人偏好已完善。",
+      "scope": [
+        "统一正文行高、段间距、栏目层级、链接和代码/ID 的排版，避免多层嵌套卡片消耗阅读宽度。",
+        "提供有边界的文字缩放/紧凑或舒适密度偏好，存储在个人设置而非作者工程。",
+        "明确字体回退与缺字显示；兼容现有中文字体和许可证，不新增字体依赖作为前提。"
+      ],
+      "acceptance": [
+        "长篇中文、emoji、链接、代码和混合语言内容不截断或溢出；复制保持原文。",
+        "窄屏阅读列按可用宽度缩小，正常换行；缩放后关键控件可访问。",
+        "个人设置、浏览和排版不使工程变脏、不进入内容撤销。",
+        "偏好持久化失败有安全默认值，Web 本地存储失败不触发工程保存成功提示。",
+        "隐藏辅助区域后有可见恢复入口，退出阅读不丢未保存表单。"
+      ],
+      "tests": [
+        "长文与宽/窄阅读列的布局/复制/链接点击回归。",
+        "不同 DPI 和文字缩放的原生/Web 实机截图，标注逻辑尺寸与像素尺寸。"
+      ],
+      "excluded": [
+        "多钉住资料面板归 CAP-02C；本票不新增书稿模型或富文本真源。"
+      ],
+      "sources": [
+        "D2",
+        "D3"
+      ],
+      "paths": [
+        "worldedit/src/app/overview.rs",
+        "worldedit/src/app/reading.rs",
+        "worldedit/src/theme.rs",
+        "worldedit/src/fonts.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "visual"
+    },
+    {
+      "key": "UX-05",
+      "repo": "ikzerok/worldedit",
+      "title": "键盘、无障碍与桌面/Web 响应式边界",
+      "priority": "P0",
+      "size": "M",
+      "depends": [
+        "UX-01"
+      ],
+      "goal": "补齐小窗口、键盘和平台特性下的可用性，防止美化造成操作不可达。",
+      "existing": "当前有导航焦点和三种尺寸工具栏测试；未完成全应用无障碍认证。Web 截图中的桌面窗口控制也需要按平台适用性核查。",
+      "scope": [
+        "审计 Tab/Shift+Tab/Enter/Esc 的焦点顺序、弹窗焦点归还和快捷键冲突，IME 不误触发命令。",
+        "桌面窗口控制与 Web 控件按真实支持能力显示/禁用，不提供无效的最小化/关闭承诺。",
+        "核验常规文字 4.5:1 对比度目标、非颜色提示、控件语义标签及缩放布局。"
+      ],
+      "acceptance": [
+        "1040×660、1280×760、1700×1000及100%/150%/175%/200%尺度有覆盖，区分逻辑/物理尺寸。",
+        "长项目名、未保存状态、窄导航和侧栏收起后，保存/搜索/关闭或取消可达。",
+        "键盘可完成导航、表单应用/取消、冲突查看和返回编辑器，焦点不陷入不可恢复区域。",
+        "禁用/错误/选中状态有文字或结构辅助表达，常规文字对比度测试通过。",
+        "原生标题栏拖动/最大化/关闭保留保护；Web 不冒充可以控制浏览器操作系统窗口。",
+        "报告明确哪些无障碍项已测、未测，不宣称完整 WCAG 认证。"
+      ],
+      "tests": [
+        "egui 焦点/快捷键/IME/边界与非污染回归。",
+        "原生/Web 手动无鼠标路径、窗口缩放和不支持平台动作验证。"
+      ],
+      "excluded": [
+        "本票不实现身份权限、系统级辅助技术全平台认证。"
+      ],
+      "sources": [
+        "D3"
+      ],
+      "paths": [
+        "worldedit/src/chrome.rs",
+        "worldedit/src/app/navigation.rs",
+        "worldedit/src/app.rs",
+        "worldedit/src/app/workspace.rs"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "visual"
+    },
+    {
+      "key": "UX-06",
+      "repo": "ikzerok/worldedit",
+      "title": "视觉回归基线、双端验收与独立发布门",
+      "priority": "P0",
+      "size": "M",
+      "depends": [
+        "UX-01",
+        "UX-02",
+        "UX-03",
+        "UX-04",
+        "UX-05"
+      ],
+      "goal": "将视觉优化以可重复截图和关键交互回归验收，不把编译成功当作界面美感完成。",
+      "existing": "已有本机前后截图与 108 项测试；完整多页面、浏览器导入/下载及后续精确提交验证仍需收口。",
+      "scope": [
+        "建立固定工程、尺寸、DPI、字体和动画状态的截图基线，记录允许差异和人工审阅。",
+        "对时间线/事件图/网络/地图/资料/协作/源码及表单的关键状态建立视觉检查。",
+        "补双端导入/保存/下载/取消与版本配对验证；只在审批后发布新版本，不覆盖旧标签。"
+      ],
+      "acceptance": [
+        "截图来自真正运行的原生/Web UI；任何概念图只能作设计说明。",
+        "功能点击测试与截图分别报告，HTTP 200 不能替代交互成功。",
+        "字体渲染/时间戳/窗口阴影等差异有明确容忍策略，不能整体忽略遮挡变化。",
+        "原生/WASM fmt/test/strict clippy/release与Trunk及精确提交CI通过。",
+        "新增视觉实现与 CAP 能力验收分别建表；未完成的能力不能搭便车关闭。",
+        "保留小体积证据索引/日志校验，构建缓存不入源码；最终合并/发布另经确认。"
+      ],
+      "tests": [
+        "Windows 和至少一个实际浏览器关键路径；未测试平台如实标记。",
+        "相同 D5 数据冷暖分离对比性能与内存，记录回退处理结论。"
+      ],
+      "excluded": [
+        "当前整理工单不直接创建发行版或宣布视觉全量通过。"
+      ],
+      "sources": [
+        "D1",
+        "D2",
+        "D3"
+      ],
+      "paths": [
+        "worldedit/scripts/check-pair.ps1",
+        "worldedit/scripts/package.ps1",
+        "worldedit/src/app/authoring_ui_tests.rs",
+        "worldedit/docs/research/editor-visual-refresh-20260926.md"
+      ],
+      "status": "proposed",
+      "kind": "task",
+      "workstream": "visual"
+    }
+  ]
+}
