@@ -40,7 +40,7 @@
 ### worldline#15 / CAP-03A
 
 - core 组合查询、共享保存查询、只读待办投影以及复用同一 DTO 的 `wl catalog-query` / RPC `catalog.query` 已提交 `25f4436`，core 票关闭。游标预算、注册 ID 与文件 ID、扩展字段重排三个自审问题已修。
-- core/CLI/RPC 公共回归、D5 本机样本和协议边界已记录。同步 CLI/RPC 不支持进行中中断，未宣称支持。worldedit#16 的筛选与待办界面仍在隔离分支开发。
+- core/CLI/RPC 公共回归、D5 本机样本和协议边界已记录。同步 CLI/RPC 不支持进行中中断，未宣称支持。worldedit#16 的筛选与待办界面已并入 `c63fdf0`，集成测试窗口冲突修于 `d63992d`；123 项编辑器单元与 16 项集成测试、严格 Clippy、格式检查通过。桌面/Web 交互、浏览器中途取消、收藏跨进程持久化与同一端到端修复回归仍缺，票保持开放。
 
 ### worldline#16 / CAP-04A 与 worldedit#17 / CAP-04B
 
@@ -74,7 +74,7 @@
 
 - Standards：两轮均无发现。
 - Spec：core 引用影响缺项已修；editor 的时段草稿、Web 离页提示和跨阅读窗口关闭问题已修，并补回归。实际双端与作者测试缺口独立记录。
-- 最新不可变配对检查为 core `163e0ff77c4f86543fef5fdce2d4fbb0fad2df11`、editor `85a19f0b31ab577b9789d1ac9487ccaf3570ab5c`，完整日志在本地 `target/paired-check/20260926T1242102923154Z/`。脚本完成两仓格式、完整测试、严格 Clippy、原生构建与编辑器 WASM Clippy/构建。并行中的 CAP-03B / CAP-04C 后续集成时需重新检查；本机日志不提交源码。
+- 最新不可变配对检查为 core `163e0ff77c4f86543fef5fdce2d4fbb0fad2df11`、editor `85a19f0b31ab577b9789d1ac9487ccaf3570ab5c`，完整日志在本地 `target/paired-check/20260926T1242102923154Z/`。脚本完成两仓格式、完整测试、严格 Clippy、原生构建与编辑器 WASM Clippy/构建。CAP-03B 集成后已有单仓回归；CAP-01A / CAP-04C / CAP-05A 后续集成时需重新配对检查；本机日志不提交源码。
 - 检查脚本：`scripts/check-pair.ps1` 全部通过，分别指定两仓 Cargo.toml，覆盖格式、完整测试（core/CLI/runtime/agent 合计 333，editor 合计 110）、Clippy、原生构建及 WASM Clippy/构建。测试/编译不能代替实际 GUI/USER 证据。
 
 ## 尚待推进
