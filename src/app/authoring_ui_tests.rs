@@ -4303,6 +4303,7 @@ fn narrow_review_switches_between_selectable_three_way_text() {
     assert!(rendered.contains("基底"), "{rendered}");
     assert!(rendered.contains("当前"), "{rendered}");
     assert!(rendered.contains("提议"), "{rendered}");
+    assert!(rendered.contains("提议修改"), "{rendered}");
     click(&ctx, &mut app, 16, "提议");
     let output = frame(&ctx, &mut app, Vec::new(), 16);
     let mut proposed_view = String::new();
@@ -4344,7 +4345,7 @@ fn prepare_proposal_title_conflict(
         .unwrap();
 
     let map_path = app.project.root.join(".world/maps/review.json");
-    let base = serde_json::json!({
+    let mut base = serde_json::json!({
         "schema_version": 1,
         "id": "review",
         "title": "基底",
@@ -4355,6 +4356,7 @@ fn prepare_proposal_title_conflict(
         "placements": {},
         "extensions": {}
     });
+    base["extensions"]["retired"] = "旧".into();
     let base_text = serde_json::to_string(&base).unwrap();
     app.project
         .create_authoring_document(&map_path, base_text.as_bytes().to_vec())
@@ -4364,6 +4366,8 @@ fn prepare_proposal_title_conflict(
 
     let mut proposed = base.clone();
     proposed["title"] = "提议".into();
+    proposed["extensions"].as_object_mut().unwrap().remove("retired");
+    proposed["extensions"]["added"] = "新增".into();
     let proposed_text = serde_json::to_string(&proposed).unwrap();
     app.project
         .set_authoring_document(&map_path, proposed_text.as_bytes().to_vec())
@@ -4400,6 +4404,14 @@ fn proposal_conflict_can_be_resolved_from_a_side_and_undone() {
         .draft;
     let preview = worldline_core::collaboration::preview_proposal(&app.project, proposal).unwrap();
     assert_eq!(preview.conflicts.len(), 1, "{:?}", preview.conflicts);
+    let output = frame(&ctx, &mut app, Vec::new(), 7);
+    let mut markers = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut markers);
+    }
+    assert!(markers.contains("当前修改 · 提议修改"), "{markers}");
+    assert!(markers.contains("当前未改 · 提议新增"), "{markers}");
+    assert!(markers.contains("当前未改 · 提议删除"), "{markers}");
 
     click(&ctx, &mut app, 7, "采纳提案");
     assert_eq!(
@@ -4447,6 +4459,15 @@ fn proposal_conflict_can_be_resolved_from_a_side_and_undone() {
             .draft
             .status,
         worldline_core::collaboration::ProposalStatus::Open
+    );
+    click(&ctx, &mut app, 7, "采纳提案");
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(
+            app.project.authoring_document(&map_path).unwrap().bytes()
+        )
+        .unwrap()["title"],
+        "当前",
+        "an accepted proposal's old resolution must not be silently reused after undo"
     );
 }
 

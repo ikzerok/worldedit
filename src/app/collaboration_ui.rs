@@ -4,9 +4,19 @@ use crate::theme::{self, *};
 use std::collections::BTreeMap;
 use worldline_core::collaboration::{
     self, AnchorStatus, ApplyProposalCommand, CommentAnchor, CommentCommand, CommentDraft,
-    ProposalCommand, ProposalConflict, ProposalFilePreview, ProposalPreview, ProposalResolution,
-    ProposalStatus,
+    ProposalCommand, ProposalConflict, ProposalFilePreview, ProposalPreview,
+    ProposalResolution, ProposalStatus,
 };
+
+fn change_marker(base: Option<&str>, value: Option<&str>) -> &'static str {
+    match (base, value) {
+        (None, None) => "未改",
+        (None, Some(_)) => "新增",
+        (Some(_), None) => "删除",
+        (Some(base), Some(value)) if base == value => "未改",
+        (Some(_), Some(_)) => "修改",
+    }
+}
 
 #[derive(Clone)]
 pub(super) struct ProposalPreviewState {
@@ -40,6 +50,7 @@ pub(super) struct ReviewState {
     pub selected_proposal: Option<String>,
     pub preview: Option<ProposalPreviewState>,
     pub conflict_resolutions: ProposalResolutionDrafts,
+    pub resolution_context: Option<(String, bool)>,
     pub preview_side: usize,
     pub comment_editor: Option<CommentEditor>,
     pub text_path: String,
@@ -56,6 +67,7 @@ impl Default for ReviewState {
             selected_proposal: None,
             preview: None,
             conflict_resolutions: BTreeMap::new(),
+            resolution_context: None,
             preview_side: 1,
             comment_editor: None,
             text_path: "world.wl".into(),
@@ -120,6 +132,23 @@ fn proposal_resolutions(
             })
         })
         .collect()
+}
+
+fn update_resolution_context(review: &mut ReviewState, proposal_id: &str, open: bool) {
+    if review
+        .resolution_context
+        .as_ref()
+        .is_some_and(|(current_id, current_open)| {
+            current_id == proposal_id && *current_open == open
+        })
+    {
+        return;
+    }
+    if let Some((previous_id, _)) = review.resolution_context.take() {
+        review.conflict_resolutions.remove(&previous_id);
+    }
+    review.conflict_resolutions.remove(proposal_id);
+    review.resolution_context = Some((proposal_id.to_owned(), open));
 }
 
 fn show_conflict_resolution(
@@ -418,6 +447,7 @@ impl WorldeditApp {
             &resolutions,
         ) {
             Ok(_) => {
+                self.review.conflict_resolutions.remove(id);
                 self.remember(before);
                 self.recompile();
                 self.review.preview = None;
@@ -707,6 +737,11 @@ impl WorldeditApp {
                                 .and_then(|snapshot| snapshot.proposal_index.proposals.get(&id))
                                 .map(|proposal| proposal.draft.clone());
                             if let Some(proposal) = proposal {
+                                update_resolution_context(
+                                    &mut self.review,
+                                    &id,
+                                    proposal.status == ProposalStatus::Open,
+                                );
                                 ui.label(format!("{} · {}", proposal.author, proposal.reason));
                                 if self
                                     .review
@@ -757,7 +792,18 @@ impl WorldeditApp {
                                                 self.jump_to_file(&file.path, 1, 1);
                                             }
                                             for difference in &file.differences {
-                                                ui.label(format!("变化：{}", difference.path));
+                                                ui.label(format!(
+                                                    "当前{} · 提议{} · 变化：{}",
+                                                    change_marker(
+                                                        difference.base.as_deref(),
+                                                        difference.current.as_deref()
+                                                    ),
+                                                    change_marker(
+                                                        difference.base.as_deref(),
+                                                        difference.proposed.as_deref()
+                                                    ),
+                                                    difference.path
+                                                ));
                                                 if let Some(proposed) = &difference.proposed {
                                                     if ui.small_button("复制提议值以手工解决").clicked() {
                                                         ui.ctx().copy_text(proposed.clone());
