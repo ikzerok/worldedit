@@ -57,7 +57,16 @@ use worldline_core::{CompileResult, Diagnostic, Severity};
 use worldline_runtime::{ChoiceExplanation, ReplayCancellation, ReplayResult, ReplayTrace, Story};
 
 pub(super) fn workspace_source_path(project: &Project, path: &Path) -> PathBuf {
-    if path.is_absolute() {
+    let web_rooted = path.starts_with(&project.root)
+        && matches!(
+            path.components().next(),
+            Some(std::path::Component::RootDir)
+        )
+        && matches!(
+            project.root.components().next(),
+            Some(std::path::Component::RootDir)
+        );
+    if path.is_absolute() || web_rooted {
         return path.to_path_buf();
     }
     let path = project.root.join(path);
