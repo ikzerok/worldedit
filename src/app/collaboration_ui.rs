@@ -3,8 +3,16 @@ use super::{Tab, WorldeditApp};
 use crate::theme::{self, *};
 use worldline_core::collaboration::{
     self, AnchorStatus, ApplyProposalCommand, CommentAnchor, CommentCommand, CommentDraft,
-    ProposalCommand, ProposalStatus,
+    ProposalCommand, ProposalPreview, ProposalStatus,
 };
+
+#[derive(Clone)]
+pub(super) struct ProposalPreviewState {
+    proposal_id: String,
+    baseline: String,
+    revision: worldline_core::presentation_commands::Revision,
+    result: Result<ProposalPreview, String>,
+}
 
 #[derive(Clone)]
 pub(super) struct CommentEditor {
@@ -19,6 +27,8 @@ pub(super) struct ReviewState {
     pub reason: String,
     pub proposal_id: String,
     pub selected_proposal: Option<String>,
+    pub preview: Option<ProposalPreviewState>,
+    pub preview_side: usize,
     pub comment_editor: Option<CommentEditor>,
     pub text_path: String,
     pub text_start: String,
@@ -32,6 +42,8 @@ impl Default for ReviewState {
             reason: String::new(),
             proposal_id: String::new(),
             selected_proposal: None,
+            preview: None,
+            preview_side: 1,
             comment_editor: None,
             text_path: "world.wl".into(),
             text_start: "1".into(),
@@ -41,6 +53,25 @@ impl Default for ReviewState {
 }
 
 impl WorldeditApp {
+    fn refresh_selected_proposal_preview(&mut self, id: &str) {
+        let result = self
+            .snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.proposal_index.proposals.get(id))
+            .map(|proposal| collaboration::preview_proposal(&self.project, &proposal.draft))
+            .unwrap_or_else(|| Err("提案已不存在，请刷新后重试".into()));
+        let baseline = result.as_ref().map_or_else(
+            |_| self.project.content_baseline(),
+            |preview| preview.expected_baseline.clone(),
+        );
+        self.review.preview = Some(ProposalPreviewState {
+            proposal_id: id.into(),
+            baseline,
+            revision: self.map_revision,
+            result,
+        });
+    }
+
     fn next_comment_id(&self) -> String {
         let existing = self
             .snapshot
@@ -181,15 +212,36 @@ impl WorldeditApp {
     }
 
     fn apply_selected_proposal(&mut self, id: &str) {
+        let Some(preview) = self.review.preview.as_ref() else {
+            self.io_error = Some("请先比较提案再采纳".into());
+            return;
+        };
+        if preview.proposal_id != id
+            || preview.revision != self.map_revision
+            || preview.baseline != self.project.content_baseline()
+        {
+            self.io_error = Some("审阅预览已过期，请重新比较后采纳".into());
+            return;
+        }
+        if !preview
+            .result
+            .as_ref()
+            .is_ok_and(ProposalPreview::can_apply)
+        {
+            self.io_error = Some("提案仍有冲突，请先处理并重新比较".into());
+            return;
+        }
         let before = self.project.clone();
         let command = ApplyProposalCommand {
             expected_revision: self.map_revision,
+            expected_baseline: preview.baseline.clone(),
             proposal_id: id.into(),
         };
         match collaboration::apply_proposal(&mut self.project, &mut self.map_revision, command) {
             Ok(_) => {
                 self.remember(before);
                 self.recompile();
+                self.review.preview = None;
                 self.io_error = None;
                 self.message = Some("提案已采纳；内容与版式差异已按三方规则提交".into());
             }
@@ -469,16 +521,38 @@ impl WorldeditApp {
                             let proposal = self
                                 .snapshot
                                 .as_ref()
-                                .and_then(|snapshot| snapshot.proposal_index.proposals.get(&id));
+                                .and_then(|snapshot| snapshot.proposal_index.proposals.get(&id))
+                                .map(|proposal| proposal.draft.clone());
                             if let Some(proposal) = proposal {
-                                ui.label(format!(
-                                    "{} · {}",
-                                    proposal.draft.author, proposal.draft.reason
-                                ));
-                                match collaboration::preview_proposal(
-                                    &self.project,
-                                    &proposal.draft,
-                                ) {
+                                ui.label(format!("{} · {}", proposal.author, proposal.reason));
+                                if self
+                                    .review
+                                    .preview
+                                    .as_ref()
+                                    .is_none_or(|state| state.proposal_id != id)
+                                {
+                                    self.refresh_selected_proposal_preview(&id);
+                                }
+                                let stale = self.review.preview.as_ref().is_some_and(|state| {
+                                    state.revision != self.map_revision
+                                        || state.baseline != self.project.content_baseline()
+                                });
+                                if stale {
+                                    ui.colored_label(
+                                        ERROR,
+                                        "内容已变化；当前差异已过期，采纳已禁用",
+                                    );
+                                }
+                                if ui.button("重新比较提案").clicked() {
+                                    self.refresh_selected_proposal_preview(&id);
+                                }
+                                let result = self
+                                    .review
+                                    .preview
+                                    .as_ref()
+                                    .map(|state| state.result.clone())
+                                    .unwrap_or_else(|| Err("尚未生成审阅预览".into()));
+                                match result {
                                     Ok(preview) => {
                                         ui.label(format!(
                                             "内容差异 {} 个文件 · 版式差异 {} 个文件",
@@ -496,6 +570,97 @@ impl WorldeditApp {
                                                     " · 无变化"
                                                 }
                                             ));
+                                            if ui.small_button("打开当前原文").clicked() {
+                                                self.jump_to_file(&file.path, 1, 1);
+                                            }
+                                            for difference in &file.differences {
+                                                ui.label(format!("变化：{}", difference.path));
+                                                if let Some(proposed) = &difference.proposed {
+                                                    if ui.small_button("复制提议值以手工解决").clicked() {
+                                                        ui.ctx().copy_text(proposed.clone());
+                                                    }
+                                                }
+                                                let sides = [
+                                                            ("基底", &difference.base),
+                                                            ("当前", &difference.current),
+                                                            ("提议", &difference.proposed),
+                                                ];
+                                                if ui.available_width() >= 780.0 {
+                                                    ui.columns(3, |columns| {
+                                                        for (column, (heading, value)) in
+                                                            columns.iter_mut().zip(sides)
+                                                        {
+                                                            column.strong(heading);
+                                                            column.add(
+                                                                egui::Label::new(
+                                                                    value.as_deref().unwrap_or("∅"),
+                                                                )
+                                                                .selectable(true)
+                                                                .wrap(),
+                                                            );
+                                                        }
+                                                    });
+                                                } else {
+                                                    ui.horizontal(|ui| {
+                                                        for (index, (heading, _)) in
+                                                            sides.iter().enumerate()
+                                                        {
+                                                            ui.selectable_value(
+                                                                &mut self.review.preview_side,
+                                                                index,
+                                                                *heading,
+                                                            );
+                                                        }
+                                                    });
+                                                    let (heading, value) = sides
+                                                        [self.review.preview_side.min(sides.len() - 1)];
+                                                    ui.strong(heading);
+                                                    ui.add(
+                                                        egui::Label::new(
+                                                            value.as_deref().unwrap_or("∅"),
+                                                        )
+                                                        .selectable(true)
+                                                        .wrap(),
+                                                    );
+                                                }
+                                            }
+                                            if file.alignment_uncertain || file.truncated {
+                                                ui.colored_label(
+                                                    theme::GOLD,
+                                                    "对齐不确定或预览截断；请检查三方原文",
+                                                );
+                                            }
+                                            ui.collapsing("三方原文", |ui| {
+                                                for (heading, value) in [
+                                                    ("基底", &file.raw.base),
+                                                    ("当前", &file.raw.current),
+                                                    ("提议", &file.raw.proposed),
+                                                ] {
+                                                    ui.strong(heading);
+                                                    ui.add(
+                                                        egui::Label::new(
+                                                            value.as_deref().unwrap_or("∅"),
+                                                        )
+                                                        .selectable(true)
+                                                        .wrap(),
+                                                    );
+                                                }
+                                            });
+                                            for impact in &file.reference_impacts {
+                                                ui.label(format!(
+                                                    "引用影响 {}:{} · 当前 {} · 提议 {}",
+                                                    impact.target.kind,
+                                                    impact.target.id,
+                                                    impact.current.len(),
+                                                    impact.proposed.len()
+                                                ));
+                                            }
+                                            if !file.reference_impact_complete {
+                                                ui.colored_label(
+                                                    theme::GOLD,
+                                                    "引用影响不完整，请打开原文核对",
+                                                );
+                                            }
                                         }
                                         for conflict in &preview.conflicts {
                                             ui.colored_label(
@@ -508,10 +673,10 @@ impl WorldeditApp {
                                                 ),
                                             );
                                         }
-                                        let open = proposal.draft.status == ProposalStatus::Open;
+                                        let open = proposal.status == ProposalStatus::Open;
                                         if ui
                                             .add_enabled(
-                                                open && preview.can_apply(),
+                                                open && preview.can_apply() && !stale,
                                                 theme::primary("采纳提案"),
                                             )
                                             .clicked()
@@ -520,7 +685,7 @@ impl WorldeditApp {
                                         }
                                         if !preview.can_apply() {
                                             ui.label(theme::muted(
-                                                "存在冲突时不会部分写入；请先人工合并或更新提案。",
+                                                "存在冲突时不会部分写入；打开当前原文手工解决后重新比较，或更新提案。",
                                             ));
                                         }
                                     }

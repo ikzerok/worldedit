@@ -79,7 +79,9 @@ fn frame(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
-                if window == 9 {
+                if window == 14 {
+                    vec2(700.0, 640.0)
+                } else if window == 9 {
                     vec2(1040.0, 660.0)
                 } else {
                     vec2(1700.0, 1400.0)
@@ -96,6 +98,7 @@ fn frame(
             5 => app.target_rename_window(ctx),
             6 => app.preset_editor_window(ctx),
             7 => app.review_tab(ctx),
+            14 => app.review_tab(ctx),
             8 | 9 => app.reading_window(ctx),
             11 => app.source_tab(ctx),
             13 => app.manuscript_tab(ctx),
@@ -1744,6 +1747,22 @@ fn collaboration_review_saves_comments_and_keeps_conflicting_proposals_open() {
     app.project.set_text(&entry, current).unwrap();
     app.recompile();
     let before = app.project.content_baseline();
+    let output = frame(&ctx, &mut app, Vec::new(), 7);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("当前差异已过期"), "{rendered}");
+    click(&ctx, &mut app, 7, "重新比较提案");
+    let output = frame(&ctx, &mut app, Vec::new(), 7);
+    let mut compared = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut compared);
+    }
+    assert!(compared.contains("变化："), "{compared}");
+    assert!(compared.contains("基底"), "{compared}");
+    assert!(compared.contains("当前"), "{compared}");
+    assert!(compared.contains("提议"), "{compared}");
     click(&ctx, &mut app, 7, "采纳提案");
     assert_eq!(app.project.content_baseline(), before);
     assert_eq!(
@@ -1752,4 +1771,63 @@ fn collaboration_review_saves_comments_and_keeps_conflicting_proposals_open() {
             .status,
         worldline_core::collaboration::ProposalStatus::Open
     );
+}
+
+#[test]
+fn narrow_review_switches_between_selectable_three_way_text() {
+    let (ctx, mut app) = app();
+    app.project.save().unwrap();
+    app.recompile();
+    let entry = app.project.entry.clone();
+    let original = app.project.document(&entry).unwrap().to_string();
+    let mut proposed = original.clone();
+    proposed.push_str("entity c kind place as \"新增地点\"\n");
+    app.project.set_text(&entry, proposed).unwrap();
+    app.recompile();
+    app.review.author = "乙".into();
+    app.review.reason = "检查窄屏差异".into();
+    click(&ctx, &mut app, 7, "保存修改提案");
+    app.project.set_text(&entry, original.clone()).unwrap();
+    app.recompile();
+    click(&ctx, &mut app, 14, "重新比较提案");
+    for _ in 0..4 {
+        let _ = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(pos2(200.0, 450.0)),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Line,
+                    delta: vec2(0.0, -8.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            14,
+        );
+    }
+    let output = frame(&ctx, &mut app, Vec::new(), 14);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("基底"), "{rendered}");
+    assert!(rendered.contains("当前"), "{rendered}");
+    assert!(rendered.contains("提议"), "{rendered}");
+    click(&ctx, &mut app, 14, "提议");
+    let output = frame(&ctx, &mut app, Vec::new(), 14);
+    let mut proposed_view = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut proposed_view);
+    }
+    assert!(proposed_view.contains("新增地点"), "{proposed_view}");
+    let history_before_apply = app.history.len();
+    click(&ctx, &mut app, 14, "采纳提案");
+    assert!(
+        app.project.document(&entry).unwrap().contains("新增地点"),
+        "{:?}",
+        app.io_error
+    );
+    assert_eq!(app.history.len(), history_before_apply + 1);
+    app.undo(false);
+    assert_eq!(app.project.document(&entry).unwrap(), original);
 }
