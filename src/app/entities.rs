@@ -1,8 +1,9 @@
 //! 通用实体创作页；所有类型使用相同的 core EntityDraft。
 use super::authoring_forms::EntityForm;
-use super::inspector::{field, properties};
+use super::inspector::properties;
 use super::WorldeditApp;
 use crate::theme;
+use std::path::Path;
 use worldline_core::TargetRef;
 
 pub(super) const ENTITY_KINDS: &[(&str, &str)] = &[
@@ -48,8 +49,15 @@ impl WorldeditApp {
         let Some(mut form) = self.entity_editor.take() else {
             return;
         };
+        if form.source_selection.is_some()
+            && ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        {
+            return;
+        }
         let mut open = true;
         let mut applied = false;
+        let mut cancelled = false;
+        let mut keyboard_apply = false;
         egui::Window::new(if form.original.is_some() {
             "编辑通用资料"
         } else {
@@ -62,7 +70,20 @@ impl WorldeditApp {
         .resizable(true)
         .vscroll(true)
         .show(ctx, |ui| {
-            field(ui, "名称", &mut form.draft.display);
+            keyboard_apply = form.source_selection.is_some()
+                && ui.input_mut(|input| {
+                    input.consume_key(egui::Modifiers::COMMAND, egui::Key::Enter)
+                });
+            ui.label(theme::muted("名称"));
+            let name_response = ui.add(
+                egui::TextEdit::singleline(&mut form.draft.display)
+                    .id(egui::Id::new("entity-editor-name"))
+                    .desired_width(f32::INFINITY),
+            );
+            if form._focus_name_on_open {
+                name_response.request_focus();
+                form._focus_name_on_open = false;
+            }
             ui.horizontal_wrapped(|ui| {
                 ui.label("分类");
                 egui::ComboBox::from_id_salt("entity-kind")
@@ -138,13 +159,14 @@ impl WorldeditApp {
                     "此工程使用语言 1.9。通用实体需要显式启用 1.10；不会自动迁移旧作品。",
                 );
             }
-            if ui
+            let apply_clicked = ui
                 .add_enabled(
                     current && capable && !form.draft.display.trim().is_empty(),
                     theme::primary("应用资料"),
                 )
-                .clicked()
-            {
+                .clicked();
+            if apply_clicked || keyboard_apply {
+                let created_from_source = form.source_selection.is_some();
                 let before = self.project.clone();
                 let result = form.apply(&mut self.project, self.version);
                 applied = self.finish_content_command(
@@ -157,7 +179,42 @@ impl WorldeditApp {
                     self.catalog_query.clear();
                     self.catalog_target = Some(TargetRef::new("entity", &form.draft.id));
                     self.wiki_target = self.catalog_target.clone();
-                    self.open_reading(TargetRef::new("entity", &form.draft.id));
+                    if created_from_source {
+                        self.active_file = form.path.clone();
+                        self.tab = super::Tab::Edit;
+                        let target = TargetRef::new("entity", &form.draft.id);
+                        if let Some(link) = self.snapshot.as_ref().and_then(|snapshot| {
+                            snapshot
+                                .result
+                                .analysis
+                                .catalog
+                                .text_links
+                                .iter()
+                                .find(|link| {
+                                    link.target == target
+                                        && Path::new(&link.file) == form.path.as_path()
+                                        && form.source_selection.as_ref().is_some_and(|selection| {
+                                            link.label == selection.expected_text
+                                        })
+                                })
+                        }) {
+                            self.jump = Some((link.line, link.column));
+                        }
+                        let domain = if self
+                            .project
+                            .authoring_documents
+                            .contains_key(&self.active_file)
+                        {
+                            "authoring-source"
+                        } else {
+                            "source"
+                        };
+                        ctx.memory_mut(|memory| {
+                            memory.request_focus(egui::Id::new((domain, &self.active_file)))
+                        });
+                    } else {
+                        self.open_reading(TargetRef::new("entity", &form.draft.id));
+                    }
                 }
             }
             if let Some(id) = &form.original {
@@ -165,8 +222,11 @@ impl WorldeditApp {
                     self.plan_content_deletion(TargetRef::new("entity", id));
                 }
             }
+            if ui.button("取消").clicked() {
+                cancelled = true;
+            }
         });
-        if open && !applied {
+        if open && !applied && !cancelled {
             self.entity_editor = Some(form);
         }
     }

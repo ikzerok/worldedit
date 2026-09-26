@@ -74,6 +74,32 @@ impl WorldeditApp {
         self.alias_input.clear();
     }
 
+    fn return_to_source_edit(&mut self, ctx: &egui::Context) {
+        let saved = self.reading_return.take();
+        if let Some((path, cursor)) = saved.as_ref() {
+            self.active_file = path.clone();
+            let id = egui::Id::new(("source", path));
+            let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+            state
+                .cursor
+                .set_char_range(Some(egui::text::CCursorRange::one(
+                    egui::text::CCursor::new(*cursor),
+                )));
+            egui::TextEdit::store_state(ctx, id, state);
+        }
+        self.tab = super::Tab::Edit;
+        let domain = if self
+            .project
+            .authoring_documents
+            .contains_key(&self.active_file)
+        {
+            "authoring-source"
+        } else {
+            "source"
+        };
+        ctx.memory_mut(|memory| memory.request_focus(egui::Id::new((domain, &self.active_file))));
+    }
+
     pub(super) fn linked_source(&mut self, ui: &mut egui::Ui, source: &str, file: &str) {
         for (index, parts) in worldline_core::navigation::reading_lines_with_options(
             source,
@@ -139,6 +165,7 @@ impl WorldeditApp {
             return;
         };
         let mut open = true;
+        let mut keyboard_return = false;
         egui::Window::new("Wiki · 注释索引")
             .id(egui::Id::new("object-reading"))
             .order(egui::Order::Foreground)
@@ -148,6 +175,14 @@ impl WorldeditApp {
             .resizable(true)
             .vscroll(true)
             .show(ctx, |ui| {
+                if self.reading_return.is_some()
+                    && ui.input_mut(|input| {
+                        input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)
+                    })
+                {
+                    keyboard_return = true;
+                    return;
+                }
                 if ui
                     .add_enabled(
                         self.reading_panels.ids().len() < super::reading_state::PANEL_LIMIT,
@@ -158,6 +193,15 @@ impl WorldeditApp {
                     self.selected_reading_panel = self.reading_panels.pin(target.clone());
                     self.close_transient_reading();
                 }
+                if self.reading_return.is_some()
+                    && ui
+                        .button("返回源码编辑")
+                        .on_hover_text("Esc 也可返回")
+                        .clicked()
+                {
+                    self.return_to_source_edit(ctx);
+                    self.close_transient_reading();
+                }
                 if !self.reading_history.is_empty() && ui.button("← 返回上一词条").clicked()
                 {
                     self.reading_target = self.reading_history.pop();
@@ -165,6 +209,11 @@ impl WorldeditApp {
                 }
                 self.reading_content(ui, target);
             });
+        if keyboard_return {
+            self.return_to_source_edit(ctx);
+            self.close_transient_reading();
+            return;
+        }
         if !open {
             self.close_transient_reading();
         }
@@ -220,19 +269,7 @@ impl WorldeditApp {
                         self.reading_panels.close(id);
                     }
                     if ui.button("返回源码编辑").clicked() {
-                        self.tab = super::Tab::Edit;
-                        let domain = if self
-                            .project
-                            .authoring_documents
-                            .contains_key(&self.active_file)
-                        {
-                            "authoring-source"
-                        } else {
-                            "source"
-                        };
-                        ui.memory_mut(|memory| {
-                            memory.request_focus(egui::Id::new((domain, &self.active_file)))
-                        });
+                        self.return_to_source_edit(ctx);
                     }
                 });
                 self.reading_content(ui, target);
@@ -268,6 +305,21 @@ impl WorldeditApp {
                 "资料已失效：{}:{}。可能已被删除或更改 ID。",
                 target.kind, target.id
             ));
+            if target.kind == "entity" {
+                let label = catalog
+                    .text_links
+                    .iter()
+                    .find(|link| link.target == target)
+                    .map(|link| link.label.clone())
+                    .unwrap_or_else(|| target.id.clone());
+                if ui.button("按此 ID 新建实体以修复引用").clicked() {
+                    self.edit_entity(None);
+                    if let Some(form) = self.entity_editor.as_mut() {
+                        form.draft.id = target.id.clone();
+                        form.draft.display = label;
+                    }
+                }
+            }
             return;
         };
         ui.push_id((&target.kind, &target.id), |ui| {

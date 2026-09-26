@@ -4013,6 +4013,7 @@ dependencies = [
 name = "worldline-core"
 version = "0.3.0"
 dependencies = [
+ "same-file",
  "serde",
  "serde_json",
 ]

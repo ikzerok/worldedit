@@ -195,6 +195,12 @@ pub struct WorldeditApp {
     overview_cache: Option<(u64, Vec<(PathBuf, EventDraft)>)>,
     reading_target: Option<worldline_core::catalog::TargetRef>,
     reading_history: Vec<worldline_core::catalog::TargetRef>,
+    reading_return: Option<(PathBuf, usize)>,
+    ime_composing: bool,
+    ime_source_baseline: Option<(PathBuf, String)>,
+    ime_source_draft: Option<(PathBuf, String, String)>,
+    mention_suppression: Option<(PathBuf, usize, String)>,
+    mention_selection: Option<(PathBuf, usize, String, usize)>,
     reading_panels: reading_state::ReadingPanels,
     active_reading_panel: Option<u64>,
     selected_reading_panel: Option<u64>,
@@ -290,6 +296,12 @@ impl WorldeditApp {
             overview_cache: None,
             reading_target: None,
             reading_history: Vec::new(),
+            reading_return: None,
+            ime_composing: false,
+            ime_source_baseline: None,
+            ime_source_draft: None,
+            mention_suppression: None,
+            mention_selection: None,
             reading_panels: reading_state::ReadingPanels::default(),
             active_reading_panel: None,
             selected_reading_panel: None,
@@ -467,6 +479,11 @@ impl WorldeditApp {
         self.stale_form = false;
         self.reading_target = None;
         self.reading_history.clear();
+        self.ime_composing = false;
+        self.ime_source_baseline = None;
+        self.ime_source_draft = None;
+        self.mention_suppression = None;
+        self.mention_selection = None;
         self.reading_panels.clear();
         self.active_reading_panel = None;
         self.selected_reading_panel = None;
@@ -520,7 +537,9 @@ impl WorldeditApp {
         self.review = collaboration_ui::ReviewState::default();
     }
     fn has_open_authoring_form(&self) -> bool {
-        self.entity_editor.is_some()
+        self.ime_composing
+            || self.ime_source_draft.is_some()
+            || self.entity_editor.is_some()
             || self.relation_editor.is_some()
             || self.relation_type_editor.is_some()
             || self.event_editor.is_some()
@@ -543,8 +562,10 @@ impl WorldeditApp {
 
     fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
         if self.has_open_authoring_form() {
-            self.message =
-                Some("仍有打开的创作表单，请先应用或取消，再切换或关闭工程。输入已保留。".into());
+            self.message = Some(
+                "仍有未提交的创作输入，请先应用、完成或恢复后，再切换或关闭工程。输入已保留。"
+                    .into(),
+            );
             return;
         }
         if self.project.is_dirty() {
@@ -615,6 +636,10 @@ impl WorldeditApp {
     }
     #[cfg(not(target_arch = "wasm32"))]
     fn save(&mut self) -> bool {
+        if self.ime_composing || self.ime_source_draft.is_some() {
+            self.io_error = Some("正文仍有未提交的输入法草稿，请先完成输入或恢复外部版本。".into());
+            return false;
+        }
         if !self.saved_location {
             self.directory_dialog(false);
             return false;
@@ -634,6 +659,10 @@ impl WorldeditApp {
     }
     #[cfg(not(target_arch = "wasm32"))]
     fn directory_dialog(&mut self, export: bool) {
+        if self.ime_composing || self.ime_source_draft.is_some() {
+            self.io_error = Some("正文仍有未提交的输入法草稿，请先完成输入或恢复外部版本。".into());
+            return;
+        }
         let id = self
             .snapshot
             .as_ref()

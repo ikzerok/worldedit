@@ -1,6 +1,7 @@
 //! 表单只持有 core 草稿与打开时的基线；写入仍由 Project 校验。
 use std::path::PathBuf;
 use worldline_core::authoring::EntityDraft;
+use worldline_core::authoring_intents::{AuthoringIntent, IntentTarget, TextSelection};
 use worldline_core::catalog::{Catalog, TargetRef};
 use worldline_core::project::Project;
 use worldline_core::refactor::RenamePlan;
@@ -49,6 +50,8 @@ pub(super) struct EntityForm {
     pub path: PathBuf,
     pub draft: EntityDraft,
     pub guard: FormGuard,
+    pub source_selection: Option<TextSelection>,
+    pub _focus_name_on_open: bool,
 }
 impl EntityForm {
     pub fn open(
@@ -83,11 +86,27 @@ impl EntityForm {
             path,
             draft,
             guard: FormGuard::capture(project, version),
+            source_selection: None,
+            _focus_name_on_open: false,
         })
     }
     pub fn apply(&self, project: &mut Project, version: u64) -> Result<(), String> {
         self.guard.check(project, version)?;
-        project.edit(|p| p.write_entity(&self.path, self.original.as_deref(), &self.draft))
+        if let Some(selection) = &self.source_selection {
+            project
+                .apply_authoring_intent(&AuthoringIntent {
+                    expected_baseline: project.content_baseline(),
+                    target: IntentTarget::CreateEntity {
+                        path: self.path.clone(),
+                        draft: self.draft.clone(),
+                    },
+                    selection: Some(selection.clone()),
+                    placement: None,
+                })
+                .map(|_| ())
+        } else {
+            project.edit(|p| p.write_entity(&self.path, self.original.as_deref(), &self.draft))
+        }
     }
 }
 
