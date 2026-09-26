@@ -29,6 +29,7 @@ mod overview;
 mod package;
 mod play;
 mod presets;
+mod reader_publish;
 mod reading;
 mod reading_state;
 mod refactor_ui;
@@ -330,6 +331,7 @@ pub struct WorldeditApp {
     manuscript: manuscript::WorkbenchState,
     template_manager: template_manager::ManagerState,
     checkpoint_history: checkpoint_history::HistoryState,
+    reader_publish: reader_publish::ReaderPublishState,
 }
 
 impl WorldeditApp {
@@ -440,6 +442,7 @@ impl WorldeditApp {
             manuscript: manuscript::WorkbenchState::default(),
             template_manager: template_manager::ManagerState::default(),
             checkpoint_history: checkpoint_history::HistoryState::default(),
+            reader_publish: reader_publish::ReaderPublishState::default(),
         };
         app.catalog_workbench.restore_favorites(cc.storage);
         if let Some(path) = initial_file {
@@ -479,6 +482,10 @@ impl WorldeditApp {
             wiki,
             map_index,
         });
+        if self.reader_publish.open {
+            self.reader_publish
+                .refresh_choices(&self.project, self.snapshot.as_ref());
+        }
     }
 
     fn refresh_presentation_after_map_command(&mut self) {
@@ -627,6 +634,7 @@ impl WorldeditApp {
         self.review = collaboration_ui::ReviewState::default();
         self.manuscript = manuscript::WorkbenchState::default();
         self.checkpoint_history = checkpoint_history::HistoryState::default();
+        self.reader_publish = reader_publish::ReaderPublishState::default();
     }
     fn has_open_authoring_form(&self) -> bool {
         self.ime_composing
@@ -1056,6 +1064,7 @@ impl eframe::App for WorldeditApp {
         self.content_deletion_window(ctx);
         self.target_rename_window(ctx);
         self.markdown_import_window(ctx);
+        self.reader_publish_window(ctx);
         self.preset_editor_window(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.conflict_view.show(ctx);
@@ -1102,6 +1111,9 @@ impl WorldeditApp {
                     ui.add_space(12.0);
                     crate::chrome::subtitle(ui, "世界创作工作台");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("发布给读者").clicked() {
+                            self.open_reader_publish();
+                        }
                         if ui.add(theme::primary("导出工程  ↗")).clicked() {
                             self.directory_dialog(true);
                         }

@@ -102,6 +102,129 @@ fn manuscript_app() -> (egui::Context, WorldeditApp) {
     app.recompile();
     (ctx, app)
 }
+
+fn reader_publish_app() -> (egui::Context, WorldeditApp) {
+    let (ctx, mut app) = app();
+    app.project
+        .set_text(
+            &app.active_file.clone(),
+            concat!(
+                "event public as \"Public Event\"\n",
+                "  Published story body.\n",
+                "  [[event:private|HIDDEN_LINK_LABEL_SENTINEL]]\n",
+                "  -> END\n",
+                "event private as \"HIDDEN_EVENT_TITLE_SENTINEL\"\n",
+                "  HIDDEN_EVENT_BODY_SENTINEL.\n",
+                "  -> END\n",
+                "asset cover image \"assets/cover.png\" as \"Public Cover\"\n",
+                "asset hidden file \"private/secret.txt\" as \"HIDDEN_ASSET_TITLE_SENTINEL\"\n",
+            )
+            .into(),
+        )
+        .unwrap();
+    app.project
+        .set_authoring_document(
+            &app.project.root.join(".world/project.json"),
+            br#"{"schema_version":1,"language_version":"1.10","required_features":["content.entities.v1","content.relations.v1","presentation.manuscripts.v1"],"maps":{},"graph_views":{},"manuscripts":{"public-book":".world/manuscripts/public-book.json"}}"#.to_vec(),
+        )
+        .unwrap();
+    app.project
+        .create_authoring_document(
+            &app.project.root.join(".world/manuscripts/public-book.json"),
+            br#"{"schema_version":1,"id":"public-book","title":"Public Book","entries":[{"id":"public-chapter","kind":"chapter","title":"Public Chapter","target_ref":{"kind":"event","id":"public"},"summary":"Public chapter summary","status":"published"},{"id":"hidden-chapter","kind":"chapter","title":"HIDDEN_CHAPTER_TITLE_SENTINEL","target_ref":{"kind":"event","id":"private"},"summary":"HIDDEN_CHAPTER_BODY_SENTINEL","status":"draft"}]}"#.to_vec(),
+        )
+        .unwrap();
+    app.project.save().unwrap();
+    std::fs::create_dir_all(app.project.root.join("assets")).unwrap();
+    std::fs::create_dir_all(app.project.root.join("private")).unwrap();
+    std::fs::write(app.project.root.join("assets/cover.png"), [0, 1, 255, 2]).unwrap();
+    std::fs::write(
+        app.project.root.join("private/secret.txt"),
+        b"HIDDEN_ATTACHMENT_BYTES_SENTINEL",
+    )
+    .unwrap();
+    app.recompile();
+    assert!(
+        !app.snapshot.as_ref().unwrap().result.has_errors(),
+        "{:?}",
+        app.snapshot.as_ref().unwrap().result.diagnostics
+    );
+    assert!(
+        app.project
+            .manuscript_indices()
+            .values()
+            .all(|index| index.diagnostics.is_empty()),
+        "{:?}",
+        app.project
+            .manuscript_indices()
+            .values()
+            .flat_map(|index| index.diagnostics.iter())
+            .collect::<Vec<_>>()
+    );
+    (ctx, app)
+}
+
+fn wait_for_reader_publish(ctx: &egui::Context, app: &mut WorldeditApp) {
+    let mut last = String::new();
+    for _ in 0..500 {
+        let output = frame(ctx, app, Vec::new(), 26);
+        last.clear();
+        for shape in &output.shapes {
+            collect_text(&shape.shape, &mut last);
+        }
+        if last.contains("发布 ZIP") || last.contains("预览失败：") {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    panic!("reader publish preview did not finish: {last}");
+}
+
+fn assert_reader_package_resources_resolve(files: &crate::archive::Files) {
+    for (page, bytes) in files {
+        if page.extension().is_none_or(|extension| extension != "html") {
+            continue;
+        }
+        let html = std::str::from_utf8(bytes).unwrap();
+        assert!(
+            html.starts_with("<!doctype html>"),
+            "invalid reader page {page:?}"
+        );
+        for attribute in ["href=\"", "src=\""] {
+            let mut rest = html;
+            while let Some(start) = rest.find(attribute) {
+                rest = &rest[start + attribute.len()..];
+                let end = rest.find('"').expect("closed resource URL");
+                let url = &rest[..end];
+                assert!(!url.contains("://"), "reader package has remote URL {url}");
+                assert!(
+                    !url.starts_with('/'),
+                    "reader URL must be package-relative: {url}"
+                );
+                let mut resolved = page
+                    .parent()
+                    .unwrap_or(std::path::Path::new(""))
+                    .to_path_buf();
+                for component in std::path::Path::new(url).components() {
+                    match component {
+                        std::path::Component::Normal(value) => resolved.push(value),
+                        std::path::Component::ParentDir => assert!(
+                            resolved.pop(),
+                            "reader URL escapes package root: {page:?} -> {url}"
+                        ),
+                        std::path::Component::CurDir => {}
+                        _ => panic!("unsafe reader URL {page:?} -> {url}"),
+                    }
+                }
+                assert!(
+                    files.contains_key(&resolved),
+                    "missing reader resource {page:?} -> {url}"
+                );
+                rest = &rest[end + 1..];
+            }
+        }
+    }
+}
 fn frame(
     ctx: &egui::Context,
     app: &mut WorldeditApp,
@@ -117,7 +240,7 @@ fn frame(
                 pos2(0.0, 0.0),
                 if window == 16 || window == 21 || window == 24 {
                     vec2(700.0, 640.0)
-                } else if window == 25 {
+                } else if window == 25 || window == 26 {
                     vec2(1280.0, 1000.0)
                 } else if window == 9 {
                     vec2(1040.0, 660.0)
@@ -163,6 +286,10 @@ fn frame(
             25 => {
                 app.top_bar(ctx);
                 app.markdown_import_window(ctx);
+            }
+            26 => {
+                app.top_bar(ctx);
+                app.reader_publish_window(ctx);
             }
             _ => app.content_deletion_window(ctx),
         },
@@ -3887,4 +4014,288 @@ fn narrow_review_switches_between_selectable_three_way_text() {
     assert_eq!(app.history.len(), history_before_apply + 1);
     app.undo(false);
     assert_eq!(app.project.document(&entry).unwrap(), original);
+}
+
+#[test]
+fn reader_publish_entry_is_separate_and_explains_the_offline_boundary() {
+    let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
+    let dirty = app.project.is_dirty();
+    let destination = app
+        .project
+        .root
+        .with_file_name(format!("reader-publish-empty-{}.zip", std::process::id()));
+    let _ = std::fs::remove_file(&destination);
+    click(&ctx, &mut app, 26, "发布给读者");
+    replace_text_area(
+        &ctx,
+        &mut app,
+        26,
+        "reader-site.zip",
+        &destination.to_string_lossy(),
+    );
+
+    click(&ctx, &mut app, 26, "生成 / 更新预览");
+    let output = frame(&ctx, &mut app, Vec::new(), 26);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("离线选择不是权限认证"), "{rendered}");
+    assert!(
+        rendered.contains("尚未生成预览；未选任何内容时不会创建空包。"),
+        "{rendered}"
+    );
+    assert!(
+        !destination.exists(),
+        "empty selection must write no output"
+    );
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.project.is_dirty(), dirty);
+}
+
+#[test]
+fn reader_publish_uses_explicit_choices_and_publishes_the_reviewed_static_zip() {
+    let (ctx, mut app) = reader_publish_app();
+    let baseline = app.project.content_baseline();
+    let dirty = app.project.is_dirty();
+    let history_len = app.history.len();
+    let destination = app
+        .project
+        .root
+        .with_file_name(format!("reader-publish-ui-{}.zip", std::process::id()));
+    let _ = std::fs::remove_file(&destination);
+
+    click(&ctx, &mut app, 26, "发布给读者");
+    click(&ctx, &mut app, 26, "Public Event · event (public)");
+    click(&ctx, &mut app, 26, "Public Chapter (public-chapter)");
+    click(&ctx, &mut app, 26, "Public Cover (cover)");
+    replace_text_area(
+        &ctx,
+        &mut app,
+        26,
+        "reader-site.zip",
+        &destination.to_string_lossy(),
+    );
+    click(&ctx, &mut app, 26, "生成 / 更新预览");
+    wait_for_reader_publish(&ctx, &mut app);
+
+    let output = frame(&ctx, &mut app, Vec::new(), 26);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("Public Event"), "{rendered}");
+    assert!(rendered.contains("Public Chapter"), "{rendered}");
+    assert!(rendered.contains("Public Cover"), "{rendered}");
+    assert!(rendered.contains("未公开内容"), "{rendered}");
+    assert!(!destination.exists(), "preview must not write output");
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.project.is_dirty(), dirty);
+    assert_eq!(app.history.len(), history_len);
+
+    click(&ctx, &mut app, 26, "发布 ZIP");
+    assert!(
+        !destination.exists(),
+        "publish must require explicit confirmation"
+    );
+    click(
+        &ctx,
+        &mut app,
+        26,
+        "我已逐项核对预览，确认只发布以上离线内容（不代表在线权限控制）",
+    );
+    click(&ctx, &mut app, 26, "发布 ZIP");
+    assert!(destination.is_file());
+    let zip = std::fs::read(&destination).unwrap();
+    let files = crate::archive::decode(&zip).unwrap();
+    assert!(files.contains_key(std::path::Path::new("index.html")));
+    assert!(files.contains_key(std::path::Path::new("search-index.json")));
+    assert!(files.contains_key(std::path::Path::new("search.html")));
+    assert!(files.contains_key(std::path::Path::new("reader.js")));
+    assert!(files.contains_key(std::path::Path::new("style.css")));
+    assert!(!files.contains_key(std::path::Path::new("world.wl")));
+    assert!(
+        files
+            .keys()
+            .any(|path| path == std::path::Path::new("assets/a0001.png")),
+        "{:?}",
+        files.keys().collect::<Vec<_>>()
+    );
+    assert_reader_package_resources_resolve(&files);
+    let reader_script = std::str::from_utf8(&files[std::path::Path::new("reader.js")]).unwrap();
+    assert!(reader_script.contains("textContent"));
+    assert!(!reader_script.contains("eval("));
+    assert!(!reader_script.contains("://"));
+    let emitted = files
+        .iter()
+        .flat_map(|(path, bytes)| {
+            path.to_string_lossy()
+                .bytes()
+                .chain(bytes.iter().copied())
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    for secret in [
+        "HIDDEN_EVENT_TITLE_SENTINEL",
+        "HIDDEN_EVENT_BODY_SENTINEL",
+        "HIDDEN_LINK_LABEL_SENTINEL",
+        "HIDDEN_CHAPTER_TITLE_SENTINEL",
+        "HIDDEN_CHAPTER_BODY_SENTINEL",
+        "HIDDEN_ASSET_TITLE_SENTINEL",
+        "HIDDEN_ATTACHMENT_BYTES_SENTINEL",
+        "private",
+    ] {
+        assert!(
+            !emitted
+                .windows(secret.len())
+                .any(|window| window == secret.as_bytes()),
+            "reader package leaked {secret}"
+        );
+    }
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.project.is_dirty(), dirty);
+    assert_eq!(app.history.len(), history_len);
+    let output = frame(&ctx, &mut app, Vec::new(), 26);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("阅读包已写入"), "{rendered}");
+    let _ = std::fs::remove_file(destination);
+}
+
+#[test]
+fn reader_publish_cancel_after_preview_leaves_no_output_and_preserves_author_state() {
+    let (ctx, mut app) = reader_publish_app();
+    let baseline = app.project.content_baseline();
+    let dirty = app.project.is_dirty();
+    let destination = app
+        .project
+        .root
+        .with_file_name(format!("reader-publish-cancel-{}.zip", std::process::id()));
+    let _ = std::fs::remove_file(&destination);
+
+    click(&ctx, &mut app, 26, "发布给读者");
+    click(&ctx, &mut app, 26, "Public Event · event (public)");
+    replace_text_area(
+        &ctx,
+        &mut app,
+        26,
+        "reader-site.zip",
+        &destination.to_string_lossy(),
+    );
+    click(&ctx, &mut app, 26, "生成 / 更新预览");
+    wait_for_reader_publish(&ctx, &mut app);
+    assert!(
+        !destination.exists(),
+        "preview must not write the destination"
+    );
+    click(&ctx, &mut app, 26, "取消发布");
+    assert!(
+        !destination.exists(),
+        "cancel must not write the destination"
+    );
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.project.is_dirty(), dirty);
+    assert!(app.history.is_empty());
+}
+
+#[test]
+fn reader_publish_recompile_refreshes_candidates_and_invalidates_the_old_review() {
+    let (ctx, mut app) = reader_publish_app();
+    let destination = app
+        .project
+        .root
+        .with_file_name(format!("reader-publish-stale-{}.zip", std::process::id()));
+    let _ = std::fs::remove_file(&destination);
+
+    click(&ctx, &mut app, 26, "发布给读者");
+    click(&ctx, &mut app, 26, "Public Event · event (public)");
+    replace_text_area(
+        &ctx,
+        &mut app,
+        26,
+        "reader-site.zip",
+        &destination.to_string_lossy(),
+    );
+    click(&ctx, &mut app, 26, "生成 / 更新预览");
+    wait_for_reader_publish(&ctx, &mut app);
+    assert!(!destination.exists());
+
+    let entry = app.project.entry.clone();
+    let mut changed = app.project.document(&entry).unwrap().to_owned();
+    changed = changed.replace("Published story body.", "Updated story body.");
+    app.project.set_text(&entry, changed).unwrap();
+    app.recompile();
+    let edited_baseline = app.project.content_baseline();
+    let dirty = app.project.is_dirty();
+    let output = frame(&ctx, &mut app, Vec::new(), 26);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(
+        rendered.contains("尚未生成预览；未选任何内容时不会创建空包。"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("Public Event · event (public)"),
+        "{rendered}"
+    );
+    assert!(!destination.exists());
+    assert_eq!(app.project.content_baseline(), edited_baseline);
+    assert_eq!(app.project.is_dirty(), dirty);
+    assert!(app.history.is_empty());
+    let _ = std::fs::remove_file(destination);
+}
+
+#[test]
+fn reader_publish_cancel_and_existing_target_failure_never_write_or_overwrite() {
+    let (ctx, mut app) = reader_publish_app();
+    let baseline = app.project.content_baseline();
+    let destination = app.project.root.with_file_name(format!(
+        "reader-publish-existing-{}.zip",
+        std::process::id()
+    ));
+    let sentinel = b"existing-output-must-survive";
+    std::fs::write(&destination, sentinel).unwrap();
+
+    click(&ctx, &mut app, 26, "发布给读者");
+    click(&ctx, &mut app, 26, "Public Event · event (public)");
+    replace_text_area(
+        &ctx,
+        &mut app,
+        26,
+        "reader-site.zip",
+        &destination.to_string_lossy(),
+    );
+    click(&ctx, &mut app, 26, "生成 / 更新预览");
+    wait_for_reader_publish(&ctx, &mut app);
+    click(
+        &ctx,
+        &mut app,
+        26,
+        "我已逐项核对预览，确认只发布以上离线内容（不代表在线权限控制）",
+    );
+    click(&ctx, &mut app, 26, "发布 ZIP");
+    assert_eq!(std::fs::read(&destination).unwrap(), sentinel);
+    let output = frame(&ctx, &mut app, Vec::new(), 26);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("发布失败"), "{rendered}");
+    assert_eq!(app.project.content_baseline(), baseline);
+
+    click(&ctx, &mut app, 26, "取消发布");
+    let output = frame(&ctx, &mut app, Vec::new(), 26);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(!rendered.contains("离线选择不是权限认证"), "{rendered}");
+    assert_eq!(std::fs::read(&destination).unwrap(), sentinel);
+    assert_eq!(app.project.content_baseline(), baseline);
+    let _ = std::fs::remove_file(destination);
 }
