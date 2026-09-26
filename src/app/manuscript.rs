@@ -402,6 +402,9 @@ impl WorldeditApp {
                 }
 
                 ui.separator();
+                egui::ScrollArea::vertical()
+                    .id_salt("manuscript-workbench-content")
+                    .show(ui, |ui| {
                 ui.columns(2, |columns| {
                     columns[0].heading("章节");
                     columns[1].heading("编排与来源");
@@ -655,6 +658,7 @@ impl WorldeditApp {
                             draw_reader_preview(self, ui, &preview_index, &mut repair_chapter);
                         });
                 }
+                });
             });
 
         if let Some(chapter) = repair_chapter {

@@ -238,7 +238,9 @@ fn frame(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
-                if window == 16 || window == 21 || window == 24 {
+                if window == 27 {
+                    vec2(1280.0, 800.0)
+                } else if window == 16 || window == 21 || window == 24 {
                     vec2(700.0, 640.0)
                 } else if window == 25 || window == 26 {
                     vec2(1280.0, 1000.0)
@@ -282,6 +284,12 @@ fn frame(
             20 | 21 => app.play_tab(ctx),
             22 => app.canvas_tab(ctx),
             23 => app.checkpoint_history_tab(ctx),
+            27 => {
+                app.top_bar(ctx);
+                app.status_bar(ctx);
+                app.sidebar(ctx);
+                app.manuscript_tab(ctx);
+            }
             24 => app.checkpoint_history_tab(ctx),
             25 => {
                 app.top_bar(ctx);
@@ -2623,6 +2631,51 @@ fn manuscript_preview_and_stats_come_from_core_projection() {
     assert!(
         scrolled.contains("同名地点资料"),
         "书稿长预览应可滚动：{scrolled}"
+    );
+}
+#[test]
+fn manuscript_workbench_scrolls_to_preview_in_short_viewport() {
+    let (ctx, mut app) = manuscript_app();
+    let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0));
+    let visible = |output: &egui::FullOutput, needle: &str| {
+        output.shapes.iter().find_map(|clipped| {
+            let point = text_position_contains(&clipped.shape, needle)?;
+            (screen.contains(point) && clipped.clip_rect.contains(point)).then_some(point)
+        })
+    };
+    let mut output = frame(&ctx, &mut app, Vec::new(), 27);
+    for field in ["状态", "字数目标", "event:arrival"] {
+        assert!(
+            visible(&output, field).is_some(),
+            "chapter field must be visible in a short viewport: {field}"
+        );
+    }
+    assert!(
+        visible(&output, "按书稿章节顺序展示 core 编译的静态文本").is_none(),
+        "preview should begin below the initial short viewport"
+    );
+    let scroll_point = visible(&output, "稳定 ID").unwrap();
+    for _ in 0..32 {
+        if visible(&output, "按书稿章节顺序展示 core 编译的静态文本").is_some() {
+            break;
+        }
+        output = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(scroll_point),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, -90.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            27,
+        );
+    }
+    assert!(
+        visible(&output, "按书稿章节顺序展示 core 编译的静态文本").is_some(),
+        "reading preview must be reachable by scrolling in a short viewport"
     );
 }
 
