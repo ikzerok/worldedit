@@ -56,6 +56,10 @@
 - 工程模板 core 切片 `2ab7b94`、`8c5b439`、`ce46a23`、`4195a15`、`aeeab1b`：注册、导入/替换/删除预览及基线保护；显式 `entity`/`relation` 对象引用参与重构和删除保护，旧 1.9 工程只读拒绝，1.10 导入自动声明能力。20 项模板测试、schema 正反例及 workspace 全量回归通过。编辑器模板管理器由 worldedit#19 跟踪。
 - 确定性重放 `55c7018`、`cb0a781`、`661ca39`：runtime seed/checkpoint/trace、只读条件解释、预算与取消 API；CLI/RPC 共享能力并区分无效参数与故事失败。runtime、CLI、RPC 定向和 workspace 全量回归通过。同步 CLI/RPC 没有传输层中途取消；调试器界面由 worldedit#20 跟踪。
 
+### worldline#20 / CAP-07A
+
+- Markdown 迁移 core `52e6389`、`2fce0bb` 提供预算内 dry-run、来源与链接映射、冲突/损失清单、确认后基线保护应用；`dbb1831` 接入 CLI/RPC 等价入口和协议。12 项 Markdown 回归及合并后 workspace 全量测试、严格 Clippy 通过；契约外 Markdown 结构报告损失，导入向导由 worldedit#21 跟踪。
+
 ## 研究交付
 
 - worldedit#32 / EDS-01：[官方交互观察与证据边界](design/editor-system/20260926/eds01-evidence.md)。四主样本各四条 DOC 观察卡及失败/恢复路径，五补充样本、12 模式反例和替代方案。GUI/RUN/USER 缺口明确保留，研究票已按文档交付关闭。
@@ -83,7 +87,7 @@
 
 - Standards：两轮均无发现。
 - Spec：core 引用影响缺项已修；editor 的时段草稿、Web 离页提示和跨阅读窗口关闭问题已修，并补回归。实际双端与作者测试缺口独立记录。
-- 最新配对检查使用 core `aeeab1b6aa6ce4e297010effdf81076888faa3d6`、editor `04ab957` 加本次兼容 SHA 与文档更新，日志在本机 `target/paired-check/20260926T1346316792743Z/`。两仓格式、完整测试、严格 Clippy、原生构建与编辑器 WASM Clippy/构建均通过。CAP-07A 后续集成仍需再检；本机日志不提交源码。
+- 最新配对检查使用 core `c03016be02cdb6716fe6eacb2bdc8a27759fad91`、editor `b74dd20` 加本次兼容 SHA 与文档更新，日志在本机 `target/paired-check/20260926T1404193933152Z/`。两仓格式、完整测试、严格原生 Clippy、原生构建和编辑器 WASM Clippy/构建通过；core 的 native-only Markdown 辅助代码在 WASM 构建产生 41 条 dead_code 警告，待 Web 快照 API 接入时清理。本机日志不提交源码。
 - 检查脚本：`scripts/check-pair.ps1` 全部通过，分别指定两仓 Cargo.toml，覆盖格式、完整测试（core/CLI/runtime/agent 合计 333，editor 合计 110）、Clippy、原生构建及 WASM Clippy/构建。测试/编译不能代替实际 GUI/USER 证据。
 
 ## 尚待推进
