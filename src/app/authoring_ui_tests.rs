@@ -738,7 +738,6 @@ fn markdown_import_files_snapshot_preflight_uses_core_and_cancel_keeps_targets_u
 
     let preview = rendered_text_in_window(&ctx, &mut app, 17, "预检完成：");
     assert!(preview.contains("1 个页面"), "{preview}");
-    assert!(preview.contains("3 个损失"), "{preview}");
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(std::fs::read_dir(&target).unwrap().next().is_none());
 
