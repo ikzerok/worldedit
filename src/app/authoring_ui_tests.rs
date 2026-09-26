@@ -17,6 +17,7 @@ fn app() -> (egui::Context, WorldeditApp) {
         NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed)
     ));
     app.project = Project::new(&root);
+    let root = app.project.root.clone();
     let entry = app.project.entry.clone();
     app.project.documents.retain(|path, _| path == &entry);
     app.project.set_text(&entry, "entity a kind place as \"同名\"\nentity b kind organization as \"同名\"\nrelation_type knows as \"认识\"\n".into()).unwrap();
@@ -656,7 +657,7 @@ fn markdown_import_apply_requires_loss_confirmation_and_round_trips_original_mar
     click(&ctx, &mut app, 17, "我已检查目标语言版本升级及其影响");
     click(&ctx, &mut app, 17, "应用导入");
 
-    assert_eq!(app.project.root, target);
+    assert_eq!(app.project.root, Project::open(&target).unwrap().root);
     assert!(app.saved_location);
     assert!(app.history.is_empty());
     assert!(app
@@ -732,7 +733,8 @@ fn markdown_import_rejects_a_source_that_changes_after_preview_without_writing()
     scroll_window_to_top(&ctx, &mut app, 17);
     click(&ctx, &mut app, 17, "应用导入");
     assert_eq!(
-        app.project.root, target,
+        app.project.root,
+        Project::open(&target).unwrap().root,
         "message={:?}, io_error={:?}",
         app.message, app.io_error
     );
