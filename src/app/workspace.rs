@@ -9,7 +9,12 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use worldline_core::Severity;
 
-fn nav_icon(painter: &egui::Painter, center: egui::Pos2, tab: Tab, color: egui::Color32) {
+pub(super) fn nav_icon(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    tab: Tab,
+    color: egui::Color32,
+) {
     use egui::{vec2, Stroke};
     let stroke = Stroke::new(1.3_f32, color);
     let line = |a: [f32; 2], b: [f32; 2]| {
@@ -84,6 +89,45 @@ fn nav_icon(painter: &egui::Painter, center: egui::Pos2, tab: Tab, color: egui::
             ));
             painter.circle_filled(center + vec2(-3.0, -2.0), 1.4, color);
         }
+        Tab::Play => {
+            painter.add(egui::Shape::closed_line(
+                vec![
+                    center + vec2(-5.0, -7.0),
+                    center + vec2(7.0, 0.0),
+                    center + vec2(-5.0, 7.0),
+                ],
+                stroke,
+            ));
+        }
+        Tab::Review => {
+            painter.rect_stroke(
+                egui::Rect::from_center_size(center, vec2(15.0, 12.0)),
+                3,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+            line([-4.0, 6.0], [-4.0, 9.0]);
+            line([-4.0, 9.0], [0.0, 6.0]);
+            line([-4.0, -2.0], [4.0, -2.0]);
+            line([-4.0, 2.0], [2.0, 2.0]);
+        }
+        Tab::Wiki => {
+            painter.rect_stroke(
+                egui::Rect::from_center_size(center, vec2(15.0, 15.0)),
+                2,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+            line([-3.0, -7.0], [-3.0, 7.0]);
+            line([0.0, -3.0], [4.0, -3.0]);
+        }
+        Tab::Edit => {
+            line([-4.0, -5.0], [-8.0, 0.0]);
+            line([-8.0, 0.0], [-4.0, 5.0]);
+            line([4.0, -5.0], [8.0, 0.0]);
+            line([8.0, 0.0], [4.0, 5.0]);
+            line([2.0, -7.0], [-2.0, 7.0]);
+        }
         _ => {
             for y in [-5.0, 0.0, 5.0] {
                 line([-6.0, y], [6.0, y]);
@@ -96,9 +140,9 @@ impl WorldeditApp {
     pub(super) fn sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("project")
             .resizable(true)
-            .default_width(228.0)
+            .default_width(224.0)
             .width_range(190.0..=320.0)
-            .frame(theme::panel())
+            .frame(theme::panel().fill(SIDEBAR).inner_margin(12))
             .show(ctx, |ui| {
                 let title = self
                     .snapshot
@@ -106,183 +150,154 @@ impl WorldeditApp {
                     .and_then(|s| s.result.analysis.world.as_ref())
                     .map(|w| w.display.as_str())
                     .unwrap_or("Worldline 工程");
-                ui.label(RichText::new(title).strong().size(18.0));
+                ui.label(theme::muted("工作区"));
+                ui.add(egui::Label::new(RichText::new(title).strong().size(18.0)).truncate())
+                    .on_hover_text(title);
                 ui.label(theme::muted(format!(
                     "{} 个源码文件 · 一个世界",
                     self.project.documents.len()
                 )));
-                ui.add_space(22.0);
-                for tab in [
-                    Tab::Timeline,
-                    Tab::Graph,
-                    Tab::Network,
-                    Tab::Review,
-                    Tab::Map,
-                    Tab::Characters,
-                    Tab::World,
-                    Tab::Catalog,
-                    Tab::Wiki,
-                    Tab::Overview,
-                    Tab::Edit,
-                ] {
-                    let selected = self.tab == tab;
-                    let response = ui.add_sized(
-                        [ui.available_width(), 38.0],
-                        egui::Button::selectable(
-                            selected,
-                            RichText::new(tab.title()).color(if selected { ACCENT } else { TEXT }),
-                        ),
-                    );
-                    nav_icon(
-                        ui.painter(),
-                        response.rect.left_center() + egui::vec2(20.0, 0.0),
-                        tab,
-                        if selected { ACCENT } else { MUTED },
-                    );
-                    if response.clicked() {
-                        self.tab = tab;
-                    }
-                }
-                ui.add_space(20.0);
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label(theme::muted("工程文件"));
-                    if ui
-                        .small_button("＋")
-                        .on_hover_text("新建文件并加入总入口")
-                        .clicked()
-                    {
-                        self.new_file = Some("events/chapter.wl".into());
-                    }
-                    if ui
-                        .small_button("引用")
-                        .on_hover_text("引用已合并到工程目录中的文件")
-                        .clicked()
-                    {
-                        #[cfg(target_arch = "wasm32")]
-                        crate::web::select_files(
-                            ctx,
-                            false,
-                            ".wl",
-                            crate::web::FileAction::Include,
-                        );
-                        #[cfg(not(target_arch = "wasm32"))]
-                        if let Some(path) = rfd::FileDialog::new()
-                            .set_directory(&self.project.root)
-                            .add_filter("Worldline", &["wl"])
-                            .pick_file()
-                        {
-                            let before = self.project.clone();
-                            match self.project.include_file(&path) {
-                                Ok(()) => {
-                                    self.remember(before);
-                                    self.recompile();
-                                    self.message = Some("已引用文件,请检查全局诊断".into());
-                                }
-                                Err(e) => self.io_error = Some(e),
-                            }
-                        }
-                    }
-                });
-                let mut groups: BTreeMap<String, Vec<(PathBuf, String, bool)>> = BTreeMap::new();
-                for (path, doc) in &self.project.documents {
-                    let relative = path.strip_prefix(&self.project.root).unwrap_or(path);
-                    let parent = relative
-                        .parent()
-                        .unwrap_or(Path::new(""))
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    groups.entry(parent).or_default().push((
-                        path.clone(),
-                        relative
-                            .file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .into_owned(),
-                        doc.is_dirty(),
-                    ));
-                }
-                #[cfg(not(target_arch = "wasm32"))]
-                let other_files: Vec<PathBuf> =
-                    self.disk_stamp.iter().map(|(p, _, _)| p.clone()).collect();
-                #[cfg(target_arch = "wasm32")]
-                let other_files: Vec<PathBuf> = crate::web::imported()
-                    .keys()
-                    .map(|p| self.project.root.join(p))
-                    .collect();
-                for path in other_files {
-                    if self.project.documents.contains_key(&path) {
-                        continue;
-                    }
-                    let Ok(relative) = path.strip_prefix(&self.project.root) else {
-                        continue;
-                    };
-                    let parent = relative
-                        .parent()
-                        .unwrap_or(Path::new(""))
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    let name = relative
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned();
-                    groups.entry(parent).or_default().push((path, name, false));
-                }
+                ui.add_space(12.0);
                 egui::ScrollArea::vertical()
-                    .id_salt("files")
+                    .id_salt("workspace-sidebar-scroll")
+                    .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        for (folder, entries) in groups {
-                            let mut draw = |ui: &mut egui::Ui| {
-                                for (path, name, dirty) in &entries {
-                                    let prefix = if *path == self.project.entry {
-                                        "主"
-                                    } else {
-                                        "·"
-                                    };
-                                    let label = format!(
-                                        "{prefix}  {name}{}",
-                                        if *dirty { "  ●" } else { "" }
-                                    );
-                                    if ui
-                                        .add(egui::Button::selectable(
-                                            self.active_file == *path,
-                                            RichText::new(label).size(12.0),
-                                        ))
-                                        .on_hover_text(path.display().to_string())
-                                        .clicked()
-                                    {
-                                        if self.project.documents.contains_key(path) {
-                                            self.active_file = path.clone();
-                                            self.tab = Tab::Edit;
-                                        } else if let Err(error) =
-                                            crate::media::open_reference(&self.project.root, path)
-                                        {
-                                            self.io_error = Some(error);
+                        self.navigation_groups(ui);
+                        ui.add_space(20.0);
+                        ui.separator();
+                        ui.horizontal(|ui| {
+                            ui.label(theme::muted("工程文件"));
+                            if ui
+                                .small_button("＋")
+                                .on_hover_text("新建文件并加入总入口")
+                                .clicked()
+                            {
+                                self.new_file = Some("events/chapter.wl".into());
+                            }
+                            if ui
+                                .small_button("引用")
+                                .on_hover_text("引用已合并到工程目录中的文件")
+                                .clicked()
+                            {
+                                #[cfg(target_arch = "wasm32")]
+                                crate::web::select_files(
+                                    ctx,
+                                    false,
+                                    ".wl",
+                                    crate::web::FileAction::Include,
+                                );
+                                #[cfg(not(target_arch = "wasm32"))]
+                                if let Some(path) = rfd::FileDialog::new()
+                                    .set_directory(&self.project.root)
+                                    .add_filter("Worldline", &["wl"])
+                                    .pick_file()
+                                {
+                                    let before = self.project.clone();
+                                    match self.project.include_file(&path) {
+                                        Ok(()) => {
+                                            self.remember(before);
+                                            self.recompile();
+                                            self.message = Some("已引用文件,请检查全局诊断".into());
                                         }
+                                        Err(e) => self.io_error = Some(e),
                                     }
                                 }
-                            };
-                            if folder.is_empty() {
-                                draw(ui);
-                            } else {
-                                egui::CollapsingHeader::new(folder)
-                                    .default_open(true)
-                                    .show(ui, draw);
                             }
+                        });
+                        let mut groups: BTreeMap<String, Vec<(PathBuf, String, bool)>> =
+                            BTreeMap::new();
+                        for (path, doc) in &self.project.documents {
+                            let relative = path.strip_prefix(&self.project.root).unwrap_or(path);
+                            let parent = relative
+                                .parent()
+                                .unwrap_or(Path::new(""))
+                                .to_string_lossy()
+                                .replace('\\', "/");
+                            groups.entry(parent).or_default().push((
+                                path.clone(),
+                                relative
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .into_owned(),
+                                doc.is_dirty(),
+                            ));
                         }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        let other_files: Vec<PathBuf> =
+                            self.disk_stamp.iter().map(|(p, _, _)| p.clone()).collect();
+                        #[cfg(target_arch = "wasm32")]
+                        let other_files: Vec<PathBuf> = crate::web::imported()
+                            .keys()
+                            .map(|p| self.project.root.join(p))
+                            .collect();
+                        for path in other_files {
+                            if self.project.documents.contains_key(&path) {
+                                continue;
+                            }
+                            let Ok(relative) = path.strip_prefix(&self.project.root) else {
+                                continue;
+                            };
+                            let parent = relative
+                                .parent()
+                                .unwrap_or(Path::new(""))
+                                .to_string_lossy()
+                                .replace('\\', "/");
+                            let name = relative
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .into_owned();
+                            groups.entry(parent).or_default().push((path, name, false));
+                        }
+                        egui::ScrollArea::vertical()
+                            .id_salt("files")
+                            .max_height(240.0)
+                            .show(ui, |ui| {
+                                for (folder, entries) in groups {
+                                    let mut draw = |ui: &mut egui::Ui| {
+                                        for (path, name, dirty) in &entries {
+                                            let prefix = if *path == self.project.entry {
+                                                "主"
+                                            } else {
+                                                "·"
+                                            };
+                                            let label = format!(
+                                                "{prefix}  {name}{}",
+                                                if *dirty { "  ●" } else { "" }
+                                            );
+                                            if ui
+                                                .add(egui::Button::selectable(
+                                                    self.active_file == *path,
+                                                    RichText::new(label).size(12.0),
+                                                ))
+                                                .on_hover_text(path.display().to_string())
+                                                .clicked()
+                                            {
+                                                if self.project.documents.contains_key(path) {
+                                                    self.active_file = path.clone();
+                                                    self.tab = Tab::Edit;
+                                                } else if let Err(error) =
+                                                    crate::media::open_reference(
+                                                        &self.project.root,
+                                                        path,
+                                                    )
+                                                {
+                                                    self.io_error = Some(error);
+                                                }
+                                            }
+                                        }
+                                    };
+                                    if folder.is_empty() {
+                                        draw(ui);
+                                    } else {
+                                        egui::CollapsingHeader::new(folder)
+                                            .default_open(true)
+                                            .show(ui, draw);
+                                    }
+                                }
+                            });
                     });
-                ui.add_space(20.0);
-                theme::card().show(ui, |ui| {
-                    ui.label(
-                        RichText::new("共享 ID · 分文件创作")
-                            .size(12.0)
-                            .color(ACCENT),
-                    );
-                    ui.label(theme::muted(
-                        "工作区及子目录递归索引。其他资料随完整目录导出。",
-                    ));
-                });
             });
     }
 

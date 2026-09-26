@@ -259,12 +259,13 @@ pub fn title_frame(ctx: &Context) -> egui::Frame {
         14
     };
     theme::panel()
+        .fill(theme::SIDEBAR)
         // 预留右侧控件空间,让原有标题/工具栏调用顺序保持兼容。
         .inner_margin(egui::Margin {
             left: TITLE_INSET,
             right: TITLE_INSET + CONTROLS_WIDTH + 8,
-            top: 12,
-            bottom: 12,
+            top: 10,
+            bottom: 10,
         })
         .corner_radius(egui::CornerRadius {
             nw: radius,

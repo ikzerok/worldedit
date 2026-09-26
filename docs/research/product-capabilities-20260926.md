@@ -114,7 +114,7 @@
 - S3 World Anvil Family Trees。https://www.worldanvil.com/features/family-trees
 - S4 Campfire Manuscript / Word Processor。https://campfirewriting.com/word-processor
 - S5 Campfire Worldbuilding Tools。https://campfirewriting.com/worldbuilding-tools
-- S6 Campfire Story Planning / Timeline。https://campfirewriting.com/story-planning
+- S6 Campfire Story Planning / Timeline。https://campfirewriting.com/story-planner （另见 https://campfirewriting.com/timeline-maker）
 - S7 LegendKeeper：Current 与 Planned 分开。https://www.legendkeeper.com/features/
 - S8 Kanka：权限验证、成员视角。https://docs.kanka.io/en/latest/guides/testing-permissions.html （关联实体、地图、日历见 https://kanka.io/kb）
 - S9 articy:draft：模板、查询、生产能力总表。https://www.articy.com/en/articydraft/feature-list/
