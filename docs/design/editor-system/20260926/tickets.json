@@ -43,7 +43,10 @@
     "rollback": "证据不足则保留假设状态，不阻止已有主线使用。",
     "related": [
       "旧UX-01不再要求沿用357b1a1。"
-    ]
+    ],
+    "number": 32,
+    "url": "https://github.com/ikzerok/worldedit/issues/32",
+    "database_id": 5592629802
   },
   {
     "id": "EDS-02",
@@ -81,7 +84,10 @@
     "rollback": "若目标作者场景不明确，先完成访谈/任务草案，不定导航数量。",
     "related": [
       "CAP-MAP ikzerok/worldedit#9保留独立。"
-    ]
+    ],
+    "number": 33,
+    "url": "https://github.com/ikzerok/worldedit/issues/33",
+    "database_id": 5592630102
   },
   {
     "id": "EDS-03",
@@ -124,7 +130,10 @@
     "rollback": "发现与core能力冲突先拆跨仓契约票，不绕过基线检查。",
     "related": [
       "指南§4；衔接CAP-02C、CAP-04B。"
-    ]
+    ],
+    "number": 34,
+    "url": "https://github.com/ikzerok/worldedit/issues/34",
+    "database_id": 5592630414
   },
   {
     "id": "EDS-04",
@@ -167,7 +176,10 @@
     "rollback": "若B误改/寻找成本超过A，则回退较小布局能力。",
     "related": [
       "替代旧UX-MAP；不依赖全部CAP完成。"
-    ]
+    ],
+    "number": 35,
+    "url": "https://github.com/ikzerok/worldedit/issues/35",
+    "database_id": 5592630641
   },
   {
     "id": "EDS-05",
@@ -209,7 +221,10 @@
     "rollback": "无法保证图交互可达时保留列表操作，不以裁剪隐藏真实结果。",
     "related": [
       "旧UX-03；CAP-01C/03B/08B只复用交互规则。"
-    ]
+    ],
+    "number": 36,
+    "url": "https://github.com/ikzerok/worldedit/issues/36",
+    "database_id": 5592630985
   },
   {
     "id": "EDS-06",
@@ -249,7 +264,10 @@
     "rollback": "复杂批改先维持单对象表单并显示能力边界。",
     "related": [
       "CAP-04A/B、CAP-05A/B；旧UX-02。"
-    ]
+    ],
+    "number": 37,
+    "url": "https://github.com/ikzerok/worldedit/issues/37",
+    "database_id": 5592631364
   },
   {
     "id": "EDS-07",
@@ -291,7 +309,10 @@
     "rollback": "难读的混合投影拆成明确命名的视图而非混用一条线。",
     "related": [
       "旧UX-03；CAP-02、06、08。"
-    ]
+    ],
+    "number": 38,
+    "url": "https://github.com/ikzerok/worldedit/issues/38",
+    "database_id": 5592631794
   },
   {
     "id": "EDS-08",
@@ -331,7 +352,10 @@
     "rollback": "复杂多窗尚未支持时提供单临时侧览并清楚标注限制。",
     "related": [
       "CAP-01B、CAP-02C；旧UX-04。"
-    ]
+    ],
+    "number": 39,
+    "url": "https://github.com/ikzerok/worldedit/issues/39",
+    "database_id": 5592643767
   },
   {
     "id": "EDS-09",
@@ -372,7 +396,10 @@
     "rollback": "不能确定owner则拒绝危险命令并提示，不猜最近点击对象。",
     "related": [
       "旧UX-05；全路线共享约束。"
-    ]
+    ],
+    "number": 40,
+    "url": "https://github.com/ikzerok/worldedit/issues/40",
+    "database_id": 5592643959
   },
   {
     "id": "EDS-10",
@@ -420,7 +447,10 @@
     "rollback": "视觉规则与任务或可达性冲突时，回退样式而非牺牲安全操作。",
     "related": [
       "替代旧UX-02/04/05，不依赖旧UI合入。"
-    ]
+    ],
+    "number": 41,
+    "url": "https://github.com/ikzerok/worldedit/issues/41",
+    "database_id": 5592644060
   },
   {
     "id": "EDS-11",
@@ -472,7 +502,10 @@
     "rollback": "无法可靠管理焦点/草稿时降低分区自由度，保留现有主线。",
     "related": [
       "新增产品实现另拆票；不覆盖v0.3.0。"
-    ]
+    ],
+    "number": 42,
+    "url": "https://github.com/ikzerok/worldedit/issues/42",
+    "database_id": 5592644174
   },
   {
     "id": "EDS-12",
@@ -517,6 +550,9 @@
     "rollback": "实验不支持候选方案就拒绝/调整，保留成本最低的安全基线。",
     "related": [
       "替代旧UX-06；CAP-QA editor#30独立。"
-    ]
+    ],
+    "number": 43,
+    "url": "https://github.com/ikzerok/worldedit/issues/43",
+    "database_id": 5592644267
   }
 ]

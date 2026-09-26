@@ -17,7 +17,7 @@ for o in obs:
     assert o['validation_needed']
     for pattern in o['pattern_ids']:
         assert pattern in text
-for f in ['observation.md','decision.md','ticket.md']:
+for f in ['observation.md','decision.md','ticket.md','pattern.md','study.md']:
     assert (p/'templates'/f).is_file()
 if (p/'tickets.json').exists():
     tickets=json.loads((p/'tickets.json').read_text(encoding='utf-8'))

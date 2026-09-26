@@ -1,0 +1,393 @@
+{
+  "guide_commit": "c5b5c54ffbe15f2788040760e07bfeddc07ca4b0",
+  "map": {
+    "number": 31,
+    "id": 5592629427,
+    "html_url": "https://github.com/ikzerok/worldedit/issues/31"
+  },
+  "issues": [
+    {
+      "id": "EDS-01",
+      "number": 32,
+      "url": "https://github.com/ikzerok/worldedit/issues/32",
+      "database_id": 5592629802,
+      "depends_on": []
+    },
+    {
+      "id": "EDS-02",
+      "number": 33,
+      "url": "https://github.com/ikzerok/worldedit/issues/33",
+      "database_id": 5592630102,
+      "depends_on": []
+    },
+    {
+      "id": "EDS-03",
+      "number": 34,
+      "url": "https://github.com/ikzerok/worldedit/issues/34",
+      "database_id": 5592630414,
+      "depends_on": [
+        "EDS-01",
+        "EDS-02"
+      ]
+    },
+    {
+      "id": "EDS-04",
+      "number": 35,
+      "url": "https://github.com/ikzerok/worldedit/issues/35",
+      "database_id": 5592630641,
+      "depends_on": [
+        "EDS-03"
+      ]
+    },
+    {
+      "id": "EDS-05",
+      "number": 36,
+      "url": "https://github.com/ikzerok/worldedit/issues/36",
+      "database_id": 5592630985,
+      "depends_on": [
+        "EDS-03",
+        "EDS-04"
+      ]
+    },
+    {
+      "id": "EDS-06",
+      "number": 37,
+      "url": "https://github.com/ikzerok/worldedit/issues/37",
+      "database_id": 5592631364,
+      "depends_on": [
+        "EDS-03"
+      ]
+    },
+    {
+      "id": "EDS-07",
+      "number": 38,
+      "url": "https://github.com/ikzerok/worldedit/issues/38",
+      "database_id": 5592631794,
+      "depends_on": [
+        "EDS-02",
+        "EDS-03"
+      ]
+    },
+    {
+      "id": "EDS-08",
+      "number": 39,
+      "url": "https://github.com/ikzerok/worldedit/issues/39",
+      "database_id": 5592643767,
+      "depends_on": [
+        "EDS-03"
+      ]
+    },
+    {
+      "id": "EDS-09",
+      "number": 40,
+      "url": "https://github.com/ikzerok/worldedit/issues/40",
+      "database_id": 5592643959,
+      "depends_on": [
+        "EDS-03"
+      ]
+    },
+    {
+      "id": "EDS-10",
+      "number": 41,
+      "url": "https://github.com/ikzerok/worldedit/issues/41",
+      "database_id": 5592644060,
+      "depends_on": [
+        "EDS-04",
+        "EDS-05",
+        "EDS-06",
+        "EDS-07",
+        "EDS-08",
+        "EDS-09"
+      ]
+    },
+    {
+      "id": "EDS-11",
+      "number": 42,
+      "url": "https://github.com/ikzerok/worldedit/issues/42",
+      "database_id": 5592644174,
+      "depends_on": [
+        "EDS-04",
+        "EDS-05",
+        "EDS-06",
+        "EDS-07",
+        "EDS-08",
+        "EDS-09",
+        "EDS-10"
+      ]
+    },
+    {
+      "id": "EDS-12",
+      "number": 43,
+      "url": "https://github.com/ikzerok/worldedit/issues/43",
+      "database_id": 5592644267,
+      "depends_on": [
+        "EDS-11"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592629802,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592630102,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592630414,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/34/dependencies/blocked_by",
+      "target": 5592629802,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/34/dependencies/blocked_by",
+      "target": 5592630102,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592630641,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/35/dependencies/blocked_by",
+      "target": 5592630414,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592630985,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/36/dependencies/blocked_by",
+      "target": 5592630414,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/36/dependencies/blocked_by",
+      "target": 5592630641,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592631364,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/37/dependencies/blocked_by",
+      "target": 5592630414,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592631794,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/38/dependencies/blocked_by",
+      "target": 5592630102,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/38/dependencies/blocked_by",
+      "target": 5592630414,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592643767,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/39/dependencies/blocked_by",
+      "target": 5592630414,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592643959,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/40/dependencies/blocked_by",
+      "target": 5592630414,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592644060,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/41/dependencies/blocked_by",
+      "target": 5592630641,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/41/dependencies/blocked_by",
+      "target": 5592630985,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/41/dependencies/blocked_by",
+      "target": 5592631364,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/41/dependencies/blocked_by",
+      "target": 5592631794,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/41/dependencies/blocked_by",
+      "target": 5592643767,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/41/dependencies/blocked_by",
+      "target": 5592643959,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592644174,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/42/dependencies/blocked_by",
+      "target": 5592630641,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/42/dependencies/blocked_by",
+      "target": 5592630985,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/42/dependencies/blocked_by",
+      "target": 5592631364,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/42/dependencies/blocked_by",
+      "target": 5592631794,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/42/dependencies/blocked_by",
+      "target": 5592643767,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/42/dependencies/blocked_by",
+      "target": 5592643959,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/42/dependencies/blocked_by",
+      "target": 5592644060,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/31/sub_issues",
+      "target": 5592644267,
+      "status": "verified"
+    },
+    {
+      "path": "repos/ikzerok/worldedit/issues/43/dependencies/blocked_by",
+      "target": 5592644174,
+      "status": "verified"
+    }
+  ],
+  "superseded": [
+    {
+      "number": 10,
+      "url": "https://github.com/ikzerok/worldedit/issues/10",
+      "state": "closed",
+      "state_reason": "not_planned",
+      "replaced_by": [
+        "EDS-MAP"
+      ],
+      "closed_at": "2026-09-26T08:45:43Z"
+    },
+    {
+      "number": 12,
+      "url": "https://github.com/ikzerok/worldedit/issues/12",
+      "state": "closed",
+      "state_reason": "not_planned",
+      "replaced_by": [
+        "EDS-01",
+        "EDS-02",
+        "EDS-04"
+      ],
+      "closed_at": "2026-09-26T08:45:45Z"
+    },
+    {
+      "number": 23,
+      "url": "https://github.com/ikzerok/worldedit/issues/23",
+      "state": "closed",
+      "state_reason": "not_planned",
+      "replaced_by": [
+        "EDS-03",
+        "EDS-06",
+        "EDS-08",
+        "EDS-10"
+      ],
+      "closed_at": "2026-09-26T08:45:47Z"
+    },
+    {
+      "number": 24,
+      "url": "https://github.com/ikzerok/worldedit/issues/24",
+      "state": "closed",
+      "state_reason": "not_planned",
+      "replaced_by": [
+        "EDS-05",
+        "EDS-07"
+      ],
+      "closed_at": "2026-09-26T08:45:50Z"
+    },
+    {
+      "number": 25,
+      "url": "https://github.com/ikzerok/worldedit/issues/25",
+      "state": "closed",
+      "state_reason": "not_planned",
+      "replaced_by": [
+        "EDS-08",
+        "EDS-10"
+      ],
+      "closed_at": "2026-09-26T08:45:52Z"
+    },
+    {
+      "number": 26,
+      "url": "https://github.com/ikzerok/worldedit/issues/26",
+      "state": "closed",
+      "state_reason": "not_planned",
+      "replaced_by": [
+        "EDS-03",
+        "EDS-09",
+        "EDS-11",
+        "EDS-12"
+      ],
+      "closed_at": "2026-09-26T08:45:54Z"
+    },
+    {
+      "number": 29,
+      "url": "https://github.com/ikzerok/worldedit/issues/29",
+      "state": "closed",
+      "state_reason": "not_planned",
+      "replaced_by": [
+        "EDS-12"
+      ],
+      "closed_at": "2026-09-26T08:45:56Z"
+    }
+  ],
+  "cap_map_state": "open"
+}
