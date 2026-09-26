@@ -13,6 +13,8 @@ use geometry::{
 use raster::RasterTextureCache;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use worldline_core::authoring::EntityDraft;
+use worldline_core::authoring_intents::{AuthoringIntent, IntentTarget, PlacementRequest};
 use worldline_core::catalog::TargetRef;
 use worldline_core::presentation::{MapDocument, MapRasterLayer};
 
@@ -237,11 +239,27 @@ pub(super) struct PlacementForm {
     pub(super) role: String,
     pub(super) label_override: String,
     pub(super) editing_placement: Option<String>,
+    pub(super) create_place_on_next_point: bool,
+    pub(super) pending_place: Option<PendingPlace>,
+    pub(super) place_name: String,
+    pub(super) place_description: String,
+}
+
+#[derive(Clone)]
+pub(super) struct PendingPlace {
+    map_id: String,
+    layer_id: String,
+    geometry: MapGeometry,
+    expected_baseline: String,
+    entity_id: String,
+    placement_id: String,
+    source_path: PathBuf,
 }
 
 impl PlacementForm {
     pub(super) fn has_uncommitted_work(&self) -> bool {
-        self.editing_placement.is_some()
+        self.pending_place.is_some()
+            || self.editing_placement.is_some()
             || self.target.is_some()
             || !self.target_query.trim().is_empty()
             || !self.annotation.trim().is_empty()
@@ -260,8 +278,13 @@ impl PlacementForm {
             .map(|target| format!("{}:{}", target.kind, target.id))
             .unwrap_or_default();
         format!(
-            "target: {target}\nquery: {}\nannotation: {}\nrole: {}\nlabel: {}",
-            self.target_query, self.annotation, self.role, self.label_override
+            "target: {target}\nquery: {}\nannotation: {}\nrole: {}\nlabel: {}\nplace: {}\ndescription: {}",
+            self.target_query,
+            self.annotation,
+            self.role,
+            self.label_override,
+            self.place_name,
+            self.place_description
         )
     }
 }
@@ -1541,6 +1564,11 @@ impl super::WorldeditApp {
                 }
                 EditIntent::Create(geometry) => {
                     let pending = EditIntent::Create(geometry.clone());
+                    if self.map_form.pending_place.is_some() {
+                        self.io_error = Some("请先提交或取消已保留的地点落点".into());
+                        self.map_canvas.restore_failed_preview(&pending);
+                        break;
+                    }
                     let Some(layer_id) = self
                         .map_canvas
                         .layer_details()
@@ -1553,6 +1581,42 @@ impl super::WorldeditApp {
                         self.remember_failed_map_command(&map_id, pending);
                         break;
                     };
+                    if self.map_form.create_place_on_next_point {
+                        if !matches!(geometry, MapGeometry::Point(_)) {
+                            self.io_error = Some("新建地点入口需要地图上的点落位".into());
+                            self.map_canvas.restore_failed_preview(&pending);
+                            break;
+                        }
+                        let source_path = if self.project.documents.contains_key(&self.active_file)
+                        {
+                            self.active_file.clone()
+                        } else {
+                            self.project.entry.clone()
+                        };
+                        let entity_id = self
+                            .snapshot
+                            .as_ref()
+                            .map(|snapshot| {
+                                super::authoring_forms::next_id(
+                                    &snapshot.result.analysis.catalog,
+                                    "entity",
+                                )
+                            })
+                            .unwrap_or_else(|| "entity_1".into());
+                        self.map_form.pending_place = Some(PendingPlace {
+                            map_id: map_id.clone(),
+                            layer_id,
+                            geometry,
+                            expected_baseline: self.project.content_baseline(),
+                            entity_id,
+                            placement_id: self.next_map_placement_id(&map_id),
+                            source_path,
+                        });
+                        self.map_form.create_place_on_next_point = false;
+                        self.map_canvas.reset_local_preview();
+                        self.message = Some("落点已保留；填写地点资料后再一起提交入口".into());
+                        break;
+                    }
                     let placement_id = self.next_map_placement_id(&map_id);
                     let annotation = if self.map_form.annotation.trim().is_empty() {
                         "地图标记".into()
@@ -1639,6 +1703,64 @@ impl super::WorldeditApp {
     pub(super) fn cancel_map_form(&mut self) {
         self.map_form.clear();
         self.message = Some("已取消未提交的标记表单".into());
+    }
+
+    fn commit_pending_place(&mut self) -> bool {
+        if !self.map_canvas.is_edit_mode() {
+            self.io_error = Some("请先进入编辑展示模式".into());
+            return false;
+        }
+        let Some(pending) = self.map_form.pending_place.as_ref() else {
+            return false;
+        };
+        if self.map_selection.as_deref() != Some(pending.map_id.as_str()) {
+            self.io_error = Some("地图已切换，请保留草稿并返回原地图".into());
+            return false;
+        }
+        let draft = EntityDraft {
+            id: pending.entity_id.clone(),
+            entity_type: "place".into(),
+            display: self.map_form.place_name.trim().into(),
+            description: self.map_form.place_description.clone(),
+            ..Default::default()
+        };
+        let intent = AuthoringIntent {
+            expected_baseline: pending.expected_baseline.clone(),
+            target: IntentTarget::CreateEntity {
+                path: pending.source_path.clone(),
+                draft,
+            },
+            selection: None,
+            placement: Some(PlacementRequest {
+                map_id: pending.map_id.clone(),
+                placement_id: pending.placement_id.clone(),
+                layer_id: pending.layer_id.clone(),
+                geometry: core_geometry(&pending.geometry),
+                annotation: if self.map_form.annotation.trim().is_empty() {
+                    self.map_form.place_name.trim().into()
+                } else {
+                    self.map_form.annotation.trim().into()
+                },
+                role: if self.map_form.role.trim().is_empty() {
+                    "地点入口".into()
+                } else {
+                    self.map_form.role.trim().into()
+                },
+                label_override: (!self.map_form.label_override.trim().is_empty())
+                    .then(|| self.map_form.label_override.trim().into()),
+            }),
+        };
+        let before = self.project.clone();
+        let result = self.project.apply_authoring_intent(&intent).map(|_| ());
+        if self.finish_content_command(before, result, "已新建地点并放置入口（可撤销）")
+        {
+            self.map_canvas.reset_local_preview();
+            self.map_form.clear();
+            self.map_failed_command = None;
+            true
+        } else {
+            false
+        }
     }
 
     fn ensure_map_navigation(&mut self, map_id: &str, title: &str) {
@@ -2139,9 +2261,52 @@ impl super::WorldeditApp {
                         }
                     });
 
+                    if self.map_form.pending_place.is_some() && !self.map_canvas.is_edit_mode() {
+                        ui.separator();
+                        ui.colored_label(crate::theme::GOLD, "地点落点已保留；返回编辑展示后可提交");
+                        if ui.small_button("取消落点").clicked() {
+                            self.cancel_map_form();
+                        }
+                    }
                     if self.map_canvas.is_edit_mode() {
                         ui.separator();
                         ui.label(egui::RichText::new("标记编辑").strong());
+                        if self.map_form.pending_place.is_none()
+                            && ui
+                                .checkbox(
+                                    &mut self.map_form.create_place_on_next_point,
+                                    "下一次点落位：新建地点资料并放置入口",
+                                )
+                                .changed()
+                            && self.map_form.create_place_on_next_point
+                        {
+                            self.map_canvas.set_tool(CanvasTool::Point);
+                        }
+                        if let Some(pending) = self.map_form.pending_place.as_ref() {
+                            ui.colored_label(crate::theme::GOLD, "落点已保留，尚未写入资料或标记");
+                            ui.label(format!(
+                                "地图 {} · 图层 {} · 资料 {} · 入口 {}",
+                                pending.map_id,
+                                pending.layer_id,
+                                pending.entity_id,
+                                pending.placement_id
+                            ));
+                            ui.label("地点名称");
+                            ui.text_edit_singleline(&mut self.map_form.place_name);
+                            ui.label("地点说明");
+                            ui.text_edit_multiline(&mut self.map_form.place_description);
+                            ui.label("入口说明（可选）");
+                            ui.text_edit_singleline(&mut self.map_form.annotation);
+                            ui.horizontal(|ui| {
+                                if ui.button("新建地点并放置入口").clicked() {
+                                    self.commit_pending_place();
+                                }
+                                if ui.small_button("取消落点").clicked() {
+                                    self.cancel_map_form();
+                                }
+                            });
+                            ui.separator();
+                        }
                         ui.label(crate::theme::muted(
                             "选择已有对象可保持引用；留空则创建说明标记。",
                         ));
@@ -2692,6 +2857,125 @@ mod tests {
     }
 
     #[test]
+    fn map_point_can_create_a_place_and_entrance_in_one_undo_step() {
+        let root = test_workspace("place-and-entrance");
+        enable_entities(&root);
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        let _ = ctx.run(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0))),
+                ..Default::default()
+            },
+            |ctx| app.map_tab(ctx),
+        );
+        app.map_canvas.set_mode(CanvasMode::Edit);
+        app.map_canvas.set_tool(CanvasTool::Point);
+        app.map_form.create_place_on_next_point = true;
+        let history_before = app.history.len();
+        let source_before = app.project.sources();
+        let screen_rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0));
+        app.map_canvas
+            .set_command_baseline(app.map_command_baseline("harbor"));
+        let _ = ctx.run(
+            RawInput {
+                screen_rect: Some(screen_rect),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| app.map_canvas.show(ui));
+            },
+        );
+        let point = app
+            .map_canvas
+            .camera()
+            .normalized_to_screen(pos2(0.7, 0.4), app.map_canvas.viewport());
+        click_canvas(&ctx, &mut app.map_canvas, screen_rect, point, 1.0);
+        let (intents, baselines) = app.map_canvas.take_edit_batch();
+        assert_eq!(intents.len(), 1);
+        app.apply_map_intents(intents, baselines);
+        assert!(app.map_form.pending_place.is_some());
+        assert_eq!(app.project.sources(), source_before);
+        assert_eq!(app.history.len(), history_before);
+        assert!(app.map_navigation_blocked());
+
+        app.map_form.place_name = "新灯塔".into();
+        app.map_form.place_description = "雾港北面的灯塔".into();
+        assert!(app.commit_pending_place(), "{:?}", app.io_error);
+        assert_eq!(app.history.len(), history_before + 1);
+        let snapshot = app.snapshot.as_ref().unwrap();
+        let place = snapshot
+            .result
+            .analysis
+            .catalog
+            .entities
+            .get("entity_1")
+            .unwrap();
+        assert_eq!(place.display, "新灯塔");
+        let entrance = &snapshot.map_index.maps["harbor"].placements["marker_1"];
+        assert_eq!(
+            entrance.target_ref,
+            Some(TargetRef::new("entity", "entity_1"))
+        );
+        app.undo(false);
+        let snapshot = app.snapshot.as_ref().unwrap();
+        assert!(!snapshot
+            .result
+            .analysis
+            .catalog
+            .entities
+            .contains_key("entity_1"));
+        assert!(!snapshot.map_index.maps["harbor"]
+            .placements
+            .contains_key("marker_1"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_stale_place_draft_keeps_its_input_without_an_orphan_entity() {
+        let root = test_workspace("stale-place-draft");
+        enable_entities(&root);
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        let _ = ctx.run(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 700.0))),
+                ..Default::default()
+            },
+            |ctx| app.map_tab(ctx),
+        );
+        app.map_canvas.set_mode(CanvasMode::Edit);
+        app.map_form.create_place_on_next_point = true;
+        app.apply_map_intents(
+            vec![EditIntent::Create(MapGeometry::Point(
+                NormalizedPoint::new(0.7, 0.4),
+            ))],
+            vec![app.map_command_baseline("harbor")],
+        );
+        app.map_form.place_name = "待确认地点".into();
+        app.project
+            .set_text(
+                &root.join("world.wl"),
+                "world harbor as \"雾港\"\n  description \"另一版本\"\n".into(),
+            )
+            .unwrap();
+        assert!(!app.commit_pending_place());
+        assert_eq!(app.map_form.place_name, "待确认地点");
+        assert!(app.map_form.pending_place.is_some());
+        assert!(!app
+            .project
+            .compile()
+            .analysis
+            .catalog
+            .entities
+            .contains_key("entity_1"));
+        assert_eq!(app.history.len(), 0);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn browse_mode_clicks_and_commands_do_not_write_or_create_history() {
         let root = test_workspace("browse-read-only");
         let ctx = egui::Context::default();
@@ -3158,12 +3442,30 @@ mod tests {
       "navigation": null,
       "scope_refs": []
     }
+
   },
   "extensions": {}
 }"#,
         )
         .expect("test map");
         root
+    }
+
+    fn enable_entities(root: &Path) {
+        let path = root.join(".world/project.json");
+        let text = std::fs::read_to_string(&path).unwrap();
+        std::fs::write(
+            path,
+            text.replace(
+                "\"language_version\": \"1.9\"",
+                "\"language_version\": \"1.10\"",
+            )
+            .replace(
+                "\"presentation.maps.v1\"",
+                "\"presentation.maps.v1\", \"content.entities.v1\"",
+            ),
+        )
+        .unwrap();
     }
 
     fn navigation_workspace(name: &str) -> std::path::PathBuf {

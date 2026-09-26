@@ -572,7 +572,7 @@ impl WorldeditApp {
                             if self
                                 .ime_source_baseline
                                 .as_ref()
-                                .map_or(true, |(baseline_path, _)| baseline_path != &path)
+                                .is_none_or(|(baseline_path, _)| baseline_path != &path)
                             {
                                 self.ime_source_baseline = self
                                     .project
