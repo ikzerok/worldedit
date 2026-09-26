@@ -1,7 +1,7 @@
-# WP-10 部分交付记录
+# WP-10 完成交付记录
 
-对应 `ikzerok/worldedit#6`「网络与通用资料 UI」。本记录不表示工单、M2 阶段或全部待办已完成。
-本地开发分支：worldedit `ticket/wp10-world-associations`，worldline `ticket/wp10-graph-views`。
+对应 `ikzerok/worldedit#6`「网络与通用资料 UI」。本文件保留早期分片实现历史，并在末尾记录最终补全证据；最终全阶段验收见 `docs/wp17-acceptance.md`。
+开发分支：worldedit `ticket/wp10-world-associations`，worldline `ticket/wp10-graph-views`。
 
 ## 已接入的作者功能
 
@@ -32,7 +32,7 @@ Project 文档缓冲、Revision 与内容基线，不由 UI 拼写 JSON。只提
 多关系类型 OR 筛选及继续查询沿用 core 的局部关系查询，不扩大到全量图推断。
 契约与诊断定义见同级 worldline 的 `spec/presentation.md`、`spec/diagnostics.md`。
 
-## 已运行的验证
+## 早期分片验证（历史）
 
 core 全工作区测试 307 项通过；编辑器测试 93 项通过，没有失败或忽略。
 本次新增 core 14 项、表单模型 4 项、真实 egui 按钮交互 4 项，合计 22 项回归。
@@ -49,21 +49,13 @@ core 全工作区和编辑器原生 release 构建通过。
 `editor-wasm-release.log`、`final-checks.json` 和 `release-checks.json`。
 这些是本次机器上的本地证据，不宣称远程 CI 已执行。
 
-## 未完成与工单状态
+## 历史阻塞（已解除）
 
-局部关系网络状态模块的写入被远程工具安全检查多次拦截，没有成功写入。
-因此本分支尚无新的局部网络画布、拖动与隐藏交互，也尚无共享专题布局保存 UI。
-该模块的测试草稿保留在组合目录 `target/wp10-check/pending-network-state-test.rs`，
-不在当前测试目标内，不能将它计入已通过的测试。
-
-完整的深度/方向筛选交互、分页、网络与阅读联动、布局保存 UI、D5 数据规模性能和
-桌面/Web 可视化验收仍待完成。既有子地图导航 6 项回归保留并通过，不冒充新增功能。
-未关闭 worldedit#6，没有跳过其依赖去关闭后续工单；没有把部分实现记为整阶段验收。
+早期远程写入曾阻塞网络状态/画布文件，因此当时保持工单打开。2026-09-26 重试后 `network_state.rs`、`network.rs`、共享布局保存、分页/筛选/导航及 D5 性能门均已进入正式测试目标并通过；该段仅作为开发历史，不再表示当前缺口。
 
 ## 本地交付
 
-配对 core 提交为 `5db407658c5d223f068f3140e83fa306445f02e6`，`compatibility.json` 已固定到该提交。
-本次成果只提交在上述本地开发分支，未推送远程、未创建 PR、未关闭工单。
+WP-10 最初共享网络 core 提交为 `5db4076`，后续功能随 WP-11–16 继续累积；最终发布配对以 `compatibility.json` 与 `docs/wp17-acceptance.md` 为准。
 
 ## 2026-09-26 续接：个人网络浏览状态
 
@@ -94,3 +86,7 @@ Project 基线和撤销历史。只有“保存共享布局”调用 core `graph
 Release 160 个暖态样本实测网络帧 P95=10.935ms、最大=11.245ms，
 暖态资料切换 P95=4.112ms、最大=5.383ms，分别低于 33ms / 200ms 门槛。
 这是无显示 egui 渲染实测，不冒充人工桌面/浏览器视觉验收。
+
+## WP-17 最终确认
+
+最终全量回归为 worldline 325 项、worldedit 103 项测试通过。D5 release 网络帧 P95=11.073ms、暖态资料切换 P95=4.128ms；Windows 发布版实际创建窗口，Edge 153 headless 实际加载 Web 包的 JS/WASM。WP-10 现已作为 65 项总验收的一部分通过，最终证据见 `docs/wp17-acceptance.md`。

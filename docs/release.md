@@ -36,3 +36,11 @@ target、dist、releases、日志和临时文件不是源码，不上传。父�
 上传 source/worldline 的内容到 worldline 仓库，上传 source/worldedit 的内容到 worldedit 仓库；不要把 source 或本地组合父目录作为第三层套入仓库。两者默认分支使用 main，但编辑器 CI 只检出 `compatibility.json` 指定的 worldline SHA；先确保该提交在指定远端可获取，再上传 worldedit。保留隐藏的 .github、.agent、.gitignore、Cargo.lock 和兼容记录。父目录原有 .git 历史不在源码包中。
 
 Windows/Web ZIP 与 SHA256SUMS.txt 作为 GitHub Release 附件；不提交到源码树。是否完成线上发布以 GitHub Release 页面及附件为准。
+
+## WP-17 配对验收（2026-09-26）
+
+M0–M4 的最终需求状态见 [WP-17 全量验收](wp17-acceptance.md)，升级/回退边界见 [0.2 格式升级说明](migration-0.2.md)。最终 core 文档基线为 `fe88d7f1447995e49bb4b54a20a53be0ad0b2db6`，编辑器 `compatibility.json` 固定该 SHA；最终 editor SHA 在源码提交后写入发行目录 `release-pair.json` 与配对 tag，不使用自引用占位符。
+
+本轮完整 paired-check 的两仓 fmt/test/clippy、原生构建、WASM clippy/构建均为 exit 0；worldline 325 项、worldedit 103 项测试通过。D5 release 测量为网络帧 P95 11.073ms、暖态资料切换 P95 4.128ms。Windows release 实际创建窗口；Edge 153 headless 实际请求 Web 包 index/JS/WASM/icon 全部 HTTP 200。
+
+发行包继续由 `scripts/package.ps1` 生成 Windows、Web 和双仓源码 ZIP 及 SHA256SUMS；最终上传前以配对 tag、`release-pair.json` 和 GitHub CI 结果共同核对两仓完整 SHA。

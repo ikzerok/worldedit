@@ -1,7 +1,7 @@
 ﻿{
     "worldline":  {
                       "repository":  "ikzerok/worldline",
-                      "sha":  "7ea572a801c3eaf935a8f4d48e5dc80c7a60ebbc"
+                      "sha":  "fe88d7f1447995e49bb4b54a20a53be0ad0b2db6"
                   },
     "baseline":  {
                      "worldline":  "dcb6479873f86b08354ba92b098dc260aa976624",
