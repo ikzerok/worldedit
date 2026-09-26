@@ -2929,6 +2929,29 @@ mod tests {
         assert!(!snapshot.map_index.maps["harbor"]
             .placements
             .contains_key("marker_1"));
+        app.undo(true);
+        assert!(app
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .result
+            .analysis
+            .catalog
+            .entities
+            .contains_key("entity_1"));
+        assert!(app.save(), "{:?}", app.io_error);
+        let reopened = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        let reopened_snapshot = reopened.snapshot.as_ref().unwrap();
+        assert!(reopened_snapshot
+            .result
+            .analysis
+            .catalog
+            .entities
+            .contains_key("entity_1"));
+        assert_eq!(
+            reopened_snapshot.map_index.maps["harbor"].placements["marker_1"].target_ref,
+            Some(TargetRef::new("entity", "entity_1"))
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
