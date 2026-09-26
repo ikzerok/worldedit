@@ -79,7 +79,7 @@ fn frame(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
-                if window == 14 {
+                if window == 16 {
                     vec2(700.0, 640.0)
                 } else if window == 9 {
                     vec2(1040.0, 660.0)
@@ -98,7 +98,7 @@ fn frame(
             5 => app.target_rename_window(ctx),
             6 => app.preset_editor_window(ctx),
             7 => app.review_tab(ctx),
-            14 => app.review_tab(ctx),
+            16 => app.review_tab(ctx),
             8 | 9 => app.reading_window(ctx),
             11 => app.source_tab(ctx),
             13 => app.manuscript_tab(ctx),
@@ -540,7 +540,13 @@ fn click(ctx: &egui::Context, app: &mut WorldeditApp, window: u8, label: &str) {
         .shapes
         .iter()
         .find_map(|shape| text_position(&shape.shape, label))
-        .unwrap_or_else(|| panic!("按钮未显示：{label}"));
+        .unwrap_or_else(|| {
+            let mut rendered = String::new();
+            for shape in &output.shapes {
+                collect_text(&shape.shape, &mut rendered);
+            }
+            panic!("按钮未显示：{label}；当前文字：{rendered}");
+        });
     for pressed in [true, false] {
         let _ = frame(
             ctx,
@@ -2074,7 +2080,7 @@ fn narrow_review_switches_between_selectable_three_way_text() {
     click(&ctx, &mut app, 7, "保存修改提案");
     app.project.set_text(&entry, original.clone()).unwrap();
     app.recompile();
-    click(&ctx, &mut app, 14, "重新比较提案");
+    click(&ctx, &mut app, 16, "重新比较提案");
     for _ in 0..4 {
         let _ = frame(
             &ctx,
@@ -2087,10 +2093,10 @@ fn narrow_review_switches_between_selectable_three_way_text() {
                     modifiers: egui::Modifiers::NONE,
                 },
             ],
-            14,
+            16,
         );
     }
-    let output = frame(&ctx, &mut app, Vec::new(), 14);
+    let output = frame(&ctx, &mut app, Vec::new(), 16);
     let mut rendered = String::new();
     for shape in &output.shapes {
         collect_text(&shape.shape, &mut rendered);
@@ -2098,15 +2104,15 @@ fn narrow_review_switches_between_selectable_three_way_text() {
     assert!(rendered.contains("基底"), "{rendered}");
     assert!(rendered.contains("当前"), "{rendered}");
     assert!(rendered.contains("提议"), "{rendered}");
-    click(&ctx, &mut app, 14, "提议");
-    let output = frame(&ctx, &mut app, Vec::new(), 14);
+    click(&ctx, &mut app, 16, "提议");
+    let output = frame(&ctx, &mut app, Vec::new(), 16);
     let mut proposed_view = String::new();
     for shape in &output.shapes {
         collect_text(&shape.shape, &mut proposed_view);
     }
     assert!(proposed_view.contains("新增地点"), "{proposed_view}");
     let history_before_apply = app.history.len();
-    click(&ctx, &mut app, 14, "采纳提案");
+    click(&ctx, &mut app, 16, "采纳提案");
     assert!(
         app.project.document(&entry).unwrap().contains("新增地点"),
         "{:?}",
