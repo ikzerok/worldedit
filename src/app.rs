@@ -8,6 +8,7 @@ mod browser;
 mod catalog;
 mod catalog_query;
 mod characters;
+mod checkpoint_history;
 mod choices;
 mod collaboration_ui;
 #[cfg(not(target_arch = "wasm32"))]
@@ -102,6 +103,7 @@ enum Tab {
     Play,
     Manuscript,
     Templates,
+    CheckpointHistory,
 }
 impl Tab {
     fn title(self) -> &'static str {
@@ -120,6 +122,7 @@ impl Tab {
             Self::Play => "试玩",
             Self::Manuscript => "书稿工作台",
             Self::Templates => "工程模板",
+            Self::CheckpointHistory => "检查点历史",
         }
     }
 }
@@ -322,6 +325,7 @@ pub struct WorldeditApp {
     review: collaboration_ui::ReviewState,
     manuscript: manuscript::WorkbenchState,
     template_manager: template_manager::ManagerState,
+    checkpoint_history: checkpoint_history::HistoryState,
 }
 
 impl WorldeditApp {
@@ -428,6 +432,7 @@ impl WorldeditApp {
             review: collaboration_ui::ReviewState::default(),
             manuscript: manuscript::WorkbenchState::default(),
             template_manager: template_manager::ManagerState::default(),
+            checkpoint_history: checkpoint_history::HistoryState::default(),
         };
         app.catalog_workbench.restore_favorites(cc.storage);
         if let Some(path) = initial_file {
@@ -613,6 +618,7 @@ impl WorldeditApp {
         self.pending_preset_layers = None;
         self.review = collaboration_ui::ReviewState::default();
         self.manuscript = manuscript::WorkbenchState::default();
+        self.checkpoint_history = checkpoint_history::HistoryState::default();
     }
     fn has_open_authoring_form(&self) -> bool {
         self.ime_composing
@@ -1030,6 +1036,7 @@ impl eframe::App for WorldeditApp {
             Tab::Play => self.play_tab(ctx),
             Tab::Manuscript => self.manuscript_tab(ctx),
             Tab::Templates => self.template_manager_tab(ctx),
+            Tab::CheckpointHistory => self.checkpoint_history_tab(ctx),
         }
         self.dialogs(ctx);
         self.project_search(ctx);
@@ -1103,6 +1110,10 @@ impl WorldeditApp {
                         ui.menu_button("工程", |ui| {
                             if ui.button("管理工程模板").clicked() {
                                 self.tab = Tab::Templates;
+                                ui.close();
+                            }
+                            if ui.button("检查点历史…").clicked() {
+                                self.tab = Tab::CheckpointHistory;
                                 ui.close();
                             }
                             if ui.button("新建世界").clicked() {

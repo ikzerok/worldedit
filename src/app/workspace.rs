@@ -196,6 +196,7 @@ impl WorldeditApp {
                     Tab::Overview,
                     Tab::Manuscript,
                     Tab::Templates,
+                    Tab::CheckpointHistory,
                     Tab::Edit,
                 ] {
                     let selected = self.tab == tab;
