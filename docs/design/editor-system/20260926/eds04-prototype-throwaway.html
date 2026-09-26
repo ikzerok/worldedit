@@ -6,7 +6,7 @@
 <style>
   :root { font: 15px/1.5 system-ui,sans-serif; color:#24303b; background:#e8edf1 }
   * { box-sizing:border-box } body { margin:0 } button,select { font:inherit; cursor:pointer }
-  button { background:#fff; color:inherit; border:1px solid #a5b2bd; border-radius:5px; padding:5px 10px }
+  button { background:#fff; color:#24303b; border:1px solid #a5b2bd; border-radius:5px; padding:5px 10px }
   button:focus-visible,select:focus-visible { outline:3px solid #1768be; outline-offset:2px }
   button[aria-pressed=true] { background:#1768be; color:white }
   header { background:#243e58; color:white; padding:10px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap }
@@ -48,12 +48,18 @@
   body.dark .notice { color:#24303b; background:#ffe8a1 }
   body.compact .panel { padding:7px } body.compact .workspace { gap:4px;padding:4px }
   body.compact button { padding:3px 6px } body.compact .body { min-height:115px;padding:8px }
-  @media(max-width:760px) { .workspace:not(.narrow) { display:flex; flex-direction:column } .workspace:not(.narrow) .panel { min-height:auto } }
+  @media(max-width:760px) {
+    .workspace:not(.narrow) { display:flex; flex-direction:column }
+    .workspace:not(.narrow) .nav,.workspace:not(.narrow) .inspector,.workspace:not(.narrow) .graph,.workspace:not(.narrow) .commands { display:none }
+    .workspace:not(.narrow) .main { min-height:360px;order:1 }
+    .workspace:not(.narrow) .status { order:2 }
+    .workspace:not(.narrow) .panel.revealed { display:block;order:3;min-height:auto }
+  }
 </style>
 <header>
   <strong>EDS-04 · 抛弃式原型</strong>
   <label>任务 <select id="task"><option value="world">J1 世界资料</option><option value="writing">J2 写作旁查</option><option value="run">J3 演练</option><option value="review">J4 审阅</option></select></label>
-  <button id="narrow">窄窗模拟</button><button id="focus">专注</button><button id="readonly">切换只读</button><button id="theme">明/暗</button><button id="density">舒适/紧凑</button><button id="reset">重置个人布局</button>
+  <button data-show="nav">导航</button><button id="narrow">窄窗模拟</button><button id="focus">专注</button><button id="readonly">切换只读</button><button id="theme">明/暗</button><button id="density">舒适/紧凑</button><button id="reset">重置个人布局</button>
 </header>
 <div class="notice">示例数据仅在内存中运行；没有 Project 写入。书稿、审阅队列和重放内容属于假数据。</div>
 <section id="workspace" class="workspace B">
@@ -75,7 +81,8 @@ const tasks={
   run:['事件 E · 演练解释','选择 E 只定位定义。预览分支不推进运行位置；只有“显式运行一步”改变本地示意 runtime。','世界偏序与本次运行路径分开。'],
   review:['提案 R · 三方对照','原稿 / 提案 / 结果并列；外部刷新使旧基线失效，解决草稿保留等待重新比较。','审阅时隐藏时间图。']
 };
-const s={variant:new URLSearchParams(location.search).get('variant')||'B',task:'world',selection:'A',pin:false,draft:false,stale:false,conflict:false,focus:false,focusReturn:null,narrow:false,readOnly:false,dark:false,compact:false,drawer:false,runtime:'start',preview:'none',revealed:''};
+const query=new URLSearchParams(location.search);
+const s={variant:query.get('variant')||'B',task:'world',selection:'A',pin:false,draft:false,stale:false,conflict:false,focus:false,focusReturn:null,narrow:false,readOnly:false,dark:query.get('theme')==='dark',compact:query.get('density')==='compact',drawer:false,runtime:'start',preview:'none',revealed:''};
 if(!names[s.variant])s.variant='B';
 const $=id=>document.getElementById(id), w=$('workspace');
 function render(){
@@ -90,7 +97,7 @@ function render(){
   $('apply').disabled=s.readOnly;
   $('drawer-content').hidden=!s.drawer;
   $('state').textContent='task='+s.task+'  view='+tasks[s.task][0]+'  selection='+s.selection+'  pin='+s.pin+'  draft='+s.draft+'  capability='+(s.readOnly?'read-only':'editable')+'  space='+(s.narrow?'narrow':s.focus?'focus':'wide')+'\nvariant='+s.variant+'  theme='+(s.dark?'dark':'light')+'  density='+(s.compact?'compact':'comfortable')+'  stale='+s.stale+'  conflict='+s.conflict+'  drawer='+s.drawer+'  revealed='+s.revealed+'  preview_cursor='+s.preview+'  runtime_position='+s.runtime+'\nProject writes=0 (prototype)';
-  history.replaceState(null,'','?variant='+s.variant);
+  history.replaceState(null,'','?variant='+s.variant+'&theme='+(s.dark?'dark':'light')+'&density='+(s.compact?'compact':'comfortable'));
 }
 function variant(delta){const v=Object.keys(names);s.variant=v[(v.indexOf(s.variant)+delta+v.length)%v.length];render()}
 $('prev').onclick=()=>variant(-1);$('next').onclick=()=>variant(1);
