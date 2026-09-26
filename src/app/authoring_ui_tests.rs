@@ -1912,6 +1912,122 @@ fn source_mention_candidates_can_be_selected_and_committed_without_a_mouse() {
 }
 
 #[test]
+fn source_mention_keyboard_commit_resolves_workspace_relative_active_source() {
+    let (ctx, mut app) = app();
+    let original_entry = app.project.entry.clone();
+    let original_root = app.project.root.clone();
+    let source = "entity a kind place as \"同名\"\nentity b kind organization as \"同名\"\nevent start\n  开始：";
+    app.project.set_text(&original_entry, source.into()).unwrap();
+    app.recompile();
+
+    // Project::document resolves relative paths from CWD; keep the artwork outside this checkout.
+    let cwd = std::env::current_dir().unwrap();
+    let root = cwd.parent().unwrap().join(format!(
+        "worldedit-relative-source-{}-{}",
+        std::process::id(),
+        NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let root_name = root.file_name().unwrap().to_string_lossy().into_owned();
+    let relative_entry = std::path::PathBuf::from("..")
+        .join(root_name)
+        .join("world.wl");
+    let relocate = |path: std::path::PathBuf| {
+        path.strip_prefix(&original_root)
+            .ok()
+            .map(std::path::Path::to_path_buf)
+            .map_or(path, |relative| root.join(relative))
+    };
+    app.project.documents = std::mem::take(&mut app.project.documents)
+        .into_iter()
+        .map(|(path, document)| (relocate(path), document))
+        .collect();
+    app.project.authoring_documents = std::mem::take(&mut app.project.authoring_documents)
+        .into_iter()
+        .map(|(path, document)| (relocate(path), document))
+        .collect();
+    app.project.root = root.clone();
+    app.project.entry = root.join("world.wl");
+    app.active_file = relative_entry.clone();
+    app.tab = super::Tab::Edit;
+    app.recompile();
+
+    let _ = frame(&ctx, &mut app, Vec::new(), 11);
+    let editor = egui::Id::new(("source", &app.active_file));
+    let mut state = egui::TextEdit::load_state(&ctx, editor).unwrap_or_default();
+    state
+        .cursor
+        .set_char_range(Some(egui::text::CCursorRange::one(
+            egui::text::CCursor::new(source.chars().count()),
+        )));
+    egui::TextEdit::store_state(&ctx, editor, state);
+    ctx.memory_mut(|memory| memory.request_focus(editor));
+    let _ = frame(&ctx, &mut app, vec![Event::Text("@同名".into())], 11);
+
+    let key = |key| Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    let _ = frame(&ctx, &mut app, vec![key(egui::Key::ArrowDown)], 11);
+    let _ = frame(&ctx, &mut app, vec![key(egui::Key::Enter)], 11);
+
+    assert!(
+        app.project
+            .document(&relative_entry)
+            .unwrap()
+            .contains("[[entity:b|同名]]"),
+        "source={:?}, error={:?}",
+        app.project.document(&relative_entry).unwrap(),
+        app.io_error
+    );
+    let committed_source = app.project.document(&relative_entry).unwrap().to_owned();
+    let link = "[[entity:b|同名]]";
+    for _ in 0..3 {
+        let _ = frame(&ctx, &mut app, Vec::new(), 11);
+    }
+    let output = frame(&ctx, &mut app, Vec::new(), 11);
+    let point = output
+        .shapes
+        .iter()
+        .find_map(|shape| source_text_position(&shape.shape, &committed_source, link))
+        .expect("正文引用必须在相对活动源码中可定位");
+    for pressed in [true, false] {
+        let _ = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(point),
+                Event::PointerButton {
+                    pos: point,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            11,
+        );
+    }
+    assert_eq!(app.reading_target, Some(TargetRef::new("entity", "b")));
+    let (return_path, return_cursor) = app.reading_return.clone().unwrap();
+    assert_eq!(return_path, app.project.entry);
+    click(&ctx, &mut app, 8, "返回源码编辑");
+    assert_eq!(app.active_file, app.project.entry);
+    assert_eq!(
+        egui::TextEdit::load_state(&ctx, egui::Id::new(("source", &app.project.entry)))
+            .unwrap()
+            .cursor
+            .char_range()
+            .unwrap()
+            .primary
+            .index,
+        return_cursor
+    );
+    assert!(app.reading_return.is_none());
+}
+
+#[test]
 fn source_mention_esc_hides_candidates_without_changing_source() {
     let (ctx, mut app) = app();
     let entry = app.project.entry.clone();

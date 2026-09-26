@@ -34,6 +34,7 @@ impl WorldeditApp {
         } else {
             self.project.entry.clone()
         };
+        let path = super::workspace_source_path(&self.project, &path);
         match EntityForm::open(
             &self.project,
             &snapshot.result.analysis.catalog,

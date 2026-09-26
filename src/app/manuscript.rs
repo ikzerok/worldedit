@@ -173,14 +173,6 @@ fn move_entry(entries: &mut [ManuscriptEntryDraft], id: &str, delta: isize) -> b
     true
 }
 
-fn source_path(root: &Path, file: &str) -> PathBuf {
-    let path = PathBuf::from(file);
-    if path.is_absolute() {
-        path
-    } else {
-        root.join(path)
-    }
-}
 
 fn target_label(object: &CatalogObject) -> String {
     format!(
@@ -821,7 +813,7 @@ impl WorldeditApp {
             self.io_error = Some("章节来源尚未解析，不能打开正文草稿".into());
             return;
         };
-        let path = source_path(&self.project.root, &location.file);
+        let path = super::workspace_source_path(&self.project, Path::new(&location.file));
         match self.project.document(&path) {
             Ok(source) => {
                 self.manuscript.body_drafts.insert(
