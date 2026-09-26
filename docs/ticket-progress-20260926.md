@@ -1,6 +1,6 @@
 # 2026-09-26 ticket 实施记录
 
-本轮请求是完成两仓所有 ticket；截至本记录尚未全部完成。初始开放 43 张，CAP-09C 已按用户要求删除；目前 worldline 开放 10 张、worldedit 开放 18 张。主实施分支为两仓各自的 `codex/complete-tickets-20260926`，原型与并行能力票保留独立工作树/分支，未合并或发布。
+本轮请求是完成两仓所有 ticket；截至本记录尚未全部完成。初始开放 43 张，CAP-09C 已按用户要求删除；目前 worldline 开放 8 张、worldedit 开放 18 张。主实施分支为两仓各自的 `codex/complete-tickets-20260926`，原型与并行能力票保留独立工作树/分支，未合并或发布。
 
 ## 已实现、待完整验收
 
@@ -37,6 +37,16 @@
 - 书稿工作台支持创建、分节与章节、目标选择、状态、章节树/卡片/列表、正文草稿及 core 阅读投影；编排应用与撤销均经 core。
 - 独立分支实现集成于 `64abcf4`，与 CAP-01B 的测试冲突已解，新增 7 项真实 egui 事件回归。配对 editor 116 项单元与 16 项集成测试、严格 Clippy、wasm32 check 通过；桌面/Web 端到端交互未验证，票保持开放。
 
+### worldline#15 / CAP-03A
+
+- core 组合查询、共享保存查询、只读待办投影以及复用同一 DTO 的 `wl catalog-query` / RPC `catalog.query` 已提交 `25f4436`，core 票关闭。游标预算、注册 ID 与文件 ID、扩展字段重排三个自审问题已修。
+- core/CLI/RPC 公共回归、D5 本机样本和协议边界已记录。同步 CLI/RPC 不支持进行中中断，未宣称支持。worldedit#16 的筛选与待办界面仍在隔离分支开发。
+
+### worldline#16 / CAP-04A 与 worldedit#17 / CAP-04B
+
+- core 三方字段/段落差异、原文字节范围、冲突、引用影响、截断与可验证基线已提交 `163e0ff`，18 项 collaboration 回归通过，core 票关闭。
+- editor `85a19f0` 显示三方差异与原文后备，窄窗用标签切换；预览按基线缓存，过期后须重新比较，安全采纳可一次撤销。egui 回归、Web release 打包与配对检查通过。逐项编辑解决方案及真实原生/Web 文本选择、IME、滚动和关闭路径仍待验收，editor 票开放。
+
 ## 研究交付
 
 - worldedit#32 / EDS-01：[官方交互观察与证据边界](design/editor-system/20260926/eds01-evidence.md)。四主样本各四条 DOC 观察卡及失败/恢复路径，五补充样本、12 模式反例和替代方案。GUI/RUN/USER 缺口明确保留，研究票已按文档交付关闭。
@@ -64,7 +74,7 @@
 
 - Standards：两轮均无发现。
 - Spec：core 引用影响缺项已修；editor 的时段草稿、Web 离页提示和跨阅读窗口关闭问题已修，并补回归。实际双端与作者测试缺口独立记录。
-- 上一轮完整配对检查为 core `0ba3e241af3a5f5746cfed92e2b5f8ce72909843`，editor `aa3940342d46dd29b5a9995d6da48dfc54e67f74`。editor `64abcf4` 与正在完成的 CAP-03A core 工作树已重跑 editor 全量测试、严格 Clippy 与 wasm32 check，全部通过；最终不可变配对 SHA 仍须在并行票集成后检查。旧检查的完整 SHA、环境与每个命令日志在本地 `target/paired-check/20260926T1009336668816Z/`；这些构建/本机日志不提交源码。
+- 最新不可变配对检查为 core `163e0ff77c4f86543fef5fdce2d4fbb0fad2df11`、editor `85a19f0b31ab577b9789d1ac9487ccaf3570ab5c`，完整日志在本地 `target/paired-check/20260926T1242102923154Z/`。脚本完成两仓格式、完整测试、严格 Clippy、原生构建与编辑器 WASM Clippy/构建。并行中的 CAP-03B / CAP-04C 后续集成时需重新检查；本机日志不提交源码。
 - 检查脚本：`scripts/check-pair.ps1` 全部通过，分别指定两仓 Cargo.toml，覆盖格式、完整测试（core/CLI/runtime/agent 合计 333，editor 合计 110）、Clippy、原生构建及 WASM Clippy/构建。测试/编译不能代替实际 GUI/USER 证据。
 
 ## 尚待推进
