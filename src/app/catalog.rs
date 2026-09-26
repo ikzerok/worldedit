@@ -430,6 +430,10 @@ impl WorldeditApp {
     }
 
     pub(super) fn catalog_tab(&mut self, ctx: &egui::Context) {
+        if self.catalog_workbench.open {
+            self.catalog_query_tab(ctx);
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -499,6 +503,9 @@ impl WorldeditApp {
             });
         egui::CentralPanel::default().frame(theme::panel().fill(BG)).show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
+                if ui.button("组合查询与待办").clicked() {
+                    self.catalog_workbench.open = true;
+                }
                 ui.vertical(|ui| { ui.heading("资料与状态"); ui.label(theme::muted(format!("{} 个标签 · {} 个状态 · {} 份素材", catalog.tags.len(), catalog.states.len(), catalog.assets.len()))); });
                 if ui.button("全部标签").clicked() {
                     self.catalog_filter = "tag".into(); self.catalog_query.clear(); self.catalog_target = None;

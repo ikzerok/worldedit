@@ -6,6 +6,7 @@ mod authoring_ui_tests;
 #[cfg(target_arch = "wasm32")]
 mod browser;
 mod catalog;
+mod catalog_query;
 mod characters;
 mod choices;
 mod collaboration_ui;
@@ -191,6 +192,7 @@ pub struct WorldeditApp {
     catalog_filter: String,
     catalog_query: String,
     catalog_recursive: bool,
+    catalog_workbench: catalog_query::WorkbenchState,
     tag_editor: Option<(Option<String>, WorldDraft)>,
     anchor_editor: Option<(Option<String>, worldline_core::anchors::AnchorDraft)>,
     overview_storyline: String,
@@ -292,6 +294,7 @@ impl WorldeditApp {
             catalog_filter: "tag".into(),
             catalog_query: String::new(),
             catalog_recursive: true,
+            catalog_workbench: catalog_query::WorkbenchState::default(),
             tag_editor: None,
             state_editor: None,
             anchor_editor: None,
@@ -508,6 +511,7 @@ impl WorldeditApp {
         self.rename_form = None;
         self.preset_editor = None;
         self.catalog_target = None;
+        self.catalog_workbench.reset_for_workspace();
         self.tag_editor = None;
         self.state_editor = None;
         self.anchor_editor = None;
