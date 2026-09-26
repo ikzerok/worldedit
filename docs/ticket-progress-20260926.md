@@ -1,6 +1,6 @@
 # 2026-09-26 ticket 实施记录
 
-本轮请求是完成两仓所有 ticket；截至本记录尚未全部完成。初始开放 43 张，CAP-09A 已完成范围决定，CAP-09C 已按用户要求删除，仍有 41 张开放票。实施分支均为 `codex/complete-tickets-20260926`，未合并或发布。
+本轮请求是完成两仓所有 ticket；截至本记录尚未全部完成。初始开放 43 张，CAP-09C 已按用户要求删除；目前 worldline 开放 10 张、worldedit 开放 18 张。主实施分支为两仓各自的 `codex/complete-tickets-20260926`，原型与并行能力票保留独立工作树/分支，未合并或发布。
 
 ## 已实现、待完整验收
 
@@ -18,9 +18,18 @@
 - 新增状态测试和 egui 点击回归，覆盖钉住、窄屏切换/关闭、源码入口、时段/实体草稿、失效对象与独立临时阅读窗口。
 - 原生/Web 实际交互、键盘焦点与缩放恢复尚未验收，不能将 headless 测试写成实际作者验证。
 
+### worldedit#13 / CAP-01B
+
+- 正文源码中的 `@` 候选按 kind+ID 消歧，支持方向键/Enter 与 Esc；选文建档走 core 组合事务，正文链接可回到原编辑光标。
+- IME 组合与外部刷新同时发生时保留本地草稿并阻止覆盖。egui 真实事件回归、123 项测试及 WASM 检查通过，提交 `e5eb266`；原生/Web 手工输入法与完整保存重开路径仍待验收，票保持开放。
+
+### worldline#14 / CAP-02A
+
+- 书稿 schema、能力、编排命令、源位置/统计/阅读顺序投影已在 core 提交 `89efd75`，独立构建与测试通过，票已关闭。worldedit#15 的编辑器工作台在独立工作树开发中。
+
 ## 研究交付
 
-- worldedit#32 / EDS-01：[官方交互观察与证据边界](design/editor-system/20260926/eds01-evidence.md)。四主样本各四条 DOC 观察卡及失败/恢复路径，五补充样本、12 模式反例和替代方案。GUI/RUN/USER 缺口明确保留，ticket 未关闭。
+- worldedit#32 / EDS-01：[官方交互观察与证据边界](design/editor-system/20260926/eds01-evidence.md)。四主样本各四条 DOC 观察卡及失败/恢复路径，五补充样本、12 模式反例和替代方案。GUI/RUN/USER 缺口明确保留，研究票已按文档交付关闭。
 - worldedit#33 / EDS-02：[任务、对象与入口草案](design/editor-system/20260926/eds02-tasks-and-objects.md)。四条任务旅程、对象生命周期、五类结构和旧 12 页面映射；频率与角色标为假设，不冒充用户访谈。后台研究连接中断后由主任务依据已核查代码补齐，仍待作者验证。
 - worldedit#34 / EDS-03：[编辑器状态、身份与事件路由契约](design/editor-system/20260926/eds03-state-contract.md)。定义六种“当前”、类型化身份、状态所属域、事务转换及 owner/IME/冲突负例；这是设计契约和验收清单，不宣称生产 UI 已全面实现。
 - worldedit#35 / EDS-04：[六区域显隐与 A/B/C 比较](design/editor-system/20260926/eds04-layout-comparison.md)。三种结构用同一组任务与示例数据比较，B 暂列下一轮验证首选，完整自由 dock 暂不采用；抛弃式交互原型单独保存在 `codex/eds04-prototype` 的 `5e44564`，尚待实际作者评估。
@@ -29,7 +38,8 @@
 - worldedit#38 / EDS-07：[时间、控制流、书稿与关系图视觉语法](design/editor-system/20260926/eds07-graph-grammar.md)。四种投影分开命名与图例，区分选择、预览和运行位置；为并行边、自环、长标签与截断定义文字后备和负例。未做作者理解测试。
 - worldedit#39 / EDS-08：[正文、临时侧览与可恢复专注](design/editor-system/20260926/eds08-writing-preview.md)。区分主编辑、临时/固定旁查和阅读投影，定义选文/IME/无鼠标、专注恢复、窄窗与长文验收；行宽仍待实际验证。
 - worldedit#40 / EDS-09：[统一命令、焦点路由与撤销边界](design/editor-system/20260926/eds09-command-routing.md)。统一命令描述和按钮/菜单/快捷键语义，列出模态→IME→焦点区→全局矩阵、分层取消及非拖动替代；仍需生产接入与真实事件验证。
-- worldedit#41 / EDS-10：[基于状态的视觉系统与组件规范](design/editor-system/20260926/eds10-visual-system.md)。列出八类 token、12 种组件状态、四任务/明暗/密度的验证矩阵与 Web 参考阈值；低保真主题比较在 `codex/eds04-prototype`，高保真与完整无障碍验证仍缺。
+- worldedit#41 / EDS-10：[基于状态的视觉系统与组件规范](design/editor-system/20260926/eds10-visual-system.md)、[高保真样板和浏览器证据](design/editor-system/20260926/eds10-sample-evidence.md)。四任务、明暗/密度、八类组件、窄窗冲突与 11 张实际浏览器截图已交付，设计票关闭；真实原生控件、IME、读屏和完整无障碍验证仍缺。
+- worldedit#42 / EDS-11：独立 `codex/eds11-egui-prototype` 分支提交 `20b57e7`，原生和 Web 实际界面已做范围内检查；字体、IME、响应性能及作者参与验证仍缺，票保持开放。
 - worldedit#43 / EDS-12：[目标作者验证预注册方案](design/editor-system/20260926/eds12-validation-protocol.md)。列出交叉任务、匿名原始字段、安全停止门、平台/性能口径和采用/修改/拒绝决策流程；EDS-11 和真实参与者未完成，结果全部空白，票保持开放。
 
 ## 已决定的排除
@@ -44,11 +54,11 @@
 
 - Standards：两轮均无发现。
 - Spec：core 引用影响缺项已修；editor 的时段草稿、Web 离页提示和跨阅读窗口关闭问题已修，并补回归。实际双端与作者测试缺口独立记录。
-- 最终被检代码配对：core `0ba3e241af3a5f5746cfed92e2b5f8ce72909843`，editor `aa3940342d46dd29b5a9995d6da48dfc54e67f74`。完整 SHA、环境与每个命令日志在本地 `target/paired-check/20260926T1009336668816Z/`；这些构建/本机日志不提交源码。
+- 上一轮完整配对检查为 core `0ba3e241af3a5f5746cfed92e2b5f8ce72909843`，editor `aa3940342d46dd29b5a9995d6da48dfc54e67f74`。随后新增的 core/编辑器提交各自验证，新的最终配对检查需在并行票集成后重跑。旧检查的完整 SHA、环境与每个命令日志在本地 `target/paired-check/20260926T1009336668816Z/`；这些构建/本机日志不提交源码。
 - 检查脚本：`scripts/check-pair.ps1` 全部通过，分别指定两仓 Cargo.toml，覆盖格式、完整测试（core/CLI/runtime/agent 合计 333，editor 合计 110）、Clippy、原生构建及 WASM Clippy/构建。测试/编译不能代替实际 GUI/USER 证据。
 
 ## 尚待推进
 
-其余开放 CAP 实施票仍按原依赖推进；EDS 研究、设计、原型与作者验证票保持开放。EDS-12 必须有真实参与者记录，不补造成功率、时间或满意度。未回答的参与者安排不构成已有批准。
+其余开放 CAP 实施票仍按依赖推进；EDS-01 至 EDS-10 已作为研究/设计交付关闭，EDS-11 原型与 EDS-12 作者验证保持开放。EDS-12 必须有真实参与者记录，不补造成功率、时间或满意度。未回答的参与者安排不构成已有批准。
 
 用户原有未跟踪文件 `docs/planning/20260926/issues.json` 保持不动，未混入本轮提交。
