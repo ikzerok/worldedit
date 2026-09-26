@@ -2291,6 +2291,9 @@ impl super::WorldeditApp {
                                 pending.entity_id,
                                 pending.placement_id
                             ));
+                            if let MapGeometry::Point(point) = &pending.geometry {
+                                ui.label(format!("落点：{:.3}, {:.3}", point.x, point.y));
+                            }
                             ui.label("地点名称");
                             ui.text_edit_singleline(&mut self.map_form.place_name);
                             ui.label("地点说明");
