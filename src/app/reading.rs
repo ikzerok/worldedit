@@ -509,6 +509,7 @@ impl WorldeditApp {
                                 "否".into()
                             }
                         }
+                        PropertyValue::Ref(target) => format!("{}:{}", target.kind, target.id),
                     };
                     self.wiki_text(
                         ui,

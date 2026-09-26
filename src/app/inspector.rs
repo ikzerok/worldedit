@@ -95,16 +95,21 @@ pub(super) fn properties(ui: &mut egui::Ui, values: &mut Vec<(String, PropertyVa
                     PropertyValue::Str(_) => 0,
                     PropertyValue::Num(_) => 1,
                     PropertyValue::Bool(_) => 2,
+                    PropertyValue::Ref(_) => 3,
                 };
                 let mut kind = current;
-                egui::ComboBox::from_id_salt("type")
-                    .width(65.0)
-                    .selected_text(["文本", "数值", "布尔"][kind])
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut kind, 0, "文本");
-                        ui.selectable_value(&mut kind, 1, "数值");
-                        ui.selectable_value(&mut kind, 2, "布尔");
-                    });
+                if current == 3 {
+                    ui.label("对象引用");
+                } else {
+                    egui::ComboBox::from_id_salt("type")
+                        .width(65.0)
+                        .selected_text(["文本", "数值", "布尔"][kind])
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut kind, 0, "文本");
+                            ui.selectable_value(&mut kind, 1, "数值");
+                            ui.selectable_value(&mut kind, 2, "布尔");
+                        });
+                }
                 if kind != current {
                     *value = match kind {
                         1 => PropertyValue::Num(0.0),
@@ -126,6 +131,9 @@ pub(super) fn properties(ui: &mut egui::Ui, values: &mut Vec<(String, PropertyVa
                     }
                     PropertyValue::Bool(value) => {
                         ui.checkbox(value, "是 / 否");
+                    }
+                    PropertyValue::Ref(target) => {
+                        ui.label(format!("{}:{}（从资料编辑器修改）", target.kind, target.id));
                     }
                 }
             });
@@ -482,5 +490,27 @@ impl WorldeditApp {
             });
         });
         self.world_editor = Some(draft);
+    }
+}
+
+#[cfg(test)]
+mod object_reference_tests {
+    use super::*;
+    use worldline_core::catalog::TargetRef;
+
+    #[test]
+    fn generic_property_form_keeps_a_typed_reference_without_casting_it_to_text() {
+        let context = egui::Context::default();
+        let mut values = vec![(
+            "home".into(),
+            PropertyValue::Ref(TargetRef::new("entity", "tower")),
+        )];
+        let _ = context.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| properties(ui, &mut values));
+        });
+        assert!(matches!(
+            &values[0].1,
+            PropertyValue::Ref(target) if target.kind == "entity" && target.id == "tower"
+        ));
     }
 }
