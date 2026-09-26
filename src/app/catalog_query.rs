@@ -13,6 +13,8 @@ use worldline_core::queries::{
     DEFAULT_CATALOG_QUERY_CANDIDATES, MAX_CATALOG_QUERY_CANDIDATES, MAX_CATALOG_QUERY_PAGE_SIZE,
 };
 
+const FAVORITES_STORAGE_KEY: &str = "worldedit.catalog.local_favorites.v1";
+
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum View {
     #[default]
@@ -100,6 +102,22 @@ struct RunningQuery {
 }
 
 impl WorkbenchState {
+    pub(super) fn restore_favorites(&mut self, storage: Option<&dyn eframe::Storage>) {
+        let Some(saved) = storage.and_then(|storage| storage.get_string(FAVORITES_STORAGE_KEY))
+        else {
+            return;
+        };
+        if let Ok(favorites) = serde_json::from_str::<BTreeMap<PathBuf, BTreeSet<String>>>(&saved) {
+            self.local_favorites = favorites;
+        }
+    }
+
+    pub(super) fn save_favorites(&self, storage: &mut dyn eframe::Storage) {
+        if let Ok(saved) = serde_json::to_string(&self.local_favorites) {
+            storage.set_string(FAVORITES_STORAGE_KEY, saved);
+        }
+    }
+
     pub(super) fn reset_for_workspace(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(running) = &self.running {
@@ -1266,5 +1284,40 @@ fn todo_kind_label(kind: TodoKind) -> &'static str {
         TodoKind::EntryToCreate => "待建资料",
         TodoKind::DetachedComment => "失锚批注",
         TodoKind::OpenProposal => "待审提案",
+    }
+}
+
+#[cfg(test)]
+mod persistence_tests {
+    use super::*;
+
+    #[derive(Default)]
+    struct MemoryStorage(BTreeMap<String, String>);
+
+    impl eframe::Storage for MemoryStorage {
+        fn get_string(&self, key: &str) -> Option<String> {
+            self.0.get(key).cloned()
+        }
+
+        fn set_string(&mut self, key: &str, value: String) {
+            self.0.insert(key.into(), value);
+        }
+
+        fn flush(&mut self) {}
+    }
+
+    #[test]
+    fn local_favorites_survive_reopen_without_entering_project_documents() {
+        let mut state = WorkbenchState::default();
+        let root = PathBuf::from("sample-project");
+        state.toggle_favorite(&root, "people".into());
+        let mut storage = MemoryStorage::default();
+        state.save_favorites(&mut storage);
+
+        let mut reopened = WorkbenchState::default();
+        reopened.restore_favorites(Some(&storage));
+        assert!(reopened.local_favorites[&root].contains("people"));
+        reopened.reset_for_workspace();
+        assert!(reopened.local_favorites[&root].contains("people"));
     }
 }

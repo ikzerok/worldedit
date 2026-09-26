@@ -364,6 +364,7 @@ impl WorldeditApp {
             review: collaboration_ui::ReviewState::default(),
             manuscript: manuscript::WorkbenchState::default(),
         };
+        app.catalog_workbench.restore_favorites(cc.storage);
         if let Some(path) = initial_file {
             app.load_project(path);
         }
@@ -835,6 +836,10 @@ impl WorldeditApp {
 }
 
 impl eframe::App for WorldeditApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        self.catalog_workbench.save_favorites(storage);
+    }
+
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         [0.0; 4]
     }
