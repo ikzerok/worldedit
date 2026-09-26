@@ -1,0 +1,28 @@
+{
+  "purpose": "EDS-11 throwaway prototype interaction and cross-target risk checks",
+  "editorBase": "20b57e70dbdff3ab7decb047a9220a3488fe967f",
+  "worldlinePair": "0ba3e241af3a5f5746cfed92e2b5f8ce72909843",
+  "feature": "eds11_prototype",
+  "projectData": "in-memory fixture only; no user workspace opened",
+  "browser": {
+    "engine": "Microsoft Edge headless",
+    "userAgentMajor": 153,
+    "defaultDpr": 1,
+    "emulatedDprObservation": 1.5,
+    "logicalViewports": [[1024, 640], [700, 640]],
+    "browserZoom": "not verified; a page-level Control+Equal attempt did not change devicePixelRatio"
+  },
+  "paths": [
+    "J1 drag preview, cancel, apply once, undo once, reject read-only and stale baseline",
+    "J2 synthetic DOM composition event, temporary reader Escape, committed CJK insertion and focus return",
+    "J3 actual paired-core compile sample, separate preview and explicitly fake runtime",
+    "J4 fake base/current/proposal comparison and explicit non-accept action"
+  ],
+  "not_simulated": [
+    "physical monitor DPI measurement",
+    "Windows or browser OS IME preedit/composition by a person",
+    "browser chrome zoom",
+    "real user project persistence or disk writes",
+    "participant research"
+  ]
+}

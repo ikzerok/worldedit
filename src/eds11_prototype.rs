@@ -34,6 +34,7 @@ pub struct Prototype {
     focus: bool,
     focus_return: bool,
     drawer: bool,
+    drawer_focus_return: Option<egui::Id>,
     inspector_tab: bool,
     read_only: bool,
     stale: bool,
@@ -60,6 +61,7 @@ impl Default for Prototype {
             focus: false,
             focus_return: false,
             drawer: false,
+            drawer_focus_return: None,
             inspector_tab: false,
             read_only: false,
             stale: false,
@@ -346,6 +348,22 @@ impl Prototype {
 
 impl eframe::App for Prototype {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.draw(ctx);
+    }
+}
+
+impl Prototype {
+    fn draw(&mut self, ctx: &egui::Context) {
+        let drawer_was_open = self.drawer;
+        let focus_before_frame = ctx.memory(|memory| memory.focused());
+        let primary_released =
+            ctx.input(|input| input.pointer.button_released(egui::PointerButton::Primary));
+        let current_draft = egui::Id::new(("eds11_draft", self.project));
+        if self.task == Task::Writing && focus_before_frame == Some(current_draft) {
+            self.drawer_focus_return = Some(current_draft);
+        } else if !drawer_was_open && !primary_released {
+            self.drawer_focus_return = None;
+        }
         self.header(ctx);
         self.navigation(ctx);
         self.inspector(ctx);
@@ -380,6 +398,17 @@ impl eframe::App for Prototype {
                 self.cancel_preview();
             }
         }
+        if !drawer_was_open && self.drawer && self.task == Task::Writing {
+            self.drawer_focus_return = self
+                .drawer_focus_return
+                .or_else(|| focus_before_frame.filter(|id| *id == current_draft));
+        } else if drawer_was_open && !self.drawer {
+            if let Some(id) = self.drawer_focus_return.take() {
+                if self.task == Task::Writing && id == current_draft {
+                    ctx.memory_mut(|memory| memory.request_focus(id));
+                }
+            }
+        }
         if self.focus_return && self.task == Task::Writing {
             ctx.memory_mut(|memory| {
                 memory.request_focus(egui::Id::new(("eds11_draft", self.project)))
@@ -392,6 +421,390 @@ impl eframe::App for Prototype {
 #[cfg(test)]
 mod tests {
     use super::{Prototype, Task};
+    use egui::{pos2, vec2, Event, ImeEvent, PointerButton, RawInput, Rect};
+
+    fn frame(
+        ctx: &egui::Context,
+        prototype: &mut Prototype,
+        events: Vec<Event>,
+        size: [f32; 2],
+    ) -> egui::FullOutput {
+        ctx.run(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(size[0], size[1]))),
+                events,
+                ..Default::default()
+            },
+            |ctx| prototype.draw(ctx),
+        )
+    }
+
+    fn frame_with_native_scale(
+        ctx: &egui::Context,
+        prototype: &mut Prototype,
+        size: [f32; 2],
+        native_pixels_per_point: f32,
+    ) -> egui::FullOutput {
+        let mut input = RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(size[0], size[1]))),
+            ..Default::default()
+        };
+        input
+            .viewports
+            .get_mut(&egui::ViewportId::ROOT)
+            .expect("root viewport")
+            .native_pixels_per_point = Some(native_pixels_per_point);
+        ctx.run(input, |ctx| prototype.draw(ctx))
+    }
+
+    fn text_position(shape: &egui::Shape, label: &str) -> Option<egui::Pos2> {
+        match shape {
+            egui::Shape::Text(text) if text.galley.job.text == label => {
+                Some(text.pos + text.galley.rect.center().to_vec2())
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| text_position(shape, label)),
+            _ => None,
+        }
+    }
+
+    fn contains_text(shape: &egui::Shape, label: &str) -> bool {
+        match shape {
+            egui::Shape::Text(text) => text.galley.job.text.contains(label),
+            egui::Shape::Vec(shapes) => shapes.iter().any(|shape| contains_text(shape, label)),
+            _ => false,
+        }
+    }
+
+    fn click_at(ctx: &egui::Context, prototype: &mut Prototype, size: [f32; 2], point: egui::Pos2) {
+        for pressed in [true, false] {
+            let _ = frame(
+                ctx,
+                prototype,
+                vec![
+                    Event::PointerMoved(point),
+                    Event::PointerButton {
+                        pos: point,
+                        button: PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                size,
+            );
+        }
+    }
+
+    fn click(ctx: &egui::Context, prototype: &mut Prototype, size: [f32; 2], label: &str) {
+        for _ in 0..4 {
+            let _ = frame(ctx, prototype, Vec::new(), size);
+        }
+        let output = frame(ctx, prototype, Vec::new(), size);
+        let point = output
+            .shapes
+            .iter()
+            .find_map(|shape| text_position(&shape.shape, label))
+            .unwrap_or_else(|| panic!("原型控件未显示：{label}"));
+        click_at(ctx, prototype, size, point);
+    }
+
+    fn click_last(ctx: &egui::Context, prototype: &mut Prototype, size: [f32; 2], label: &str) {
+        for _ in 0..4 {
+            let _ = frame(ctx, prototype, Vec::new(), size);
+        }
+        let output = frame(ctx, prototype, Vec::new(), size);
+        let point = output
+            .shapes
+            .iter()
+            .filter_map(|shape| text_position(&shape.shape, label))
+            .last()
+            .unwrap_or_else(|| panic!("原型控件未显示：{label}"));
+        click_at(ctx, prototype, size, point);
+    }
+
+    fn drag_slider_left_of_label(
+        ctx: &egui::Context,
+        prototype: &mut Prototype,
+        size: [f32; 2],
+        label: &str,
+        start_offset: f32,
+        end_offset: f32,
+    ) {
+        for _ in 0..4 {
+            let _ = frame(ctx, prototype, Vec::new(), size);
+        }
+        let output = frame(ctx, prototype, Vec::new(), size);
+        let label_pos = output
+            .shapes
+            .iter()
+            .find_map(|shape| text_position(&shape.shape, label))
+            .unwrap_or_else(|| panic!("滑块标签未显示：{label}"));
+        let start = label_pos + vec2(start_offset, 0.0);
+        let end = label_pos + vec2(end_offset, 0.0);
+        let _ = frame(
+            ctx,
+            prototype,
+            vec![
+                Event::PointerMoved(start),
+                Event::PointerButton {
+                    pos: start,
+                    button: PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            size,
+        );
+        let _ = frame(ctx, prototype, vec![Event::PointerMoved(end)], size);
+        let _ = frame(
+            ctx,
+            prototype,
+            vec![
+                Event::PointerMoved(end),
+                Event::PointerButton {
+                    pos: end,
+                    button: PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            size,
+        );
+    }
+
+    fn text(ctx: &egui::Context, prototype: &mut Prototype, size: [f32; 2], value: &str) {
+        let _ = frame(ctx, prototype, vec![Event::Text(value.into())], size);
+    }
+
+    fn ime(ctx: &egui::Context, prototype: &mut Prototype, size: [f32; 2], event: ImeEvent) {
+        let _ = frame(ctx, prototype, vec![Event::Ime(event)], size);
+    }
+
+    fn escape(ctx: &egui::Context, prototype: &mut Prototype, size: [f32; 2]) {
+        let _ = frame(
+            ctx,
+            prototype,
+            vec![Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            size,
+        );
+    }
+
+    #[test]
+    fn temporary_reader_returns_keyboard_focus_to_ime_draft() {
+        let ctx = egui::Context::default();
+        let mut prototype = Prototype::default();
+        let size = [1024.0, 640.0];
+        let draft_id = egui::Id::new(("eds11_draft", 0));
+
+        click(&ctx, &mut prototype, size, "J2 写作旁查");
+        assert!(prototype.task == Task::Writing);
+
+        click(
+            &ctx,
+            &mut prototype,
+            size,
+            "在此输入未应用草稿，切任务/工程应明确保留",
+        );
+        assert_eq!(ctx.memory(|memory| memory.focused()), Some(draft_id));
+        ime(&ctx, &mut prototype, size, ImeEvent::Enabled);
+        ime(&ctx, &mut prototype, size, ImeEvent::Preedit("雾港".into()));
+        assert_eq!(prototype.drafts[0], "雾港");
+        assert!(prototype.task == Task::Writing && !prototype.drawer);
+        ime(&ctx, &mut prototype, size, ImeEvent::Commit("雾港".into()));
+        assert_eq!(prototype.drafts[0], "雾港");
+
+        click(&ctx, &mut prototype, size, "临时旁查 B");
+        assert!(prototype.drawer);
+        escape(&ctx, &mut prototype, size);
+        assert!(!prototype.drawer);
+        assert_eq!(prototype.drafts[0], "雾港");
+        assert_eq!(ctx.memory(|memory| memory.focused()), Some(draft_id));
+        text(&ctx, &mut prototype, size, "继续");
+        assert_eq!(prototype.drafts[0], "雾港继续");
+    }
+
+    #[test]
+    fn world_placement_cancel_apply_undo_and_guards_use_egui_events() {
+        let ctx = egui::Context::default();
+        let mut prototype = Prototype::default();
+        let size = [1024.0, 640.0];
+
+        click(&ctx, &mut prototype, size, "选入口 P");
+        assert_eq!(prototype.selected, "P");
+        drag_slider_left_of_label(&ctx, &mut prototype, size, "入口位置预览", -100.0, -35.0);
+        let candidate = prototype.preview_position;
+        assert_ne!(candidate, 30.0, "egui 拖动应改变候选位置");
+        assert_eq!(prototype.placement_position, 30.0);
+
+        click(&ctx, &mut prototype, size, "取消预览 / Escape");
+        assert_eq!(prototype.preview_position, 30.0);
+        assert_eq!(prototype.placement_position, 30.0);
+
+        drag_slider_left_of_label(&ctx, &mut prototype, size, "入口位置预览", -100.0, -35.0);
+        let candidate = prototype.preview_position;
+        click(&ctx, &mut prototype, size, "应用一次（假数据）");
+        assert_eq!(prototype.placement_position, candidate);
+        assert_eq!(prototype.undo_position, Some(30.0));
+        click(&ctx, &mut prototype, size, "撤销一次（假数据）");
+        assert_eq!(prototype.placement_position, 30.0);
+        assert_eq!(prototype.preview_position, 30.0);
+        assert!(prototype.undo_position.is_none());
+
+        drag_slider_left_of_label(&ctx, &mut prototype, size, "入口位置预览", -100.0, -35.0);
+        let candidate = prototype.preview_position;
+        click(&ctx, &mut prototype, size, "只读");
+        click(&ctx, &mut prototype, size, "应用一次（假数据）");
+        assert_eq!(prototype.placement_position, 30.0);
+        assert_eq!(prototype.preview_position, candidate);
+        assert!(prototype.undo_position.is_none());
+
+        click(&ctx, &mut prototype, size, "只读");
+        click(&ctx, &mut prototype, size, "旧基线");
+        click(&ctx, &mut prototype, size, "应用一次（假数据）");
+        assert_eq!(prototype.placement_position, 30.0);
+        assert_eq!(prototype.preview_position, candidate);
+        assert!(prototype.undo_position.is_none());
+
+        click(&ctx, &mut prototype, size, "旧基线");
+        click(&ctx, &mut prototype, size, "锁层");
+        click(&ctx, &mut prototype, size, "应用一次（假数据）");
+        assert_eq!(prototype.placement_position, 30.0);
+        assert_eq!(prototype.preview_position, candidate);
+        assert!(prototype.undo_position.is_none());
+        let output = frame(&ctx, &mut prototype, Vec::new(), size);
+        assert!(output
+            .shapes
+            .iter()
+            .any(|shape| contains_text(&shape.shape, "Project 写入 0")));
+    }
+
+    #[test]
+    fn writing_project_and_task_switches_preserve_scoped_draft_via_events() {
+        let ctx = egui::Context::default();
+        let mut prototype = Prototype::default();
+        let size = [1024.0, 640.0];
+
+        click(&ctx, &mut prototype, size, "J2 写作旁查");
+        click(
+            &ctx,
+            &mut prototype,
+            size,
+            "在此输入未应用草稿，切任务/工程应明确保留",
+        );
+        text(&ctx, &mut prototype, size, "雾港草稿");
+        assert_eq!(prototype.drafts[0], "雾港草稿");
+
+        click(&ctx, &mut prototype, size, "样例作品 1");
+        click_last(&ctx, &mut prototype, size, "样例作品 2");
+        assert_eq!(prototype.project, 0);
+        assert_eq!(prototype.pending_project, Some(1));
+        click(&ctx, &mut prototype, size, "取消切换");
+        assert_eq!(prototype.project, 0);
+        assert_eq!(prototype.drafts[0], "雾港草稿");
+
+        click(&ctx, &mut prototype, size, "样例作品 1");
+        click_last(&ctx, &mut prototype, size, "样例作品 2");
+        click(&ctx, &mut prototype, size, "保留并切作品");
+        assert_eq!(prototype.project, 1);
+        assert_eq!(prototype.drafts[0], "雾港草稿");
+        assert!(prototype.drafts[1].is_empty());
+
+        click(&ctx, &mut prototype, size, "样例作品 2");
+        click_last(&ctx, &mut prototype, size, "样例作品 1");
+        assert_eq!(prototype.project, 0);
+        click(&ctx, &mut prototype, size, "J3 演练");
+        assert!(prototype.pending_task == Some(Task::Run));
+        click(&ctx, &mut prototype, size, "取消切换");
+        assert!(prototype.task == Task::Writing);
+        assert_eq!(prototype.drafts[0], "雾港草稿");
+
+        click(&ctx, &mut prototype, size, "J3 演练");
+        click(&ctx, &mut prototype, size, "保留并切任务");
+        assert!(prototype.task == Task::Run);
+        assert_eq!(prototype.drafts[0], "雾港草稿");
+    }
+
+    #[test]
+    fn run_and_review_paths_keep_preview_runtime_and_comparison_separate() {
+        let ctx = egui::Context::default();
+        let mut prototype = Prototype::default();
+        let size = [1024.0, 640.0];
+
+        click(&ctx, &mut prototype, size, "J3 演练");
+        assert!(prototype.task == Task::Run);
+        let output = frame(&ctx, &mut prototype, Vec::new(), size);
+        assert!(output.shapes.iter().any(|shape| {
+            contains_text(&shape.shape, "worldline-core 真正编译样例：0 条诊断")
+        }));
+        click(&ctx, &mut prototype, size, "临时预览 E");
+        assert!(prototype.preview_event);
+        assert!(!prototype.runtime_event);
+        click(&ctx, &mut prototype, size, "显式运行 E（假会话）");
+        assert!(prototype.preview_event && prototype.runtime_event);
+
+        click(&ctx, &mut prototype, size, "J4 审阅");
+        assert!(prototype.task == Task::Review);
+        let before = (
+            prototype.preview_event,
+            prototype.runtime_event,
+            prototype.drafts.clone(),
+        );
+        click(&ctx, &mut prototype, size, "重新比较（不采纳）");
+        assert_eq!(
+            before,
+            (
+                prototype.preview_event,
+                prototype.runtime_event,
+                prototype.drafts.clone()
+            )
+        );
+        assert!(prototype.notice.contains("仅为样例"));
+        let output = frame(&ctx, &mut prototype, Vec::new(), size);
+        for label in [
+            "base：雾港的晨钟响了。",
+            "current：雾港的晨钟再次响了。",
+            "proposal：雾港钟声消失了。",
+            "Project 写入 0",
+        ] {
+            assert!(output
+                .shapes
+                .iter()
+                .any(|shape| contains_text(&shape.shape, label)));
+        }
+    }
+
+    #[test]
+    fn logical_viewport_survives_1024_and_700_points_at_scaled_dpi_and_zoom() {
+        let ctx = egui::Context::default();
+        let mut prototype = Prototype::default();
+        ctx.set_zoom_factor(1.25);
+        let output = frame_with_native_scale(&ctx, &mut prototype, [1024.0, 640.0], 1.5);
+        assert!((output.pixels_per_point - 1.875).abs() < 0.01);
+        assert!(output.shapes.iter().any(|shape| {
+            contains_text(&shape.shape, "世界资料 / 地图入口（假数据）")
+        }));
+
+        click(&ctx, &mut prototype, [1024.0, 640.0], "窄窗区域");
+        let narrow = frame_with_native_scale(&ctx, &mut prototype, [700.0, 640.0], 1.5);
+        assert!(narrow.shapes.iter().any(|shape| {
+            contains_text(&shape.shape, "世界资料 / 地图入口（假数据）")
+        }));
+        assert!(narrow
+            .shapes
+            .iter()
+            .any(|shape| contains_text(&shape.shape, "检查器标签")));
+        click(&ctx, &mut prototype, [700.0, 640.0], "检查器标签");
+        let with_inspector = frame_with_native_scale(&ctx, &mut prototype, [700.0, 640.0], 1.5);
+        assert!(with_inspector
+            .shapes
+            .iter()
+            .any(|shape| contains_text(&shape.shape, "跟随选择")));
+    }
 
     #[test]
     fn placement_preview_cancel_apply_and_undo_are_local() {

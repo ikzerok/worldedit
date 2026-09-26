@@ -1,0 +1,9 @@
+EDS-11 isolated prototype evidence run
+Date: 2026-09-27 Asia/Shanghai
+Editor branch base: 20b57e70dbdff3ab7decb047a9220a3488fe967f (codex/eds11-egui-prototype)
+Worldline pair: 0ba3e241af3a5f5746cfed92e2b5f8ce72909843 (worldline/core + runtime detached worktree at ../worldline-eds11-base)
+Feature: eds11_prototype
+Project access: no user workspace opened; prototype fixture only; all fake CAP actions are in-memory
+Browser: Microsoft Edge 153 headless, default DPR=1; a separate DPR=1.5 browser-context emulation is explicitly labeled as emulation
+Native: release binary launched; Win32 screenshot was obstructed by other foreground windows and was removed, so native task interactions are not accepted
+Input: the synthetic event manifest contains only fixture actions; no real user project text or participant data
