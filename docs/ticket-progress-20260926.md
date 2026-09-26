@@ -44,9 +44,10 @@
 
 ### worldline#16 / CAP-04A 与 worldedit#17 / CAP-04B
 
-- core `163e0ff` 提供三方字段/段落差异、原文字节范围、冲突、引用影响、截断与可验证基线。配对 CAP-04B core 增补 `7810c81`：`apply_proposal_with_resolutions` 按预览的 `{path, location}` 接受逐项 JSON 值/完整文件解决稿，要求完整冲突集并重验修订和基线；非法/缺失方案及内容编译失败均零写入，不改提案原始 `base/proposed`。collaboration 集成测试 20 项通过。
-- editor `9e2b517` 在每项冲突旁提供基底/当前/提议选择与可编辑解决稿；预览过期禁用采纳，重新比较保留编辑输入；core 成功复验后一次撤销恢复。新增 egui 事件回归覆盖未解决禁用、选择、编辑、重新比较保留与撤销；`proposal_conflict` 筛选 2 项、`review` 筛选 20 项通过。`compatibility.json` 当前配对 pin 为 core `7810c81`。
-- Web release 在隔离端口 `43128` 由 `start-web.ps1 -Port 43128 -NoOpen` 构建并服务；headless Edge 自动化成功加载并导航到“协作审阅”画布，但没有载入冲突提案，因此这只证明 Web 启动/入口可达。实际原生/Web 差异文本选择复制、IME、长差异滚动及误触关闭路径仍未验收；CAP-04B 保持开放。
+- core `163e0ff` 提供三方字段/段落差异、原文字节范围、引用影响、截断与基线预览；CAP-04B 的 `7810c81` 新增 `apply_proposal_with_resolutions`，`1bbf209` 将数组冲突固定为完整数组路径并拒绝数组索引路径，避免多项删除后索引漂移。每项需覆盖 core 当前冲突地址；缺失/额外/重复方案、无效 JSON 或内容编译失败均零写入，原始 `base/proposed` 不改。core collaboration 集成测试 21 项通过。
+- editor `9e2b517` 提供逐冲突基底/当前/提议选择和可编辑 JSON/文件方案；`b4e1b3c` 加入明确的当前/提议新增、删除、修改文字标记，并在采纳或提案/审核状态切换时清理旧方案草稿。egui 回归覆盖冲突禁用、选值/编辑、陈旧后重新比较保留输入、审批后撤销不重用旧方案；`proposal_conflict` 2 项、`review` 20 项通过。`compatibility.json` 配对 pin 为 `1bbf209`。
+- Web release 由 `start-web.ps1 -Port 43128 -NoOpen` 构建；headless Edge 导入隔离 8 文件提案 fixture，实际选值/编辑并采纳同字段冲突、删除/修改冲突和安全不同字段合并；拖选差异文本后 `clipboardRead` 返回 `"当前侧字段"`。这是自动化而非人工 QA，也不是长文/真实输入法验证。
+- 剩余验收：无鼠标到达差异/源位置和长文本可读性尚未独立验证；原生桌面同字段/删除修改/安全合并及原生文本选择仍未实测；真实中文 IME 组合输入与误触关闭恢复路径未覆盖；本次 Web 拖选/复制及短 fixture 滚动不能替代长差异与实际触屏检查，因此 worldedit#17 保持开放。
 
 ### worldline#17 / CAP-04C
 
