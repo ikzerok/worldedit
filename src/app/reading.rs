@@ -20,6 +20,13 @@ pub(super) fn property_label(key: &str) -> &str {
 }
 
 impl WorldeditApp {
+    fn close_transient_reading(&mut self) {
+        if self.active_reading_panel.is_none() {
+            self.reading_target = None;
+            self.reading_history.clear();
+        }
+    }
+
     /// 所有资料入口共用的地图引用定位；显隐确认由地图视图处理。
     pub(super) fn locate_reference(&mut self, map_id: &str, placement_id: &str) {
         if self.map_navigation_blocked() {
@@ -45,8 +52,7 @@ impl WorldeditApp {
             layer_id,
         });
         self.tab = super::Tab::Map;
-        self.reading_target = None;
-        self.reading_history.clear();
+        self.close_transient_reading();
     }
 
     pub(super) fn open_reading(&mut self, target: TargetRef) {
@@ -150,8 +156,7 @@ impl WorldeditApp {
                     .clicked()
                 {
                     self.selected_reading_panel = self.reading_panels.pin(target.clone());
-                    self.reading_target = None;
-                    self.reading_history.clear();
+                    self.close_transient_reading();
                 }
                 if !self.reading_history.is_empty() && ui.button("← 返回上一词条").clicked()
                 {
@@ -161,8 +166,7 @@ impl WorldeditApp {
                 self.reading_content(ui, target);
             });
         if !open {
-            self.reading_target = None;
-            self.reading_history.clear();
+            self.close_transient_reading();
         }
     }
 
@@ -289,20 +293,20 @@ impl WorldeditApp {
                     } else {
                         self.navigate_object(&object);
                     }
-                    self.reading_target = None;
+                    self.close_transient_reading();
                 }
                 if ui.button("在 Wiki 中查看").clicked() {
                     self.wiki_target = Some(target.clone());
                     self.tab = super::Tab::Wiki;
-                    self.reading_target = None;
+                    self.close_transient_reading();
                 }
                 if ui.button("查看关联").clicked() {
                     self.open_network(target.clone());
-                    self.reading_target = None;
+                    self.close_transient_reading();
                 }
                 if ui.button("定位源文件").clicked() {
                     self.jump_to_file(&object.file, object.line, 1);
-                    self.reading_target = None;
+                    self.close_transient_reading();
                 }
             });
             ui.label(theme::muted(
@@ -547,7 +551,7 @@ impl WorldeditApp {
                                 .clicked()
                             {
                                 self.jump_to_file(&change.file, change.line, 1);
-                                self.reading_target = None;
+                                self.close_transient_reading();
                             }
                         });
                     }
@@ -631,7 +635,7 @@ impl WorldeditApp {
                         .clicked()
                     {
                         self.jump_to_file(&reference.file, reference.line, 1);
-                        self.reading_target = None;
+                        self.close_transient_reading();
                     }
                 }
             });

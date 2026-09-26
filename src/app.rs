@@ -532,6 +532,8 @@ impl WorldeditApp {
             || self.wiki_editor.is_some()
             || self.preset_editor.is_some()
             || self.rename_form.is_some()
+            || self.new_period.is_some()
+            || self.new_file.is_some()
             || self.review.comment_editor.is_some()
             || self.map_creation.open
             || self.map_form.has_uncommitted_work()
@@ -929,7 +931,9 @@ impl eframe::App for WorldeditApp {
         #[cfg(not(target_arch = "wasm32"))]
         crate::chrome::resize_edges(ctx);
         #[cfg(target_arch = "wasm32")]
-        crate::web::set_dirty(self.project.is_dirty() && !self.allow_close);
+        crate::web::set_dirty(
+            (self.project.is_dirty() || self.has_open_authoring_form()) && !self.allow_close,
+        );
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(input_active) = input_active {
             if let Some(profile) = self.frame_profile.as_mut() {

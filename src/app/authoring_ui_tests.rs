@@ -50,6 +50,11 @@ fn frame(
             6 => app.preset_editor_window(ctx),
             7 => app.review_tab(ctx),
             8 | 9 => app.reading_window(ctx),
+            10 => {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    app.reading_content(ui, TargetRef::new("entity", "a"));
+                });
+            }
             _ => app.content_deletion_window(ctx),
         },
     )
@@ -118,6 +123,31 @@ fn project_switch_preserves_unsubmitted_form_even_with_clean_project() {
         app.entity_editor.as_ref().unwrap().draft.description,
         "未提交资料"
     );
+}
+
+#[test]
+fn project_switch_preserves_an_unsubmitted_period_form() {
+    let (ctx, mut app) = app();
+    app.project.mark_saved();
+    app.new_period = Some(("age".into(), "未提交时代".into(), None));
+    app.request_action(super::Pending::Close, &ctx);
+    assert!(!app.allow_close);
+    assert!(app.pending.is_none());
+    assert_eq!(app.new_period.as_ref().unwrap().1, "未提交时代");
+}
+
+#[test]
+fn pinned_wiki_navigation_does_not_close_an_independent_temporary_reader() {
+    let (ctx, mut app) = app();
+    let id = app
+        .reading_panels
+        .pin(TargetRef::new("entity", "a"))
+        .unwrap();
+    app.open_reading(TargetRef::new("entity", "b"));
+    app.active_reading_panel = Some(id);
+    click(&ctx, &mut app, 10, "在 Wiki 中查看");
+    assert_eq!(app.reading_target, Some(TargetRef::new("entity", "b")));
+    assert_eq!(app.wiki_target, Some(TargetRef::new("entity", "a")));
 }
 
 #[test]
