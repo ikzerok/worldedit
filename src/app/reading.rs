@@ -20,7 +20,7 @@ pub(super) fn property_label(key: &str) -> &str {
 }
 
 impl WorldeditApp {
-    fn close_transient_reading(&mut self) {
+    pub(super) fn close_transient_reading(&mut self) {
         if self.active_reading_panel.is_none() {
             self.reading_target = None;
             self.reading_history.clear();

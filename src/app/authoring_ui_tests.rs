@@ -148,6 +148,20 @@ fn pinned_wiki_navigation_does_not_close_an_independent_temporary_reader() {
     click(&ctx, &mut app, 10, "在 Wiki 中查看");
     assert_eq!(app.reading_target, Some(TargetRef::new("entity", "b")));
     assert_eq!(app.wiki_target, Some(TargetRef::new("entity", "a")));
+    let hit = &app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .wiki
+        .occurrences(&TargetRef::new("entity", "a"))[0];
+    let source_button = format!(
+        "{}:{}:{}",
+        hit.file.strip_prefix(&app.project.root).unwrap().display(),
+        hit.line,
+        hit.column
+    );
+    click(&ctx, &mut app, 10, &source_button);
+    assert_eq!(app.reading_target, Some(TargetRef::new("entity", "b")));
 }
 
 #[test]

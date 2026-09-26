@@ -174,7 +174,7 @@ impl WorldeditApp {
                                         hit.line,
                                         hit.column,
                                     );
-                                    self.reading_target = None;
+                                    self.close_transient_reading();
                                 }
                                 ui.push_id("preview", |ui| {
                                     self.linked_source(
@@ -362,7 +362,7 @@ impl WorldeditApp {
                 if applied {
                     self.wiki_target = Some(TargetRef::new("tag", &editor.draft.id));
                     self.tab = Tab::Wiki;
-                    self.reading_target = None;
+                    self.close_transient_reading();
                     self.tag_editor = None;
                 }
             }
