@@ -41,7 +41,7 @@
 
 ## 抛弃式原型与验证脚本
 
-同一份可直接打开的 [HTML 原型](https://github.com/ikzerok/worldedit/blob/bbdcc4d/docs/design/editor-system/20260926/eds04-prototype-throwaway.html) 已保存在独立分支 `codex/eds04-prototype` 的提交 `bbdcc4d`；不进入生产分支。底部切换条和 `?variant=A|B|C` 可比较三种结构，任务选择复用上述 A/B/P/E/R 数据。状态栏显示输入轴、预览位置、运行位置与 `Project writes=0`；可模拟窄窗、专注恢复、抽屉、固定检查器、只读、陈旧基线及草稿切任务，也可切明/暗及舒适/紧凑。JavaScript 已通过 `node --check`，尚未有真实作者或双端实际操作证据。
+同一份可直接打开的 [HTML 原型](https://github.com/ikzerok/worldedit/blob/5e44564/docs/design/editor-system/20260926/eds04-prototype-throwaway.html) 已保存在独立分支 `codex/eds04-prototype` 的提交 `5e44564`；不进入生产分支。底部切换条和 `?variant=A|B|C` 可比较三种结构，任务选择复用上述 A/B/P/E/R 数据。状态栏显示输入轴、预览位置、运行位置与 `Project writes=0`；可模拟窄窗、专注恢复、抽屉、固定检查器、只读、陈旧基线及草稿切任务，也可切明/暗及舒适/紧凑。JavaScript 已通过 `node --check`，尚未有真实作者或双端实际操作证据。
 
 原型让 A/B/C 在同一数据和任务间切换。每条路径均先在宽屏完成，再缩窄窗口，进入/退出专注，打开/关闭资源抽屉，重置布局，最后带 A 的未应用草稿切换任务：
 
