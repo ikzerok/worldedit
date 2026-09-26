@@ -38,12 +38,22 @@
   .workspace.narrow .panel.revealed { display:block; order:3 }
   .workspace.focus:not(.B) .nav,.workspace.focus:not(.B) .graph,.workspace.focus:not(.B) .commands { display:none }
   .workspace.focus:not(.B) .main { flex:3 }
+  body.dark { color:#edf2f7; background:#182635 }
+  body.dark .panel,body.dark .state { color:#edf2f7; background:#182635; border-color:#677e92 }
+  body.dark .body { color:#edf2f7; background:#243e58; border-color:#82add7 }
+  body.dark .muted { color:#bbcfe1 }
+  body.dark button { background:#243e58; color:#edf2f7; border-color:#95afc5 }
+  body.dark button[aria-pressed=true] { background:#1768be; color:white }
+  body.dark .chip { color:#edf2f7; background:#243e58 }
+  body.dark .notice { color:#24303b; background:#ffe8a1 }
+  body.compact .panel { padding:7px } body.compact .workspace { gap:4px;padding:4px }
+  body.compact button { padding:3px 6px } body.compact .body { min-height:115px;padding:8px }
   @media(max-width:760px) { .workspace:not(.narrow) { display:flex; flex-direction:column } .workspace:not(.narrow) .panel { min-height:auto } }
 </style>
 <header>
   <strong>EDS-04 · 抛弃式原型</strong>
   <label>任务 <select id="task"><option value="world">J1 世界资料</option><option value="writing">J2 写作旁查</option><option value="run">J3 演练</option><option value="review">J4 审阅</option></select></label>
-  <button id="narrow">窄窗模拟</button><button id="focus">专注</button><button id="readonly">切换只读</button><button id="reset">重置个人布局</button>
+  <button id="narrow">窄窗模拟</button><button id="focus">专注</button><button id="readonly">切换只读</button><button id="theme">明/暗</button><button id="density">舒适/紧凑</button><button id="reset">重置个人布局</button>
 </header>
 <div class="notice">示例数据仅在内存中运行；没有 Project 写入。书稿、审阅队列和重放内容属于假数据。</div>
 <section id="workspace" class="workspace B">
@@ -65,11 +75,12 @@ const tasks={
   run:['事件 E · 演练解释','选择 E 只定位定义。预览分支不推进运行位置；只有“显式运行一步”改变本地示意 runtime。','世界偏序与本次运行路径分开。'],
   review:['提案 R · 三方对照','原稿 / 提案 / 结果并列；外部刷新使旧基线失效，解决草稿保留等待重新比较。','审阅时隐藏时间图。']
 };
-const s={variant:new URLSearchParams(location.search).get('variant')||'B',task:'world',selection:'A',pin:false,draft:false,stale:false,conflict:false,focus:false,focusReturn:null,narrow:false,readOnly:false,drawer:false,runtime:'start',preview:'none',revealed:''};
+const s={variant:new URLSearchParams(location.search).get('variant')||'B',task:'world',selection:'A',pin:false,draft:false,stale:false,conflict:false,focus:false,focusReturn:null,narrow:false,readOnly:false,dark:false,compact:false,drawer:false,runtime:'start',preview:'none',revealed:''};
 if(!names[s.variant])s.variant='B';
 const $=id=>document.getElementById(id), w=$('workspace');
 function render(){
   w.className='workspace '+s.variant+(s.focus?' focus':'')+(s.narrow?' narrow':'');
+  document.body.classList.toggle('dark',s.dark);document.body.classList.toggle('compact',s.compact);
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('revealed',p.classList.contains(s.revealed)));
   $('task').value=s.task; $('variant-label').textContent=s.variant+' — '+names[s.variant];
   $('main-title').textContent=tasks[s.task][0]; $('main-body').textContent=tasks[s.task][1]; $('graph-body').textContent=tasks[s.task][2];
@@ -78,7 +89,7 @@ function render(){
   $('status-body').textContent='owner: '+(s.pin?'B':s.selection)+' ｜ A 草稿: '+(s.draft?'未应用':'无')+' ｜ 基线: '+(s.stale?'已失效':'当前')+' ｜ '+(s.readOnly?'只读：不能应用':'可写')+' ｜ runtime: '+s.runtime+' ｜ 预览: '+s.preview;
   $('apply').disabled=s.readOnly;
   $('drawer-content').hidden=!s.drawer;
-  $('state').textContent='task='+s.task+'  view='+tasks[s.task][0]+'  selection='+s.selection+'  pin='+s.pin+'  draft='+s.draft+'  capability='+(s.readOnly?'read-only':'editable')+'  space='+(s.narrow?'narrow':s.focus?'focus':'wide')+'\nvariant='+s.variant+'  stale='+s.stale+'  conflict='+s.conflict+'  drawer='+s.drawer+'  revealed='+s.revealed+'  preview_cursor='+s.preview+'  runtime_position='+s.runtime+'\nProject writes=0 (prototype)';
+  $('state').textContent='task='+s.task+'  view='+tasks[s.task][0]+'  selection='+s.selection+'  pin='+s.pin+'  draft='+s.draft+'  capability='+(s.readOnly?'read-only':'editable')+'  space='+(s.narrow?'narrow':s.focus?'focus':'wide')+'\nvariant='+s.variant+'  theme='+(s.dark?'dark':'light')+'  density='+(s.compact?'compact':'comfortable')+'  stale='+s.stale+'  conflict='+s.conflict+'  drawer='+s.drawer+'  revealed='+s.revealed+'  preview_cursor='+s.preview+'  runtime_position='+s.runtime+'\nProject writes=0 (prototype)';
   history.replaceState(null,'','?variant='+s.variant);
 }
 function variant(delta){const v=Object.keys(names);s.variant=v[(v.indexOf(s.variant)+delta+v.length)%v.length];render()}
@@ -91,6 +102,7 @@ $('focus').onclick=()=>{
   else {s.focus=false;render();if(s.focusReturn){document.querySelector('.main').scrollTop=s.focusReturn.scroll;$(s.focusReturn.id)?.focus();s.focusReturn=null}}
 };
 $('readonly').onclick=()=>{s.readOnly=!s.readOnly;render()};
+$('theme').onclick=()=>{s.dark=!s.dark;render()};$('density').onclick=()=>{s.compact=!s.compact;render()};
 $('reset').onclick=()=>{s.focus=false;s.narrow=false;s.revealed='';render()};
 $('select-a').onclick=()=>{s.selection='A';render()};$('select-b').onclick=()=>{s.selection='B';render()};$('pin').onclick=()=>{s.pin=!s.pin;render()};
 $('draft').onclick=()=>{s.draft=true;render()};$('stale').onclick=()=>{s.stale=true;render()};
