@@ -1,0 +1,526 @@
+[
+  {
+    "number": 10,
+    "id": 5592417754,
+    "html_url": "https://github.com/ikzerok/worldedit/issues/10",
+    "title": "UX-MAP 编辑器视觉优化：独立审阅、全页面收口与双端验收（总览）",
+    "body": "<!-- worldline-roadmap:20260926:UX-MAP -->\n\n## Notes\n\n需求二：编辑器审美和交互优化，独立于能力补齐。共 6 张实施/研究票，跨仓工作按实现归属拆分；优先级为建议，无截止日期、无自动认领。\n\n[来源文档](https://github.com/ikzerok/worldedit/blob/357b1a17d96bddf08838ba7d66e94d93eb3239b7/docs/research/editor-visual-refresh-20260926.md)\n\n另一条独立路线：[CAP-MAP · ikzerok/worldedit#9](https://github.com/ikzerok/worldedit/issues/9)。两条路线不互相等待，不共用完成结论。\n\n## Decisions-so-far\n\n- core 负责语义、模型、协议与写入，editor 负责交互；不得在 UI 重做解析/合并规则。\n- CAP-01/03/04 最小闭环优先，书稿独立设计；P1 为生产与交付。\n- CAP-07E、CAP-08/09 保留范围决策闸门；不因建票就默认承诺历法/引擎实现。\n- UX-01 已有本地实现，仍待审阅/合入；所有新增工单保持 OPEN，旧 WP 工单不重复开启。\n\n## 子工单与依赖\n\n- [ ] [UX-01 · ikzerok/worldedit#12](https://github.com/ikzerok/worldedit/issues/12) — 已实现视觉基础改动的审阅与集成；P0；依赖：无新增票\n- [ ] [UX-02 · ikzerok/worldedit#23](https://github.com/ikzerok/worldedit/issues/23) — 12 页面与创作表单的视觉一致性收口；P1；依赖：ikzerok/worldedit#12\n- [ ] [UX-03 · ikzerok/worldedit#24](https://github.com/ikzerok/worldedit/issues/24) — 图形工作区可读性：连线、标签、图例与选择层级；P1；依赖：ikzerok/worldedit#12\n- [ ] [UX-04 · ikzerok/worldedit#25](https://github.com/ikzerok/worldedit/issues/25) — 长文排版、文字缩放与个人显示偏好；P1；依赖：ikzerok/worldedit#12\n- [ ] [UX-05 · ikzerok/worldedit#26](https://github.com/ikzerok/worldedit/issues/26) — 键盘、无障碍与桌面/Web 响应式边界；P0；依赖：ikzerok/worldedit#12\n- [ ] [UX-06 · ikzerok/worldedit#29](https://github.com/ikzerok/worldedit/issues/29) — 视觉回归基线、双端验收与独立发布门；P0；依赖：ikzerok/worldedit#12, ikzerok/worldedit#23, ikzerok/worldedit#24, ikzerok/worldedit#25, ikzerok/worldedit#26\n\n## Fog / 待决策\n\n- 研究提出的成本与优先级不等于维护者排期。模板/书稿/历史等格式必须先通过契约评审。\n- 历法、DOCX/EPUB、游戏试点按相应研究票决定采用/延期/拒绝，不能将未实现内容算 PASS。\n- 本次不修改 main、v0.3.0 或重新发布；源码支持与工单快照在 planning/capabilities-ux-tickets-20260926 分支。\n\n## 关闭标准\n\n每张选定实施票有代码与验收证据，研究票有明确 ADR，延期/排除有决定记录。文内依赖和 GitHub 原生依赖同步；原生接口不可用时以正文为后备并在发布报告中注明。\n",
+    "state": "open",
+    "labels": [
+      {
+        "id": 12262814845,
+        "node_id": "LA_kwDOUSgUGs8AAAAC2uu0fQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/needs-triage",
+        "name": "needs-triage",
+        "color": "e99695",
+        "default": false,
+        "description": "Maintainer needs to evaluate this issue",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059471,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5jw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/track:visual",
+        "name": "track:visual",
+        "color": "087F8C",
+        "default": false,
+        "description": "需求二：编辑器视觉与交互优化，独立验收",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381060576,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff94A",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/wayfinder:map",
+        "name": "wayfinder:map",
+        "color": "5319E7",
+        "default": false,
+        "description": "工作总览与子工单索引",
+        "archived_at": null,
+        "archived_by": null
+      }
+    ],
+    "assignees": [],
+    "updated_at": "2026-09-26T07:59:15Z"
+  },
+  {
+    "number": 12,
+    "id": 5592423117,
+    "html_url": "https://github.com/ikzerok/worldedit/issues/12",
+    "title": "UX-01 已实现视觉基础改动的审阅与集成（已本地实现·待审阅合入）",
+    "body": "<!-- worldline-roadmap:20260926:UX-01 -->\n\nPart of [UX-MAP · ikzerok/worldedit#10](https://github.com/ikzerok/worldedit/issues/10)\n\n**Blocked by:** 无新增阻塞票；仍须先评审本票范围。\n\n**归属：** ikzerok/worldedit ｜ **建议优先级：** P0 ｜ **相对规模：** M（非工期）\n\n**状态：** 已本地实现且有部分验证，仍待审阅、远端检查和合入。\n\n## 用户场景与目标\n\n审阅现有视觉优化提交，确认方向与交互无回归后再合入；不重新创建同一套实现任务。\n\n## 已有基础与真实缺口\n\n本地 357b1a17d96bddf08838ba7d66e94d93eb3239b7 已实现石墨灰/青绿主题、12 页面分组导航、侧栏收起、工具栏/状态栏层级与阅读列。已有 108 项本地测试通过及 Windows 时间线/事件图、Edge headless 截图；未合入 main、未替换 v0.3.0。\n\n## 实现范围 / 交付物\n\n- 按独立视觉设计报告审阅 theme/navigation/workspace/chrome/overview/reading 的改动。\n- 逐项核对页面完整性、主操作、导航可读性、长标题与不变 Project 基线。\n- 保留现有测试，补审阅发现；单独 PR/合并决策，不依赖 CAP 新功能完成。\n\n## 验收条件\n\n- [ ] 所有 12 个旧页面和原有关键操作仍可到达，没有以简化界面为由删功能。\n- [ ] 浏览、收起侧栏、阅读排版不改 Project、文件和内容撤销历史。\n- [ ] 确认主要动作与非主要动作层级；标题/辅助字/对比度/焦点样式有统一 token。\n- [ ] 同一雾港夹具的前后截图审阅通过，注明设备尺寸/DPI，不能用概念图代替运行界面。\n- [ ] 精确待合并 SHA 的原生/WASM 检查和 CI 通过，审阅批准后才标已合入。\n- [ ] 存在其他页面未验收时如实保留缺口，后续 UX-02—06 承接。\n\n## 测试与证据\n\n- 已有本地结果：108 tests、fmt、native/WASM strict clippy、native/WASM release、Trunk 全部成功。\n- 原始日志为 target/ui-polish-20260926/results.json、browser-result.json；本机截图尚非远端验收附件。\n- 本票需补精确提交的远端检查与审阅结论，不把资源 HTTP 200 当所有功能通过。\n\n## 不在本票范围\n\n- 不实现 CAP 能力、不改 core/spec、当前 ticket 整理不授权直接合并或重发版本。\n\n## 源码导航（以核查基线为准）\n\n- `worldedit/src/theme.rs`\n- `worldedit/src/app/navigation.rs`\n- `worldedit/src/app/workspace.rs`\n- `worldedit/src/chrome.rs`\n- `worldedit/src/app/authoring_ui_tests.rs`\n\n## 共同约束\n\n分析与结构写入唯一在 worldline-core；编辑器不另写解析器。语言/格式/诊断/协议变化先定稿 worldline/spec。所有写入保留基线、只读与未知字段保护；浏览零语义副作用。保持两仓独立构建、固定配对 SHA。\n\n关闭本票须补实现/文档/测试/实际验收证据；研究票可以明确采用、延期或不采用的 ADR 完成，但不得将未选实现标成已交付。没有任意指定负责人或截止日期。\n\n## 研究来源与基线\n\n[研究记录](https://github.com/ikzerok/worldedit/blob/357b1a17d96bddf08838ba7d66e94d93eb3239b7/docs/research/editor-visual-refresh-20260926.md)（2026-09-26 官方公开文档调研；非全付费产品登录实测）。\n- D1 [Linear 视觉层级参考（非能力竞品）](https://linear.app/changelog/2026-03-12-ui-refresh)\n- D2 [novelWriter 阅读/专注模式参考](https://novelwriter.io/features.html)\n- D3 [W3C 对比度参考（不代表全应用认证）](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)\n\n能力核查基线：core `889febe99f7999f8da4c28583320da61e6be13e2` / editor `218d0ed5dbda70b4ce803aaae36197905d1a9708`；视觉实现 `357b1a17d96bddf08838ba7d66e94d93eb3239b7`。旧 WP-17 验收不是新增 CAP 的完成证据。\n",
+    "state": "open",
+    "labels": [
+      {
+        "id": 12108063443,
+        "node_id": "LA_kwDOUSgUGs8AAAAC0bJi0w",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/enhancement",
+        "name": "enhancement",
+        "color": "a2eeef",
+        "default": true,
+        "description": "New feature or request",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12262814845,
+        "node_id": "LA_kwDOUSgUGs8AAAAC2uu0fQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/needs-triage",
+        "name": "needs-triage",
+        "color": "e99695",
+        "default": false,
+        "description": "Maintainer needs to evaluate this issue",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059471,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5jw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/track:visual",
+        "name": "track:visual",
+        "color": "087F8C",
+        "default": false,
+        "description": "需求二：编辑器视觉与交互优化，独立验收",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059582,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5_g",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/priority:P0",
+        "name": "priority:P0",
+        "color": "B60205",
+        "default": false,
+        "description": "本轮建议优先级；不代表已排期或已批准实现",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381061545,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgBqQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/wayfinder:task",
+        "name": "wayfinder:task",
+        "color": "1D76DB",
+        "default": false,
+        "description": "有边界与验收条件的实施任务",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381062435,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgFIw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/status:implemented-unmerged",
+        "name": "status:implemented-unmerged",
+        "color": "BFDADC",
+        "default": false,
+        "description": "已有本地实现证据，未合入 main / 未发布",
+        "archived_at": null,
+        "archived_by": null
+      }
+    ],
+    "assignees": [],
+    "updated_at": "2026-09-26T07:57:34Z"
+  },
+  {
+    "number": 23,
+    "id": 5592428478,
+    "html_url": "https://github.com/ikzerok/worldedit/issues/23",
+    "title": "UX-02 12 页面与创作表单的视觉一致性收口（P1）",
+    "body": "<!-- worldline-roadmap:20260926:UX-02 -->\n\nPart of [UX-MAP · ikzerok/worldedit#10](https://github.com/ikzerok/worldedit/issues/10)\n\n**Blocked by:** [UX-01 · ikzerok/worldedit#12](https://github.com/ikzerok/worldedit/issues/12)\n\n**归属：** ikzerok/worldedit ｜ **建议优先级：** P1 ｜ **相对规模：** L（非工期）\n\n**状态：** 建议已细化，待范围/契约评审；不是已实现功能。\n\n## 用户场景与目标\n\n让时间线之外的资料、关系、地图、协作和源码页面同样遵循新视觉系统。\n\n## 已有基础与真实缺口\n\n前轮实际截图只覆盖时间线/事件图及 Web 初始视图，不代表所有页面完成审美与布局验收。\n\n## 实现范围 / 交付物\n\n- 逐页审计标题层级、分组、间距、表单标签、按钮主次、图标和空态；覆盖实体/关系/模板/预设/批注弹窗。\n- 统一正常/空数据/加载/只读/错误/未保存/冲突状态的表达，显示清晰下一步。\n- 从 theme token 取值，清除无必要的局部硬编码；不添加虚假状态或新语义。\n\n## 验收条件\n\n- [ ] 建立 12 页面×关键状态的审阅矩阵，每个结论有实际截图或可复现操作。\n- [ ] 长中文标题、同名对象、长 ID、辅助提示和校验错误不遮挡主操作。\n- [ ] 相同动作保持一致文案与层级；危险动作与普通关闭可辨识。\n- [ ] 窄屏仍可滚动到全部字段/按钮，正文和画布主区域不被辅助面板完全挤走。\n- [ ] 键盘焦点、hover/selected/disabled/read-only 状态明确；输入错误不清空草稿。\n- [ ] 所有调整不改保存、撤销、引用、演练的既有语义。\n\n## 测试与证据\n\n- 可复现多状态 UI 夹具及 egui 布局/点击回归。\n- Windows 与浏览器人工检查正文/目录/地图/关系/协作/源码页及代表性表单。\n\n## 不在本票范围\n\n- 新书稿/模板能力属于 CAP，不以设计票偷偷扩大数据格式。\n\n## 源码导航（以核查基线为准）\n\n- `worldedit/src/app`\n- `worldedit/src/theme.rs`\n- `worldedit/docs/research/editor-visual-refresh-20260926.md`\n\n## 共同约束\n\n分析与结构写入唯一在 worldline-core；编辑器不另写解析器。语言/格式/诊断/协议变化先定稿 worldline/spec。所有写入保留基线、只读与未知字段保护；浏览零语义副作用。保持两仓独立构建、固定配对 SHA。\n\n关闭本票须补实现/文档/测试/实际验收证据；研究票可以明确采用、延期或不采用的 ADR 完成，但不得将未选实现标成已交付。没有任意指定负责人或截止日期。\n\n## 研究来源与基线\n\n[研究记录](https://github.com/ikzerok/worldedit/blob/357b1a17d96bddf08838ba7d66e94d93eb3239b7/docs/research/editor-visual-refresh-20260926.md)（2026-09-26 官方公开文档调研；非全付费产品登录实测）。\n- D1 [Linear 视觉层级参考（非能力竞品）](https://linear.app/changelog/2026-03-12-ui-refresh)\n- D2 [novelWriter 阅读/专注模式参考](https://novelwriter.io/features.html)\n\n能力核查基线：core `889febe99f7999f8da4c28583320da61e6be13e2` / editor `218d0ed5dbda70b4ce803aaae36197905d1a9708`；视觉实现 `357b1a17d96bddf08838ba7d66e94d93eb3239b7`。旧 WP-17 验收不是新增 CAP 的完成证据。\n",
+    "state": "open",
+    "labels": [
+      {
+        "id": 12108063443,
+        "node_id": "LA_kwDOUSgUGs8AAAAC0bJi0w",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/enhancement",
+        "name": "enhancement",
+        "color": "a2eeef",
+        "default": true,
+        "description": "New feature or request",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12262814845,
+        "node_id": "LA_kwDOUSgUGs8AAAAC2uu0fQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/needs-triage",
+        "name": "needs-triage",
+        "color": "e99695",
+        "default": false,
+        "description": "Maintainer needs to evaluate this issue",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059471,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5jw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/track:visual",
+        "name": "track:visual",
+        "color": "087F8C",
+        "default": false,
+        "description": "需求二：编辑器视觉与交互优化，独立验收",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059859,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff7Ew",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/priority:P1",
+        "name": "priority:P1",
+        "color": "D93F0B",
+        "default": false,
+        "description": "本轮建议第二优先级",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381061545,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgBqQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/wayfinder:task",
+        "name": "wayfinder:task",
+        "color": "1D76DB",
+        "default": false,
+        "description": "有边界与验收条件的实施任务",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381062027,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgDiw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/status:proposed",
+        "name": "status:proposed",
+        "color": "C5DEF5",
+        "default": false,
+        "description": "已细化建议，待评审；依赖满足后仍需确认范围",
+        "archived_at": null,
+        "archived_by": null
+      }
+    ],
+    "assignees": [],
+    "updated_at": "2026-09-26T07:58:34Z"
+  },
+  {
+    "number": 24,
+    "id": 5592428799,
+    "html_url": "https://github.com/ikzerok/worldedit/issues/24",
+    "title": "UX-03 图形工作区可读性：连线、标签、图例与选择层级（P1）",
+    "body": "<!-- worldline-roadmap:20260926:UX-03 -->\n\nPart of [UX-MAP · ikzerok/worldedit#10](https://github.com/ikzerok/worldedit/issues/10)\n\n**Blocked by:** [UX-01 · ikzerok/worldedit#12](https://github.com/ikzerok/worldedit/issues/12)\n\n**归属：** ikzerok/worldedit ｜ **建议优先级：** P1 ｜ **相对规模：** L（非工期）\n\n**状态：** 建议已细化，待范围/契约评审；不是已实现功能。\n\n## 用户场景与目标\n\n提高时间线、事件图、世界关联和地图在密集数据下的辨识度，而不是只更换背景颜色。\n\n## 已有基础与真实缺口\n\n已有箭头、关系标签与局部图；截图暴露需要复核的连线文字拥挤情形，不能预先宣称所有图布局有同一缺陷。\n\n## 实现范围 / 交付物\n\n- 审计节点标题/辅助字段、连线与方向箭头、平行边/自环、选择和焦点样式。\n- 明确语义关系/提及/控制流/地图入口的视觉区分，图例与实际类别一致。\n- 优化标签避让、缩放时信息层级和裁剪；小规模先确定行为，大规模按预算退化。\n\n## 验收条件\n\n- [ ] 同端点多关系保持各自身份，可阅读/查看详情，不靠合并语义边解决拥挤。\n- [ ] 文本与节点/箭头不无意义重叠；被裁剪或隐藏的信息有可到达的详情入口。\n- [ ] 图例、来源、选中和警告不用颜色作为唯一线索。\n- [ ] 缩放、平移、拖动、隐藏仍是个人状态；明确保存共享布局才写 Project。\n- [ ] 命中区域与视觉位置一致，DPI/缩放变化不误选。\n- [ ] 与相同基线数据比较帧耗时，任何性能回退有证据，不破坏250节点/500边既有查询边界。\n\n## 测试与证据\n\n- D5 1000 对象/3000 关系，平行边/循环/长标签/无关系和选中状态截图。\n- 真实 pointer/keyboard/zoom 回归，原生/Web 暖态性能及资源测量。\n\n## 不在本票范围\n\n- 通过自动改变关系/事件顺序美化图、重写核心图语义。\n\n## 源码导航（以核查基线为准）\n\n- `worldedit/src/app/network.rs`\n- `worldedit/src/app/graph.rs`\n- `worldedit/src/app/temporal.rs`\n- `worldedit/src/app/maps.rs`\n- `worldedit/src/visual.rs`\n\n## 共同约束\n\n分析与结构写入唯一在 worldline-core；编辑器不另写解析器。语言/格式/诊断/协议变化先定稿 worldline/spec。所有写入保留基线、只读与未知字段保护；浏览零语义副作用。保持两仓独立构建、固定配对 SHA。\n\n关闭本票须补实现/文档/测试/实际验收证据；研究票可以明确采用、延期或不采用的 ADR 完成，但不得将未选实现标成已交付。没有任意指定负责人或截止日期。\n\n## 研究来源与基线\n\n[研究记录](https://github.com/ikzerok/worldedit/blob/357b1a17d96bddf08838ba7d66e94d93eb3239b7/docs/research/editor-visual-refresh-20260926.md)（2026-09-26 官方公开文档调研；非全付费产品登录实测）。\n- D1 [Linear 视觉层级参考（非能力竞品）](https://linear.app/changelog/2026-03-12-ui-refresh)\n- D3 [W3C 对比度参考（不代表全应用认证）](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)\n\n能力核查基线：core `889febe99f7999f8da4c28583320da61e6be13e2` / editor `218d0ed5dbda70b4ce803aaae36197905d1a9708`；视觉实现 `357b1a17d96bddf08838ba7d66e94d93eb3239b7`。旧 WP-17 验收不是新增 CAP 的完成证据。\n",
+    "state": "open",
+    "labels": [
+      {
+        "id": 12108063443,
+        "node_id": "LA_kwDOUSgUGs8AAAAC0bJi0w",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/enhancement",
+        "name": "enhancement",
+        "color": "a2eeef",
+        "default": true,
+        "description": "New feature or request",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12262814845,
+        "node_id": "LA_kwDOUSgUGs8AAAAC2uu0fQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/needs-triage",
+        "name": "needs-triage",
+        "color": "e99695",
+        "default": false,
+        "description": "Maintainer needs to evaluate this issue",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059471,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5jw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/track:visual",
+        "name": "track:visual",
+        "color": "087F8C",
+        "default": false,
+        "description": "需求二：编辑器视觉与交互优化，独立验收",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059859,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff7Ew",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/priority:P1",
+        "name": "priority:P1",
+        "color": "D93F0B",
+        "default": false,
+        "description": "本轮建议第二优先级",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381061545,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgBqQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/wayfinder:task",
+        "name": "wayfinder:task",
+        "color": "1D76DB",
+        "default": false,
+        "description": "有边界与验收条件的实施任务",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381062027,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgDiw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/status:proposed",
+        "name": "status:proposed",
+        "color": "C5DEF5",
+        "default": false,
+        "description": "已细化建议，待评审；依赖满足后仍需确认范围",
+        "archived_at": null,
+        "archived_by": null
+      }
+    ],
+    "assignees": [],
+    "updated_at": "2026-09-26T07:58:38Z"
+  },
+  {
+    "number": 25,
+    "id": 5592429247,
+    "html_url": "https://github.com/ikzerok/worldedit/issues/25",
+    "title": "UX-04 长文排版、文字缩放与个人显示偏好（P1）",
+    "body": "<!-- worldline-roadmap:20260926:UX-04 -->\n\nPart of [UX-MAP · ikzerok/worldedit#10](https://github.com/ikzerok/worldedit/issues/10)\n\n**Blocked by:** [UX-01 · ikzerok/worldedit#12](https://github.com/ikzerok/worldedit/issues/12)\n\n**归属：** ikzerok/worldedit ｜ **建议优先级：** P1 ｜ **相对规模：** M（非工期）\n\n**状态：** 建议已细化，待范围/契约评审；不是已实现功能。\n\n## 用户场景与目标\n\n让正文、资料与审稿长时间阅读更舒适，同时保留小窗口可用性。\n\n## 已有基础与真实缺口\n\n本地已增加最大 880 逻辑点阅读列并调整字号；尚不等于所有阅读/编辑区域和个人偏好已完善。\n\n## 实现范围 / 交付物\n\n- 统一正文行高、段间距、栏目层级、链接和代码/ID 的排版，避免多层嵌套卡片消耗阅读宽度。\n- 提供有边界的文字缩放/紧凑或舒适密度偏好，存储在个人设置而非作者工程。\n- 明确字体回退与缺字显示；兼容现有中文字体和许可证，不新增字体依赖作为前提。\n\n## 验收条件\n\n- [ ] 长篇中文、emoji、链接、代码和混合语言内容不截断或溢出；复制保持原文。\n- [ ] 窄屏阅读列按可用宽度缩小，正常换行；缩放后关键控件可访问。\n- [ ] 个人设置、浏览和排版不使工程变脏、不进入内容撤销。\n- [ ] 偏好持久化失败有安全默认值，Web 本地存储失败不触发工程保存成功提示。\n- [ ] 隐藏辅助区域后有可见恢复入口，退出阅读不丢未保存表单。\n\n## 测试与证据\n\n- 长文与宽/窄阅读列的布局/复制/链接点击回归。\n- 不同 DPI 和文字缩放的原生/Web 实机截图，标注逻辑尺寸与像素尺寸。\n\n## 不在本票范围\n\n- 多钉住资料面板归 CAP-02C；本票不新增书稿模型或富文本真源。\n\n## 源码导航（以核查基线为准）\n\n- `worldedit/src/app/overview.rs`\n- `worldedit/src/app/reading.rs`\n- `worldedit/src/theme.rs`\n- `worldedit/src/fonts.rs`\n\n## 共同约束\n\n分析与结构写入唯一在 worldline-core；编辑器不另写解析器。语言/格式/诊断/协议变化先定稿 worldline/spec。所有写入保留基线、只读与未知字段保护；浏览零语义副作用。保持两仓独立构建、固定配对 SHA。\n\n关闭本票须补实现/文档/测试/实际验收证据；研究票可以明确采用、延期或不采用的 ADR 完成，但不得将未选实现标成已交付。没有任意指定负责人或截止日期。\n\n## 研究来源与基线\n\n[研究记录](https://github.com/ikzerok/worldedit/blob/357b1a17d96bddf08838ba7d66e94d93eb3239b7/docs/research/editor-visual-refresh-20260926.md)（2026-09-26 官方公开文档调研；非全付费产品登录实测）。\n- D2 [novelWriter 阅读/专注模式参考](https://novelwriter.io/features.html)\n- D3 [W3C 对比度参考（不代表全应用认证）](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)\n\n能力核查基线：core `889febe99f7999f8da4c28583320da61e6be13e2` / editor `218d0ed5dbda70b4ce803aaae36197905d1a9708`；视觉实现 `357b1a17d96bddf08838ba7d66e94d93eb3239b7`。旧 WP-17 验收不是新增 CAP 的完成证据。\n",
+    "state": "open",
+    "labels": [
+      {
+        "id": 12108063443,
+        "node_id": "LA_kwDOUSgUGs8AAAAC0bJi0w",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/enhancement",
+        "name": "enhancement",
+        "color": "a2eeef",
+        "default": true,
+        "description": "New feature or request",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12262814845,
+        "node_id": "LA_kwDOUSgUGs8AAAAC2uu0fQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/needs-triage",
+        "name": "needs-triage",
+        "color": "e99695",
+        "default": false,
+        "description": "Maintainer needs to evaluate this issue",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059471,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5jw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/track:visual",
+        "name": "track:visual",
+        "color": "087F8C",
+        "default": false,
+        "description": "需求二：编辑器视觉与交互优化，独立验收",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059859,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff7Ew",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/priority:P1",
+        "name": "priority:P1",
+        "color": "D93F0B",
+        "default": false,
+        "description": "本轮建议第二优先级",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381061545,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgBqQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/wayfinder:task",
+        "name": "wayfinder:task",
+        "color": "1D76DB",
+        "default": false,
+        "description": "有边界与验收条件的实施任务",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381062027,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgDiw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/status:proposed",
+        "name": "status:proposed",
+        "color": "C5DEF5",
+        "default": false,
+        "description": "已细化建议，待评审；依赖满足后仍需确认范围",
+        "archived_at": null,
+        "archived_by": null
+      }
+    ],
+    "assignees": [],
+    "updated_at": "2026-09-26T07:58:44Z"
+  },
+  {
+    "number": 26,
+    "id": 5592429706,
+    "html_url": "https://github.com/ikzerok/worldedit/issues/26",
+    "title": "UX-05 键盘、无障碍与桌面/Web 响应式边界（P0）",
+    "body": "<!-- worldline-roadmap:20260926:UX-05 -->\n\nPart of [UX-MAP · ikzerok/worldedit#10](https://github.com/ikzerok/worldedit/issues/10)\n\n**Blocked by:** [UX-01 · ikzerok/worldedit#12](https://github.com/ikzerok/worldedit/issues/12)\n\n**归属：** ikzerok/worldedit ｜ **建议优先级：** P0 ｜ **相对规模：** M（非工期）\n\n**状态：** 建议已细化，待范围/契约评审；不是已实现功能。\n\n## 用户场景与目标\n\n补齐小窗口、键盘和平台特性下的可用性，防止美化造成操作不可达。\n\n## 已有基础与真实缺口\n\n当前有导航焦点和三种尺寸工具栏测试；未完成全应用无障碍认证。Web 截图中的桌面窗口控制也需要按平台适用性核查。\n\n## 实现范围 / 交付物\n\n- 审计 Tab/Shift+Tab/Enter/Esc 的焦点顺序、弹窗焦点归还和快捷键冲突，IME 不误触发命令。\n- 桌面窗口控制与 Web 控件按真实支持能力显示/禁用，不提供无效的最小化/关闭承诺。\n- 核验常规文字 4.5:1 对比度目标、非颜色提示、控件语义标签及缩放布局。\n\n## 验收条件\n\n- [ ] 1040×660、1280×760、1700×1000及100%/150%/175%/200%尺度有覆盖，区分逻辑/物理尺寸。\n- [ ] 长项目名、未保存状态、窄导航和侧栏收起后，保存/搜索/关闭或取消可达。\n- [ ] 键盘可完成导航、表单应用/取消、冲突查看和返回编辑器，焦点不陷入不可恢复区域。\n- [ ] 禁用/错误/选中状态有文字或结构辅助表达，常规文字对比度测试通过。\n- [ ] 原生标题栏拖动/最大化/关闭保留保护；Web 不冒充可以控制浏览器操作系统窗口。\n- [ ] 报告明确哪些无障碍项已测、未测，不宣称完整 WCAG 认证。\n\n## 测试与证据\n\n- egui 焦点/快捷键/IME/边界与非污染回归。\n- 原生/Web 手动无鼠标路径、窗口缩放和不支持平台动作验证。\n\n## 不在本票范围\n\n- 本票不实现身份权限、系统级辅助技术全平台认证。\n\n## 源码导航（以核查基线为准）\n\n- `worldedit/src/chrome.rs`\n- `worldedit/src/app/navigation.rs`\n- `worldedit/src/app.rs`\n- `worldedit/src/app/workspace.rs`\n\n## 共同约束\n\n分析与结构写入唯一在 worldline-core；编辑器不另写解析器。语言/格式/诊断/协议变化先定稿 worldline/spec。所有写入保留基线、只读与未知字段保护；浏览零语义副作用。保持两仓独立构建、固定配对 SHA。\n\n关闭本票须补实现/文档/测试/实际验收证据；研究票可以明确采用、延期或不采用的 ADR 完成，但不得将未选实现标成已交付。没有任意指定负责人或截止日期。\n\n## 研究来源与基线\n\n[研究记录](https://github.com/ikzerok/worldedit/blob/357b1a17d96bddf08838ba7d66e94d93eb3239b7/docs/research/editor-visual-refresh-20260926.md)（2026-09-26 官方公开文档调研；非全付费产品登录实测）。\n- D3 [W3C 对比度参考（不代表全应用认证）](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)\n\n能力核查基线：core `889febe99f7999f8da4c28583320da61e6be13e2` / editor `218d0ed5dbda70b4ce803aaae36197905d1a9708`；视觉实现 `357b1a17d96bddf08838ba7d66e94d93eb3239b7`。旧 WP-17 验收不是新增 CAP 的完成证据。\n",
+    "state": "open",
+    "labels": [
+      {
+        "id": 12108063373,
+        "node_id": "LA_kwDOUSgUGs8AAAAC0bJijQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/accessibility",
+        "name": "accessibility",
+        "color": "f143ab",
+        "default": true,
+        "description": "Barrier affecting people with disabilities",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12108063443,
+        "node_id": "LA_kwDOUSgUGs8AAAAC0bJi0w",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/enhancement",
+        "name": "enhancement",
+        "color": "a2eeef",
+        "default": true,
+        "description": "New feature or request",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12262814845,
+        "node_id": "LA_kwDOUSgUGs8AAAAC2uu0fQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/needs-triage",
+        "name": "needs-triage",
+        "color": "e99695",
+        "default": false,
+        "description": "Maintainer needs to evaluate this issue",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059471,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5jw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/track:visual",
+        "name": "track:visual",
+        "color": "087F8C",
+        "default": false,
+        "description": "需求二：编辑器视觉与交互优化，独立验收",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059582,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5_g",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/priority:P0",
+        "name": "priority:P0",
+        "color": "B60205",
+        "default": false,
+        "description": "本轮建议优先级；不代表已排期或已批准实现",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381061545,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgBqQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/wayfinder:task",
+        "name": "wayfinder:task",
+        "color": "1D76DB",
+        "default": false,
+        "description": "有边界与验收条件的实施任务",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381062027,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgDiw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/status:proposed",
+        "name": "status:proposed",
+        "color": "C5DEF5",
+        "default": false,
+        "description": "已细化建议，待评审；依赖满足后仍需确认范围",
+        "archived_at": null,
+        "archived_by": null
+      }
+    ],
+    "assignees": [],
+    "updated_at": "2026-09-26T07:58:50Z"
+  },
+  {
+    "number": 29,
+    "id": 5592430824,
+    "html_url": "https://github.com/ikzerok/worldedit/issues/29",
+    "title": "UX-06 视觉回归基线、双端验收与独立发布门（P0）",
+    "body": "<!-- worldline-roadmap:20260926:UX-06 -->\n\nPart of [UX-MAP · ikzerok/worldedit#10](https://github.com/ikzerok/worldedit/issues/10)\n\n**Blocked by:** [UX-01 · ikzerok/worldedit#12](https://github.com/ikzerok/worldedit/issues/12), [UX-02 · ikzerok/worldedit#23](https://github.com/ikzerok/worldedit/issues/23), [UX-03 · ikzerok/worldedit#24](https://github.com/ikzerok/worldedit/issues/24), [UX-04 · ikzerok/worldedit#25](https://github.com/ikzerok/worldedit/issues/25), [UX-05 · ikzerok/worldedit#26](https://github.com/ikzerok/worldedit/issues/26)\n\n**归属：** ikzerok/worldedit ｜ **建议优先级：** P0 ｜ **相对规模：** M（非工期）\n\n**状态：** 建议已细化，待范围/契约评审；不是已实现功能。\n\n## 用户场景与目标\n\n将视觉优化以可重复截图和关键交互回归验收，不把编译成功当作界面美感完成。\n\n## 已有基础与真实缺口\n\n已有本机前后截图与 108 项测试；完整多页面、浏览器导入/下载及后续精确提交验证仍需收口。\n\n## 实现范围 / 交付物\n\n- 建立固定工程、尺寸、DPI、字体和动画状态的截图基线，记录允许差异和人工审阅。\n- 对时间线/事件图/网络/地图/资料/协作/源码及表单的关键状态建立视觉检查。\n- 补双端导入/保存/下载/取消与版本配对验证；只在审批后发布新版本，不覆盖旧标签。\n\n## 验收条件\n\n- [ ] 截图来自真正运行的原生/Web UI；任何概念图只能作设计说明。\n- [ ] 功能点击测试与截图分别报告，HTTP 200 不能替代交互成功。\n- [ ] 字体渲染/时间戳/窗口阴影等差异有明确容忍策略，不能整体忽略遮挡变化。\n- [ ] 原生/WASM fmt/test/strict clippy/release与Trunk及精确提交CI通过。\n- [ ] 新增视觉实现与 CAP 能力验收分别建表；未完成的能力不能搭便车关闭。\n- [ ] 保留小体积证据索引/日志校验，构建缓存不入源码；最终合并/发布另经确认。\n\n## 测试与证据\n\n- Windows 和至少一个实际浏览器关键路径；未测试平台如实标记。\n- 相同 D5 数据冷暖分离对比性能与内存，记录回退处理结论。\n\n## 不在本票范围\n\n- 当前整理工单不直接创建发行版或宣布视觉全量通过。\n\n## 源码导航（以核查基线为准）\n\n- `worldedit/scripts/check-pair.ps1`\n- `worldedit/scripts/package.ps1`\n- `worldedit/src/app/authoring_ui_tests.rs`\n- `worldedit/docs/research/editor-visual-refresh-20260926.md`\n\n## 共同约束\n\n分析与结构写入唯一在 worldline-core；编辑器不另写解析器。语言/格式/诊断/协议变化先定稿 worldline/spec。所有写入保留基线、只读与未知字段保护；浏览零语义副作用。保持两仓独立构建、固定配对 SHA。\n\n关闭本票须补实现/文档/测试/实际验收证据；研究票可以明确采用、延期或不采用的 ADR 完成，但不得将未选实现标成已交付。没有任意指定负责人或截止日期。\n\n## 研究来源与基线\n\n[研究记录](https://github.com/ikzerok/worldedit/blob/357b1a17d96bddf08838ba7d66e94d93eb3239b7/docs/research/editor-visual-refresh-20260926.md)（2026-09-26 官方公开文档调研；非全付费产品登录实测）。\n- D1 [Linear 视觉层级参考（非能力竞品）](https://linear.app/changelog/2026-03-12-ui-refresh)\n- D2 [novelWriter 阅读/专注模式参考](https://novelwriter.io/features.html)\n- D3 [W3C 对比度参考（不代表全应用认证）](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)\n\n能力核查基线：core `889febe99f7999f8da4c28583320da61e6be13e2` / editor `218d0ed5dbda70b4ce803aaae36197905d1a9708`；视觉实现 `357b1a17d96bddf08838ba7d66e94d93eb3239b7`。旧 WP-17 验收不是新增 CAP 的完成证据。\n",
+    "state": "open",
+    "labels": [
+      {
+        "id": 12108063443,
+        "node_id": "LA_kwDOUSgUGs8AAAAC0bJi0w",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/enhancement",
+        "name": "enhancement",
+        "color": "a2eeef",
+        "default": true,
+        "description": "New feature or request",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12262814845,
+        "node_id": "LA_kwDOUSgUGs8AAAAC2uu0fQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/needs-triage",
+        "name": "needs-triage",
+        "color": "e99695",
+        "default": false,
+        "description": "Maintainer needs to evaluate this issue",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059471,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5jw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/track:visual",
+        "name": "track:visual",
+        "color": "087F8C",
+        "default": false,
+        "description": "需求二：编辑器视觉与交互优化，独立验收",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381059582,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4ff5_g",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/priority:P0",
+        "name": "priority:P0",
+        "color": "B60205",
+        "default": false,
+        "description": "本轮建议优先级；不代表已排期或已批准实现",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381061545,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgBqQ",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/wayfinder:task",
+        "name": "wayfinder:task",
+        "color": "1D76DB",
+        "default": false,
+        "description": "有边界与验收条件的实施任务",
+        "archived_at": null,
+        "archived_by": null
+      },
+      {
+        "id": 12381062027,
+        "node_id": "LA_kwDOUSgUGs8AAAAC4fgDiw",
+        "url": "https://api.github.com/repos/ikzerok/worldedit/labels/status:proposed",
+        "name": "status:proposed",
+        "color": "C5DEF5",
+        "default": false,
+        "description": "已细化建议，待评审；依赖满足后仍需确认范围",
+        "archived_at": null,
+        "archived_by": null
+      }
+    ],
+    "assignees": [],
+    "updated_at": "2026-09-26T07:59:04Z"
+  }
+]
