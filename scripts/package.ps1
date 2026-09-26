@@ -1,4 +1,4 @@
-param([string]$OutputDirectory, [switch]$SkipWeb)
+﻿param([string]$OutputDirectory, [switch]$SkipWeb)
 $ErrorActionPreference = 'Stop'
 $env:NO_COLOR = 'true'
 $editorRoot = Split-Path -Parent $PSScriptRoot
