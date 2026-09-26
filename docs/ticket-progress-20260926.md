@@ -9,7 +9,7 @@
 - core 组合意图包含新建/复用对象、正文稳定引用和可选地图入口，候选 Project 全部检查后一次提交；返回变更文件、引用影响与新内容基线。
 - 预览零写入，拒绝陈旧选区/基线、外部修改、未知能力、非法几何/锁层，保留原文未选部分和未知 JSON 字段。
 - 8 项新增公开 API 回归覆盖 Unicode、同名不同身份、别名、注释误选、跨文件保存后撤销/重做及失败零部分更新。
-- 首期仅进程内 API；CLI/RPC 组合入口按 ticket 允许的分期方式在协议明示。CAP-01B 的选文建档与 CAP-01C 的地图建档现已调用组合入口，CLI/RPC 配对回归仍待完成。
+- CAP-01B 的选文建档与 CAP-01C 的地图建档调用同一组合入口；CLI `authoring-intent preview|apply` 和 RPC `authoring.intent.preview/apply` 已由 `e5f563b` 接入。跨正文、实体及地图的预览零写入、基线拒绝、坏地图零部分写入、保存重开与未知字段保留有公开 CLI/RPC 回归。
 
 ### worldedit#11 / CAP-02C
 
@@ -74,7 +74,7 @@
 
 - Standards：两轮均无发现。
 - Spec：core 引用影响缺项已修；editor 的时段草稿、Web 离页提示和跨阅读窗口关闭问题已修，并补回归。实际双端与作者测试缺口独立记录。
-- 最新不可变配对检查为 core `163e0ff77c4f86543fef5fdce2d4fbb0fad2df11`、editor `85a19f0b31ab577b9789d1ac9487ccaf3570ab5c`，完整日志在本地 `target/paired-check/20260926T1242102923154Z/`。脚本完成两仓格式、完整测试、严格 Clippy、原生构建与编辑器 WASM Clippy/构建。CAP-03B 集成后已有单仓回归；CAP-01A / CAP-04C / CAP-05A 后续集成时需重新配对检查；本机日志不提交源码。
+- 最新配对检查使用 core `e5f563be6de6c45f1214dedaa8a9053252e8499e`、editor `5e38955` 加本次兼容 SHA 更新，日志在本机 `target/paired-check/20260926T1259430894084Z/`。脚本完成两仓格式、完整测试、严格 Clippy、原生构建与编辑器 WASM Clippy/构建。CAP-04C / CAP-05A 后续集成时需重新检查；本机日志不提交源码。
 - 检查脚本：`scripts/check-pair.ps1` 全部通过，分别指定两仓 Cargo.toml，覆盖格式、完整测试（core/CLI/runtime/agent 合计 333，editor 合计 110）、Clippy、原生构建及 WASM Clippy/构建。测试/编译不能代替实际 GUI/USER 证据。
 
 ## 尚待推进
