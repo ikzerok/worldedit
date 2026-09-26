@@ -21,7 +21,6 @@ mod inspector;
 mod manuscript;
 mod map_creation;
 mod maps;
-#[cfg(not(target_arch = "wasm32"))]
 mod markdown_import_ui;
 mod network;
 mod network_state;
@@ -238,12 +237,13 @@ pub struct WorldeditApp {
     disk_stamp: Vec<(PathBuf, u64, Option<std::time::SystemTime>)>,
     active_file: PathBuf,
     saved_location: bool,
+    #[cfg(target_arch = "wasm32")]
+    browser_pending_save: bool,
     version: u64,
     snapshot: Option<Snapshot>,
     io_error: Option<String>,
     #[cfg(not(target_arch = "wasm32"))]
     conflict_view: conflicts::ConflictView,
-    #[cfg(not(target_arch = "wasm32"))]
     markdown_import_wizard: Option<markdown_import_ui::Wizard>,
     #[cfg(not(target_arch = "wasm32"))]
     frame_profile: Option<frame_profile::FrameProfiler>,
@@ -345,12 +345,13 @@ impl WorldeditApp {
             #[cfg(not(target_arch = "wasm32"))]
             disk_stamp: Vec::new(),
             saved_location: false,
+            #[cfg(target_arch = "wasm32")]
+            browser_pending_save: false,
             version: 0,
             snapshot: None,
             io_error: None,
             #[cfg(not(target_arch = "wasm32"))]
             conflict_view: conflicts::ConflictView::default(),
-            #[cfg(not(target_arch = "wasm32"))]
             markdown_import_wizard: None,
             #[cfg(not(target_arch = "wasm32"))]
             frame_profile: frame_profile::FrameProfiler::from_env(),
@@ -562,8 +563,8 @@ impl WorldeditApp {
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.conflict_view = conflicts::ConflictView::default();
-            self.markdown_import_wizard = None;
         }
+        self.markdown_import_wizard = None;
         self.stale_form = false;
         self.reading_target = None;
         self.reading_history.clear();
@@ -1054,7 +1055,6 @@ impl eframe::App for WorldeditApp {
         self.relation_type_editor_window(ctx);
         self.content_deletion_window(ctx);
         self.target_rename_window(ctx);
-        #[cfg(not(target_arch = "wasm32"))]
         self.markdown_import_window(ctx);
         self.preset_editor_window(ctx);
         #[cfg(not(target_arch = "wasm32"))]
@@ -1063,7 +1063,10 @@ impl eframe::App for WorldeditApp {
         crate::chrome::resize_edges(ctx);
         #[cfg(target_arch = "wasm32")]
         crate::web::set_dirty(
-            (self.project.is_dirty() || self.has_open_authoring_form()) && !self.allow_close,
+            (self.browser_pending_save
+                || self.project.is_dirty()
+                || self.has_open_authoring_form())
+                && !self.allow_close,
         );
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(input_active) = input_active {
@@ -1146,7 +1149,6 @@ impl WorldeditApp {
                                 ui.close();
                                 self.export_package();
                             }
-                            #[cfg(not(target_arch = "wasm32"))]
                             if ui.button("导入 Markdown…").clicked() {
                                 ui.close();
                                 self.markdown_import_wizard =

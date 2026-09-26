@@ -32,6 +32,7 @@ impl WorldeditApp {
             Ok(Some(files)) => {
                 self.browser_open_with_mode(files, false);
                 if self.io_error.is_none() {
+                    self.browser_pending_save = false;
                     web::record_local_snapshot_revision(self.version);
                     self.message = Some("已恢复上次保存的浏览器工程".into());
                 }
@@ -43,6 +44,25 @@ impl WorldeditApp {
 
     pub(super) fn browser_open(&mut self, files: Files) {
         self.browser_open_with_mode(files, true);
+        if self.io_error.is_none() {
+            self.browser_pending_save = true;
+        }
+    }
+
+    pub(super) fn browser_apply_markdown_import(
+        &mut self,
+        files: Files,
+        message: String,
+    ) -> Result<(), String> {
+        self.io_error = None;
+        self.browser_open_with_mode(files, false);
+        if let Some(error) = self.io_error.take() {
+            Err(error)
+        } else {
+            self.browser_pending_save = true;
+            self.message = Some(message);
+            Ok(())
+        }
     }
 
     fn browser_open_with_mode(&mut self, mut files: Files, preflight: bool) {
@@ -74,6 +94,7 @@ impl WorldeditApp {
                 self.project = project;
                 self.active_file = self.project.entry.clone();
                 self.saved_location = true;
+                self.browser_pending_save = true;
                 self.reset_views();
                 self.recompile();
                 self.message = Some("工程已载入浏览器；保存全部可下载工程包".into());
@@ -101,6 +122,12 @@ impl WorldeditApp {
                     continue;
                 }
             };
+            if matches!(&action, FileAction::MarkdownImport) {
+                if let Some(wizard) = self.markdown_import_wizard.as_mut() {
+                    wizard.set_source_files(files);
+                }
+                continue;
+            }
             if matches!(action, FileAction::Open) {
                 self.request_action(Pending::BrowserOpen(files), ctx);
                 continue;
@@ -152,6 +179,7 @@ impl WorldeditApp {
                     }
                 }
                 FileAction::Open => unreachable!(),
+                FileAction::MarkdownImport => unreachable!(),
             }
         }
     }
@@ -165,6 +193,7 @@ impl WorldeditApp {
             web::mount(files);
             self.project.mark_saved();
             self.saved_location = true;
+            self.browser_pending_save = false;
             self.io_error = None;
             self.message = Some("已保存到本浏览器，并请求下载完整工程包".into());
         });

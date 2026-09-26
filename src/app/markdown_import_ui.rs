@@ -4,8 +4,13 @@ use egui::Id;
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
-use worldline_core::markdown_import::{MarkdownImportPlan, MarkdownImportRequest};
+#[cfg(not(target_arch = "wasm32"))]
+use worldline_core::markdown_import::MarkdownImportRequest;
+use worldline_core::markdown_import::{
+    MarkdownImportOptions, MarkdownImportPlan, MarkdownImportSourceSnapshot,
+};
 use worldline_core::project::Project;
+use worldline_core::workspace_snapshot::Files;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TargetMode {
@@ -15,12 +20,15 @@ enum TargetMode {
 
 pub(super) struct Wizard {
     source_root: String,
+    #[cfg(not(target_arch = "wasm32"))]
     target_root: String,
     target_mode: TargetMode,
     namespace: String,
     id_overrides: BTreeMap<String, String>,
+    source_files: Option<Files>,
     accept_losses: bool,
     allow_language_upgrade: bool,
+    #[cfg(not(target_arch = "wasm32"))]
     request: Option<MarkdownImportRequest>,
     plan: Option<MarkdownImportPlan>,
     error: Option<String>,
@@ -40,12 +48,15 @@ impl Default for Wizard {
     fn default() -> Self {
         Self {
             source_root: String::new(),
+            #[cfg(not(target_arch = "wasm32"))]
             target_root: String::new(),
             target_mode: TargetMode::NewProject,
             namespace: String::new(),
             id_overrides: BTreeMap::new(),
+            source_files: None,
             accept_losses: false,
             allow_language_upgrade: false,
+            #[cfg(not(target_arch = "wasm32"))]
             request: None,
             plan: None,
             error: None,
@@ -78,11 +89,11 @@ impl Wizard {
             .open(&mut open)
             .resizable(true)
             .default_size([680.0, 600.0])
-            .show(ctx, |ui| self.contents(ui, app));
+            .show(ctx, |ui| self.contents(ui, app, ctx));
         open && !self.closed
     }
 
-    fn contents(&mut self, ui: &mut egui::Ui, app: &mut WorldeditApp) {
+    fn contents(&mut self, ui: &mut egui::Ui, app: &mut WorldeditApp, _ctx: &egui::Context) {
         ui.label("步骤 1 来源　→　步骤 2 只读预检　→　步骤 3 确认并应用");
         ui.label("预检不写入文件；应用时会重新检查来源与工程基线。取消不会创建半成品工程。");
         ui.separator();
@@ -110,6 +121,7 @@ impl Wizard {
         });
 
         ui.label("Markdown 来源目录");
+        #[cfg(not(target_arch = "wasm32"))]
         ui.horizontal(|ui| {
             let changed = ui
                 .add(
@@ -121,18 +133,34 @@ impl Wizard {
             if changed {
                 self.invalidate_preview();
             }
-            #[cfg(not(target_arch = "wasm32"))]
             if ui.button("选择目录…").clicked() {
                 if let Some(path) = rfd::FileDialog::new().pick_folder() {
                     self.source_root = path.display().to_string();
+                    self.source_files = None;
                     self.invalidate_preview();
                 }
+            }
+        });
+        #[cfg(target_arch = "wasm32")]
+        ui.horizontal(|ui| {
+            ui.label(if self.source_root.is_empty() {
+                "尚未选择文件夹".to_string()
+            } else {
+                self.source_root.clone()
+            });
+            if ui.button("选择 Markdown 文件夹…").clicked() {
+                self.invalidate_preview();
+                crate::web::select_files(_ctx, true, "", crate::web::FileAction::MarkdownImport);
             }
         });
 
         match self.target_mode {
             TargetMode::NewProject => {
+                #[cfg(not(target_arch = "wasm32"))]
                 ui.label("新工程目录（须已存在且为空）");
+                #[cfg(target_arch = "wasm32")]
+                ui.label("应用后切换到新浏览器工程；当前工程不会在预检或取消时改变。");
+                #[cfg(not(target_arch = "wasm32"))]
                 ui.horizontal(|ui| {
                     let changed = ui
                         .add(
@@ -144,7 +172,6 @@ impl Wizard {
                     if changed {
                         self.invalidate_preview();
                     }
-                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.button("选择目录…").clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_folder() {
                             self.target_root = path.display().to_string();
@@ -154,7 +181,10 @@ impl Wizard {
                 });
             }
             TargetMode::CurrentProject => {
+                #[cfg(not(target_arch = "wasm32"))]
                 ui.label(format!("目标工程：{}", app.project.root.display()));
+                #[cfg(target_arch = "wasm32")]
+                ui.label("目标工程：当前浏览器工程");
                 if !app.saved_location {
                     ui.colored_label(
                         egui::Color32::LIGHT_RED,
@@ -481,7 +511,10 @@ impl Wizard {
     fn preview(&mut self, app: &WorldeditApp) {
         self.preview_generation = self.preview_generation.wrapping_add(1);
         self.plan = None;
-        self.request = None;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.request = None;
+        }
         self.error = None;
         self.stale = false;
         let source_root = PathBuf::from(self.source_root.trim());
@@ -496,20 +529,53 @@ impl Wizard {
                 return;
             }
         };
-        let request = MarkdownImportRequest {
-            source_root,
+        let options = MarkdownImportOptions {
             expected_baseline: target.content_baseline(),
             id_overrides: self.id_overrides.clone(),
             namespace: (!self.namespace.trim().is_empty()).then(|| self.namespace.trim().into()),
             accept_losses: self.accept_losses,
             allow_language_upgrade: self.allow_language_upgrade,
         };
-        match target.preview_markdown_import(&request) {
+        #[cfg(not(target_arch = "wasm32"))]
+        let result = if let Some(files) = &self.source_files {
+            target.preview_markdown_import_snapshot(
+                &MarkdownImportSourceSnapshot {
+                    label: self.source_root.trim(),
+                    files,
+                },
+                &options,
+            )
+        } else {
+            let request = MarkdownImportRequest {
+                source_root,
+                expected_baseline: options.expected_baseline.clone(),
+                id_overrides: options.id_overrides.clone(),
+                namespace: options.namespace.clone(),
+                accept_losses: options.accept_losses,
+                allow_language_upgrade: options.allow_language_upgrade,
+            };
+            let result = target.preview_markdown_import(&request);
+            if result.is_ok() {
+                self.request = Some(request);
+            }
+            result
+        };
+        #[cfg(target_arch = "wasm32")]
+        let result = match self.source_files.as_ref() {
+            Some(files) => target.preview_markdown_import_snapshot(
+                &MarkdownImportSourceSnapshot {
+                    label: self.source_root.trim(),
+                    files,
+                },
+                &options,
+            ),
+            None => Err("请选择 Markdown 来源文件夹。".into()),
+        };
+        match result {
             Ok(plan) => {
                 if self.namespace.trim().is_empty() {
                     self.namespace = plan.namespace.clone();
                 }
-                self.request = Some(request);
                 self.plan = Some(plan);
                 self.page_offset = 0;
                 self.link_offset = 0;
@@ -524,14 +590,13 @@ impl Wizard {
     }
 
     fn apply(&mut self, app: &mut WorldeditApp) {
-        let (Some(plan), Some(mut request)) = (self.plan.as_ref(), self.request.clone()) else {
+        let Some(plan) = self.plan.as_ref() else {
             self.error = Some("请先完成预检。".into());
             return;
         };
         let digest = plan.plan_digest.clone();
-        request.accept_losses = self.accept_losses;
-        request.allow_language_upgrade = self.allow_language_upgrade;
-        let mut target = match self.target_project(app, &request.source_root) {
+        let source_root = PathBuf::from(self.source_root.trim());
+        let target = match self.target_project(app, &source_root) {
             Ok(project) => project,
             Err(error) => {
                 self.error = Some(error);
@@ -539,43 +604,95 @@ impl Wizard {
                 return;
             }
         };
-        match target.apply_markdown_import(&request, &digest) {
-            Ok(result) => {
-                let counts = format!(
-                    "Markdown 导入已保存：{} 个页面、{} 个链接、{} 个附件，{} 项损失已确认。",
-                    result.plan.pages.len(),
-                    result.plan.links.len(),
-                    result.plan.attachments.len(),
-                    result.plan.losses.len()
-                );
-                match self.target_mode {
-                    TargetMode::NewProject => {
-                        app.project = target;
-                        app.active_file = app.project.entry.clone();
-                        app.saved_location = true;
-                        app.reset_views();
-                        app.recompile();
-                        app.tab = super::Tab::Timeline;
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut target = target;
+        if let Some(files) = self.source_files.as_ref() {
+            let options = MarkdownImportOptions {
+                expected_baseline: target.content_baseline(),
+                id_overrides: self.id_overrides.clone(),
+                namespace: (!self.namespace.trim().is_empty())
+                    .then(|| self.namespace.trim().into()),
+                accept_losses: self.accept_losses,
+                allow_language_upgrade: self.allow_language_upgrade,
+            };
+            let source = MarkdownImportSourceSnapshot {
+                label: self.source_root.trim(),
+                files,
+            };
+            match target.apply_markdown_import_snapshot(&source, &options, &digest) {
+                Ok(snapshot) => {
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        let message = import_success_message(&snapshot.result.plan);
+                        match app.browser_apply_markdown_import(snapshot.workspace_files, message) {
+                            Ok(()) => self.closed = true,
+                            Err(error) => {
+                                self.error = Some(error);
+                                self.stale = true;
+                            }
+                        }
                     }
-                    TargetMode::CurrentProject => {
-                        app.project = target;
-                        app.active_file = app.project.entry.clone();
-                        app.history.clear();
-                        app.redo.clear();
-                        app.recompile();
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let _ = snapshot;
+                        self.error = Some("Files 快照应用只能由浏览器宿主接收。".into());
                     }
                 }
-                app.io_error = None;
-                app.message = Some(counts);
-                self.closed = true;
+                Err(error) => {
+                    self.error = Some(error);
+                    self.stale = true;
+                }
             }
-            Err(error) => {
-                self.error = Some(error);
+            return;
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let Some(mut request) = self.request.clone() else {
+                self.error = Some("请重新预检来源目录。".into());
                 self.stale = true;
+                return;
+            };
+            request.accept_losses = self.accept_losses;
+            request.allow_language_upgrade = self.allow_language_upgrade;
+            match target.apply_markdown_import(&request, &digest) {
+                Ok(result) => {
+                    let counts = import_success_message(&result.plan);
+                    match self.target_mode {
+                        TargetMode::NewProject => {
+                            app.project = target;
+                            app.active_file = app.project.entry.clone();
+                            app.saved_location = true;
+                            app.reset_views();
+                            app.recompile();
+                            app.tab = super::Tab::Timeline;
+                        }
+                        TargetMode::CurrentProject => {
+                            app.project = target;
+                            app.active_file = app.project.entry.clone();
+                            app.history.clear();
+                            app.redo.clear();
+                            app.recompile();
+                        }
+                    }
+                    app.io_error = None;
+                    app.message = Some(counts);
+                    self.closed = true;
+                }
+                Err(error) => {
+                    self.error = Some(error);
+                    self.stale = true;
+                }
             }
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.error = Some("请重新选择 Markdown 来源文件夹。".into());
+            self.stale = true;
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn target_project(&self, app: &WorldeditApp, source_root: &Path) -> Result<Project, String> {
         match self.target_mode {
             TargetMode::CurrentProject => {
@@ -587,7 +704,9 @@ impl Wizard {
                 if app.project.is_dirty() || app.has_open_authoring_form() {
                     return Err("当前工程有未保存的草稿；先保存或完成草稿，再开始迁移。".into());
                 }
-                ensure_disjoint_roots(source_root, &app.project.root)?;
+                if self.source_files.is_none() {
+                    ensure_disjoint_roots(source_root, &app.project.root)?;
+                }
                 Ok(app.project.clone())
             }
             TargetMode::NewProject => {
@@ -600,15 +719,50 @@ impl Wizard {
                 if entries.into_iter().next().is_some() {
                     return Err("新工程目录必须为空；预检和取消不会创建或覆盖文件。".into());
                 }
-                ensure_disjoint_roots(source_root, &root)?;
+                if self.source_files.is_none() {
+                    ensure_disjoint_roots(source_root, &root)?;
+                }
                 blank_project(&root)
             }
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn target_project(&self, app: &WorldeditApp, _source_root: &Path) -> Result<Project, String> {
+        match self.target_mode {
+            TargetMode::CurrentProject => {
+                if !app.saved_location {
+                    return Err(
+                        "当前工程尚未保存到浏览器存档；请先保存，或选择新浏览器工程。".into(),
+                    );
+                }
+                if app.project.is_dirty() || app.has_open_authoring_form() {
+                    return Err("当前工程有未保存的草稿；先保存或完成草稿，再开始迁移。".into());
+                }
+                Ok(app.project.clone())
+            }
+            TargetMode::NewProject => {
+                if app.saved_location && (app.project.is_dirty() || app.has_open_authoring_form()) {
+                    return Err("当前浏览器工程有未保存的内容；请先保存再导入新工程。".into());
+                }
+                blank_project(&app.project.root)
+            }
+        }
+    }
+
+    #[cfg(any(target_arch = "wasm32", test))]
+    pub(super) fn set_source_files(&mut self, files: Files) {
+        self.source_root = "浏览器所选文件夹".into();
+        self.source_files = Some(files);
+        self.invalidate_preview();
+    }
+
     fn invalidate_preview(&mut self) {
         self.plan = None;
-        self.request = None;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.request = None;
+        }
         self.error = None;
         self.stale = false;
     }
@@ -625,6 +779,7 @@ fn blank_project(root: &Path) -> Result<Project, String> {
     Ok(project)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn ensure_disjoint_roots(source: &Path, target: &Path) -> Result<(), String> {
     let source = source
         .canonicalize()
@@ -636,6 +791,29 @@ fn ensure_disjoint_roots(source: &Path, target: &Path) -> Result<(), String> {
         return Err("来源目录与目标工程目录不能相同或互相嵌套。".into());
     }
     Ok(())
+}
+
+fn import_success_message(plan: &MarkdownImportPlan) -> String {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        format!(
+            "Markdown 导入已保存：{} 个页面、{} 个链接、{} 个附件，{} 项损失已确认。",
+            plan.pages.len(),
+            plan.links.len(),
+            plan.attachments.len(),
+            plan.losses.len()
+        )
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        format!(
+            "Markdown 导入已应用到浏览器工作区：{} 个页面、{} 个链接、{} 个附件，{} 项损失已确认；点击「保存全部」写入浏览器存档。",
+            plan.pages.len(),
+            plan.links.len(),
+            plan.attachments.len(),
+            plan.losses.len()
+        )
+    }
 }
 
 fn paged_range(total: usize, offset: &mut usize, page_size: usize) -> Range<usize> {

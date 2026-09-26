@@ -585,6 +585,43 @@ fn markdown_import_preview_and_cancel_keep_the_target_empty_and_show_losses() {
 }
 
 #[test]
+fn markdown_import_files_snapshot_preflight_uses_core_and_cancel_keeps_targets_unchanged() {
+    let (ctx, mut app) = app();
+    let markdown =
+        b"---\ntitle: Snapshot Page\ncustom_field: keep\n---\n\nA **formatted** paragraph.\n";
+    let (source, target) = markdown_import_fixture(markdown);
+    open_markdown_import(&ctx, &mut app);
+    app.markdown_import_wizard
+        .as_mut()
+        .unwrap()
+        .set_source_files(worldline_core::workspace_snapshot::Files::from([(
+            std::path::PathBuf::from("page.md"),
+            markdown.to_vec(),
+        )]));
+    enter_text_at_placeholder_in_window(
+        &ctx,
+        &mut app,
+        17,
+        "选择空工程目录…",
+        &target.display().to_string(),
+    );
+    let baseline = app.project.content_baseline();
+    click(&ctx, &mut app, 17, "预检导入");
+
+    let preview = rendered_text_in_window(&ctx, &mut app, 17, "预检完成：");
+    assert!(preview.contains("1 个页面"), "{preview}");
+    assert!(preview.contains("3 个损失"), "{preview}");
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(std::fs::read_dir(&target).unwrap().next().is_none());
+
+    click(&ctx, &mut app, 17, "取消");
+    assert!(std::fs::read_dir(&target).unwrap().next().is_none());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+    std::fs::remove_dir_all(source.parent().unwrap()).unwrap();
+}
+
+#[test]
 fn markdown_import_apply_requires_loss_confirmation_and_round_trips_original_markdown() {
     let (ctx, mut app) = app();
     let original =

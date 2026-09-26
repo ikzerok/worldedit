@@ -11,6 +11,7 @@ use worldline_core::{catalog::TargetRef, catalog_edit::AssetDraft};
 #[derive(Clone)]
 pub enum FileAction {
     Open,
+    MarkdownImport,
     Include,
     Attach(TargetRef),
     Replace(AssetDraft),
