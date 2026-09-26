@@ -44,8 +44,9 @@
 
 ### worldline#16 / CAP-04A 与 worldedit#17 / CAP-04B
 
-- core 三方字段/段落差异、原文字节范围、冲突、引用影响、截断与可验证基线已提交 `163e0ff`，18 项 collaboration 回归通过，core 票关闭。
-- editor `85a19f0` 显示三方差异与原文后备，窄窗用标签切换；预览按基线缓存，过期后须重新比较，安全采纳可一次撤销。egui 回归、Web release 打包与配对检查通过。逐项编辑解决方案及真实原生/Web 文本选择、IME、滚动和关闭路径仍待验收，editor 票开放。
+- core `163e0ff` 提供三方字段/段落差异、原文字节范围、冲突、引用影响、截断与可验证基线。配对 CAP-04B core 增补 `7810c81`：`apply_proposal_with_resolutions` 按预览的 `{path, location}` 接受逐项 JSON 值/完整文件解决稿，要求完整冲突集并重验修订和基线；非法/缺失方案及内容编译失败均零写入，不改提案原始 `base/proposed`。collaboration 集成测试 20 项通过。
+- editor `9e2b517` 在每项冲突旁提供基底/当前/提议选择与可编辑解决稿；预览过期禁用采纳，重新比较保留编辑输入；core 成功复验后一次撤销恢复。新增 egui 事件回归覆盖未解决禁用、选择、编辑、重新比较保留与撤销；`proposal_conflict` 筛选 2 项、`review` 筛选 20 项通过。`compatibility.json` 当前配对 pin 为 core `7810c81`。
+- Web release 在隔离端口 `43128` 由 `start-web.ps1 -Port 43128 -NoOpen` 构建并服务；headless Edge 自动化成功加载并导航到“协作审阅”画布，但没有载入冲突提案，因此这只证明 Web 启动/入口可达。实际原生/Web 差异文本选择复制、IME、长差异滚动及误触关闭路径仍未验收；CAP-04B 保持开放。
 
 ### worldline#17 / CAP-04C
 
