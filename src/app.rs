@@ -16,6 +16,7 @@ mod entities;
 #[cfg(not(target_arch = "wasm32"))]
 mod frame_profile;
 mod inspector;
+mod manuscript;
 mod map_creation;
 mod maps;
 mod network;
@@ -97,6 +98,7 @@ enum Tab {
     World,
     Edit,
     Play,
+    Manuscript,
 }
 impl Tab {
     fn title(self) -> &'static str {
@@ -113,6 +115,7 @@ impl Tab {
             Self::World => "世界观",
             Self::Edit => "源文件",
             Self::Play => "试玩",
+            Self::Manuscript => "书稿工作台",
         }
     }
 }
@@ -253,6 +256,7 @@ pub struct WorldeditApp {
     network_selected: Option<worldline_core::catalog::TargetRef>,
     pending_preset_layers: Option<(String, std::collections::BTreeMap<String, bool>)>,
     review: collaboration_ui::ReviewState,
+    manuscript: manuscript::WorkbenchState,
 }
 
 impl WorldeditApp {
@@ -355,6 +359,7 @@ impl WorldeditApp {
             network_selected: None,
             pending_preset_layers: None,
             review: collaboration_ui::ReviewState::default(),
+            manuscript: manuscript::WorkbenchState::default(),
         };
         if let Some(path) = initial_file {
             app.load_project(path);
@@ -535,6 +540,7 @@ impl WorldeditApp {
         self.network_selected = None;
         self.pending_preset_layers = None;
         self.review = collaboration_ui::ReviewState::default();
+        self.manuscript = manuscript::WorkbenchState::default();
     }
     fn has_open_authoring_form(&self) -> bool {
         self.ime_composing
@@ -558,6 +564,7 @@ impl WorldeditApp {
             || self.map_form.has_uncommitted_work()
             || self.map_canvas.has_uncommitted_work()
             || self.map_failed_command.is_some()
+            || self.manuscript.has_unsubmitted_work()
     }
 
     fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
@@ -817,6 +824,7 @@ impl WorldeditApp {
             } else {
                 self.recompile();
             }
+            self.manuscript.rebase_clean(&self.project);
             self.io_error = None;
         }
     }
@@ -944,6 +952,7 @@ impl eframe::App for WorldeditApp {
             Tab::Wiki => self.wiki_tab(ctx),
             Tab::World => self.world_tab(ctx),
             Tab::Play => self.play_tab(ctx),
+            Tab::Manuscript => self.manuscript_tab(ctx),
         }
         self.dialogs(ctx);
         self.project_search(ctx);

@@ -29,6 +29,46 @@ fn app() -> (egui::Context, WorldeditApp) {
     app.recompile();
     (ctx, app)
 }
+fn manuscript_app() -> (egui::Context, WorldeditApp) {
+    let (ctx, mut app) = app();
+    app.project
+        .set_text(
+            &app.active_file.clone(),
+            concat!(
+                "character traveler as \"旅人\"\n",
+                "event arrival as \"抵达\"\n",
+                "  甲乙 [[character:traveler|林澈]]\n",
+                "  scene harbor\n",
+                "    灯塔亮起。\n",
+                "    -> END\n",
+                "  -> END\n",
+                "event departure as \"离港\"\n",
+                "  远航。\n",
+                "  -> END\n",
+                "entity a kind place as \"同名\"\n",
+                "  description \"同名地点资料。\"\n",
+                "entity b kind organization as \"同名\"\n",
+                "  description \"同名组织资料。\"\n",
+            )
+            .into(),
+        )
+        .unwrap();
+    app.project
+        .set_authoring_document(
+            &app.project.root.join(".world/project.json"),
+            br#"{"schema_version":1,"language_version":"1.10","entry":"world.wl","required_features":["content.entities.v1","content.relations.v1","presentation.manuscripts.v1"],"maps":{},"graph_views":{},"manuscripts":{"novel":".world/manuscripts/novel.json"}}"#.to_vec(),
+        )
+        .unwrap();
+    app.project
+        .create_authoring_document(
+            &app.project.root.join(".world/manuscripts/novel.json"),
+            r#"{"schema_version":1,"id":"novel","title":"雾港书稿","entries":[{"id":"opening","kind":"chapter","title":"抵达","target_ref":{"kind":"event","id":"arrival"},"summary":"旅人来到港口","status":"draft","goal":"100"},{"id":"departure","kind":"chapter","title":"离港","target_ref":{"kind":"event","id":"departure"},"status":"planned","goal":"50"},{"id":"harbor","kind":"chapter","title":"港口","target_ref":{"kind":"scene","id":"arrival.harbor"}},{"id":"notes","kind":"chapter","title":"同名资料","target_ref":{"kind":"entity","id":"a"}}]}"#.as_bytes().to_vec(),
+        )
+        .unwrap();
+    app.reset_views();
+    app.recompile();
+    (ctx, app)
+}
 fn frame(
     ctx: &egui::Context,
     app: &mut WorldeditApp,
@@ -58,6 +98,7 @@ fn frame(
             7 => app.review_tab(ctx),
             8 | 9 => app.reading_window(ctx),
             11 => app.source_tab(ctx),
+            13 => app.manuscript_tab(ctx),
             10 => {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     app.reading_content(ui, TargetRef::new("entity", "a"));
@@ -919,6 +960,410 @@ fn missing_entity_link_offers_a_repair_draft_with_the_stable_missing_id() {
         .any(|diagnostic| diagnostic.code == "A218"));
 }
 
+#[test]
+fn manuscript_reordering_uses_one_core_command_and_undo_keeps_story_semantics() {
+    let (ctx, mut app) = manuscript_app();
+    let fingerprint = app.snapshot.as_ref().unwrap().result.analysis.fingerprint;
+    let content_baseline = app.project.content_baseline();
+    assert!(!app.snapshot.as_ref().unwrap().result.has_errors());
+
+    click(&ctx, &mut app, 13, "下移");
+    assert_eq!(
+        app.project
+            .manuscript_index("novel")
+            .unwrap()
+            .page(0, 10)
+            .chapters[0]
+            .id,
+        "opening"
+    );
+    assert!(app.history.is_empty(), "草稿重排尚未应用");
+    click(&ctx, &mut app, 13, "应用书稿");
+
+    let reordered = app.project.manuscript_index("novel").unwrap();
+    assert_eq!(reordered.page(0, 10).chapters[0].id, "departure");
+    assert_eq!(app.history.len(), 1);
+    assert_eq!(
+        app.snapshot.as_ref().unwrap().result.analysis.fingerprint,
+        fingerprint
+    );
+    assert_eq!(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .result
+            .program
+            .events
+            .iter()
+            .map(|event| event.name.as_str())
+            .collect::<Vec<_>>(),
+        ["arrival", "departure"]
+    );
+
+    app.undo(false);
+    assert_eq!(
+        app.project
+            .manuscript_index("novel")
+            .unwrap()
+            .page(0, 10)
+            .chapters[0]
+            .id,
+        "opening"
+    );
+    assert_eq!(app.project.content_baseline(), content_baseline);
+}
+
+#[test]
+fn manuscript_preview_and_stats_come_from_core_projection() {
+    let (ctx, mut app) = manuscript_app();
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("汉字 8 · 词数 8"), "{rendered}");
+    assert!(rendered.contains("甲乙"), "{rendered}");
+    assert!(rendered.contains("灯塔亮起"), "{rendered}");
+    assert!(
+        !rendered.contains("-> END"),
+        "控制流不能混入阅读正文：{rendered}"
+    );
+    assert!(rendered.contains("书稿只决定阅读顺序"), "{rendered}");
+    assert!(
+        rendered.contains("独立于世界时间与事件控制流"),
+        "{rendered}"
+    );
+    click(&ctx, &mut app, 13, "卡片");
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    let mut cards = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut cards);
+    }
+    assert!(cards.contains("查看章节"), "{cards}");
+    click(&ctx, &mut app, 13, "列表");
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    let mut list = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut list);
+    }
+    assert!(list.contains("抵达"), "{list}");
+    click(&ctx, &mut app, 13, "章节树");
+    let point = output
+        .shapes
+        .iter()
+        .find_map(|shape| text_position_contains(&shape.shape, "灯塔亮起"))
+        .unwrap();
+    for _ in 0..8 {
+        let _ = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(point),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Line,
+                    delta: vec2(0.0, -12.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            13,
+        );
+    }
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    let mut scrolled = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut scrolled);
+    }
+    assert!(
+        scrolled.contains("同名地点资料"),
+        "书稿长预览应可滚动：{scrolled}"
+    );
+}
+
+#[test]
+fn manuscript_body_editor_keeps_unsubmitted_input_and_applies_through_egui() {
+    let (ctx, mut app) = manuscript_app();
+    let baseline = app.project.content_baseline();
+    let replacement = concat!(
+        "character traveler as \"旅人\"\n",
+        "event arrival as \"抵达\"\n",
+        "  全新正文。\n",
+        "  -> END\n",
+        "event departure as \"离港\"\n",
+        "  远航。\n",
+        "  -> END\n",
+    );
+    replace_manuscript_source(&ctx, &mut app, replacement);
+    assert_eq!(app.project.content_baseline(), baseline, "输入仍只是草稿");
+    click(&ctx, &mut app, 13, "应用正文草稿");
+    assert!(app
+        .project
+        .document(&app.active_file)
+        .unwrap()
+        .contains("全新正文。"));
+    assert_eq!(app.history.len(), 1);
+    app.undo(false);
+    assert!(app
+        .project
+        .document(&app.active_file)
+        .unwrap()
+        .contains("甲乙"));
+}
+
+#[test]
+fn stale_manuscript_body_keeps_input_and_does_not_overwrite_new_source() {
+    let (ctx, mut app) = manuscript_app();
+    let replacement = concat!(
+        "character traveler as \"旅人\"\n",
+        "event arrival as \"抵达\"\n",
+        "  保留在草稿的文字。\n",
+        "  -> END\n",
+    );
+    replace_manuscript_source(&ctx, &mut app, replacement);
+    let externally_changed = "event arrival as \"抵达\"\n  外部修改。\n  -> END\n";
+    app.project
+        .set_text(&app.active_file.clone(), externally_changed.into())
+        .unwrap();
+    app.recompile();
+    let baseline = app.project.content_baseline();
+
+    click(&ctx, &mut app, 13, "应用正文草稿");
+    assert_eq!(
+        app.project.document(&app.active_file).unwrap(),
+        externally_changed
+    );
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+    assert!(app
+        .io_error
+        .as_deref()
+        .is_some_and(|error| error.contains("过期")));
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    assert!(
+        output
+            .shapes
+            .iter()
+            .any(|shape| text_position_contains(&shape.shape, "保留在草稿的文字").is_some()),
+        "过期时保留编辑器输入"
+    );
+}
+
+#[test]
+fn manuscript_target_picker_disambiguates_same_display_names() {
+    let (ctx, mut app) = manuscript_app();
+    click(&ctx, &mut app, 13, "event:arrival");
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("同名 · entity:a"), "{rendered}");
+    assert!(rendered.contains("同名 · entity:b"), "{rendered}");
+}
+
+#[test]
+fn manuscript_missing_reference_can_be_repaired_through_candidate_picker() {
+    let (ctx, mut app) = manuscript_app();
+    let path = app.project.root.join(".world/manuscripts/novel.json");
+    let mut book: serde_json::Value =
+        serde_json::from_slice(app.project.authoring_document(&path).unwrap().bytes()).unwrap();
+    book["entries"][0]["target_ref"]["id"] = "deleted_event".into();
+    app.project
+        .set_authoring_document(&path, serde_json::to_vec(&book).unwrap())
+        .unwrap();
+    app.recompile();
+
+    click(&ctx, &mut app, 13, "event:deleted_event");
+    click(&ctx, &mut app, 13, "抵达 · event:arrival");
+    click(&ctx, &mut app, 13, "应用书稿");
+
+    let chapter = &app
+        .project
+        .manuscript_index("novel")
+        .unwrap()
+        .page(0, 10)
+        .chapters[0];
+    assert_eq!(chapter.target_ref.as_ref().unwrap().id, "arrival");
+    assert_eq!(
+        chapter.source.as_ref().unwrap().status,
+        worldline_core::ManuscriptReferenceStatus::Resolved
+    );
+    assert_eq!(app.history.len(), 1);
+}
+
+#[test]
+fn manuscript_creation_insert_save_reopen_and_full_reader_preview_use_core() {
+    let (ctx, mut app) = app();
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("worldedit-manuscript-e2e-{unique}"));
+    app.project = Project::new(&root);
+    app.active_file = app.project.entry.clone();
+    let entry = app.project.entry.clone();
+    app.project.documents.retain(|path, _| path == &entry);
+    app.project
+        .set_text(
+            &app.active_file.clone(),
+            "event opening as \"开篇\"\n  海雾散开。\n  -> END\n".into(),
+        )
+        .unwrap();
+    app.project
+        .create_authoring_document(
+            &root.join(".world/project.json"),
+            br#"{"schema_version":1,"language_version":"1.10","entry":"world.wl","required_features":["presentation.manuscripts.v1"],"maps":{},"graph_views":{},"manuscripts":{}}"#.to_vec(),
+        )
+        .unwrap();
+    app.reset_views();
+    app.recompile();
+
+    enter_text_at_placeholder(&ctx, &mut app, "例如 novel", "novel");
+    enter_text_at_placeholder(&ctx, &mut app, "书稿名称", "雾港序章");
+    click(&ctx, &mut app, 13, "创建并打开书稿");
+    assert!(app.project.manuscript_indices().contains_key("novel"));
+    assert_eq!(app.history.len(), 1);
+
+    click(&ctx, &mut app, 13, "插入分节");
+    click(&ctx, &mut app, 13, "插入章节");
+    click(&ctx, &mut app, 13, "应用书稿");
+    let chapter = &app
+        .project
+        .manuscript_index("novel")
+        .unwrap()
+        .page(0, 10)
+        .chapters[0];
+    assert_eq!(chapter.target_ref.as_ref().unwrap().id, "opening");
+    assert_eq!(chapter.section_path, ["section"]);
+    assert_eq!(
+        chapter.source.as_ref().unwrap().status,
+        worldline_core::ManuscriptReferenceStatus::Resolved
+    );
+    assert_eq!(app.history.len(), 2);
+
+    app.project.save().unwrap();
+    app.project = Project::open(&root).unwrap();
+    app.reset_views();
+    app.recompile();
+    let reopened = app.project.manuscript_index("novel").unwrap();
+    assert_eq!(reopened.title.as_deref(), Some("雾港序章"));
+    assert_eq!(reopened.page(0, 10).chapters[0].id, "chapter");
+    assert_eq!(reopened.page(0, 10).chapters[0].section_path, ["section"]);
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("海雾散开"), "{rendered}");
+}
+
+fn enter_text_at_placeholder(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    placeholder: &str,
+    text: &str,
+) {
+    for _ in 0..3 {
+        let _ = frame(ctx, app, Vec::new(), 13);
+    }
+    let output = frame(ctx, app, Vec::new(), 13);
+    let point = output
+        .shapes
+        .iter()
+        .find_map(|shape| text_position_contains(&shape.shape, placeholder))
+        .unwrap_or_else(|| panic!("未显示输入提示：{placeholder}"));
+    for pressed in [true, false] {
+        let _ = frame(
+            ctx,
+            app,
+            vec![
+                Event::PointerMoved(point),
+                Event::PointerButton {
+                    pos: point,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            13,
+        );
+    }
+    let _ = frame(ctx, app, vec![Event::Text(text.into())], 13);
+}
+
+fn replace_manuscript_source(ctx: &egui::Context, app: &mut WorldeditApp, replacement: &str) {
+    click(ctx, app, 13, "编辑来源文件");
+    for _ in 0..3 {
+        let _ = frame(ctx, app, Vec::new(), 13);
+    }
+    let output = frame(ctx, app, Vec::new(), 13);
+    let point = output
+        .shapes
+        .iter()
+        .find_map(|shape| text_position_contains(&shape.shape, "event arrival as"))
+        .expect("源码编辑器应显示原始事件声明");
+    for pressed in [true, false] {
+        let _ = frame(
+            ctx,
+            app,
+            vec![
+                Event::PointerMoved(point),
+                Event::PointerButton {
+                    pos: point,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            13,
+        );
+    }
+    let _ = frame(
+        ctx,
+        app,
+        vec![
+            Event::Key {
+                key: egui::Key::A,
+                physical_key: Some(egui::Key::A),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::COMMAND,
+            },
+            Event::Key {
+                key: egui::Key::A,
+                physical_key: Some(egui::Key::A),
+                pressed: false,
+                repeat: false,
+                modifiers: egui::Modifiers::COMMAND,
+            },
+            Event::Text(replacement.into()),
+        ],
+        13,
+    );
+}
+
+fn text_position_contains(shape: &egui::Shape, fragment: &str) -> Option<egui::Pos2> {
+    match shape {
+        egui::Shape::Text(text) if text.galley.job.text.contains(fragment) => {
+            Some(text.pos + text.galley.rect.center().to_vec2())
+        }
+        egui::Shape::Vec(shapes) => shapes
+            .iter()
+            .find_map(|shape| text_position_contains(shape, fragment)),
+        _ => None,
+    }
+}
+
+fn collect_text(shape: &egui::Shape, text: &mut String) {
+    match shape {
+        egui::Shape::Text(shape) => text.push_str(&shape.galley.job.text),
+        egui::Shape::Vec(shapes) => {
+            for shape in shapes {
+                collect_text(shape, text);
+            }
+        }
+        _ => {}
+    }
+}
 #[test]
 fn entity_apply_is_one_real_ui_command_with_undo_and_redo() {
     let (ctx, mut app) = app();

@@ -194,6 +194,7 @@ impl WorldeditApp {
                     Tab::Catalog,
                     Tab::Wiki,
                     Tab::Overview,
+                    Tab::Manuscript,
                     Tab::Edit,
                 ] {
                     let selected = self.tab == tab;
