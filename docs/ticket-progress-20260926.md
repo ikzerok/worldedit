@@ -24,6 +24,7 @@
 - worldedit#33 / EDS-02：[任务、对象与入口草案](design/editor-system/20260926/eds02-tasks-and-objects.md)。四条任务旅程、对象生命周期、五类结构和旧 12 页面映射；频率与角色标为假设，不冒充用户访谈。后台研究连接中断后由主任务依据已核查代码补齐，仍待作者验证。
 - worldedit#34 / EDS-03：[编辑器状态、身份与事件路由契约](design/editor-system/20260926/eds03-state-contract.md)。定义六种“当前”、类型化身份、状态所属域、事务转换及 owner/IME/冲突负例；这是设计契约和验收清单，不宣称生产 UI 已全面实现。
 - worldedit#35 / EDS-04：[六区域显隐与 A/B/C 比较](design/editor-system/20260926/eds04-layout-comparison.md)。三种结构用同一组任务与示例数据比较，B 暂列下一轮验证首选，完整自由 dock 暂不采用；抛弃式交互原型单独保存在 `codex/eds04-prototype` 的 `ae23509`，尚待实际作者评估。
+- worldedit#36 / EDS-05：[跨投影交互契约](design/editor-system/20260926/eds05-cross-projection.md)。定义类型化导航与返回点、临时/固定资料库、拖放零写入、长标签文字后备与 core 实际 250 节点/500 边上限；仍需真实事件和作者可达性验收。
 
 ## 已决定的排除
 
