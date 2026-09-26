@@ -809,10 +809,8 @@ fn render_debugger_controls(
                     ui.label("状态没有差异");
                 }
                 for (key, value) in &result.state_diff {
-                    ui.horizontal(|ui| {
-                        ui.monospace(key);
-                        ui.label(value.to_string());
-                    });
+                    ui.monospace(key);
+                    ui.add(egui::Label::new(value.to_string()).wrap());
                 }
             });
         ui.label("本次访问覆盖（未列出的节点表示未测试，不表示不可达）");

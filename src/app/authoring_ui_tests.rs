@@ -538,6 +538,41 @@ fn narrow_play_view_can_switch_between_body_and_debug_information() {
 }
 
 #[test]
+fn replay_state_delta_keeps_body_visible_in_narrow_play_pane() {
+    let source = concat!(
+        "let score = 0\n",
+        "event start\n",
+        "  NARROW_BODY_SENTINEL\n",
+        "  choice \"继续\"\n",
+        "    set score = score + 1\n",
+        "    -> END\n",
+    );
+    let (ctx, mut app) = replay_app(source, 21);
+    click(&ctx, &mut app, 21, "选择：继续");
+    click(&ctx, &mut app, 21, "● 保存当前路径");
+    click(&ctx, &mut app, 21, "▶ 重放所选路径");
+    wait_for_replay(&ctx, &mut app);
+
+    let output = frame(&ctx, &mut app, Vec::new(), 21);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    let body_visible = output.shapes.iter().any(|clipped| {
+        text_position_contains(&clipped.shape, "NARROW_BODY_SENTINEL")
+            .is_some_and(|position| clipped.clip_rect.contains(position))
+    });
+    assert!(
+        app.replay_debugger
+            .result
+            .as_ref()
+            .is_some_and(|result| result.state_diff.contains_key("vars")),
+        "replay result must include the variable change"
+    );
+    assert!(body_visible, "{rendered}");
+}
+
+#[test]
 fn event_graph_marks_only_visits_from_the_selected_replay() {
     let source = "event start\n  choice \"继续\"\n    -> END\n";
     let (ctx, mut app) = replay_app(source, 20);
