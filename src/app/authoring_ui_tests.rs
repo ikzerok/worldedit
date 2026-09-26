@@ -778,6 +778,7 @@ fn markdown_import_resolves_a_real_id_conflict_without_merging_same_name_targets
     );
     assert!(conflict.contains("page.md"), "{conflict}");
     assert!(conflict.contains("a_import_2"), "{conflict}");
+    click_containing(&ctx, &mut app, 17, "阻塞冲突 ·");
     scroll_window_to_top(&ctx, &mut app, 17);
     scroll_rendered_text(&ctx, &mut app, 17, "同名资料提示 ·");
     click_containing(&ctx, &mut app, 17, "同名资料提示 ·");
@@ -786,6 +787,8 @@ fn markdown_import_resolves_a_real_id_conflict_without_merging_same_name_targets
     assert!(name_conflict.contains("entity:b"), "{name_conflict}");
 
     scroll_window_to_top(&ctx, &mut app, 17);
+    click_containing(&ctx, &mut app, 17, "同名资料提示 ·");
+    click_containing(&ctx, &mut app, 17, "阻塞冲突 ·");
     scroll_rendered_text(&ctx, &mut app, 17, "a_import_2");
     click(&ctx, &mut app, 17, "a_import_2");
     click(&ctx, &mut app, 17, "预检导入");
