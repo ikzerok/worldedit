@@ -30,6 +30,7 @@
 - worldedit#39 / EDS-08：[正文、临时侧览与可恢复专注](design/editor-system/20260926/eds08-writing-preview.md)。区分主编辑、临时/固定旁查和阅读投影，定义选文/IME/无鼠标、专注恢复、窄窗与长文验收；行宽仍待实际验证。
 - worldedit#40 / EDS-09：[统一命令、焦点路由与撤销边界](design/editor-system/20260926/eds09-command-routing.md)。统一命令描述和按钮/菜单/快捷键语义，列出模态→IME→焦点区→全局矩阵、分层取消及非拖动替代；仍需生产接入与真实事件验证。
 - worldedit#41 / EDS-10：[基于状态的视觉系统与组件规范](design/editor-system/20260926/eds10-visual-system.md)。列出八类 token、12 种组件状态、四任务/明暗/密度的验证矩阵与 Web 参考阈值；低保真主题比较在 `codex/eds04-prototype`，高保真与完整无障碍验证仍缺。
+- worldedit#43 / EDS-12：[目标作者验证预注册方案](design/editor-system/20260926/eds12-validation-protocol.md)。列出交叉任务、匿名原始字段、安全停止门、平台/性能口径和采用/修改/拒绝决策流程；EDS-11 和真实参与者未完成，结果全部空白，票保持开放。
 
 ## 已决定的排除
 
