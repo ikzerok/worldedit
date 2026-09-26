@@ -7,6 +7,17 @@ pub trait SaveHost {
     fn record_local_snapshot_revision(&mut self, revision: u64);
 }
 
+/// 导出一个救援副本；仅记录下载请求，不推进本地快照或 Project 基线。
+pub fn export_recovery_copy<H: SaveHost>(
+    host: &mut H,
+    revision: u64,
+    bytes: &[u8],
+) -> Result<(), String> {
+    host.request_download("worldedit-recovery.zip", bytes, "application/zip")?;
+    host.record_export_revision(revision);
+    Ok(())
+}
+
 pub fn save_project_package<H, F>(
     host: &mut H,
     revision: u64,
@@ -27,7 +38,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{save_project_package, SaveHost};
+    use super::{export_recovery_copy, save_project_package, SaveHost};
 
     #[derive(Default)]
     struct FakeHost {
@@ -154,6 +165,20 @@ mod tests {
         assert!(!project.is_dirty());
         assert_eq!(project.sources(), sources);
         assert_eq!(authoring_bytes(&project), authoring);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn recovery_download_keeps_dirty_baseline_and_never_marks_local_persistence() {
+        let (project, root) = dirty_project("recovery-export");
+        let mut host = FakeHost::default();
+
+        export_recovery_copy(&mut host, 9, b"recovery zip").unwrap();
+
+        assert_eq!(host.events, ["download", "export_revision"]);
+        assert_eq!(host.export_revision, Some(9));
+        assert_eq!(host.local_revision, None);
+        assert!(project.is_dirty());
         let _ = std::fs::remove_dir_all(root);
     }
 

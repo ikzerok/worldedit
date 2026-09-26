@@ -61,7 +61,7 @@ impl WorldeditApp {
             ));
             #[cfg(target_arch = "wasm32")]
             ui.label(theme::muted(
-                "浏览器记录只在当前模块运行期间保留；刷新页面后不保证仍可用。",
+                "检查点内容与工程快照写入此浏览器的本地存储；若写入失败，当前脏稿仍保留，可导出工程恢复副本。",
             ));
             ui.label(theme::muted(
                 "默认上限：20 条、单条 64 MiB、历史 256 MiB；不会自动删除旧记录。",
@@ -139,8 +139,29 @@ impl WorldeditApp {
                         self.checkpoint_history.label.clear();
                         self.checkpoint_history.preview = None;
                         self.checkpoint_history.error = None;
-                        self.checkpoint_history.notice =
-                            Some("检查点已创建；此操作没有保存或修改当前正文。".into());
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            match self.persist_browser_checkpoint_state() {
+                                Ok(()) => {
+                                    self.io_error = None;
+                                    self.checkpoint_history.notice = Some(
+                                        "检查点和当前工程快照已保存到此浏览器；没有请求下载。"
+                                            .into(),
+                                    );
+                                }
+                                Err(error) => {
+                                    self.browser_pending_save = true;
+                                    self.checkpoint_history.error = Some(format!(
+                                        "浏览器持久化失败，检查点和脏稿仍保留在本次会话中。可点击“导出工程”下载恢复副本；下载不代表已持久化。{error}"
+                                    ));
+                                }
+                            }
+                        }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            self.checkpoint_history.notice =
+                                Some("检查点已创建；此操作没有保存或修改当前正文。".into());
+                        }
                     }
                     Err(error) => self.checkpoint_history.error = Some(error),
                 }
@@ -211,6 +232,13 @@ impl WorldeditApp {
                     "已恢复检查点 {} 的 {} 个文件；可用撤销回到恢复前草稿。",
                     plan.checkpoint_id, result.restored_files
                 ));
+                #[cfg(target_arch = "wasm32")]
+                if let Err(error) = self.persist_browser_checkpoint_state() {
+                    self.browser_pending_save = true;
+                    self.checkpoint_history.error = Some(format!(
+                        "检查点已恢复，但浏览器未能持久化恢复后的快照。当前恢复稿仍保留，可点击“导出工程”下载恢复副本；下载不代表已持久化。{error}"
+                    ));
+                }
             }
             Err(error) => {
                 self.checkpoint_history.error = Some(format!("恢复失败，当前草稿已保留：{error}"));
@@ -239,6 +267,13 @@ impl WorldeditApp {
                 self.checkpoint_history.error = None;
                 self.checkpoint_history.notice =
                     Some("检查点记录已删除；工程源码和当前草稿没有变化。".into());
+                #[cfg(target_arch = "wasm32")]
+                if let Err(error) = self.persist_browser_checkpoint_state() {
+                    self.browser_pending_save = true;
+                    self.checkpoint_history.error = Some(format!(
+                        "本次会话已删除此记录，但浏览器历史未能更新；刷新后旧记录可能仍出现。当前稿仍保留。{error}"
+                    ));
+                }
             }
             Err(error) => self.checkpoint_history.error = Some(error),
         }

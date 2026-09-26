@@ -8,6 +8,7 @@ use std::path::Path;
 
 struct BrowserSaveHost {
     checkpoint_session_id: String,
+    checkpoint_snapshot: Vec<u8>,
 }
 
 impl crate::save_flow::SaveHost for BrowserSaveHost {
@@ -16,7 +17,11 @@ impl crate::save_flow::SaveHost for BrowserSaveHost {
     }
 
     fn persist(&mut self, bytes: &[u8]) -> Result<(), String> {
-        web::persist(bytes, &self.checkpoint_session_id)
+        web::persist(
+            bytes,
+            &self.checkpoint_session_id,
+            &self.checkpoint_snapshot,
+        )
     }
 
     fn record_export_revision(&mut self, revision: u64) {
@@ -31,12 +36,22 @@ impl crate::save_flow::SaveHost for BrowserSaveHost {
 impl WorldeditApp {
     pub(crate) fn restore_browser_save(&mut self) {
         match web::restore() {
-            Ok(Some((files, checkpoint_session_id))) => {
-                self.browser_open_with_mode(files, false, checkpoint_session_id);
+            Ok(Some(snapshot)) => {
+                self.browser_open_with_mode(snapshot.files, false, snapshot.checkpoint_session_id);
+                if self.io_error.is_none() {
+                    if let Some(checkpoints) = snapshot.checkpoint_snapshot {
+                        if let Err(error) = self.project.restore_checkpoint_snapshot(&checkpoints) {
+                            self.io_error = Some(format!(
+                                "工程已恢复，但检查点历史校验失败，未加载历史：{error}"
+                            ));
+                            self.browser_pending_save = true;
+                        }
+                    }
+                }
                 if self.io_error.is_none() {
                     self.browser_pending_save = false;
                     web::record_local_snapshot_revision(self.version);
-                    self.message = Some("已恢复上次保存的浏览器工程".into());
+                    self.message = Some("已恢复上次保存的浏览器工程与检查点历史".into());
                 }
             }
             Ok(None) => {}
@@ -72,11 +87,28 @@ impl WorldeditApp {
         &mut self,
         mut files: Files,
         preflight: bool,
-        checkpoint_session_id: Option<String>,
+        mut checkpoint_session_id: Option<String>,
     ) {
+        let mut recovery_checkpoint_snapshot = None;
         let result = (|| {
             if preflight {
-                files = archive::prepare_import(files)?;
+                let recovery = if files.len() == 1 {
+                    let (name, bytes) = files.first_key_value().unwrap();
+                    name.extension()
+                        .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
+                        .then(|| archive::decode_browser_recovery_bundle(bytes))
+                        .transpose()?
+                        .flatten()
+                } else {
+                    None
+                };
+                if let Some(recovery) = recovery {
+                    files = recovery.project_files;
+                    checkpoint_session_id = Some(recovery.checkpoint_session_id);
+                    recovery_checkpoint_snapshot = Some(recovery.checkpoint_snapshot);
+                } else {
+                    files = archive::prepare_import(files)?;
+                }
             } else if files.len() == 1 {
                 let (name, bytes) = files.first_key_value().unwrap();
                 if name
@@ -96,6 +128,12 @@ impl WorldeditApp {
                         {
                             web::mount(previous);
                             return Err(error);
+                        }
+                    }
+                    if let Some(checkpoints) = recovery_checkpoint_snapshot.as_deref() {
+                        if let Err(error) = project.restore_checkpoint_snapshot(checkpoints) {
+                            web::mount(previous);
+                            return Err(format!("恢复副本中的检查点历史无效：{error}"));
                         }
                     }
                     Ok(project)
@@ -205,8 +243,22 @@ impl WorldeditApp {
         let revision = self.version;
         let files = self.browser_package()?;
         let bytes = archive::encode(&files)?;
+        let checkpoint_snapshot = match self
+            .project
+            .export_checkpoint_snapshot(archive::MAX_BROWSER_CHECKPOINT_SNAPSHOT_BASE64 * 3 / 4)
+        {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                web::download("worldedit-project-recovery.zip", &bytes, "application/zip")?;
+                web::record_export_revision(revision);
+                return Err(format!(
+                    "检查点历史超过浏览器本地快照上限，未持久化。已请求下载当前工程恢复 ZIP；下载不代表持久化成功。{error}"
+                ));
+            }
+        };
         let mut host = BrowserSaveHost {
             checkpoint_session_id: self.project.checkpoint_session_id().to_owned(),
+            checkpoint_snapshot,
         };
         let result = crate::save_flow::save_project_package(&mut host, revision, &bytes, || {
             web::mount(files);
@@ -222,6 +274,76 @@ impl WorldeditApp {
             debug_assert_eq!(revisions.local_snapshot_revision, Some(revision));
         }
         result
+    }
+
+    /// 在浏览器本地恢复快照中保存工作区与检查点，不发起下载，也不宣称已写入用户磁盘。
+    pub(super) fn persist_browser_checkpoint_state(&mut self) -> Result<(), String> {
+        let files = self.browser_package()?;
+        let bytes = archive::encode(&files)?;
+        let checkpoint_snapshot = self
+            .project
+            .export_checkpoint_snapshot(archive::MAX_BROWSER_CHECKPOINT_SNAPSHOT_BASE64 * 3 / 4)?;
+        web::persist(
+            &bytes,
+            self.project.checkpoint_session_id(),
+            &checkpoint_snapshot,
+        )?;
+        web::mount(files);
+        self.project.mark_saved();
+        self.saved_location = true;
+        self.browser_pending_save = false;
+        web::record_local_snapshot_revision(self.version);
+        Ok(())
+    }
+
+    pub(super) fn export_browser_recovery_copy(&mut self) {
+        let mut exported_project_only = false;
+        let result = (|| {
+            let files = self.browser_package()?;
+            let project_archive = archive::encode(&files)?;
+            let checkpoints = match self
+                .project
+                .export_checkpoint_snapshot(archive::MAX_BROWSER_CHECKPOINT_SNAPSHOT_BASE64 * 3 / 4)
+            {
+                Ok(snapshot) => snapshot,
+                Err(error) => {
+                    web::download(
+                        "worldedit-project-recovery.zip",
+                        &project_archive,
+                        "application/zip",
+                    )?;
+                    web::record_export_revision(self.version);
+                    self.message = Some(format!(
+                        "已请求下载只含作者文件的工程恢复 ZIP；检查点超过恢复副本上限且未包含。下载不代表浏览器持久化成功。{error}"
+                    ));
+                    exported_project_only = true;
+                    return Ok(());
+                }
+            };
+            let recovery = archive::encode_browser_recovery_bundle(
+                &project_archive,
+                &checkpoints,
+                self.project.checkpoint_session_id(),
+            )?;
+            let mut host = BrowserSaveHost {
+                checkpoint_session_id: self.project.checkpoint_session_id().to_owned(),
+                checkpoint_snapshot: checkpoints,
+            };
+            crate::save_flow::export_recovery_copy(&mut host, self.version, &recovery)
+        })();
+        match result {
+            Ok(()) if !exported_project_only => {
+                self.message =
+                    Some("已请求下载工程与检查点恢复副本；下载不代表浏览器持久化成功。".into());
+            }
+            Ok(()) => {}
+            Err(error) => {
+                self.browser_pending_save = true;
+                self.io_error = Some(format!(
+                    "无法生成包含检查点的恢复副本：{error}。仍可使用“导出工程”下载作者文件。"
+                ));
+            }
+        }
     }
 
     /// 由 core 生成当前缓冲的完整原始工程快照；浏览器层只补充旧版入口记录。
@@ -255,6 +377,7 @@ impl WorldeditApp {
         match self.browser_save() {
             Ok(()) => true,
             Err(e) => {
+                self.browser_pending_save = true;
                 self.io_error = Some(e);
                 false
             }

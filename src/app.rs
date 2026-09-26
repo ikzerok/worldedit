@@ -1114,6 +1114,12 @@ impl WorldeditApp {
                         if ui.button("发布给读者").clicked() {
                             self.open_reader_publish();
                         }
+                        #[cfg(target_arch = "wasm32")]
+                        if self.browser_pending_save || self.io_error.is_some() {
+                            if ui.button("导出恢复副本").clicked() {
+                                self.export_browser_recovery_copy();
+                            }
+                        }
                         if ui.add(theme::primary("导出工程  ↗")).clicked() {
                             self.directory_dialog(true);
                         }

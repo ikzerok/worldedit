@@ -1,6 +1,6 @@
 //! 浏览器宿主：文件授权、下载和本地保存，不承载语言解析或界面业务。
 pub use crate::archive::Files;
-use crate::archive::{self, MAX_BYTES};
+use crate::archive::{self, MAX_BROWSER_RECOVERY_BYTES, MAX_BYTES};
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -24,6 +24,12 @@ pub type FileEvent = (FileAction, Result<Files, String>);
 pub struct SnapshotRevisions {
     pub last_export_revision: Option<u64>,
     pub local_snapshot_revision: Option<u64>,
+}
+
+pub struct RestoredBrowserSnapshot {
+    pub files: Files,
+    pub checkpoint_session_id: Option<String>,
+    pub checkpoint_snapshot: Option<Vec<u8>>,
 }
 
 thread_local! {
@@ -214,8 +220,16 @@ async fn read_files(list: Option<web_sys::FileList>, folder: bool) -> Result<Fil
     for index in 0..list.length() {
         let file = list.get(index).ok_or("选中的文件无法读取")?;
         total += file.size() as u64;
-        if total > MAX_BYTES {
-            return Err("所选文件总大小超过 64 MiB".into());
+        let max_total = if !folder
+            && list.length() == 1
+            && file.name().to_ascii_lowercase().ends_with(".zip")
+        {
+            MAX_BROWSER_RECOVERY_BYTES
+        } else {
+            MAX_BYTES
+        };
+        if total > max_total {
+            return Err("所选工程包或恢复副本超过大小上限".into());
         }
         let name = if folder {
             let relative = js_sys::Reflect::get(&file, &JsValue::from_str("webkitRelativePath"))
@@ -313,29 +327,40 @@ pub fn download(name: &str, bytes: &[u8], mime: &str) -> Result<(), String> {
 }
 
 const STORAGE_KEY: &str = "worldedit.project.v1";
-pub fn persist(bytes: &[u8], checkpoint_session_id: &str) -> Result<(), String> {
+pub fn persist(
+    bytes: &[u8],
+    checkpoint_session_id: &str,
+    checkpoint_snapshot: &[u8],
+) -> Result<(), String> {
+    let max_snapshot_bytes = archive::MAX_BROWSER_CHECKPOINT_SNAPSHOT_BASE64 * 3 / 4;
+    if checkpoint_snapshot.len() > max_snapshot_bytes {
+        return Err("浏览器检查点历史超过本地快照上限；记录仍保留在当前会话中".into());
+    }
     let window = web_sys::window().unwrap();
     let binary: String = bytes.iter().map(|b| char::from(*b)).collect();
     let archive_base64 = window.btoa(&binary).map_err(error)?;
-    let encoded = archive::encode_browser_snapshot(&archive_base64, checkpoint_session_id)?;
+    let checkpoint_binary: String = checkpoint_snapshot.iter().map(|b| char::from(*b)).collect();
+    let checkpoint_snapshot_base64 = window.btoa(&checkpoint_binary).map_err(error)?;
+    let encoded = archive::encode_browser_snapshot(
+        &archive_base64,
+        checkpoint_session_id,
+        Some(&checkpoint_snapshot_base64),
+    )?;
     let storage = window
         .local_storage()
         .map_err(error)?
         .ok_or("浏览器不允许本地保存")?;
     let current = storage.get_item(STORAGE_KEY).map_err(error)?;
     if !SAVED_BASELINE.with(|baseline| *baseline.borrow() == current) {
-        return Err(
-            "另一标签页已更改浏览器存档，未覆盖。工程包已请求下载，请确认下载完成后刷新页面合并。"
-                .into(),
-        );
+        return Err("另一标签页已更改浏览器存档，未覆盖。下载副本不代表本地快照已保存。".into());
     }
     storage.set_item(STORAGE_KEY, &encoded).map_err(|_| {
-        "浏览器本地存储空间不足。工程包已请求下载，请确认下载完成；未保存标记继续保留。".to_string()
+        "浏览器本地存储写入失败或空间不足。下载仅是恢复副本，不代表已持久化；当前脏稿和检查点仍保留在本次会话中。".to_string()
     })?;
     SAVED_BASELINE.with(|baseline| *baseline.borrow_mut() = Some(encoded));
     Ok(())
 }
-pub fn restore() -> Result<Option<(Files, Option<String>)>, String> {
+pub fn restore() -> Result<Option<RestoredBrowserSnapshot>, String> {
     let window = web_sys::window().unwrap();
     let Some(storage) = window.local_storage().map_err(error)? else {
         return Ok(None);
@@ -343,13 +368,27 @@ pub fn restore() -> Result<Option<(Files, Option<String>)>, String> {
     let Some(encoded) = storage.get_item(STORAGE_KEY).map_err(error)? else {
         return Ok(None);
     };
-    let (archive_base64, checkpoint_session_id) = archive::decode_browser_snapshot(&encoded)?;
-    let binary = window.atob(&archive_base64).map_err(error)?;
+    let decoded = archive::decode_browser_snapshot(&encoded)?;
+    let binary = window.atob(&decoded.archive_base64).map_err(error)?;
     let bytes: Vec<_> = binary.chars().map(|c| c as u8).collect();
     let files = archive::decode(&bytes)?;
     archive::entry(&files)?;
+    let checkpoint_snapshot = decoded
+        .checkpoint_snapshot_base64
+        .map(|encoded| {
+            let binary = window.atob(&encoded).map_err(error)?;
+            Ok::<_, String>(binary.chars().map(|character| character as u8).collect())
+        })
+        .transpose()?;
+    if checkpoint_snapshot.is_some() && decoded.checkpoint_session_id.is_none() {
+        return Err("浏览器检查点快照缺少会话标识".into());
+    }
     SAVED_BASELINE.with(|baseline| *baseline.borrow_mut() = Some(encoded));
-    Ok(Some((files, checkpoint_session_id)))
+    Ok(Some(RestoredBrowserSnapshot {
+        files,
+        checkpoint_session_id: decoded.checkpoint_session_id,
+        checkpoint_snapshot,
+    }))
 }
 
 #[cfg(test)]
