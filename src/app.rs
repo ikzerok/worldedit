@@ -50,7 +50,7 @@ use std::path::{Path, PathBuf};
 use worldline_core::authoring::{CharacterDraft, EventDraft, WorldDraft};
 use worldline_core::project::Project;
 use worldline_core::{CompileResult, Diagnostic, Severity};
-use worldline_runtime::Story;
+use worldline_runtime::{ChoiceExplanation, ReplayCancellation, ReplayResult, ReplayTrace, Story};
 
 fn draft_root() -> PathBuf {
     #[cfg(not(target_arch = "wasm32"))]
@@ -137,6 +137,63 @@ struct PlayState {
     ended: bool,
     error: Option<String>,
     version: u64,
+    paused: bool,
+}
+struct SavedReplayPath {
+    name: String,
+    trace: ReplayTrace,
+}
+struct ReplayJob {
+    cancellation: ReplayCancellation,
+    receiver: std::sync::mpsc::Receiver<Result<ReplayResult, String>>,
+}
+impl Drop for ReplayJob {
+    fn drop(&mut self) {
+        self.cancellation.cancel();
+    }
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlayPane {
+    Story,
+    Debugger,
+}
+struct ReplayDebugger {
+    seed: u64,
+    path_name: String,
+    saved_paths: Vec<SavedReplayPath>,
+    selected_path: Option<usize>,
+    import_json: String,
+    export_json: String,
+    result: Option<ReplayResult>,
+    result_path_name: Option<String>,
+    result_version: Option<u64>,
+    job: Option<ReplayJob>,
+    explanations: Option<Vec<ChoiceExplanation>>,
+    max_steps: u64,
+    time_budget_ms: u64,
+    pane: PlayPane,
+    notice: Option<String>,
+}
+impl Default for ReplayDebugger {
+    fn default() -> Self {
+        Self {
+            seed: 1,
+            path_name: "路径 1".into(),
+            saved_paths: Vec::new(),
+            selected_path: None,
+            import_json: String::new(),
+            export_json: String::new(),
+            result: None,
+            result_path_name: None,
+            result_version: None,
+            job: None,
+            explanations: None,
+            max_steps: 100_000,
+            time_budget_ms: 30_000,
+            pane: PlayPane::Story,
+            notice: None,
+        }
+    }
 }
 #[derive(Clone)]
 struct EventEditor {
@@ -184,6 +241,7 @@ pub struct WorldeditApp {
     tab: Tab,
     jump: Option<(u32, u32)>,
     play: Option<PlayState>,
+    replay_debugger: ReplayDebugger,
     play_scroll_bottom: bool,
     event_editor: Option<EventEditor>,
     character_editor: Option<CharacterEditor>,
@@ -286,6 +344,7 @@ impl WorldeditApp {
             tab: Tab::Timeline,
             jump: None,
             play: None,
+            replay_debugger: ReplayDebugger::default(),
             play_scroll_bottom: false,
             event_editor: None,
             character_editor: None,

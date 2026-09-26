@@ -79,7 +79,7 @@ fn frame(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
-                if window == 16 {
+                if window == 16 || window == 21 {
                     vec2(700.0, 640.0)
                 } else if window == 9 {
                     vec2(1040.0, 660.0)
@@ -114,9 +114,356 @@ fn frame(
                 });
             }
             14 => app.catalog_tab(ctx),
+            20 | 21 => app.play_tab(ctx),
+            22 => app.canvas_tab(ctx),
             _ => app.content_deletion_window(ctx),
         },
     )
+}
+fn replay_app(source: &str, window: u8) -> (egui::Context, WorldeditApp) {
+    let (ctx, mut app) = app();
+    app.project
+        .set_text(&app.active_file.clone(), source.into())
+        .unwrap();
+    app.recompile();
+    assert!(
+        !app.snapshot.as_ref().unwrap().result.has_errors(),
+        "{:?}",
+        app.snapshot.as_ref().unwrap().result.diagnostics
+    );
+    app.tab = super::Tab::Play;
+    click(&ctx, &mut app, window, "▶ 开始试玩");
+    (ctx, app)
+}
+fn wait_for_replay(ctx: &egui::Context, app: &mut WorldeditApp) {
+    for _ in 0..500 {
+        let _ = frame(ctx, app, Vec::new(), 20);
+        if app.replay_debugger.job.is_none() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+#[test]
+fn play_tab_exposes_replay_capture_and_condition_inspection_controls() {
+    let (ctx, mut app) = app();
+    let source =
+        "event start\n  choice \"继续\" if false\n    -> END\n  choice \"结束\"\n    -> END\n";
+    app.project
+        .set_text(&app.active_file.clone(), source.into())
+        .unwrap();
+    app.recompile();
+    app.tab = super::Tab::Play;
+    click(&ctx, &mut app, 20, "▶ 开始试玩");
+
+    let output = frame(&ctx, &mut app, Vec::new(), 20);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("保存当前路径"), "{rendered}");
+    assert!(rendered.contains("解释当前条件"), "{rendered}");
+    assert!(rendered.contains("种子"), "{rendered}");
+}
+
+#[test]
+fn named_recorded_path_replays_against_the_current_snapshot_without_project_writes() {
+    let source = concat!(
+        "let score = 0\n",
+        "event start\n",
+        "  choice \"继续\"\n",
+        "    set score = score + 1\n",
+        "    -> END\n",
+    );
+    let (ctx, mut app) = replay_app(source, 20);
+    let baseline = app.project.content_baseline();
+    let history_len = app.history.len();
+
+    click(&ctx, &mut app, 20, "选择：继续");
+    click(&ctx, &mut app, 20, "● 保存当前路径");
+    assert_eq!(app.replay_debugger.saved_paths.len(), 1);
+    assert_eq!(app.replay_debugger.saved_paths[0].trace.steps.len(), 1);
+    assert!(app.replay_debugger.saved_paths[0].trace.complete);
+
+    click(&ctx, &mut app, 20, "▶ 重放所选路径");
+    wait_for_replay(&ctx, &mut app);
+    let result = app.replay_debugger.result.as_ref().unwrap();
+    assert!(matches!(
+        result.status,
+        worldline_runtime::ReplayStatus::Replayed {
+            ended: true,
+            complete: true
+        }
+    ));
+    assert!(result.state_diff.contains_key("vars"));
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.history.len(), history_len);
+}
+
+#[test]
+fn condition_explanation_uses_the_real_ui_action_without_advancing_story() {
+    let source = concat!(
+        "event start\n",
+        "  choice \"不可选\" if false\n",
+        "    -> END\n",
+        "  choice \"继续\"\n",
+        "    -> END\n",
+    );
+    let (ctx, mut app) = replay_app(source, 20);
+    let _ = frame(&ctx, &mut app, Vec::new(), 20);
+    let story = app.play.as_ref().unwrap().story.as_ref().unwrap();
+    let before_trace = story.replay_trace();
+    let before_state = story.state_view();
+    let before_turns = story.turns();
+    let baseline = app.project.content_baseline();
+
+    click(&ctx, &mut app, 20, "解释当前条件（只读）");
+
+    let story = app.play.as_ref().unwrap().story.as_ref().unwrap();
+    assert_eq!(story.replay_trace(), before_trace);
+    assert_eq!(story.state_view(), before_state);
+    assert_eq!(story.turns(), before_turns);
+    let explanations = app.replay_debugger.explanations.as_ref().unwrap();
+    assert!(explanations.iter().any(|item| {
+        item.choice.label == "不可选" && !item.available && item.unavailable_reason.is_some()
+    }));
+    assert_eq!(app.project.content_baseline(), baseline);
+}
+
+#[test]
+fn stale_recorded_choice_stops_and_ui_jumps_to_its_source_line() {
+    let source = "event start\n  choice \"旧选择\"\n    -> END\n";
+    let (ctx, mut app) = replay_app(source, 20);
+    click(&ctx, &mut app, 20, "选择：旧选择");
+    click(&ctx, &mut app, 20, "● 保存当前路径");
+
+    app.project
+        .set_text(
+            &app.active_file.clone(),
+            "event start\n  choice \"新选择\"\n    -> END\n".into(),
+        )
+        .unwrap();
+    app.recompile();
+    click(&ctx, &mut app, 20, "▶ 重放所选路径");
+    wait_for_replay(&ctx, &mut app);
+
+    let result = app.replay_debugger.result.as_ref().unwrap();
+    let worldline_runtime::ReplayStatus::Diverged {
+        reason,
+        expected_choice,
+        actual_choices,
+        ..
+    } = &result.status
+    else {
+        panic!("应停止在缺失的旧选择，实际结果：{:?}", result.status);
+    };
+    assert!(reason.contains("不匹配") || reason.contains("不存在"));
+    assert!(expected_choice.is_none());
+    assert_eq!(
+        app.replay_debugger.saved_paths[0].trace.steps[0]
+            .choice
+            .label,
+        "旧选择"
+    );
+    assert_eq!(actual_choices[0].label, "新选择");
+    let actual_line = actual_choices[0].line;
+    click(&ctx, &mut app, 20, "跳转到失败位置");
+    assert_eq!(app.tab, super::Tab::Edit);
+    assert_eq!(app.jump, Some((actual_line, 1)));
+}
+
+#[test]
+fn removed_choice_stops_without_fallback_and_locates_the_recorded_source_line() {
+    let source = "event start\n  choice \"待删除\"\n    -> END\n";
+    let (ctx, mut app) = replay_app(source, 20);
+    click(&ctx, &mut app, 20, "选择：待删除");
+    click(&ctx, &mut app, 20, "● 保存当前路径");
+
+    app.project
+        .set_text(
+            &app.active_file.clone(),
+            "event start\n  选择已经删除。\n  -> END\n".into(),
+        )
+        .unwrap();
+    app.recompile();
+    click(&ctx, &mut app, 20, "▶ 重放所选路径");
+    wait_for_replay(&ctx, &mut app);
+    let result = app.replay_debugger.result.as_ref().unwrap();
+    let worldline_runtime::ReplayStatus::Diverged { actual_choices, .. } = &result.status else {
+        panic!("删除的选择必须停止并报告分歧：{:?}", result.status);
+    };
+    assert!(actual_choices.is_empty());
+
+    let line = app.replay_debugger.saved_paths[0].trace.steps[0]
+        .choice
+        .line;
+    click(&ctx, &mut app, 20, "跳转到失败位置");
+    assert_eq!(app.tab, super::Tab::Edit);
+    assert_eq!(app.jump, Some((line, 1)));
+}
+
+#[test]
+fn changed_node_stops_at_the_new_node_instead_of_reusing_the_old_choice_index() {
+    let source = "event start\n  choice \"继续\"\n    -> END\n";
+    let (ctx, mut app) = replay_app(source, 20);
+    click(&ctx, &mut app, 20, "选择：继续");
+    click(&ctx, &mut app, 20, "● 保存当前路径");
+
+    app.project
+        .set_text(
+            &app.active_file.clone(),
+            "event replacement\n  choice \"继续\"\n    -> END\n".into(),
+        )
+        .unwrap();
+    app.recompile();
+    click(&ctx, &mut app, 20, "▶ 重放所选路径");
+    wait_for_replay(&ctx, &mut app);
+
+    let result = app.replay_debugger.result.as_ref().unwrap();
+    let worldline_runtime::ReplayStatus::Diverged { actual_choices, .. } = &result.status else {
+        panic!("修改节点后应报告路径分歧：{:?}", result.status);
+    };
+    assert_eq!(actual_choices[0].node, "replacement");
+    assert_eq!(
+        app.replay_debugger.saved_paths[0].trace.steps[0]
+            .choice
+            .node,
+        "start"
+    );
+}
+
+#[test]
+fn narrow_play_view_can_switch_between_body_and_debug_information() {
+    let source = "event start\n  choice \"继续\"\n    -> END\n";
+    let (ctx, mut app) = replay_app(source, 21);
+    click(&ctx, &mut app, 21, "调试信息");
+    let output = frame(&ctx, &mut app, Vec::new(), 21);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("叙事调试信息"), "{rendered}");
+
+    click(&ctx, &mut app, 21, "正文");
+    let output = frame(&ctx, &mut app, Vec::new(), 21);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("正文"), "{rendered}");
+}
+
+#[test]
+fn event_graph_marks_only_visits_from_the_selected_replay() {
+    let source = "event start\n  choice \"继续\"\n    -> END\n";
+    let (ctx, mut app) = replay_app(source, 20);
+    click(&ctx, &mut app, 20, "选择：继续");
+    click(&ctx, &mut app, 20, "● 保存当前路径");
+    click(&ctx, &mut app, 20, "▶ 重放所选路径");
+    wait_for_replay(&ctx, &mut app);
+
+    app.tab = super::Tab::Graph;
+    let output = frame(&ctx, &mut app, Vec::new(), 22);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("访问 ×1"), "{rendered}");
+    assert!(rendered.contains("无标记表示未测试"), "{rendered}");
+}
+
+#[test]
+fn imported_trace_size_limit_is_enforced_without_rendering_or_retaining_it() {
+    let source = "event start\n  choice \"继续\"\n    -> END\n";
+    let (ctx, mut app) = replay_app(source, 20);
+    app.replay_debugger.import_json = "x".repeat(1024 * 1024 + 1);
+    click(&ctx, &mut app, 20, "拒绝超限轨迹");
+
+    assert!(app.replay_debugger.saved_paths.is_empty());
+    assert!(app
+        .replay_debugger
+        .notice
+        .as_deref()
+        .is_some_and(|notice| notice.contains("1 MiB")));
+}
+
+#[test]
+fn replay_cancellation_button_cancels_a_long_recorded_trace_and_keeps_it() {
+    let source = "event start\n  choice \"再来\"\n    -> start\n";
+    let (ctx, mut app) = replay_app(source, 20);
+    let snapshot = app.snapshot.as_ref().unwrap();
+    let mut story = worldline_runtime::Story::new_with_seed(
+        &snapshot.result.program,
+        &snapshot.result.analysis,
+        7,
+    )
+    .unwrap();
+    story.continue_story().unwrap();
+    for _ in 0..20_000 {
+        story.choose(0).unwrap();
+        story.continue_story().unwrap();
+    }
+    let trace = story.replay_trace();
+    assert_eq!(trace.steps.len(), 20_000);
+    app.replay_debugger
+        .saved_paths
+        .push(super::SavedReplayPath {
+            name: "长路径".into(),
+            trace,
+        });
+    app.replay_debugger.selected_path = Some(0);
+    app.replay_debugger.max_steps = 1_000_000_000;
+    app.replay_debugger.time_budget_ms = 600_000;
+
+    click(&ctx, &mut app, 20, "▶ 重放所选路径");
+    click_without_settling(&ctx, &mut app, 20, "取消重放");
+    wait_for_replay(&ctx, &mut app);
+
+    assert!(matches!(
+        app.replay_debugger.result.as_ref().unwrap().status,
+        worldline_runtime::ReplayStatus::Cancelled
+    ));
+    assert_eq!(app.replay_debugger.saved_paths[0].trace.steps.len(), 20_000);
+    assert!(app.history.is_empty());
+}
+
+#[test]
+fn pause_stop_and_checkpoint_import_controls_keep_debug_state_out_of_project() {
+    let source = "event start\n  choice \"继续\"\n    -> END\n";
+    let (ctx, mut app) = replay_app(source, 20);
+    let _ = frame(&ctx, &mut app, Vec::new(), 20);
+    let baseline = app.project.content_baseline();
+    let story = app.play.as_mut().unwrap().story.as_mut().unwrap();
+    story.start_trace_from_here().unwrap();
+    let checkpoint_trace = story.replay_trace();
+    assert!(matches!(
+        checkpoint_trace.origin,
+        worldline_runtime::ReplayOrigin::Checkpoint { .. }
+    ));
+    app.replay_debugger.import_json = serde_json::to_string(&checkpoint_trace).unwrap();
+    click(&ctx, &mut app, 20, "检查并导入路径");
+    assert_eq!(app.replay_debugger.saved_paths.len(), 1);
+    assert!(matches!(
+        app.replay_debugger.saved_paths[0].trace.origin,
+        worldline_runtime::ReplayOrigin::Checkpoint { .. }
+    ));
+    click(&ctx, &mut app, 20, "查看检查点状态");
+    let output = frame(&ctx, &mut app, Vec::new(), 20);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("检查点起点"), "{rendered}");
+
+    click(&ctx, &mut app, 20, "Ⅱ 暂停");
+    assert!(app.play.as_ref().unwrap().paused);
+    click(&ctx, &mut app, 20, "▶ 继续");
+    assert!(!app.play.as_ref().unwrap().paused);
+    click(&ctx, &mut app, 20, "■ 停止");
+    assert!(app.play.as_ref().unwrap().ended);
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
 }
 
 #[test]
@@ -547,6 +894,30 @@ fn click(ctx: &egui::Context, app: &mut WorldeditApp, window: u8, label: &str) {
             }
             panic!("按钮未显示：{label}；当前文字：{rendered}");
         });
+    for pressed in [true, false] {
+        let _ = frame(
+            ctx,
+            app,
+            vec![
+                Event::PointerMoved(point),
+                Event::PointerButton {
+                    pos: point,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            window,
+        );
+    }
+}
+fn click_without_settling(ctx: &egui::Context, app: &mut WorldeditApp, window: u8, label: &str) {
+    let output = frame(ctx, app, Vec::new(), window);
+    let point = output
+        .shapes
+        .iter()
+        .find_map(|shape| text_position(&shape.shape, label))
+        .unwrap_or_else(|| panic!("按钮未显示：{label}"));
     for pressed in [true, false] {
         let _ = frame(
             ctx,

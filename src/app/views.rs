@@ -28,6 +28,11 @@ impl WorldeditApp {
         };
         let graph = snapshot.result.analysis.graph.clone();
         let anchors = snapshot.result.analysis.anchors.clone();
+        let visit_coverage = self
+            .replay_debugger
+            .result
+            .as_ref()
+            .map(|result| result.coverage.visited_nodes.clone());
         let timeline = self.tab == Tab::Timeline;
         egui::CentralPanel::default()
             .frame(theme::panel().fill(BG))
@@ -45,6 +50,11 @@ impl WorldeditApp {
                             graph.nodes.iter().filter(|n| n.is_event).count(),
                             self.project.documents.len()
                         )));
+                        if visit_coverage.is_some() {
+                            ui.label(theme::muted(
+                                "访问覆盖标记：数字表示实际访问次数；无标记表示未测试",
+                            ));
+                        }
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.add(theme::primary("＋ 新建事件")).clicked() {
@@ -386,6 +396,18 @@ impl WorldeditApp {
                                 },
                                 &self.search,
                             );
+                            if let Some(count) = visit_coverage
+                                .as_ref()
+                                .and_then(|coverage| coverage.get(&node.name))
+                            {
+                                painter.text(
+                                    rect.right_top() + Vec2::new(-12.0, 10.0) * zoom,
+                                    egui::Align2::RIGHT_TOP,
+                                    format!("访问 ×{count}"),
+                                    egui::FontId::proportional(9.0 * zoom),
+                                    egui::Color32::from_rgb(130, 220, 150),
+                                );
+                            }
                             if anchors.iter().any(|a| a.node == node.name) {
                                 painter.text(
                                     rect.right_bottom() - Vec2::new(12.0, 12.0) * zoom,
