@@ -5,6 +5,9 @@ edition = "2021"
 license = "MIT"
 description = "worldedit:worldline 的作者工作台(egui)"
 
+[features]
+eds11_prototype = []
+
 [dependencies]
 worldline-core = { path = "../worldline/core" }
 worldline-runtime = { path = "../worldline/runtime" }
@@ -22,4 +25,4 @@ rfd = "0.15"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Blob", "BlobPropertyBag", "File", "FileList", "HtmlInputElement", "HtmlAnchorElement", "BeforeUnloadEvent", "Storage", "Url"] }
+web-sys = { version = "0.3", features = ["Blob", "BlobPropertyBag", "File", "FileList", "HtmlInputElement", "HtmlAnchorElement", "BeforeUnloadEvent", "Storage", "Url", "Location"] }

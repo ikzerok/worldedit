@@ -10,11 +10,13 @@
   <style>
     html, body { margin: 0; width: 100%; height: 100%; background: #16171b; color: #edeff5; }
     #worldedit-canvas { display: block; width: 100%; height: 100%; min-width: 1040px; min-height: 660px; touch-action: none; }
+    html[data-eds11="1"] #worldedit-canvas { min-width: 640px; min-height: 480px; }
     #loading { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; font: 16px/1.8 system-ui, sans-serif; padding: 24px; }
     #loading strong { color: #8fb7f8; font-size: 24px; }
   </style>
 </head>
 <body>
+  <script>if (new URLSearchParams(location.search).get('eds11') === '1') document.documentElement.dataset.eds11 = '1';</script>
   <canvas id="worldedit-canvas" aria-label="worldedit 世界创作工作台"></canvas>
   <div id="loading" role="status"><strong>worldedit</strong>正在加载世界创作工作台…</div>
   <noscript>请启用 JavaScript 以加载 Rust WebAssembly 工作台。</noscript>

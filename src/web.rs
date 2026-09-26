@@ -65,9 +65,17 @@ pub fn start() {
                 canvas,
                 eframe::WebOptions::default(),
                 Box::new(|cc| {
+                    #[cfg(feature = "eds11_prototype")]
+                    if web_sys::window()
+                        .and_then(|window| window.location().search().ok())
+                        .is_some_and(|query| query.contains("eds11=1"))
+                    {
+                        return Ok(Box::new(crate::eds11_prototype::Prototype::new(cc))
+                            as Box<dyn eframe::App>);
+                    }
                     let mut app = crate::app::WorldeditApp::new(cc, None);
                     app.restore_browser_save();
-                    Ok(Box::new(app))
+                    Ok(Box::new(app) as Box<dyn eframe::App>)
                 }),
             )
             .await;
