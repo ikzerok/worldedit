@@ -26,6 +26,7 @@
 - worldedit#35 / EDS-04：[六区域显隐与 A/B/C 比较](design/editor-system/20260926/eds04-layout-comparison.md)。三种结构用同一组任务与示例数据比较，B 暂列下一轮验证首选，完整自由 dock 暂不采用；抛弃式交互原型单独保存在 `codex/eds04-prototype` 的 `ae23509`，尚待实际作者评估。
 - worldedit#36 / EDS-05：[跨投影交互契约](design/editor-system/20260926/eds05-cross-projection.md)。定义类型化导航与返回点、临时/固定资料库、拖放零写入、长标签文字后备与 core 实际 250 节点/500 边上限；仍需真实事件和作者可达性验收。
 - worldedit#37 / EDS-06：[检查器、参数与正文草稿契约](design/editor-system/20260926/eds06-inspector-drafts.md)。列出跟随/固定及多选矩阵、默认/缺失/未知值、渐进分组、重置范围、三方比较与 IME/陈旧负例；这是设计，未声称生产界面完成。
+- worldedit#38 / EDS-07：[时间、控制流、书稿与关系图视觉语法](design/editor-system/20260926/eds07-graph-grammar.md)。四种投影分开命名与图例，区分选择、预览和运行位置；为并行边、自环、长标签与截断定义文字后备和负例。未做作者理解测试。
 
 ## 已决定的排除
 
