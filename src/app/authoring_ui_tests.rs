@@ -41,6 +41,7 @@ fn frame(
             4 => app.network_tab(ctx),
             5 => app.target_rename_window(ctx),
             6 => app.preset_editor_window(ctx),
+            7 => app.review_tab(ctx),
             _ => app.content_deletion_window(ctx),
         },
     )
@@ -416,4 +417,57 @@ fn template_fields_preserve_body_and_custom_values_and_suggestions_only_open_dra
         .relation_editor
         .as_ref()
         .is_some_and(|form| form.draft.from == TargetRef::new("entity", &id)));
+}
+
+#[test]
+fn collaboration_review_saves_comments_and_keeps_conflicting_proposals_open() {
+    let (ctx, mut app) = app();
+    app.new_comment_for_anchor(worldline_core::collaboration::CommentAnchor::Object {
+        target: TargetRef::new("entity", "a"),
+    });
+    {
+        let editor = app.review.comment_editor.as_mut().unwrap();
+        editor.draft.author = "甲".into();
+        editor.draft.body = "请补充来源".into();
+    }
+    click(&ctx, &mut app, 7, "保存批注");
+    assert!(app.review.comment_editor.is_none(), "{:?}", app.io_error);
+    assert!(app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .comment_index
+        .comments
+        .contains_key("comment_1"));
+
+    let entry = app.project.entry.clone();
+    let mut proposed = app.project.document(&entry).unwrap().to_string();
+    proposed.push_str("# 提案版本\n");
+    app.project.set_text(&entry, proposed).unwrap();
+    app.recompile();
+    app.review.author = "乙".into();
+    app.review.reason = "审阅正文修改".into();
+    app.review.proposal_id = "proposal_ui".into();
+    click(&ctx, &mut app, 7, "保存修改提案");
+    assert!(app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .proposal_index
+        .proposals
+        .contains_key("proposal_ui"));
+
+    let mut current = app.project.document(&entry).unwrap().to_string();
+    current.push_str("# 并行当前修改\n");
+    app.project.set_text(&entry, current).unwrap();
+    app.recompile();
+    let before = app.project.content_baseline();
+    click(&ctx, &mut app, 7, "采纳提案");
+    assert_eq!(app.project.content_baseline(), before);
+    assert_eq!(
+        app.snapshot.as_ref().unwrap().proposal_index.proposals["proposal_ui"]
+            .draft
+            .status,
+        worldline_core::collaboration::ProposalStatus::Open
+    );
 }

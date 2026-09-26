@@ -116,6 +116,7 @@ impl WorldeditApp {
                     Tab::Timeline,
                     Tab::Graph,
                     Tab::Network,
+                    Tab::Review,
                     Tab::Map,
                     Tab::Characters,
                     Tab::World,

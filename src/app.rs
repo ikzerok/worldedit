@@ -8,6 +8,7 @@ mod browser;
 mod catalog;
 mod characters;
 mod choices;
+mod collaboration_ui;
 #[cfg(not(target_arch = "wasm32"))]
 mod conflicts;
 mod deletion;
@@ -87,6 +88,7 @@ enum Tab {
     Timeline,
     Graph,
     Network,
+    Review,
     Map,
     Characters,
     Catalog,
@@ -102,6 +104,7 @@ impl Tab {
             Self::Timeline => "时间线",
             Self::Graph => "事件关系图",
             Self::Network => "世界关联",
+            Self::Review => "协作审阅",
             Self::Map => "地图画布",
             Self::Characters => "人物",
             Self::Catalog => "资料与状态",
@@ -118,6 +121,8 @@ struct Snapshot {
     map_index: worldline_core::presentation::MapIndex,
     graph_index: worldline_core::graph_views::GraphViewIndex,
     preset_index: worldline_core::presentation_presets::PresentationPresetIndex,
+    comment_index: worldline_core::collaboration::CommentIndex,
+    proposal_index: worldline_core::collaboration::ProposalIndex,
 }
 struct PlayState {
     // 延续运行时借用接口;每次重开产生一个会话快照。
@@ -237,6 +242,7 @@ pub struct WorldeditApp {
     network_view_title: String,
     network_selected: Option<worldline_core::catalog::TargetRef>,
     pending_preset_layers: Option<(String, std::collections::BTreeMap<String, bool>)>,
+    review: collaboration_ui::ReviewState,
 }
 
 impl WorldeditApp {
@@ -329,6 +335,7 @@ impl WorldeditApp {
             network_view_title: String::new(),
             network_selected: None,
             pending_preset_layers: None,
+            review: collaboration_ui::ReviewState::default(),
         };
         if let Some(path) = initial_file {
             app.load_project(path);
@@ -353,9 +360,14 @@ impl WorldeditApp {
             &map_index,
             &graph_index,
         );
+        let comment_index =
+            worldline_core::collaboration::build_comment_index(&self.project, &result, &map_index);
+        let proposal_index = worldline_core::collaboration::build_proposal_index(&self.project);
         self.snapshot = Some(Snapshot {
             graph_index,
             preset_index,
+            comment_index,
+            proposal_index,
             result,
             wiki,
             map_index,
@@ -378,9 +390,14 @@ impl WorldeditApp {
             &map_index,
             &graph_index,
         );
+        let comment_index =
+            worldline_core::collaboration::build_comment_index(&self.project, content, &map_index);
+        let proposal_index = worldline_core::collaboration::build_proposal_index(&self.project);
         if let Some(snapshot) = self.snapshot.as_mut() {
             snapshot.graph_index = graph_index;
             snapshot.preset_index = preset_index;
+            snapshot.comment_index = comment_index;
+            snapshot.proposal_index = proposal_index;
             snapshot.map_index = map_index;
         }
     }
@@ -490,6 +507,7 @@ impl WorldeditApp {
         self.network_view_title.clear();
         self.network_selected = None;
         self.pending_preset_layers = None;
+        self.review = collaboration_ui::ReviewState::default();
     }
     fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
         if self.project.is_dirty() {
@@ -852,6 +870,7 @@ impl eframe::App for WorldeditApp {
             }
             Tab::Map => self.map_tab(ctx),
             Tab::Network => self.network_tab(ctx),
+            Tab::Review => self.review_tab(ctx),
             Tab::Overview => self.overview_tab(ctx),
             Tab::Edit => self.source_tab(ctx),
             Tab::Characters => self.characters_tab(ctx),

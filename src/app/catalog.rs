@@ -57,10 +57,11 @@ impl WorldeditApp {
             return;
         };
         let catalog = snapshot.result.analysis.catalog.clone();
-        let impact = worldline_core::reference_impact::deletion_impact_with_views(
+        let impact = worldline_core::reference_impact::deletion_impact_with_collaboration(
             &snapshot.result,
             &snapshot.map_index,
             &snapshot.graph_index,
+            &snapshot.comment_index,
             target,
         );
         let map_references = impact
@@ -94,9 +95,16 @@ impl WorldeditApp {
                 }
             });
         }
-        if ui.button("阅读完整资料 / 管理别名").clicked() {
-            self.open_reading(target.clone());
-        }
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("阅读完整资料 / 管理别名").clicked() {
+                self.open_reading(target.clone());
+            }
+            if ui.button("批注此对象…").clicked() {
+                self.new_comment_for_anchor(worldline_core::collaboration::CommentAnchor::Object {
+                    target: target.clone(),
+                });
+            }
+        });
         ui.separator();
         ui.label(
             RichText::new(if target.kind == "tag" {
@@ -316,7 +324,11 @@ impl WorldeditApp {
         let references = impact.content_references;
         egui::CollapsingHeader::new(format!(
             "引用来源 · {} 处",
-            references.len() + map_references.len() + impact.map_rasters.len()
+            references.len()
+                + map_references.len()
+                + impact.map_rasters.len()
+                + impact.graph_views.len()
+                + impact.comments.len()
         ))
         .id_salt(("references", target))
         .default_open(target.kind == "event")
@@ -372,6 +384,17 @@ impl WorldeditApp {
                     self.jump_to_file(&reference.file, 1, 1);
                 }
             }
+            for reference in &impact.comments {
+                if ui
+                    .button(format!(
+                        "批注引用 · {} · 打开批注文档",
+                        reference.comment_id
+                    ))
+                    .clicked()
+                {
+                    self.jump_to_file(&reference.file, 1, 1);
+                }
+            }
             for reference in &impact.map_rasters {
                 if ui
                     .button(format!(
@@ -399,6 +422,7 @@ impl WorldeditApp {
                 && map_references.is_empty()
                 && impact.map_rasters.is_empty()
                 && impact.graph_views.is_empty()
+                && impact.comments.is_empty()
             {
                 ui.label(theme::muted("尚无直接引用"));
             }

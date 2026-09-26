@@ -81,6 +81,13 @@ impl WorldeditApp {
                     ));
                     ui.label(theme::muted(&reference.file));
                 }
+                for reference in &form.impact.comments {
+                    ui.label(format!(
+                        "批注引用 · {} / {}",
+                        reference.comment_id, reference.anchor
+                    ));
+                    ui.label(theme::muted(&reference.file));
+                }
                 if form.impact.can_delete() {
                     ui.label("已完成引用检查；没有需要解除的引用。");
                 }

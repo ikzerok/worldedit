@@ -2295,6 +2295,16 @@ impl super::WorldeditApp {
                         if !placement.annotation.is_empty() {
                             ui.label(&placement.annotation);
                         }
+                        if let Some(map_id) = selected_map_id.clone() {
+                            if ui.small_button("批注此标记…").clicked() {
+                                self.new_comment_for_anchor(
+                                    worldline_core::collaboration::CommentAnchor::MapPlacement {
+                                        map_id,
+                                        placement_id: placement.id.clone(),
+                                    },
+                                );
+                            }
+                        }
                         if let Some(target) = placement.target_ref.clone() {
                             ui.label(crate::theme::muted(format!(
                                 "对象：{} · {}",
