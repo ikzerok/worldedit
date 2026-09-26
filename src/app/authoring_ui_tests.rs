@@ -30,7 +30,14 @@ fn frame(
 ) -> egui::FullOutput {
     ctx.run(
         RawInput {
-            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1700.0, 1400.0))),
+            screen_rect: Some(Rect::from_min_size(
+                pos2(0.0, 0.0),
+                if window == 9 {
+                    vec2(1040.0, 660.0)
+                } else {
+                    vec2(1700.0, 1400.0)
+                },
+            )),
             events,
             ..Default::default()
         },
@@ -42,9 +49,101 @@ fn frame(
             5 => app.target_rename_window(ctx),
             6 => app.preset_editor_window(ctx),
             7 => app.review_tab(ctx),
+            8 | 9 => app.reading_window(ctx),
             _ => app.content_deletion_window(ctx),
         },
     )
+}
+
+#[test]
+fn pinning_two_reading_panels_keeps_source_and_undo_unchanged() {
+    let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
+    app.open_reading(TargetRef::new("entity", "a"));
+    click(&ctx, &mut app, 8, "钉住旁查");
+    app.open_reading(TargetRef::new("entity", "b"));
+    click(&ctx, &mut app, 8, "钉住旁查");
+    assert_eq!(app.reading_panels.ids().len(), 2);
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+    app.reset_views();
+    assert!(app.reading_panels.ids().is_empty());
+}
+
+#[test]
+fn narrow_reading_panels_can_switch_and_close_without_losing_an_edit_draft() {
+    let (ctx, mut app) = app();
+    let first = app
+        .reading_panels
+        .pin(TargetRef::new("entity", "a"))
+        .unwrap();
+    let second = app
+        .reading_panels
+        .pin(TargetRef::new("entity", "b"))
+        .unwrap();
+    app.selected_reading_panel = Some(first);
+    app.edit_entity(Some("a"));
+    app.entity_editor.as_mut().unwrap().draft.description = "未提交资料".into();
+    let baseline = app.project.content_baseline();
+    click(&ctx, &mut app, 9, "旁查 2");
+    assert_eq!(app.selected_reading_panel, Some(second));
+    click(&ctx, &mut app, 9, "返回源码编辑");
+    assert_eq!(app.tab, super::Tab::Edit);
+    click(&ctx, &mut app, 9, "编辑此对象");
+    assert_eq!(
+        app.entity_editor.as_ref().unwrap().draft.description,
+        "未提交资料"
+    );
+    click(&ctx, &mut app, 9, "关闭旁查");
+    assert!(app.reading_panels.get(second).is_none());
+    assert!(app.reading_panels.get(first).is_some());
+    assert_eq!(
+        app.entity_editor.as_ref().unwrap().draft.description,
+        "未提交资料"
+    );
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+}
+
+#[test]
+fn project_switch_preserves_unsubmitted_form_even_with_clean_project() {
+    let (ctx, mut app) = app();
+    app.project.mark_saved();
+    app.edit_entity(Some("a"));
+    app.entity_editor.as_mut().unwrap().draft.description = "未提交资料".into();
+    app.request_action(super::Pending::Close, &ctx);
+    assert!(!app.allow_close);
+    assert!(app.pending.is_none());
+    assert_eq!(
+        app.entity_editor.as_ref().unwrap().draft.description,
+        "未提交资料"
+    );
+}
+
+#[test]
+fn pinned_deleted_target_shows_invalid_identity_instead_of_another_object() {
+    let (ctx, mut app) = app();
+    let id = app
+        .reading_panels
+        .pin(TargetRef::new("entity", "a"))
+        .unwrap();
+    app.project
+        .set_text(
+            &app.project.entry.clone(),
+            "entity b kind place as \"同名\"\n".into(),
+        )
+        .unwrap();
+    app.recompile();
+    for _ in 0..3 {
+        let _ = frame(&ctx, &mut app, Vec::new(), 9);
+    }
+    let output = frame(&ctx, &mut app, Vec::new(), 9);
+    assert!(output.shapes.iter().any(|shape| text_position(
+        &shape.shape,
+        "资料已失效：entity:a。可能已被删除或更改 ID。"
+    )
+    .is_some()));
+    assert_eq!(app.reading_panels.get(id).unwrap().target.id, "a");
 }
 fn text_position(shape: &egui::Shape, label: &str) -> Option<egui::Pos2> {
     match shape {

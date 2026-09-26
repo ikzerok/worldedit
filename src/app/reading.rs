@@ -50,9 +50,16 @@ impl WorldeditApp {
     }
 
     pub(super) fn open_reading(&mut self, target: TargetRef) {
+        if let Some(id) = self.active_reading_panel {
+            self.reading_panels.navigate(id, target);
+            return;
+        }
         if let Some(previous) = &self.reading_target {
             if *previous != target {
                 self.reading_history.push(previous.clone());
+                if self.reading_history.len() > 64 {
+                    self.reading_history.remove(0);
+                }
             }
         } else {
             self.reading_history.clear();
@@ -104,7 +111,12 @@ impl WorldeditApp {
             .map(|o| o.display.as_str())
             .unwrap_or(&target.id);
         if ui
-            .link(format!("{} · {}", kind_label(&target.kind), display))
+            .link(format!(
+                "{} · {} · {}",
+                kind_label(&target.kind),
+                display,
+                target.id
+            ))
             .clicked()
         {
             self.open_reading(target.clone());
@@ -112,18 +124,35 @@ impl WorldeditApp {
     }
 
     pub(super) fn reading_window(&mut self, ctx: &egui::Context) {
+        self.transient_reading_window(ctx);
+        self.pinned_reading_windows(ctx);
+    }
+
+    fn transient_reading_window(&mut self, ctx: &egui::Context) {
         let Some(target) = self.reading_target.clone() else {
             return;
         };
         let mut open = true;
         egui::Window::new("Wiki · 注释索引")
             .id(egui::Id::new("object-reading"))
+            .order(egui::Order::Foreground)
             .open(&mut open)
             .default_width(720.0)
             .default_height(660.0)
             .resizable(true)
             .vscroll(true)
             .show(ctx, |ui| {
+                if ui
+                    .add_enabled(
+                        self.reading_panels.ids().len() < super::reading_state::PANEL_LIMIT,
+                        egui::Button::new("钉住旁查"),
+                    )
+                    .clicked()
+                {
+                    self.selected_reading_panel = self.reading_panels.pin(target.clone());
+                    self.reading_target = None;
+                    self.reading_history.clear();
+                }
                 if !self.reading_history.is_empty() && ui.button("← 返回上一词条").clicked()
                 {
                     self.reading_target = self.reading_history.pop();
@@ -134,6 +163,80 @@ impl WorldeditApp {
         if !open {
             self.reading_target = None;
             self.reading_history.clear();
+        }
+    }
+
+    fn pinned_reading_windows(&mut self, ctx: &egui::Context) {
+        let ids = self.reading_panels.ids();
+        let narrow = ctx.screen_rect().width() < 1300.0;
+        if !ids.contains(&self.selected_reading_panel.unwrap_or(u64::MAX)) {
+            self.selected_reading_panel = ids.first().copied();
+        }
+        for (index, id) in ids.iter().copied().enumerate() {
+            if narrow && self.selected_reading_panel != Some(id) {
+                continue;
+            }
+            let panel = self.reading_panels.get(id).unwrap();
+            let target = panel.target.clone();
+            let can_back = !panel.history.is_empty();
+            let mut open = true;
+            self.active_reading_panel = Some(id);
+            egui::Window::new(format!(
+                "旁查 {} · {}:{}",
+                index + 1,
+                target.kind,
+                target.id
+            ))
+            .id(egui::Id::new(("pinned-reading", id)))
+            .open(&mut open)
+            .default_pos(egui::pos2(40.0 + index as f32 * 440.0, 90.0))
+            .default_width(420.0)
+            .default_height(460.0)
+            .max_height((ctx.screen_rect().height() - 140.0).max(200.0))
+            .resizable(true)
+            .vscroll(true)
+            .show(ctx, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    if narrow {
+                        for (other_index, other) in ids.iter().copied().enumerate() {
+                            ui.selectable_value(
+                                &mut self.selected_reading_panel,
+                                Some(other),
+                                format!("旁查 {}", other_index + 1),
+                            );
+                        }
+                    }
+                    if ui
+                        .add_enabled(can_back, egui::Button::new("← 返回"))
+                        .clicked()
+                    {
+                        self.reading_panels.back(id);
+                    }
+                    if ui.button("关闭旁查").clicked() {
+                        self.reading_panels.close(id);
+                    }
+                    if ui.button("返回源码编辑").clicked() {
+                        self.tab = super::Tab::Edit;
+                        let domain = if self
+                            .project
+                            .authoring_documents
+                            .contains_key(&self.active_file)
+                        {
+                            "authoring-source"
+                        } else {
+                            "source"
+                        };
+                        ui.memory_mut(|memory| {
+                            memory.request_focus(egui::Id::new((domain, &self.active_file)))
+                        });
+                    }
+                });
+                self.reading_content(ui, target);
+            });
+            self.active_reading_panel = None;
+            if !open {
+                self.reading_panels.close(id);
+            }
         }
     }
 
@@ -157,7 +260,10 @@ impl WorldeditApp {
             .clone()
             .filter(|_| target.kind == "world");
         let Some(object) = catalog.object(&target).cloned() else {
-            self.reading_target = None;
+            ui.label(format!(
+                "资料已失效：{}:{}。可能已被删除或更改 ID。",
+                target.kind, target.id
+            ));
             return;
         };
         ui.push_id((&target.kind, &target.id), |ui| {
@@ -168,7 +274,14 @@ impl WorldeditApp {
                 target.id
             )));
             ui.horizontal(|ui| {
-                if ui.button("编辑此对象").clicked() {
+                if ui
+                    .add_enabled(
+                        self.active_reading_panel.is_none(),
+                        egui::Button::new("编辑此对象"),
+                    )
+                    .on_hover_text("钉住面板用于只读旁查；从临时阅读页进入编辑")
+                    .clicked()
+                {
                     if target.kind == "tag"
                         && catalog.tags.get(&target.id).is_some_and(|t| t.declared)
                     {
@@ -219,37 +332,39 @@ impl WorldeditApp {
             ui.separator();
             ui.label(RichText::new("别名").strong());
             let names = catalog.aliases_for(&target);
-            ui.horizontal_wrapped(|ui| {
-                for name in &names {
+            ui.add_enabled_ui(self.active_reading_panel.is_none(), |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for name in &names {
+                        if ui
+                            .button(format!("{name} ×"))
+                            .on_hover_text("移除此别名")
+                            .clicked()
+                        {
+                            let remaining: Vec<_> =
+                                names.iter().filter(|n| *n != name).cloned().collect();
+                            self.commit("别名已移除", |p| p.set_aliases(&target, &remaining));
+                        }
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.alias_input)
+                            .hint_text("例如：昵称、旧称或简称"),
+                    );
                     if ui
-                        .button(format!("{name} ×"))
-                        .on_hover_text("移除此别名")
+                        .add_enabled(
+                            !self.alias_input.trim().is_empty(),
+                            egui::Button::new("添加别名"),
+                        )
                         .clicked()
                     {
-                        let remaining: Vec<_> =
-                            names.iter().filter(|n| *n != name).cloned().collect();
-                        self.commit("别名已移除", |p| p.set_aliases(&target, &remaining));
+                        let mut updated = names.clone();
+                        updated.push(self.alias_input.trim().into());
+                        if self.commit("别名已添加", |p| p.set_aliases(&target, &updated)) {
+                            self.alias_input.clear();
+                        }
                     }
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.alias_input)
-                        .hint_text("例如：昵称、旧称或简称"),
-                );
-                if ui
-                    .add_enabled(
-                        !self.alias_input.trim().is_empty(),
-                        egui::Button::new("添加别名"),
-                    )
-                    .clicked()
-                {
-                    let mut updated = names.clone();
-                    updated.push(self.alias_input.trim().into());
-                    if self.commit("别名已添加", |p| p.set_aliases(&target, &updated)) {
-                        self.alias_input.clear();
-                    }
-                }
+                });
             });
             let tag = catalog
                 .tags

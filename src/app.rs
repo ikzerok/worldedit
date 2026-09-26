@@ -26,6 +26,7 @@ mod package;
 mod play;
 mod presets;
 mod reading;
+mod reading_state;
 mod refactor_ui;
 mod relation_editor;
 mod search;
@@ -194,6 +195,9 @@ pub struct WorldeditApp {
     overview_cache: Option<(u64, Vec<(PathBuf, EventDraft)>)>,
     reading_target: Option<worldline_core::catalog::TargetRef>,
     reading_history: Vec<worldline_core::catalog::TargetRef>,
+    reading_panels: reading_state::ReadingPanels,
+    active_reading_panel: Option<u64>,
+    selected_reading_panel: Option<u64>,
     wiki_query: String,
     wiki_target: Option<worldline_core::catalog::TargetRef>,
     wiki_editor: Option<wiki::WikiEditor>,
@@ -286,6 +290,9 @@ impl WorldeditApp {
             overview_cache: None,
             reading_target: None,
             reading_history: Vec::new(),
+            reading_panels: reading_state::ReadingPanels::default(),
+            active_reading_panel: None,
+            selected_reading_panel: None,
             wiki_query: String::new(),
             wiki_target: None,
             wiki_editor: None,
@@ -460,6 +467,9 @@ impl WorldeditApp {
         self.stale_form = false;
         self.reading_target = None;
         self.reading_history.clear();
+        self.reading_panels.clear();
+        self.active_reading_panel = None;
+        self.selected_reading_panel = None;
         self.wiki_query.clear();
         self.wiki_target = None;
         self.wiki_editor = None;
@@ -509,7 +519,32 @@ impl WorldeditApp {
         self.pending_preset_layers = None;
         self.review = collaboration_ui::ReviewState::default();
     }
+    fn has_open_authoring_form(&self) -> bool {
+        self.entity_editor.is_some()
+            || self.relation_editor.is_some()
+            || self.relation_type_editor.is_some()
+            || self.event_editor.is_some()
+            || self.character_editor.is_some()
+            || self.world_editor.is_some()
+            || self.tag_editor.is_some()
+            || self.anchor_editor.is_some()
+            || self.state_editor.is_some()
+            || self.wiki_editor.is_some()
+            || self.preset_editor.is_some()
+            || self.rename_form.is_some()
+            || self.review.comment_editor.is_some()
+            || self.map_creation.open
+            || self.map_form.has_uncommitted_work()
+            || self.map_canvas.has_uncommitted_work()
+            || self.map_failed_command.is_some()
+    }
+
     fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
+        if self.has_open_authoring_form() {
+            self.message =
+                Some("仍有打开的创作表单，请先应用或取消，再切换或关闭工程。输入已保留。".into());
+            return;
+        }
         if self.project.is_dirty() {
             self.pending = Some(action);
         } else {
@@ -836,10 +871,10 @@ impl eframe::App for WorldeditApp {
         self.browser_events(ctx);
         if ctx.input(|i| i.viewport().close_requested())
             && !self.allow_close
-            && self.project.is_dirty()
+            && (self.project.is_dirty() || self.has_open_authoring_form())
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.pending = Some(Pending::Close);
+            self.request_action(Pending::Close, ctx);
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
             self.save();
