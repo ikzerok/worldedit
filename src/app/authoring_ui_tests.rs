@@ -1917,7 +1917,9 @@ fn source_mention_keyboard_commit_resolves_workspace_relative_active_source() {
     let original_entry = app.project.entry.clone();
     let original_root = app.project.root.clone();
     let source = "entity a kind place as \"同名\"\nentity b kind organization as \"同名\"\nevent start\n  开始：";
-    app.project.set_text(&original_entry, source.into()).unwrap();
+    app.project
+        .set_text(&original_entry, source.into())
+        .unwrap();
     app.recompile();
 
     // Project::document resolves relative paths from CWD; keep the artwork outside this checkout.
@@ -4366,7 +4368,10 @@ fn prepare_proposal_title_conflict(
 
     let mut proposed = base.clone();
     proposed["title"] = "提议".into();
-    proposed["extensions"].as_object_mut().unwrap().remove("retired");
+    proposed["extensions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("retired");
     proposed["extensions"]["added"] = "新增".into();
     let proposed_text = serde_json::to_string(&proposed).unwrap();
     app.project
@@ -4381,10 +4386,7 @@ fn prepare_proposal_title_conflict(
     let mut current = base;
     current["title"] = "当前".into();
     app.project
-        .set_authoring_document(
-            &map_path,
-            serde_json::to_vec(&current).unwrap(),
-        )
+        .set_authoring_document(&map_path, serde_json::to_vec(&current).unwrap())
         .unwrap();
     app.recompile();
     click(ctx, app, 7, "重新比较提案");
@@ -4395,13 +4397,8 @@ fn prepare_proposal_title_conflict(
 fn proposal_conflict_can_be_resolved_from_a_side_and_undone() {
     let (ctx, mut app) = app();
     let (map_path, proposed_text) = prepare_proposal_title_conflict(&ctx, &mut app);
-    let proposal = &app
-        .snapshot
-        .as_ref()
-        .unwrap()
-        .proposal_index
-        .proposals["proposal_resolution"]
-        .draft;
+    let proposal =
+        &app.snapshot.as_ref().unwrap().proposal_index.proposals["proposal_resolution"].draft;
     let preview = worldline_core::collaboration::preview_proposal(&app.project, proposal).unwrap();
     assert_eq!(preview.conflicts.len(), 1, "{:?}", preview.conflicts);
     let output = frame(&ctx, &mut app, Vec::new(), 7);
@@ -4426,17 +4423,14 @@ fn proposal_conflict_can_be_resolved_from_a_side_and_undone() {
     let history_before_apply = app.history.len();
     click(&ctx, &mut app, 7, "采纳提案");
     let resolved: serde_json::Value =
-        serde_json::from_slice(app.project.authoring_document(&map_path).unwrap().bytes())
-            .unwrap();
+        serde_json::from_slice(app.project.authoring_document(&map_path).unwrap().bytes()).unwrap();
     assert_eq!(resolved["title"], "提议", "{:?}", app.io_error);
     assert_eq!(app.history.len(), history_before_apply + 1);
-    let proposal = &app
-        .snapshot
-        .as_ref()
-        .unwrap()
-        .proposal_index
-        .proposals["proposal_resolution"];
-    assert_eq!(proposal.draft.status, worldline_core::collaboration::ProposalStatus::Accepted);
+    let proposal = &app.snapshot.as_ref().unwrap().proposal_index.proposals["proposal_resolution"];
+    assert_eq!(
+        proposal.draft.status,
+        worldline_core::collaboration::ProposalStatus::Accepted
+    );
     assert_eq!(
         proposal.draft.changes[0].proposed.as_deref(),
         Some(proposed_text.as_str())
@@ -4451,11 +4445,7 @@ fn proposal_conflict_can_be_resolved_from_a_side_and_undone() {
         "当前"
     );
     assert_eq!(
-        app.snapshot
-            .as_ref()
-            .unwrap()
-            .proposal_index
-            .proposals["proposal_resolution"]
+        app.snapshot.as_ref().unwrap().proposal_index.proposals["proposal_resolution"]
             .draft
             .status,
         worldline_core::collaboration::ProposalStatus::Open
@@ -4480,10 +4470,7 @@ fn proposal_conflict_can_be_edited_before_core_application() {
         serde_json::from_slice(app.project.authoring_document(&map_path).unwrap().bytes()).unwrap();
     updated_current["title"] = "当前更新".into();
     app.project
-        .set_authoring_document(
-            &map_path,
-            serde_json::to_vec(&updated_current).unwrap(),
-        )
+        .set_authoring_document(&map_path, serde_json::to_vec(&updated_current).unwrap())
         .unwrap();
     app.recompile();
     let output = frame(&ctx, &mut app, Vec::new(), 7);
@@ -4503,15 +4490,10 @@ fn proposal_conflict_can_be_edited_before_core_application() {
     click(&ctx, &mut app, 7, "重新比较提案");
     click(&ctx, &mut app, 7, "采纳提案");
     let resolved: serde_json::Value =
-        serde_json::from_slice(app.project.authoring_document(&map_path).unwrap().bytes())
-            .unwrap();
+        serde_json::from_slice(app.project.authoring_document(&map_path).unwrap().bytes()).unwrap();
     assert_eq!(resolved["title"], "已解决", "{:?}", app.io_error);
     assert_eq!(
-        app.snapshot
-            .as_ref()
-            .unwrap()
-            .proposal_index
-            .proposals["proposal_resolution"]
+        app.snapshot.as_ref().unwrap().proposal_index.proposals["proposal_resolution"]
             .draft
             .status,
         worldline_core::collaboration::ProposalStatus::Accepted

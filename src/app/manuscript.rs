@@ -173,7 +173,6 @@ fn move_entry(entries: &mut [ManuscriptEntryDraft], id: &str, delta: isize) -> b
     true
 }
 
-
 fn target_label(object: &CatalogObject) -> String {
     format!(
         "{} · {}:{}",

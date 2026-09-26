@@ -362,8 +362,7 @@ impl WorldeditApp {
 
     pub(super) fn source_tab(&mut self, ctx: &egui::Context) {
         if !self.active_file.is_absolute() {
-            self.active_file =
-                super::workspace_source_path(&self.project, &self.active_file);
+            self.active_file = super::workspace_source_path(&self.project, &self.active_file);
         }
         egui::SidePanel::right("diagnostics")
             .default_width(300.0)

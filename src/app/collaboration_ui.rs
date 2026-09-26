@@ -4,8 +4,8 @@ use crate::theme::{self, *};
 use std::collections::BTreeMap;
 use worldline_core::collaboration::{
     self, AnchorStatus, ApplyProposalCommand, CommentAnchor, CommentCommand, CommentDraft,
-    ProposalCommand, ProposalConflict, ProposalFilePreview, ProposalPreview,
-    ProposalResolution, ProposalStatus,
+    ProposalCommand, ProposalConflict, ProposalFilePreview, ProposalPreview, ProposalResolution,
+    ProposalStatus,
 };
 
 fn change_marker(base: Option<&str>, value: Option<&str>) -> &'static str {
@@ -414,11 +414,8 @@ impl WorldeditApp {
         }
         let (baseline, resolutions, had_conflicts) = match &preview_state.result {
             Ok(preview) => {
-                let resolutions = proposal_resolutions(
-                    id,
-                    &preview.conflicts,
-                    &self.review.conflict_resolutions,
-                );
+                let resolutions =
+                    proposal_resolutions(id, &preview.conflicts, &self.review.conflict_resolutions);
                 if resolutions.len() != preview.conflicts.len() {
                     self.io_error = Some("请逐项选择或编辑所有冲突解决方案".into());
                     return;

@@ -16,12 +16,13 @@
 - 最多两个独立钉住面板，每个最多 64 条历史；宽屏并列窗口，1040×660 以切换面板退化，个人阅读状态不写工程。
 - 同名按 kind+ID 区分；删除对象显示失效身份；工程切换清空面板并保护未提交表单；Web 离页提示覆盖纯表单草稿。
 - 新增状态测试和 egui 点击回归，覆盖钉住、窄屏切换/关闭、源码入口、时段/实体草稿、失效对象与独立临时阅读窗口。
-- 原生/Web 实际交互、键盘焦点与缩放恢复尚未验收，不能将 headless 测试写成实际作者验证。
+- `132104d` 的 egui 回归、配对 CI 通过；Edge 153 实际加载同一 Web 包，1440×900 双面板链接/返回独立，1040×660 切换与关闭可用，源码入口返回可见。证据在 `../qa-cap02c-web-evidence/evidence.json`；原生实际交互和浏览器缩放后的焦点未验收，不把自动化冒充作者验证。
 
 ### worldedit#13 / CAP-01B
 
 - 正文源码中的 `@` 候选按 kind+ID 消歧，支持方向键/Enter 与 Esc；选文建档走 core 组合事务，正文链接可回到原编辑光标。
 - IME 组合与外部刷新同时发生时保留本地草稿并阻止覆盖。egui 真实事件回归、123 项测试及 WASM 检查通过，提交 `e5eb266`。原生桌面在独立 `D:/Temp/worldedit-cap01b-gui-20260926` 作品实际输入 `@林舟`、看到人物/状态同名候选、Enter 生成 `[[character:lin|林舟]]`、保存后磁盘第 4 行含稳定引用。Web、真实 OS 输入法、返回光标及完整保存重开路径仍待验收，票保持开放。
+- `6723573` 补相对活动源码路径的 egui 回归：方向键/Enter、稳定 `entity:b` 引用、点击后返回原光标通过。但修复后的 Web bundle 仍报“源文件必须是工作区内已载入的活动源码”；真实 Web 路径身份仍在诊断，保存/刷新/导出和真实 OS 中文 IME 未验收，#13 保持开放。
 
 ### worldline#14 / CAP-02A
 
@@ -44,8 +45,8 @@
 
 ### worldline#16 / CAP-04A 与 worldedit#17 / CAP-04B
 
-- core `163e0ff` 提供三方字段/段落差异、原文字节范围、引用影响、截断与基线预览；CAP-04B 的 `7810c81` 新增 `apply_proposal_with_resolutions`，`1bbf209` 将数组冲突固定为完整数组路径并拒绝数组索引路径，避免多项删除后索引漂移。每项需覆盖 core 当前冲突地址；缺失/额外/重复方案、无效 JSON 或内容编译失败均零写入，原始 `base/proposed` 不改。core collaboration 集成测试 21 项通过。
-- editor `9e2b517` 提供逐冲突基底/当前/提议选择和可编辑 JSON/文件方案；`b4e1b3c` 加入明确的当前/提议新增、删除、修改文字标记，并在采纳或提案/审核状态切换时清理旧方案草稿。egui 回归覆盖冲突禁用、选值/编辑、陈旧后重新比较保留输入、审批后撤销不重用旧方案；`proposal_conflict` 2 项、`review` 20 项通过。`compatibility.json` 配对 pin 为 `1bbf209`。
+- core `163e0ff` 提供三方差异与基线预览；`8dfdba4` 增加 `apply_proposal_with_resolutions`，`0af2305` 将数组冲突作为完整数组路径处理。缺失/额外/重复方案、无效 JSON 或内容编译失败均零写入，提案原始 `base/proposed` 不改；collaboration 集成测试 21 项通过。
+- editor `07f0772` 提供逐项选值/编辑；`726c865` 标记新增/删除/修改并清理审批后的旧方案草稿。egui 回归覆盖冲突、过期、撤销；`compatibility.json` 固定格式整理后的 core `67eac34`。真实原生/IME/长文和关闭误触仍未验收。
 - Web release 由 `start-web.ps1 -Port 43128 -NoOpen` 构建；headless Edge 导入隔离 8 文件提案 fixture，实际选值/编辑并采纳同字段冲突、删除/修改冲突和安全不同字段合并；拖选差异文本后 `clipboardRead` 返回 `"当前侧字段"`。这是自动化而非人工 QA，也不是长文/真实输入法验证。
 - 剩余验收：无鼠标到达差异/源位置和长文本可读性尚未独立验证；原生桌面同字段/删除修改/安全合并及原生文本选择仍未实测；真实中文 IME 组合输入与误触关闭恢复路径未覆盖；本次 Web 拖选/复制及短 fixture 滚动不能替代长差异与实际触屏检查，因此 worldedit#17 保持开放。
 
@@ -61,6 +62,10 @@
 ### worldline#20 / CAP-07A
 
 - Markdown 迁移 core `52e6389`、`2fce0bb` 提供预算内 dry-run、来源与链接映射、冲突/损失清单、确认后基线保护应用；`dbb1831` 接入 CLI/RPC 等价入口和协议。12 项 Markdown 回归及合并后 workspace 全量测试、严格 Clippy 通过；契约外 Markdown 结构报告损失，导入向导由 worldedit#21 跟踪。
+- `8cd0632` 修复 front matter 结束符误报，`2645438` 修复已有 import.wl 的预检冲突提前失败；`aaed960` 强化预检无损回归。实际 CLI/RPC 预览/应用/重开及恶意路径、坏编码、容量拒绝证据在 `../qa-cap07a-evidence-20260927/acceptance-report.txt`；精确上限及其他平台联接行为未覆盖。
+
+- worldline#25 / CAP-07C：静态阅读包 Edge 检查 7 页、24 内链和 14 资源均无断链；RPC 对 5000 唯一章节可预览、5001 拒绝，坏编码 CLI 拒绝；证据在 `../qa-capqa-stage1/evidence/cap07c-static-reader-20260927/`。Windows 命令行长度使 5000 项选择无法作为 `wl --selection-json` 参数输入，core/RPC stdin 已验。
+- worldedit#27 / CAP-07D：Web 发布向导实际选择公开范围、预览并下载 ZIP；12 文件、3 公开项、12 排除项，私有哨兵扫描零命中，搜索无私有结果；证据在 `../.scratch/cap07d-main-web/`。原生保存目标/取消/进度仍需实际验收。
 
 ### worldedit#20 / CAP-06B
 
