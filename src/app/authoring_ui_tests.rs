@@ -105,14 +105,19 @@ fn frame(
     ctx: &egui::Context,
     app: &mut WorldeditApp,
     events: Vec<Event>,
-    window: u8,
+    mut window: u8,
 ) -> egui::FullOutput {
+    if window == 17 && app.markdown_import_wizard.is_some() {
+        window = 25;
+    }
     ctx.run(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
                 if window == 16 || window == 21 || window == 24 {
                     vec2(700.0, 640.0)
+                } else if window == 25 {
+                    vec2(1280.0, 1000.0)
                 } else if window == 9 {
                     vec2(1040.0, 660.0)
                 } else if window == 19 {
@@ -154,6 +159,10 @@ fn frame(
             22 => app.canvas_tab(ctx),
             23 => app.checkpoint_history_tab(ctx),
             24 => app.checkpoint_history_tab(ctx),
+            25 => {
+                app.top_bar(ctx);
+                app.markdown_import_window(ctx);
+            }
             _ => app.content_deletion_window(ctx),
         },
     )
@@ -502,6 +511,270 @@ fn pause_stop_and_checkpoint_import_controls_keep_debug_state_out_of_project() {
     assert!(app.play.as_ref().unwrap().ended);
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(app.history.is_empty());
+}
+
+fn markdown_import_fixture(markdown: &[u8]) -> (std::path::PathBuf, std::path::PathBuf) {
+    let root = std::env::temp_dir().join(format!(
+        "worldedit-markdown-import-ui-{}-{}",
+        std::process::id(),
+        NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let source = root.join("source");
+    let target = root.join("empty-target");
+    std::fs::create_dir_all(&source).unwrap();
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::write(source.join("page.md"), markdown).unwrap();
+    (source, target)
+}
+
+fn open_markdown_import(ctx: &egui::Context, app: &mut WorldeditApp) {
+    click(ctx, app, 25, "工程");
+    click(ctx, app, 25, "导入 Markdown…");
+}
+
+#[test]
+fn markdown_import_preview_and_cancel_keep_the_target_empty_and_show_losses() {
+    let (ctx, mut app) = app();
+    let (source, target) = markdown_import_fixture(
+        b"---\ntitle: Imported Page\ncustom_field: keep\n---\n\nA **formatted** paragraph.\n",
+    );
+    let baseline = app.project.content_baseline();
+    open_markdown_import(&ctx, &mut app);
+    enter_text_at_placeholder_in_window(
+        &ctx,
+        &mut app,
+        17,
+        "选择 Markdown 来源目录…",
+        &source.display().to_string(),
+    );
+    enter_text_at_placeholder_in_window(
+        &ctx,
+        &mut app,
+        17,
+        "选择空工程目录…",
+        &target.display().to_string(),
+    );
+    click(&ctx, &mut app, 17, "预检导入");
+    scroll_rendered_text(&ctx, &mut app, 17, "损失预览 ·");
+    click_containing(&ctx, &mut app, 17, "损失预览 ·");
+    let preview = format!(
+        "{}{}",
+        scroll_rendered_text(&ctx, &mut app, 17, "UNSUPPORTED_FRONT_MATTER_FIELD"),
+        scroll_rendered_text(&ctx, &mut app, 17, "UNSUPPORTED_INLINE_MARKUP")
+    );
+
+    assert!(
+        preview.contains("UNSUPPORTED_FRONT_MATTER_FIELD"),
+        "{preview}"
+    );
+    assert!(preview.contains("UNSUPPORTED_INLINE_MARKUP"), "{preview}");
+    assert!(preview.contains("page.md"), "{preview}");
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(!target.join(".world").exists());
+    assert_eq!(
+        std::fs::read(source.join("page.md")).unwrap(),
+        b"---\ntitle: Imported Page\ncustom_field: keep\n---\n\nA **formatted** paragraph.\n"
+    );
+
+    click(&ctx, &mut app, 17, "取消");
+    assert!(!target.join(".world").exists());
+    assert!(std::fs::read_dir(&target).unwrap().next().is_none());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+    std::fs::remove_dir_all(source.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn markdown_import_apply_requires_loss_confirmation_and_round_trips_original_markdown() {
+    let (ctx, mut app) = app();
+    let original =
+        b"---\ntitle: Imported Page\ncustom_field: keep\n---\n\nA **formatted** paragraph.\n";
+    let (source, target) = markdown_import_fixture(original);
+    open_markdown_import(&ctx, &mut app);
+    enter_text_at_placeholder_in_window(
+        &ctx,
+        &mut app,
+        17,
+        "选择 Markdown 来源目录…",
+        &source.display().to_string(),
+    );
+    enter_text_at_placeholder_in_window(
+        &ctx,
+        &mut app,
+        17,
+        "选择空工程目录…",
+        &target.display().to_string(),
+    );
+    click(&ctx, &mut app, 17, "预检导入");
+    scroll_rendered_text(&ctx, &mut app, 17, "损失预览 ·");
+    click_containing(&ctx, &mut app, 17, "损失预览 ·");
+    click(&ctx, &mut app, 17, "应用导入");
+    assert!(std::fs::read_dir(&target).unwrap().next().is_none());
+    assert!(
+        rendered_text_in_window(&ctx, &mut app, 17, "我已检查并接受预览中的损失")
+            .contains("我已检查并接受预览中的损失")
+    );
+
+    click(&ctx, &mut app, 17, "我已检查并接受预览中的损失");
+    click(&ctx, &mut app, 17, "我已检查目标语言版本升级及其影响");
+    click(&ctx, &mut app, 17, "应用导入");
+
+    assert_eq!(app.project.root, target);
+    assert!(app.saved_location);
+    assert!(app.history.is_empty());
+    assert!(app
+        .message
+        .as_deref()
+        .is_some_and(|message| message.contains("1 个页面")));
+    let mut reopened = Project::open(&target).unwrap();
+    assert!(!reopened.compile().has_errors());
+    assert!(reopened
+        .export_files()
+        .unwrap()
+        .values()
+        .any(|bytes| bytes.as_slice() == original));
+    std::fs::remove_dir_all(source.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn markdown_import_rejects_a_source_that_changes_after_preview_without_writing() {
+    let (ctx, mut app) = app();
+    let (source, target) = markdown_import_fixture(
+        b"---\ntitle: Stable Page\n---\n\nPlain text without conversion losses.\n",
+    );
+    open_markdown_import(&ctx, &mut app);
+    enter_text_at_placeholder_in_window(
+        &ctx,
+        &mut app,
+        17,
+        "选择 Markdown 来源目录…",
+        &source.display().to_string(),
+    );
+    enter_text_at_placeholder_in_window(
+        &ctx,
+        &mut app,
+        17,
+        "选择空工程目录…",
+        &target.display().to_string(),
+    );
+    click(&ctx, &mut app, 17, "预检导入");
+    assert!(rendered_text_in_window(&ctx, &mut app, 17, "应用导入").contains("应用导入"));
+
+    let changed_source =
+        b"---\ntitle: Changed Page\n---\n\nPlain text without conversion losses.\n";
+    std::fs::write(source.join("page.md"), changed_source).unwrap();
+    click(&ctx, &mut app, 17, "我已检查目标语言版本升级及其影响");
+    let before_apply = rendered_text_in_window(&ctx, &mut app, 17, "应用导入");
+    assert!(!before_apply.contains("尚未确认语言升级"), "{before_apply}");
+    if before_apply.contains("我已检查并接受预览中的损失") {
+        click(&ctx, &mut app, 17, "我已检查并接受预览中的损失");
+    }
+    let before_stale_apply = rendered_text_in_window(&ctx, &mut app, 17, "应用导入");
+    assert!(
+        !before_stale_apply.contains("尚未确认损失"),
+        "{before_stale_apply}"
+    );
+    click(&ctx, &mut app, 17, "应用导入");
+    let rendered = rendered_text_in_window(&ctx, &mut app, 17, "已过期");
+
+    assert!(rendered.contains("已过期"), "{rendered}");
+    assert!(rendered.contains("重新预检"), "{rendered}");
+    assert!(!target.join(".world").exists());
+    assert!(std::fs::read_dir(&target).unwrap().next().is_none());
+    click(&ctx, &mut app, 17, "重新预检");
+    let ready = rendered_text_in_window(&ctx, &mut app, 17, "预检完成：");
+    assert!(ready.contains("0 个阻塞冲突"), "{ready}");
+    let ready_to_apply = rendered_text_in_window(&ctx, &mut app, 17, "必需确认已完成");
+    assert!(
+        ready_to_apply.contains("必需确认已完成"),
+        "{ready_to_apply}"
+    );
+    click_containing(&ctx, &mut app, 17, "页面映射 ·");
+    let refreshed = scroll_rendered_text(&ctx, &mut app, 17, "Changed Page");
+    assert!(refreshed.contains("Changed Page"), "{refreshed}");
+    scroll_window_to_top(&ctx, &mut app, 17);
+    click(&ctx, &mut app, 17, "应用导入");
+    assert_eq!(
+        app.project.root, target,
+        "message={:?}, io_error={:?}",
+        app.message, app.io_error
+    );
+    let mut reopened = Project::open(&target).unwrap();
+    let result = reopened.compile();
+    assert!(!result.has_errors());
+    assert!(reopened
+        .export_files()
+        .unwrap()
+        .values()
+        .any(|bytes| bytes.as_slice() == changed_source));
+    std::fs::remove_dir_all(source.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn markdown_import_resolves_a_real_id_conflict_without_merging_same_name_targets() {
+    let (ctx, mut app) = app();
+    app.project.save().unwrap();
+    app.saved_location = true;
+    let root = app.project.root.clone();
+    let (source, _) = markdown_import_fixture(
+        "---\nid: a\ntitle: \"同名\"\n---\n\nA separately imported page.\n".as_bytes(),
+    );
+    open_markdown_import(&ctx, &mut app);
+    click(&ctx, &mut app, 17, "导入到当前工程");
+    enter_text_at_placeholder_in_window(
+        &ctx,
+        &mut app,
+        17,
+        "选择 Markdown 来源目录…",
+        &source.display().to_string(),
+    );
+    click(&ctx, &mut app, 17, "预检导入");
+    scroll_rendered_text(&ctx, &mut app, 17, "阻塞冲突 ·");
+    click_containing(&ctx, &mut app, 17, "阻塞冲突 ·");
+    let conflict = format!(
+        "{}{}",
+        scroll_rendered_text(&ctx, &mut app, 17, "ENTITY_ID_CONFLICT"),
+        scroll_rendered_text(&ctx, &mut app, 17, "a_import_2")
+    );
+    assert!(conflict.contains("page.md"), "{conflict}");
+    assert!(conflict.contains("a_import_2"), "{conflict}");
+    scroll_window_to_top(&ctx, &mut app, 17);
+    scroll_rendered_text(&ctx, &mut app, 17, "同名资料提示 ·");
+    click_containing(&ctx, &mut app, 17, "同名资料提示 ·");
+    let name_conflict = scroll_rendered_text(&ctx, &mut app, 17, "工程中存在同名资料");
+    assert!(name_conflict.contains("entity:a"), "{name_conflict}");
+    assert!(name_conflict.contains("entity:b"), "{name_conflict}");
+
+    scroll_window_to_top(&ctx, &mut app, 17);
+    scroll_rendered_text(&ctx, &mut app, 17, "a_import_2");
+    click(&ctx, &mut app, 17, "a_import_2");
+    click(&ctx, &mut app, 17, "预检导入");
+    let ready = rendered_text_in_window(&ctx, &mut app, 17, "预检完成：");
+    assert!(ready.contains("0 个阻塞冲突"), "{ready}");
+    if ready.contains("我已检查并接受预览中的损失") {
+        click(&ctx, &mut app, 17, "我已检查并接受预览中的损失");
+    }
+    if ready.contains("我已检查目标语言版本升级及其影响") {
+        click(&ctx, &mut app, 17, "我已检查目标语言版本升级及其影响");
+    }
+    click_containing(&ctx, &mut app, 17, "页面映射 ·");
+    let resolved = rendered_text_in_window(&ctx, &mut app, 17, "entity:a_import_2");
+    assert!(resolved.contains("page.md"), "{resolved}");
+    click(&ctx, &mut app, 17, "应用导入");
+
+    assert!(!app.project.is_dirty());
+    assert!(app.io_error.is_none(), "{:?}", app.io_error);
+    assert!(app
+        .message
+        .as_deref()
+        .is_some_and(|message| message.contains("导入已保存")));
+    let mut reopened = Project::open(&root).unwrap();
+    let result = reopened.compile();
+    assert!(!result.has_errors());
+    assert!(result.analysis.catalog.entities.contains_key("a_import_2"));
+    assert!(result.analysis.catalog.entities.contains_key("a"));
+    std::fs::remove_dir_all(source.parent().unwrap()).unwrap();
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -1107,6 +1380,41 @@ fn drag_numeric_value(
         ],
         window,
     );
+}
+
+fn click_containing(ctx: &egui::Context, app: &mut WorldeditApp, window: u8, fragment: &str) {
+    let _ = scroll_to_visible(ctx, app, window, fragment, -90.0);
+    for _ in 0..3 {
+        let _ = frame(ctx, app, Vec::new(), window);
+    }
+    let output = frame(ctx, app, Vec::new(), window);
+    let point = output
+        .shapes
+        .iter()
+        .find_map(|shape| text_position_contains(&shape.shape, fragment))
+        .unwrap_or_else(|| {
+            let mut rendered = String::new();
+            for shape in &output.shapes {
+                collect_text(&shape.shape, &mut rendered);
+            }
+            panic!("按钮文字未显示：{fragment}；当前文字：{rendered}")
+        });
+    for pressed in [true, false] {
+        let _ = frame(
+            ctx,
+            app,
+            vec![
+                Event::PointerMoved(point),
+                Event::PointerButton {
+                    pos: point,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            window,
+        );
+    }
 }
 
 fn open_selected_entity_form(
@@ -2591,6 +2899,97 @@ fn rendered_text_in_window(
         }
     }
     rendered
+}
+
+fn scroll_rendered_text(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    window: u8,
+    needle: &str,
+) -> String {
+    scroll_to_visible(ctx, app, window, needle, -90.0)
+}
+
+fn scroll_window_to_top(ctx: &egui::Context, app: &mut WorldeditApp, window: u8) {
+    for _ in 0..30 {
+        let output = frame(ctx, app, Vec::new(), window);
+        let Some(point) = detail_anchor_position(&output) else {
+            continue;
+        };
+        let _ = frame(
+            ctx,
+            app,
+            vec![
+                Event::PointerMoved(point),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, 360.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            window,
+        );
+    }
+}
+
+fn scroll_to_visible(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    window: u8,
+    needle: &str,
+    delta_y: f32,
+) -> String {
+    let mut rendered = String::new();
+    for direction in [delta_y, -delta_y] {
+        for _ in 0..40 {
+            let output = frame(ctx, app, Vec::new(), window);
+            rendered.clear();
+            for shape in &output.shapes {
+                collect_text(&shape.shape, &mut rendered);
+            }
+            if visible_text_position(&output, needle).is_some() {
+                return rendered;
+            }
+            let Some(point) = detail_anchor_position(&output) else {
+                continue;
+            };
+            let _ = frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(point),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: vec2(0.0, direction),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                window,
+            );
+        }
+    }
+    rendered
+}
+
+fn detail_anchor_position(output: &egui::FullOutput) -> Option<egui::Pos2> {
+    [
+        "页面映射 ·",
+        "同名资料提示 ·",
+        "来源链接 ·",
+        "附件映射 ·",
+        "损失预览 ·",
+        "阻塞冲突 ·",
+        "写入文件预览 ·",
+    ]
+    .into_iter()
+    .find_map(|fragment| visible_text_position(output, fragment))
+}
+
+fn visible_text_position(output: &egui::FullOutput, fragment: &str) -> Option<egui::Pos2> {
+    output.shapes.iter().find_map(|clipped| {
+        let point = text_position_contains(&clipped.shape, fragment)?;
+        clipped.clip_rect.contains(point).then_some(point)
+    })
 }
 
 fn replace_manuscript_source(ctx: &egui::Context, app: &mut WorldeditApp, replacement: &str) {

@@ -21,6 +21,8 @@ mod inspector;
 mod manuscript;
 mod map_creation;
 mod maps;
+#[cfg(not(target_arch = "wasm32"))]
+mod markdown_import_ui;
 mod network;
 mod network_state;
 mod overview;
@@ -242,6 +244,8 @@ pub struct WorldeditApp {
     #[cfg(not(target_arch = "wasm32"))]
     conflict_view: conflicts::ConflictView,
     #[cfg(not(target_arch = "wasm32"))]
+    markdown_import_wizard: Option<markdown_import_ui::Wizard>,
+    #[cfg(not(target_arch = "wasm32"))]
     frame_profile: Option<frame_profile::FrameProfiler>,
     stale_form: bool,
     message: Option<String>,
@@ -346,6 +350,8 @@ impl WorldeditApp {
             io_error: None,
             #[cfg(not(target_arch = "wasm32"))]
             conflict_view: conflicts::ConflictView::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            markdown_import_wizard: None,
             #[cfg(not(target_arch = "wasm32"))]
             frame_profile: frame_profile::FrameProfiler::from_env(),
             stale_form: false,
@@ -556,6 +562,7 @@ impl WorldeditApp {
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.conflict_view = conflicts::ConflictView::default();
+            self.markdown_import_wizard = None;
         }
         self.stale_form = false;
         self.reading_target = None;
@@ -1047,6 +1054,8 @@ impl eframe::App for WorldeditApp {
         self.relation_type_editor_window(ctx);
         self.content_deletion_window(ctx);
         self.target_rename_window(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.markdown_import_window(ctx);
         self.preset_editor_window(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.conflict_view.show(ctx);
@@ -1136,6 +1145,12 @@ impl WorldeditApp {
                             if ui.button("导出 ZIP 工程包…").clicked() {
                                 ui.close();
                                 self.export_package();
+                            }
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if ui.button("导入 Markdown…").clicked() {
+                                ui.close();
+                                self.markdown_import_wizard =
+                                    Some(markdown_import_ui::Wizard::default());
                             }
                             if ui.button("从磁盘重新载入").clicked() {
                                 self.request_action(Pending::Open(self.project.entry.clone()), ctx);
