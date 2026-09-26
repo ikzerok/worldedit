@@ -736,7 +736,8 @@ fn markdown_import_rejects_a_source_that_changes_after_preview_without_writing()
         app.project.root,
         Project::open(&target).unwrap().root,
         "message={:?}, io_error={:?}",
-        app.message, app.io_error
+        app.message,
+        app.io_error
     );
     let mut reopened = Project::open(&target).unwrap();
     let result = reopened.compile();
