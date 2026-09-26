@@ -3147,7 +3147,22 @@ fn checkpoint_history_creates_lists_previews_cancels_restores_and_undoes_through
     }
     assert!(preview_text.contains("恢复预览"), "{preview_text}");
     assert!(preview_text.contains("逐文件操作"), "{preview_text}");
+    assert!(preview_text.contains("三方文本差异"), "{preview_text}");
     assert!(preview_text.contains("world.wl"), "{preview_text}");
+
+    click(&ctx, &mut app, 23, "文本差异：world.wl");
+    let expanded = frame(&ctx, &mut app, Vec::new(), 23);
+    let mut expanded_text = String::new();
+    for shape in &expanded.shapes {
+        collect_text(&shape.shape, &mut expanded_text);
+    }
+    assert!(expanded_text.contains("base"), "{expanded_text}");
+    assert!(expanded_text.contains("current"), "{expanded_text}");
+    assert!(expanded_text.contains("checkpoint"), "{expanded_text}");
+    assert!(
+        expanded_text.contains("检查点之后的本地草稿"),
+        "{expanded_text}"
+    );
 
     click(&ctx, &mut app, 23, "打开恢复确认…");
     click(&ctx, &mut app, 23, "取消恢复");
