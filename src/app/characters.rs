@@ -303,6 +303,16 @@ impl WorldeditApp {
     }
 
     fn character_inspector(&mut self, ctx: &egui::Context) {
+        let template_index = self
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.template_index.clone())
+            .unwrap_or_else(|| self.project.template_index());
+        let catalog = self
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.result.analysis.catalog.clone())
+            .unwrap_or_default();
         egui::SidePanel::right("character-inspector")
             .default_width(320.0)
             .width_range(285.0..=420.0)
@@ -371,6 +381,8 @@ impl WorldeditApp {
                             ui,
                             "character",
                             None,
+                            &template_index,
+                            &catalog,
                             &mut editor.draft.properties,
                         ) {
                             if let Some(id) = editor.original.clone() {

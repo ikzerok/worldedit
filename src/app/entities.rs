@@ -58,6 +58,16 @@ impl WorldeditApp {
         let mut applied = false;
         let mut cancelled = false;
         let mut keyboard_apply = false;
+        let template_index = self
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.template_index.clone())
+            .unwrap_or_else(|| self.project.template_index());
+        let catalog = self
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.result.analysis.catalog.clone())
+            .unwrap_or_default();
         egui::Window::new(if form.original.is_some() {
             "编辑通用资料"
         } else {
@@ -118,6 +128,8 @@ impl WorldeditApp {
                 ui,
                 "entity",
                 Some(&form.draft.entity_type),
+                &template_index,
+                &catalog,
                 &mut form.draft.properties,
             ) {
                 if let Some(id) = form.original.clone() {

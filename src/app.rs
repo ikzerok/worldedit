@@ -34,6 +34,7 @@ mod relation_editor;
 mod search;
 mod states;
 mod tags;
+mod template_manager;
 mod templates;
 mod temporal;
 mod views;
@@ -100,6 +101,7 @@ enum Tab {
     Edit,
     Play,
     Manuscript,
+    Templates,
 }
 impl Tab {
     fn title(self) -> &'static str {
@@ -117,11 +119,13 @@ impl Tab {
             Self::Edit => "源文件",
             Self::Play => "试玩",
             Self::Manuscript => "书稿工作台",
+            Self::Templates => "工程模板",
         }
     }
 }
 struct Snapshot {
     result: CompileResult,
+    template_index: worldline_core::project_templates::ProjectTemplateIndex,
     wiki: worldline_core::wiki::KeywordIndex,
     map_index: worldline_core::presentation::MapIndex,
     graph_index: worldline_core::graph_views::GraphViewIndex,
@@ -317,6 +321,7 @@ pub struct WorldeditApp {
     pending_preset_layers: Option<(String, std::collections::BTreeMap<String, bool>)>,
     review: collaboration_ui::ReviewState,
     manuscript: manuscript::WorkbenchState,
+    template_manager: template_manager::ManagerState,
 }
 
 impl WorldeditApp {
@@ -422,6 +427,7 @@ impl WorldeditApp {
             pending_preset_layers: None,
             review: collaboration_ui::ReviewState::default(),
             manuscript: manuscript::WorkbenchState::default(),
+            template_manager: template_manager::ManagerState::default(),
         };
         app.catalog_workbench.restore_favorites(cc.storage);
         if let Some(path) = initial_file {
@@ -436,6 +442,7 @@ impl WorldeditApp {
         self.map_revision.content_generation = self.map_revision.content_generation.wrapping_add(1);
         self.map_canvas.invalidate_rasters();
         let result = self.project.compile();
+        let template_index = self.project.template_index();
         let wiki = worldline_core::wiki::KeywordIndex::new(&result);
         let map_index =
             worldline_core::presentation_commands::map_index_with_content(&self.project, &result);
@@ -452,6 +459,7 @@ impl WorldeditApp {
         let proposal_index = worldline_core::collaboration::build_proposal_index(&self.project);
         self.snapshot = Some(Snapshot {
             graph_index,
+            template_index,
             preset_index,
             comment_index,
             proposal_index,
@@ -1021,6 +1029,7 @@ impl eframe::App for WorldeditApp {
             Tab::World => self.world_tab(ctx),
             Tab::Play => self.play_tab(ctx),
             Tab::Manuscript => self.manuscript_tab(ctx),
+            Tab::Templates => self.template_manager_tab(ctx),
         }
         self.dialogs(ctx);
         self.project_search(ctx);
@@ -1092,6 +1101,10 @@ impl WorldeditApp {
                             self.tab = Tab::Play;
                         }
                         ui.menu_button("工程", |ui| {
+                            if ui.button("管理工程模板").clicked() {
+                                self.tab = Tab::Templates;
+                                ui.close();
+                            }
                             if ui.button("新建世界").clicked() {
                                 self.request_action(Pending::New, ctx);
                                 ui.close();

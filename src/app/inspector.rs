@@ -421,6 +421,16 @@ impl WorldeditApp {
     }
 
     pub(super) fn world_tab(&mut self, ctx: &egui::Context) {
+        let template_index = self
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.template_index.clone())
+            .unwrap_or_else(|| self.project.template_index());
+        let catalog = self
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.result.analysis.catalog.clone())
+            .unwrap_or_default();
         let world = self
             .snapshot
             .as_ref()
@@ -457,8 +467,14 @@ impl WorldeditApp {
                 theme::card().show(ui, |ui| {
                     ui.label(RichText::new("共同属性").strong().size(16.0));
                     properties(ui, &mut draft.properties);
-                    if let Some(suggestion) =
-                        super::templates::template_panel(ui, "world", None, &mut draft.properties)
+                    if let Some(suggestion) = super::templates::template_panel(
+                        ui,
+                        "world",
+                        None,
+                        &template_index,
+                        &catalog,
+                        &mut draft.properties,
+                    )
                     {
                         if let Some(world) = &world {
                             self.edit_relation(
