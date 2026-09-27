@@ -240,6 +240,10 @@ fn frame(
                 pos2(0.0, 0.0),
                 if window == 27 {
                     vec2(1280.0, 800.0)
+                } else if window == 29 {
+                    vec2(1280.0, 720.0)
+                } else if window == 30 {
+                    vec2(800.0, 600.0)
                 } else if window == 16 || window == 21 || window == 24 {
                     vec2(700.0, 640.0)
                 } else if window == 25 || window == 26 {
@@ -281,6 +285,12 @@ fn frame(
                 });
             }
             14 => app.catalog_tab(ctx),
+            29 | 30 => {
+                app.top_bar(ctx);
+                app.status_bar(ctx);
+                app.sidebar(ctx);
+                app.play_tab(ctx);
+            }
             20 | 21 => app.play_tab(ctx),
             22 => app.canvas_tab(ctx),
             23 => app.checkpoint_history_tab(ctx),
@@ -570,6 +580,51 @@ fn replay_state_delta_keeps_body_visible_in_narrow_play_pane() {
         "replay result must include the variable change"
     );
     assert!(body_visible, "{rendered}");
+}
+
+#[test]
+fn full_editor_resize_keeps_narrow_debug_switch_accessible() {
+    let source = concat!(
+        "let score = 0\n",
+        "event start\n",
+        "  NARROW_RESIZE_BODY_SENTINEL\n",
+        "  choice \"继续\"\n",
+        "    set score = score + 1\n",
+        "    -> END\n",
+    );
+    let (ctx, mut app) = replay_app(source, 29);
+    click(&ctx, &mut app, 29, "选择：继续");
+    click(&ctx, &mut app, 29, "● 保存当前路径");
+    click(&ctx, &mut app, 29, "▶ 重放所选路径");
+    wait_for_replay(&ctx, &mut app);
+
+    let output = frame(&ctx, &mut app, Vec::new(), 30);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    let visible = |label| {
+        output.shapes.iter().any(|clipped| {
+            text_position(&clipped.shape, label)
+                .is_some_and(|position| clipped.clip_rect.contains(position))
+        })
+    };
+    assert!(visible("正文"), "{rendered}");
+    assert!(visible("调试信息"), "{rendered}");
+
+    click(&ctx, &mut app, 30, "调试信息");
+    let output = frame(&ctx, &mut app, Vec::new(), 30);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("叙事调试信息"), "{rendered}");
+    click(&ctx, &mut app, 30, "正文");
+    let output = frame(&ctx, &mut app, Vec::new(), 30);
+    assert!(output.shapes.iter().any(|clipped| {
+        text_position_contains(&clipped.shape, "NARROW_RESIZE_BODY_SENTINEL")
+            .is_some_and(|position| clipped.clip_rect.contains(position))
+    }));
 }
 
 #[test]

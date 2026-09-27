@@ -79,25 +79,28 @@ impl WorldeditApp {
                         restart = true;
                     }
                 }
+                if narrow && self.play.is_some() {
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(
+                            &mut self.replay_debugger.pane,
+                            PlayPane::Story,
+                            "正文",
+                        );
+                        ui.selectable_value(
+                            &mut self.replay_debugger.pane,
+                            PlayPane::Debugger,
+                            "调试信息",
+                        );
+                    });
+                }
                 egui::ScrollArea::vertical()
                     .id_salt("play-side-scroll")
                     .show(ui, |ui| {
-                        ui.separator();
-                        let Some(play) = &mut self.play else { return };
-                        if narrow {
-                            ui.horizontal(|ui| {
-                                ui.selectable_value(
-                                    &mut self.replay_debugger.pane,
-                                    PlayPane::Story,
-                                    "正文",
-                                );
-                                ui.selectable_value(
-                                    &mut self.replay_debugger.pane,
-                                    PlayPane::Debugger,
-                                    "调试信息",
-                                );
-                            });
+                        if !narrow {
+                            ui.separator();
                         }
+                        let Some(play) = &mut self.play else { return };
                         if play.error.is_none() && !play.ended {
                             let choices: Vec<_> = play
                                 .story
