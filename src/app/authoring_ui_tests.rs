@@ -4977,3 +4977,69 @@ fn reader_publish_cancel_and_existing_target_failure_never_write_or_overwrite() 
     assert_eq!(app.project.content_baseline(), baseline);
     let _ = std::fs::remove_file(destination);
 }
+
+#[test]
+fn sidebar_manuscript_tab_remains_reachable_in_short_viewport() {
+    let (ctx, mut app) = app();
+    let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
+    let visible = |output: &egui::FullOutput, label: &str| {
+        visible_text_position(output, label).filter(|point| screen.contains(*point))
+    };
+    let mut output = frame(&ctx, &mut app, Vec::new(), 32);
+    assert!(visible(&output, "时间线").is_some());
+    assert!(
+        visible(&output, "书稿工作台").is_none(),
+        "the manuscript tab should start below the 600px sidebar viewport"
+    );
+
+    for _ in 0..16 {
+        if visible(&output, "书稿工作台").is_some() {
+            break;
+        }
+        output = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(pos2(120.0, 350.0)),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, -90.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            32,
+        );
+    }
+    assert!(
+        visible(&output, "书稿工作台").is_some(),
+        "scrolling the sidebar must reveal the manuscript tab"
+    );
+    click(&ctx, &mut app, 32, "书稿工作台");
+    assert_eq!(app.tab, super::Tab::Manuscript);
+
+    for _ in 0..16 {
+        if visible(&output, "事件关系图").is_some() {
+            break;
+        }
+        output = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(pos2(120.0, 350.0)),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, 90.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            32,
+        );
+    }
+    assert!(
+        visible(&output, "事件关系图").is_some(),
+        "scrolling back must preserve access to the other navigation tabs"
+    );
+    click(&ctx, &mut app, 32, "事件关系图");
+    assert_eq!(app.tab, super::Tab::Graph);
+}
+

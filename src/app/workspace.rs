@@ -183,40 +183,44 @@ impl WorldeditApp {
                     self.project.documents.len()
                 )));
                 ui.add_space(22.0);
-                for tab in [
-                    Tab::Timeline,
-                    Tab::Graph,
-                    Tab::Network,
-                    Tab::Review,
-                    Tab::Map,
-                    Tab::Characters,
-                    Tab::World,
-                    Tab::Catalog,
-                    Tab::Wiki,
-                    Tab::Overview,
-                    Tab::Manuscript,
-                    Tab::Templates,
-                    Tab::CheckpointHistory,
-                    Tab::Edit,
-                ] {
-                    let selected = self.tab == tab;
-                    let response = ui.add_sized(
-                        [ui.available_width(), 38.0],
-                        egui::Button::selectable(
-                            selected,
-                            RichText::new(tab.title()).color(if selected { ACCENT } else { TEXT }),
-                        ),
-                    );
-                    nav_icon(
-                        ui.painter(),
-                        response.rect.left_center() + egui::vec2(20.0, 0.0),
-                        tab,
-                        if selected { ACCENT } else { MUTED },
-                    );
-                    if response.clicked() {
-                        self.tab = tab;
-                    }
-                }
+                egui::ScrollArea::vertical()
+                    .id_salt("sidebar-tabs")
+                    .show(ui, |ui| {
+                        for tab in [
+                            Tab::Timeline,
+                            Tab::Graph,
+                            Tab::Network,
+                            Tab::Review,
+                            Tab::Map,
+                            Tab::Characters,
+                            Tab::World,
+                            Tab::Catalog,
+                            Tab::Wiki,
+                            Tab::Overview,
+                            Tab::Manuscript,
+                            Tab::Templates,
+                            Tab::CheckpointHistory,
+                            Tab::Edit,
+                        ] {
+                            let selected = self.tab == tab;
+                            let response = ui.add_sized(
+                                [ui.available_width(), 38.0],
+                                egui::Button::selectable(
+                                    selected,
+                                    RichText::new(tab.title()).color(if selected { ACCENT } else { TEXT }),
+                                ),
+                            );
+                            nav_icon(
+                                ui.painter(),
+                                response.rect.left_center() + egui::vec2(20.0, 0.0),
+                                tab,
+                                if selected { ACCENT } else { MUTED },
+                            );
+                            if response.clicked() {
+                                self.tab = tab;
+                            }
+                        }
+                    });
                 ui.add_space(20.0);
                 ui.separator();
                 ui.horizontal(|ui| {
