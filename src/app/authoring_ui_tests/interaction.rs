@@ -15,7 +15,9 @@ pub(super) fn frame(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
-                if window == 32 {
+                if window == 33 {
+                    vec2(760.0, 620.0)
+                } else if window == 32 {
                     vec2(800.0, 600.0)
                 } else if window == 31 {
                     vec2(1280.0, 800.0)
@@ -80,6 +82,10 @@ pub(super) fn frame(
                 app.manuscript_tab(ctx);
             }
             24 => app.checkpoint_history_tab(ctx),
+            33 => {
+                app.top_bar(ctx);
+                app.markdown_import_window(ctx);
+            }
             25 => {
                 app.top_bar(ctx);
                 app.markdown_import_window(ctx);

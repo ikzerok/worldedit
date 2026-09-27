@@ -23,32 +23,6 @@ impl WorldeditApp {
                     ui.add_space(12.0);
                     crate::chrome::subtitle(ui, "世界创作工作台");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("发布给读者").clicked() {
-                            self.open_reader_publish();
-                        }
-                        #[cfg(target_arch = "wasm32")]
-                        if (self.browser_pending_save || self.io_error.is_some())
-                            && ui.button("导出恢复副本").clicked()
-                        {
-                            self.export_browser_recovery_copy();
-                        }
-                        if ui.add(theme::primary("导出工程  ↗")).clicked() {
-                            self.directory_dialog(true);
-                        }
-                        if ui.button("保存全部").clicked() {
-                            self.save();
-                        }
-                        if ui
-                            .button("搜索")
-                            .on_hover_text("搜索所有文件 · Ctrl+Shift+F")
-                            .clicked()
-                        {
-                            self.search_open = true;
-                            self.search_focus = true;
-                        }
-                        if ui.button("▶ 试玩").clicked() {
-                            self.tab = Tab::Play;
-                        }
                         ui.menu_button("工程", |ui| {
                             if ui.button("管理工程模板").clicked() {
                                 self.tab = Tab::Templates;
@@ -99,6 +73,32 @@ impl WorldeditApp {
                                 ui.close();
                             }
                         });
+                        if ui.button("发布给读者").clicked() {
+                            self.open_reader_publish();
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        if (self.browser_pending_save || self.io_error.is_some())
+                            && ui.button("导出恢复副本").clicked()
+                        {
+                            self.export_browser_recovery_copy();
+                        }
+                        if ui.add(theme::primary("导出工程  ↗")).clicked() {
+                            self.directory_dialog(true);
+                        }
+                        if ui.button("保存全部").clicked() {
+                            self.save();
+                        }
+                        if ui
+                            .button("搜索")
+                            .on_hover_text("搜索所有文件 · Ctrl+Shift+F")
+                            .clicked()
+                        {
+                            self.search_open = true;
+                            self.search_focus = true;
+                        }
+                        if ui.button("▶ 试玩").clicked() {
+                            self.tab = Tab::Play;
+                        }
                     });
                 });
             });

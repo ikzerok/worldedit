@@ -20,6 +20,18 @@ fn open_markdown_import(ctx: &egui::Context, app: &mut WorldeditApp) {
 }
 
 #[test]
+fn narrow_browser_sized_toolbar_opens_and_cancels_markdown_import() {
+    let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
+    click(&ctx, &mut app, 33, "工程");
+    click(&ctx, &mut app, 33, "导入 Markdown…");
+    assert!(app.markdown_import_wizard.is_some());
+    click(&ctx, &mut app, 33, "取消");
+    assert!(app.markdown_import_wizard.is_none());
+    assert_eq!(app.project.content_baseline(), baseline);
+}
+
+#[test]
 fn markdown_import_preview_and_cancel_keep_the_target_empty_and_show_losses() {
     let (ctx, mut app) = app();
     let (source, target) = markdown_import_fixture(
