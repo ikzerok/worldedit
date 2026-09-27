@@ -52,12 +52,15 @@ Ctrl+S 保存全部，Ctrl+O 选择工作区，Ctrl+Shift+F 搜索。修改前�
 在 worldedit 目录执行：
 
 ```powershell
+python scripts/check-source-lines.py
 cargo build --release --locked
 cargo test --locked
 cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo run -- ../worldline/examples/harbor-world
 ```
+
+Rust 源码按职责拆分；`check-source-lines.py` 对纳入 Git 的源码和测试执行单文件 600 物理行上限，配对检查也会对 worldline 执行同一规则。
 
 本仓库通过 `../worldline/core` 和 `../worldline/runtime` 路径依赖语言仓库，无需父目录 Cargo.toml。分开上传时保留各自 Cargo.lock、工具链、许可证、源码和测试，排除 target/dist/releases。发行包内附语言工具，无需用户安装 Rust。
 

@@ -40,6 +40,8 @@ try {
     Invoke-Recorded 'cargo' 'cargo' @('-V')
     $languageManifest = Join-Path $languageRoot 'Cargo.toml'
     $editorManifest = Join-Path $editorRoot 'Cargo.toml'
+    Invoke-Recorded 'worldline-lines' 'python' @((Join-Path $languageRoot 'scripts/check-source-lines.py'))
+    Invoke-Recorded 'worldedit-lines' 'python' @((Join-Path $editorRoot 'scripts/check-source-lines.py'))
     Invoke-Recorded 'worldline-fmt' 'cargo' @('fmt', '--manifest-path', $languageManifest, '--all', '--', '--check')
     Invoke-Recorded 'worldline-test' 'cargo' @('test', '--manifest-path', $languageManifest, '--workspace', '--locked')
     Invoke-Recorded 'worldline-clippy' 'cargo' @('clippy', '--manifest-path', $languageManifest, '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings')

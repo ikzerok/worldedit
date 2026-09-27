@@ -1,0 +1,187 @@
+use super::*;
+#[cfg(not(target_arch = "wasm32"))]
+fn frame_profile_input_active(ctx: &egui::Context) -> bool {
+    ctx.input(|input| {
+        input.events.iter().any(|event| {
+            matches!(
+                event,
+                egui::Event::Copy
+                    | egui::Event::Cut
+                    | egui::Event::Paste(_)
+                    | egui::Event::Text(_)
+                    | egui::Event::Key { .. }
+                    | egui::Event::PointerMoved(_)
+                    | egui::Event::MouseMoved(_)
+                    | egui::Event::PointerButton { .. }
+                    | egui::Event::Zoom(_)
+                    | egui::Event::Touch { .. }
+                    | egui::Event::MouseWheel { .. }
+            )
+        })
+    })
+}
+impl eframe::App for WorldeditApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        self.catalog_workbench.save_favorites(storage);
+    }
+
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        [0.0; 4]
+    }
+
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(not(target_arch = "wasm32"))]
+        let input_active = self
+            .frame_profile
+            .as_ref()
+            .filter(|profile| profile.is_active())
+            .map(|_| frame_profile_input_active(ctx));
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(profile) = self.frame_profile.as_mut() {
+            profile.begin_frame(_frame.info().cpu_usage);
+        }
+        if self.event_editor.is_none()
+            && self.character_editor.is_none()
+            && self.world_editor.is_none()
+            && self.tag_editor.is_none()
+            && self.state_editor.is_none()
+            && self.anchor_editor.is_none()
+            && self.wiki_editor.is_none()
+            && self.entity_editor.is_none()
+            && self.relation_editor.is_none()
+            && self.relation_type_editor.is_none()
+            && self.delete_form.is_none()
+            && self.rename_form.is_none()
+        {
+            self.stale_form = false;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            ctx.request_repaint_after(std::time::Duration::from_secs(1));
+            if self.saved_location
+                && self.last_refresh.elapsed() >= std::time::Duration::from_secs(1)
+            {
+                self.last_refresh = std::time::Instant::now();
+                let scan = worldline_core::file_access::workspace_files(&self.project.root)
+                    .and_then(|paths| {
+                        paths
+                            .into_iter()
+                            .map(|p| {
+                                let m = std::fs::metadata(&p)?;
+                                Ok((p, m.len(), m.modified().ok()))
+                            })
+                            .collect::<std::io::Result<Vec<_>>>()
+                    });
+                match scan {
+                    Ok(stamp) if stamp != self.disk_stamp => match self.project.refresh() {
+                        Ok(conflicts) => {
+                            self.disk_stamp = stamp;
+                            self.history.clear();
+                            self.redo.clear();
+                            if !self.project.documents.contains_key(&self.active_file) {
+                                self.active_file = self.project.entry.clone();
+                            }
+                            self.recompile();
+                            if !conflicts.is_empty() {
+                                self.io_error = Some(format!(
+                                    "外部修改与未保存内容冲突，已保留缓冲：{}",
+                                    conflicts
+                                        .iter()
+                                        .map(|p| p.display().to_string())
+                                        .collect::<Vec<_>>()
+                                        .join("、")
+                                ));
+                            }
+                        }
+                        Err(e) => self.io_error = Some(e),
+                    },
+                    Err(e) => self.io_error = Some(e.to_string()),
+                    _ => {}
+                }
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        self.browser_events(ctx);
+        if ctx.input(|i| i.viewport().close_requested())
+            && !self.allow_close
+            && (self.project.is_dirty() || self.has_open_authoring_form())
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.request_action(Pending::Close, ctx);
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
+            self.save();
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O)) {
+            self.open_dialog(ctx, false);
+        }
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::F,
+            )
+        }) {
+            self.search_open = true;
+            self.search_focus = true;
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.link_from = None;
+            self.character_link = None;
+        }
+        self.top_bar(ctx);
+        self.status_bar(ctx);
+        self.sidebar(ctx);
+        match self.tab {
+            Tab::Timeline | Tab::Graph => {
+                self.event_inspector(ctx);
+                self.canvas_tab(ctx);
+            }
+            Tab::Map => self.map_tab(ctx),
+            Tab::Network => self.network_tab(ctx),
+            Tab::Review => self.review_tab(ctx),
+            Tab::Overview => self.overview_tab(ctx),
+            Tab::Edit => self.source_tab(ctx),
+            Tab::Characters => self.characters_tab(ctx),
+            Tab::Catalog => self.catalog_tab(ctx),
+            Tab::Wiki => self.wiki_tab(ctx),
+            Tab::World => self.world_tab(ctx),
+            Tab::Play => self.play_tab(ctx),
+            Tab::Manuscript => self.manuscript_tab(ctx),
+            Tab::Templates => self.template_manager_tab(ctx),
+            Tab::CheckpointHistory => self.checkpoint_history_tab(ctx),
+        }
+        self.dialogs(ctx);
+        self.project_search(ctx);
+        self.reading_window(ctx);
+        self.wiki_editor_window(ctx);
+        self.entity_editor_window(ctx);
+        self.relation_editor_window(ctx);
+        self.relation_type_editor_window(ctx);
+        self.content_deletion_window(ctx);
+        self.target_rename_window(ctx);
+        self.markdown_import_window(ctx);
+        self.reader_publish_window(ctx);
+        self.preset_editor_window(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.conflict_view.show(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        crate::chrome::resize_edges(ctx);
+        #[cfg(target_arch = "wasm32")]
+        crate::web::set_dirty(
+            (self.browser_pending_save
+                || self.project.is_dirty()
+                || self.has_open_authoring_form())
+                && !self.allow_close,
+        );
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(input_active) = input_active {
+            if let Some(profile) = self.frame_profile.as_mut() {
+                profile.finish_frame(
+                    matches!(self.tab, Tab::Map | Tab::Network),
+                    input_active,
+                    ctx.pixels_per_point(),
+                );
+            }
+        }
+    }
+}

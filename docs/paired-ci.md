@@ -31,7 +31,7 @@ rustup target add wasm32-unknown-unknown
 ./scripts/check-pair.ps1
 ```
 
-脚本校验 worldline HEAD，分别指定两个 Cargo.toml，执行格式、完整测试、严格 clippy、原生实际构建及编辑器 WASM 检查和实际构建，任一步失败立即失败。`target/paired-check/` 保存操作系统、CPU、内存、GPU 清单、两仓 SHA、工作区修改状态、锁文件摘要及逐项日志；有工作区修改时只能视为开发验证，正式配对证据必须来自干净检出。此脚本用于 Windows 自动检查，不启动 GUI 或浏览器，浏览器版本与 DPI 明确记为未测；它们须在后续实际 GUI/浏览器验收时另行记录。
+脚本校验 worldline HEAD，分别指定两个 Cargo.toml，先对两仓库的 Rust 源文件（包括测试）执行单文件 600 物理行检查，再执行格式、完整测试、严格 clippy、原生实际构建及编辑器 WASM 检查和实际构建，任一步失败立即失败。`target/paired-check/` 保存操作系统、CPU、内存、GPU 清单、两仓 SHA、工作区修改状态、锁文件摘要及逐项日志；有工作区修改时只能视为开发验证，正式配对证据必须来自干净检出。此脚本用于 Windows 自动检查，不启动 GUI 或浏览器，浏览器版本与 DPI 明确记为未测；它们须在后续实际 GUI/浏览器验收时另行记录。
 
 CI 无论成功失败均上传 `paired-check-<编辑器SHA>` artifact，保留 90 天；到期前从 Actions 下载长期所需的证据。原始本机日志只留 target，不上传源码仓库。没有执行到的检查不能视作成功。
 
