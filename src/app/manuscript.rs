@@ -405,245 +405,108 @@ impl WorldeditApp {
                 egui::ScrollArea::vertical()
                     .id_salt("manuscript-workbench-content")
                     .show(ui, |ui| {
-                ui.columns(2, |columns| {
-                    columns[0].heading("章节");
-                    columns[1].heading("编排与来源");
-                    let entries: Vec<_> = local
+                let layout = self.manuscript.layout;
+                let entries: Vec<_> = local
+                    .draft
+                    .entries
+                    .iter()
+                    .map(|entry| {
+                        (
+                            entry.id.clone(),
+                            entry.kind,
+                            entry.title.clone(),
+                            entry.parent_id.as_ref().map(|parent| {
+                                local
+                                    .draft
+                                    .entries
+                                    .iter()
+                                    .find(|candidate| &candidate.id == parent)
+                                    .map(|candidate| candidate.title.clone())
+                                    .unwrap_or_else(|| parent.clone())
+                            }),
+                            entry_depth(&local.draft.entries, entry),
+                        )
+                    })
+                    .collect();
+                if ui.available_width() >= 820.0 {
+                    ui.columns(2, |columns| {
+                        draw_entry_list(&mut columns[0], layout, &mut local, &entries);
+                        draw_entry_editor(
+                            self,
+                            &mut columns[1],
+                            &mut local,
+                            &book_id,
+                            &objects,
+                            &preview_index,
+                            read_only,
+                            &mut load_body_for,
+                            &mut apply_body_for,
+                        );
+                    });
+                } else {
+                    ui.heading("章节");
+                    let selected_label = local
                         .draft
                         .entries
                         .iter()
-                        .map(|entry| {
-                            (
-                                entry.id.clone(),
-                                entry.kind,
-                                entry.title.clone(),
-                                entry.parent_id.as_ref().map(|parent| {
-                                    local
-                                        .draft
-                                        .entries
-                                        .iter()
-                                        .find(|candidate| &candidate.id == parent)
-                                        .map(|candidate| candidate.title.clone())
-                                        .unwrap_or_else(|| parent.clone())
-                                }),
-                                entry_depth(&local.draft.entries, entry),
-                            )
+                        .find(|entry| {
+                            local.selected_entry.as_deref() == Some(entry.id.as_str())
                         })
-                        .collect();
-                    egui::ScrollArea::vertical()
-                        .id_salt("manuscript-entry-list")
-                        .max_height(480.0)
-                        .show(&mut columns[0], |ui| match self.manuscript.layout {
-                            Layout::Tree => {
-                                for (id, kind, title, parent, depth) in &entries {
-                                    let prefix = if *kind == ManuscriptEntryKind::Section {
-                                        "▾ "
-                                    } else {
-                                        ""
-                                    };
-                                    let relation = parent
-                                        .as_deref()
-                                        .map(|p| format!(" · {p}"))
-                                        .unwrap_or_default();
-                                    let label = format!(
-                                        "{}{}{}{}",
+                        .map(|entry| format!("{} · {}", entry.title, entry.id))
+                        .unwrap_or_else(|| "选择章节".into());
+                    egui::ComboBox::from_id_salt(("manuscript-entry-narrow", &book_id))
+                        .selected_text(selected_label)
+                        .show_ui(ui, |ui| {
+                            for (id, kind, title, parent, depth) in &entries {
+                                let label = match layout {
+                                    Layout::Tree => format!(
+                                        "{}{}{} · {}",
                                         "  ".repeat(*depth),
-                                        prefix,
+                                        if *kind == ManuscriptEntryKind::Section {
+                                            "▾ "
+                                        } else {
+                                            ""
+                                        },
                                         title,
-                                        relation
-                                    );
-                                    if ui
-                                        .selectable_label(
-                                            local.selected_entry.as_deref() == Some(id),
-                                            label,
-                                        )
-                                        .clicked()
-                                    {
-                                        local.selected_entry = Some(id.clone());
-                                    }
-                                }
-                            }
-                            Layout::List => {
-                                for (id, kind, title, parent, _) in &entries {
-                                    if *kind != ManuscriptEntryKind::Chapter {
-                                        continue;
-                                    }
-                                    let section = parent
-                                        .as_deref()
-                                        .map(|p| format!("{p} / "))
-                                        .unwrap_or_default();
-                                    if ui
-                                        .selectable_label(
-                                            local.selected_entry.as_deref() == Some(id),
-                                            format!("{section}{title}"),
-                                        )
-                                        .clicked()
-                                    {
-                                        local.selected_entry = Some(id.clone());
-                                    }
-                                }
-                            }
-                            Layout::Cards => {
-                                for (id, kind, title, parent, _) in &entries {
-                                    if *kind != ManuscriptEntryKind::Chapter {
-                                        continue;
-                                    }
-                                    let section = parent
-                                        .as_deref()
-                                        .map(|p| format!("分节：{p}"))
-                                        .unwrap_or_else(|| "根章节".into());
-                                    theme::card().show(ui, |ui| {
-                                        ui.label(RichText::new(title).strong());
-                                        ui.label(theme::muted(section));
-                                        if ui
-                                            .selectable_label(
-                                                local.selected_entry.as_deref() == Some(id),
-                                                "查看章节",
-                                            )
-                                            .clicked()
-                                        {
-                                            local.selected_entry = Some(id.clone());
+                                        id
+                                    ),
+                                    Layout::List => {
+                                        if *kind != ManuscriptEntryKind::Chapter {
+                                            continue;
                                         }
-                                    });
-                                }
-                            }
-                        });
-
-                    let selected_id = local.selected_entry.clone();
-                    let selected_index = selected_id.as_ref().and_then(|id| {
-                        local.draft.entries.iter().position(|entry| &entry.id == id)
-                    });
-                    if let Some(position) = selected_index {
-                        let selected_entry_id = local.draft.entries[position].id.clone();
-                        let selected_kind = local.draft.entries[position].kind;
-                        columns[1].label(theme::muted(format!(
-                            "稳定 ID：{} · {:?}",
-                            selected_entry_id, selected_kind
-                        )));
-                        {
-                            let entry = &mut local.draft.entries[position];
-                            if columns[1].text_edit_singleline(&mut entry.title).changed() {
-                                local.changed = true;
-                            }
-                            columns[1].label("摘要");
-                            let mut summary = entry.summary.clone().unwrap_or_default();
-                            if columns[1]
-                                .add(egui::TextEdit::multiline(&mut summary).desired_rows(3))
-                                .changed()
-                            {
-                                entry.summary = (!summary.is_empty()).then_some(summary);
-                                local.changed = true;
-                            }
-                        }
-                        columns[1].horizontal(|ui| {
-                            if ui
-                                .add_enabled(!read_only, egui::Button::new("上移"))
-                                .clicked()
-                                && move_entry(&mut local.draft.entries, &selected_entry_id, -1)
-                            {
-                                local.changed = true;
-                            }
-                            if ui
-                                .add_enabled(!read_only, egui::Button::new("下移"))
-                                .clicked()
-                                && move_entry(&mut local.draft.entries, &selected_entry_id, 1)
-                            {
-                                local.changed = true;
-                            }
-                        });
-                        {
-                            let entry = &mut local.draft.entries[position];
-                            draw_status_goal(&mut columns[1], entry, &mut local.changed);
-                        }
-                        if selected_kind == ManuscriptEntryKind::Chapter {
-                            let entry = &mut local.draft.entries[position];
-                            draw_metadata_target(
-                                &mut columns[1],
-                                entry,
-                                &objects,
-                                &mut local.changed,
-                            );
-                            if let Some(index_entry) = preview_index
-                                .entries
-                                .iter()
-                                .find(|candidate| candidate.id == entry.id)
-                            {
-                                if let Some(source) = &index_entry.source {
-                                    columns[1].label(source_status_text(source.status));
-                                    if let Some(location) = &source.location {
-                                        columns[1].label(theme::muted(format!(
-                                            "来源：{}:{}",
-                                            location.file, location.line
-                                        )));
+                                        let section = parent
+                                            .as_deref()
+                                            .map(|parent| format!("{parent} / "))
+                                            .unwrap_or_default();
+                                        format!("{section}{title} · {id}")
                                     }
-                                    if let Some(stats) = source.stats {
-                                        columns[1].label(format!(
-                                            "汉字 {} · 词数 {}",
-                                            stats.han_characters, stats.words
-                                        ));
-                                        if let Some(goal) = entry
-                                            .goal
-                                            .as_deref()
-                                            .and_then(|goal| goal.trim().parse::<u64>().ok())
-                                        {
-                                            let ratio = if goal == 0 {
-                                                1.0
-                                            } else {
-                                                (stats.words as f32 / goal as f32).clamp(0.0, 1.0)
-                                            };
-                                            columns[1].add(egui::ProgressBar::new(ratio).text(
-                                                format!("{} / {} 词目标", stats.words, goal),
-                                            ));
-                                        } else if entry
-                                            .goal
-                                            .as_deref()
-                                            .is_some_and(|goal| !goal.trim().is_empty())
-                                        {
-                                            columns[1].label(theme::muted(
-                                                "目标说明不是数字；输入数字可显示词数进度。",
-                                            ));
+                                    Layout::Cards => {
+                                        if *kind != ManuscriptEntryKind::Chapter {
+                                            continue;
                                         }
+                                        format!("{title} · {id}")
                                     }
-                                }
-                            }
-                            let body_key = (book_id.clone(), selected_entry_id.clone());
-                            if let Some(body) = self.manuscript.body_drafts.get_mut(&body_key) {
-                                ui_body_draft(
-                                    &mut columns[1],
-                                    body,
-                                    &mut apply_body_for,
-                                    &book_id,
-                                    &selected_entry_id,
+                                };
+                                ui.selectable_value(
+                                    &mut local.selected_entry,
+                                    Some(id.clone()),
+                                    label,
                                 );
-                            } else {
-                                let has_source = preview_index
-                                    .entries
-                                    .iter()
-                                    .find(|candidate| candidate.id == selected_entry_id)
-                                    .and_then(|candidate| candidate.source.as_ref())
-                                    .and_then(|source| source.location.as_ref())
-                                    .is_some();
-                                if columns[1]
-                                    .add_enabled(
-                                        !read_only && has_source,
-                                        egui::Button::new("编辑来源文件"),
-                                    )
-                                    .clicked()
-                                {
-                                    load_body_for =
-                                        Some((book_id.clone(), selected_entry_id.clone()));
-                                }
-                                if !has_source {
-                                    columns[1].label(theme::muted(
-                                        "来源缺失时先选择一个可确认的事件、场景或实体。",
-                                    ));
-                                }
                             }
-                        }
-                    } else {
-                        columns[1].label("选择章节或分节以编辑编排。");
-                    }
-                });
+                        });
+                    ui.separator();
+                    draw_entry_editor(
+                        self,
+                        ui,
+                        &mut local,
+                        &book_id,
+                        &objects,
+                        &preview_index,
+                        read_only,
+                        &mut load_body_for,
+                        &mut apply_body_for,
+                    );
+                }
 
                 if self.manuscript.reader_open {
                     ui.separator();
@@ -881,6 +744,227 @@ fn selected_section(local: &LocalBook) -> Option<String> {
             .find(|entry| entry.id == id && entry.kind == ManuscriptEntryKind::Section)
             .map(|entry| entry.id.clone())
     })
+}
+
+fn draw_entry_list(
+    ui: &mut egui::Ui,
+    layout: Layout,
+    local: &mut LocalBook,
+    entries: &[(String, ManuscriptEntryKind, String, Option<String>, usize)],
+) {
+    ui.heading("章节");
+    egui::ScrollArea::vertical()
+        .id_salt("manuscript-entry-list")
+        .max_height(480.0)
+        .show(ui, |ui| match layout {
+            Layout::Tree => {
+                for (id, kind, title, parent, depth) in entries {
+                    let prefix = if *kind == ManuscriptEntryKind::Section {
+                        "▾ "
+                    } else {
+                        ""
+                    };
+                    let relation = parent
+                        .as_deref()
+                        .map(|parent| format!(" · {parent}"))
+                        .unwrap_or_default();
+                    let label = format!(
+                        "{}{}{}{}",
+                        "  ".repeat(*depth),
+                        prefix,
+                        title,
+                        relation
+                    );
+                    if ui
+                        .selectable_label(local.selected_entry.as_deref() == Some(id), label)
+                        .clicked()
+                    {
+                        local.selected_entry = Some(id.clone());
+                    }
+                }
+            }
+            Layout::List => {
+                for (id, kind, title, parent, _) in entries {
+                    if *kind != ManuscriptEntryKind::Chapter {
+                        continue;
+                    }
+                    let section = parent
+                        .as_deref()
+                        .map(|parent| format!("{parent} / "))
+                        .unwrap_or_default();
+                    if ui
+                        .selectable_label(
+                            local.selected_entry.as_deref() == Some(id),
+                            format!("{section}{title}"),
+                        )
+                        .clicked()
+                    {
+                        local.selected_entry = Some(id.clone());
+                    }
+                }
+            }
+            Layout::Cards => {
+                for (id, kind, title, parent, _) in entries {
+                    if *kind != ManuscriptEntryKind::Chapter {
+                        continue;
+                    }
+                    let section = parent
+                        .as_deref()
+                        .map(|parent| format!("分节：{parent}"))
+                        .unwrap_or_else(|| "根章节".into());
+                    theme::card().show(ui, |ui| {
+                        ui.label(RichText::new(title).strong());
+                        ui.label(theme::muted(section));
+                        if ui
+                            .selectable_label(
+                                local.selected_entry.as_deref() == Some(id),
+                                "查看章节",
+                            )
+                            .clicked()
+                        {
+                            local.selected_entry = Some(id.clone());
+                        }
+                    });
+                }
+            }
+        });
+}
+
+fn draw_entry_editor(
+    app: &mut WorldeditApp,
+    ui: &mut egui::Ui,
+    local: &mut LocalBook,
+    book_id: &str,
+    objects: &[CatalogObject],
+    preview_index: &ManuscriptIndex,
+    read_only: bool,
+    load_body_for: &mut Option<(String, String)>,
+    apply_body_for: &mut Option<(String, String)>,
+) {
+    ui.heading("编排与来源");
+    let selected_id = local.selected_entry.clone();
+    let selected_index = selected_id
+        .as_ref()
+        .and_then(|id| local.draft.entries.iter().position(|entry| &entry.id == id));
+    if let Some(position) = selected_index {
+        let selected_entry_id = local.draft.entries[position].id.clone();
+        let selected_kind = local.draft.entries[position].kind;
+        ui.label(theme::muted(format!(
+            "稳定 ID：{} · {:?}",
+            selected_entry_id, selected_kind
+        )));
+        {
+            let entry = &mut local.draft.entries[position];
+            if ui.text_edit_singleline(&mut entry.title).changed() {
+                local.changed = true;
+            }
+            ui.label("摘要");
+            let mut summary = entry.summary.clone().unwrap_or_default();
+            if ui
+                .add(egui::TextEdit::multiline(&mut summary).desired_rows(3))
+                .changed()
+            {
+                entry.summary = (!summary.is_empty()).then_some(summary);
+                local.changed = true;
+            }
+        }
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(!read_only, egui::Button::new("上移"))
+                .clicked()
+                && move_entry(&mut local.draft.entries, &selected_entry_id, -1)
+            {
+                local.changed = true;
+            }
+            if ui
+                .add_enabled(!read_only, egui::Button::new("下移"))
+                .clicked()
+                && move_entry(&mut local.draft.entries, &selected_entry_id, 1)
+            {
+                local.changed = true;
+            }
+        });
+        draw_status_goal(ui, &mut local.draft.entries[position], &mut local.changed);
+        if selected_kind == ManuscriptEntryKind::Chapter {
+            let entry = &mut local.draft.entries[position];
+            draw_metadata_target(ui, entry, objects, &mut local.changed);
+            if let Some(index_entry) = preview_index
+                .entries
+                .iter()
+                .find(|candidate| candidate.id == entry.id)
+            {
+                if let Some(source) = &index_entry.source {
+                    ui.label(source_status_text(source.status));
+                    if let Some(location) = &source.location {
+                        ui.label(theme::muted(format!(
+                            "来源：{}:{}",
+                            location.file, location.line
+                        )));
+                    }
+                    if let Some(stats) = source.stats {
+                        ui.label(format!(
+                            "汉字 {} · 词数 {}",
+                            stats.han_characters, stats.words
+                        ));
+                        if let Some(goal) = entry
+                            .goal
+                            .as_deref()
+                            .and_then(|goal| goal.trim().parse::<u64>().ok())
+                        {
+                            let ratio = if goal == 0 {
+                                1.0
+                            } else {
+                                (stats.words as f32 / goal as f32).clamp(0.0, 1.0)
+                            };
+                            ui.add(
+                                egui::ProgressBar::new(ratio)
+                                    .text(format!("{} / {} 词目标", stats.words, goal)),
+                            );
+                        } else if entry
+                            .goal
+                            .as_deref()
+                            .is_some_and(|goal| !goal.trim().is_empty())
+                        {
+                            ui.label(theme::muted(
+                                "目标说明不是数字；输入数字可显示词数进度。",
+                            ));
+                        }
+                    }
+                }
+            }
+            let body_key = (book_id.to_owned(), selected_entry_id.clone());
+            if let Some(body) = app.manuscript.body_drafts.get_mut(&body_key) {
+                ui_body_draft(
+                    ui,
+                    body,
+                    apply_body_for,
+                    book_id,
+                    &selected_entry_id,
+                );
+            } else {
+                let has_source = preview_index
+                    .entries
+                    .iter()
+                    .find(|candidate| candidate.id == selected_entry_id)
+                    .and_then(|candidate| candidate.source.as_ref())
+                    .and_then(|source| source.location.as_ref())
+                    .is_some();
+                if ui
+                    .add_enabled(!read_only && has_source, egui::Button::new("编辑来源文件"))
+                    .clicked()
+                {
+                    *load_body_for = Some((book_id.to_owned(), selected_entry_id.clone()));
+                }
+                if !has_source {
+                    ui.label(theme::muted(
+                        "来源缺失时先选择一个可确认的事件、场景或实体。",
+                    ));
+                }
+            }
+        }
+    } else {
+        ui.label("选择章节或分节以编辑编排。");
+    }
 }
 
 fn draw_metadata_target(

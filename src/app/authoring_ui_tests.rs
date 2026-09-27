@@ -238,7 +238,9 @@ fn frame(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
-                if window == 27 {
+                if window == 32 {
+                    vec2(800.0, 600.0)
+                } else if window == 31 {
                     vec2(1280.0, 800.0)
                 } else if window == 29 {
                     vec2(1280.0, 720.0)
@@ -294,7 +296,7 @@ fn frame(
             20 | 21 => app.play_tab(ctx),
             22 => app.canvas_tab(ctx),
             23 => app.checkpoint_history_tab(ctx),
-            27 => {
+            31 | 32 => {
                 app.top_bar(ctx);
                 app.status_bar(ctx);
                 app.sidebar(ctx);
@@ -2733,17 +2735,13 @@ fn manuscript_workbench_scrolls_to_preview_in_short_viewport() {
             (screen.contains(point) && clipped.clip_rect.contains(point)).then_some(point)
         })
     };
-    let mut output = frame(&ctx, &mut app, Vec::new(), 27);
+    let mut output = frame(&ctx, &mut app, Vec::new(), 31);
     for field in ["状态", "字数目标", "event:arrival"] {
         assert!(
             visible(&output, field).is_some(),
             "chapter field must be visible in a short viewport: {field}"
         );
     }
-    assert!(
-        visible(&output, "按书稿章节顺序展示 core 编译的静态文本").is_none(),
-        "preview should begin below the initial short viewport"
-    );
     let scroll_point = visible(&output, "稳定 ID").unwrap();
     for _ in 0..32 {
         if visible(&output, "按书稿章节顺序展示 core 编译的静态文本").is_some() {
@@ -2760,13 +2758,113 @@ fn manuscript_workbench_scrolls_to_preview_in_short_viewport() {
                     modifiers: egui::Modifiers::NONE,
                 },
             ],
-            27,
+            31,
         );
     }
     assert!(
         visible(&output, "按书稿章节顺序展示 core 编译的静态文本").is_some(),
         "reading preview must be reachable by scrolling in a short viewport"
     );
+}
+#[test]
+fn manuscript_detail_fields_remain_reachable_in_narrow_viewport() {
+    fn text_bounds(shape: &egui::Shape, needle: &str) -> Option<Rect> {
+        match shape {
+            egui::Shape::Text(text) if text.galley.job.text.contains(needle) => Some(
+                Rect::from_min_size(
+                    text.pos + text.galley.rect.min.to_vec2(),
+                    text.galley.rect.size(),
+                ),
+            ),
+            egui::Shape::Vec(shapes) => shapes
+                .iter()
+                .find_map(|shape| text_bounds(shape, needle)),
+            _ => None,
+        }
+    }
+    fn exact_text_position(shape: &egui::Shape, needle: &str) -> Option<egui::Pos2> {
+        match shape {
+            egui::Shape::Text(text) if text.galley.job.text.trim() == needle => {
+                Some(text.pos + text.galley.rect.center().to_vec2())
+            }
+            egui::Shape::Vec(shapes) => shapes
+                .iter()
+                .find_map(|shape| exact_text_position(shape, needle)),
+            _ => None,
+        }
+    }
+    let (ctx, mut app) = manuscript_app();
+    let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
+    let bounds = |output: &egui::FullOutput, needle: &str| {
+        output
+            .shapes
+            .iter()
+            .find_map(|clipped| text_bounds(&clipped.shape, needle))
+    };
+    let mut output = frame(&ctx, &mut app, Vec::new(), 32);
+    let chapter_heading = output
+        .shapes
+        .iter()
+        .find_map(|clipped| exact_text_position(&clipped.shape, "章节"))
+        .expect("chapter list heading");
+    let detail_heading = output
+        .shapes
+        .iter()
+        .find_map(|clipped| exact_text_position(&clipped.shape, "编排与来源"))
+        .expect("chapter detail heading");
+    assert!(
+        detail_heading.y > chapter_heading.y + 40.0,
+        "narrow layout should stack chapter selection above its details"
+    );
+
+    for _ in 0..16 {
+        if bounds(&output, "event:arrival")
+            .is_some_and(|rect| rect.top() >= 60.0 && rect.bottom() <= 540.0)
+        {
+            break;
+        }
+        output = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(pos2(700.0, 500.0)),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, -90.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            32,
+        );
+    }
+    for _ in 0..16 {
+        if bounds(&output, "event:arrival").is_some_and(|rect| screen.contains_rect(rect)) {
+            break;
+        }
+        output = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(pos2(700.0, 500.0)),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(-90.0, 0.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            32,
+        );
+    }
+    assert!(
+        bounds(&output, "event:arrival").is_some_and(|rect| screen.contains_rect(rect)),
+        "chapter target text must fit inside the narrow viewport after scrolling"
+    );
+    for field in ["状态", "字数目标"] {
+        assert!(
+            bounds(&output, field).is_some_and(|rect| screen.contains_rect(rect)),
+            "manuscript field must fit inside the narrow viewport: {field}"
+        );
+    }
 }
 
 #[test]
