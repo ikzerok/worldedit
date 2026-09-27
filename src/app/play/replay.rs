@@ -1,8 +1,9 @@
 use super::super::WorldeditApp;
-use worldline_runtime::{ReplayBudget, ReplayCancellation, ReplayTrace};
+#[cfg(not(target_arch = "wasm32"))]
+use worldline_runtime::ReplayTrace;
+use worldline_runtime::{ReplayBudget, ReplayCancellation};
 impl WorldeditApp {
     pub(super) fn begin_replay(&mut self, ctx: &egui::Context) {
-        let _ = ctx;
         if self.replay_debugger.job.is_some() {
             return;
         }
@@ -62,14 +63,23 @@ impl WorldeditApp {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            match ReplayTrace::replay(&program, &analysis, &trace, budget, &cancellation) {
-                Ok(result) => self.replay_debugger.result = Some(result),
+            match worldline_runtime::ReplaySession::new(trace, budget, cancellation.clone()) {
+                Ok(session) => {
+                    self.replay_debugger.job = Some(super::super::ReplayJob {
+                        cancellation,
+                        program,
+                        analysis,
+                        session,
+                    });
+                    ctx.request_repaint_after(std::time::Duration::from_millis(16));
+                }
                 Err(error) => self.replay_debugger.notice = Some(error.to_string()),
             }
         }
     }
 
-    pub(super) fn poll_replay(&mut self, ctx: &egui::Context) {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(in crate::app) fn poll_replay(&mut self, ctx: &egui::Context) {
         let state = self
             .replay_debugger
             .job
@@ -90,6 +100,26 @@ impl WorldeditApp {
             }
             Some(Err(std::sync::mpsc::TryRecvError::Empty)) => {
                 ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            }
+            None => {}
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(in crate::app) fn poll_replay(&mut self, ctx: &egui::Context) {
+        let state = self.replay_debugger.job.as_mut().map(|job| {
+            job.session
+                .advance(&job.program, &job.analysis, ReplayBudget::new(512, 4))
+        });
+        match state {
+            Some(Ok(Some(result))) => {
+                self.replay_debugger.job = None;
+                self.replay_debugger.result = Some(result);
+            }
+            Some(Ok(None)) => ctx.request_repaint_after(std::time::Duration::from_millis(16)),
+            Some(Err(error)) => {
+                self.replay_debugger.job = None;
+                self.replay_debugger.notice = Some(error.to_string());
             }
             None => {}
         }

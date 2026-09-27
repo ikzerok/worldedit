@@ -12,6 +12,7 @@ use worldline_core::{catalog::TargetRef, catalog_edit::AssetDraft};
 pub enum FileAction {
     Open,
     MarkdownImport,
+    LocalizationImport,
     Include,
     Attach(TargetRef),
     Replace(AssetDraft),
@@ -160,7 +161,10 @@ pub fn select_files(ctx: &egui::Context, folder: bool, accept: &str, action: Fil
         let document = web_sys::window().unwrap().document().unwrap();
         let input: web_sys::HtmlInputElement = document.create_element("input")?.dyn_into()?;
         input.set_type("file");
-        input.set_multiple(!matches!(action, FileAction::Replace(_)));
+        input.set_multiple(!matches!(
+            action,
+            FileAction::Replace(_) | FileAction::LocalizationImport
+        ));
         input.set_accept(accept);
         input.set_attribute("style", "display:none")?;
         if folder {

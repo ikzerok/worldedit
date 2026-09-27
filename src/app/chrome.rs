@@ -54,6 +54,10 @@ impl WorldeditApp {
                                 self.tab = Tab::Templates;
                                 ui.close();
                             }
+                            if ui.button("本地化工作台").clicked() {
+                                self.tab = Tab::Localization;
+                                ui.close();
+                            }
                             if ui.button("检查点历史…").clicked() {
                                 self.tab = Tab::CheckpointHistory;
                                 ui.close();

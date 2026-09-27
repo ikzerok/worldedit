@@ -433,74 +433,82 @@ impl WorldeditApp {
     }
 
     pub(super) fn network_tab(&mut self, ctx: &egui::Context) {
+        let topic_active = self.topic_view_active(ctx);
         egui::SidePanel::right("network-inspector")
             .default_width(300.0)
             .width_range(250.0..=420.0)
             .frame(theme::panel())
             .show(ctx, |ui| {
-                ui.heading("局部关系网络");
-                self.network_filters(ui);
-                if let Some(target) = self.network_selected.clone() {
-                    ui.separator();
-                    ui.label(RichText::new("选中对象").strong());
-                    if let Some(snapshot) = &self.snapshot {
-                        if let Some(object) = snapshot.result.analysis.catalog.object(&target) {
-                            ui.label(&object.display);
-                            ui.label(theme::muted(format!(
-                                "{} · {}",
-                                kind_label(&target.kind),
-                                target.id
-                            )));
+                if topic_active {
+                    ui.heading("专题视图");
+                    ui.label(theme::muted("专题映射与筛选仅用于只读 core 查询。"));
+                } else {
+                    ui.heading("局部关系网络");
+                    self.network_filters(ui);
+                    if let Some(target) = self.network_selected.clone() {
+                        ui.separator();
+                        ui.label(RichText::new("选中对象").strong());
+                        if let Some(snapshot) = &self.snapshot {
+                            if let Some(object) = snapshot.result.analysis.catalog.object(&target) {
+                                ui.label(&object.display);
+                                ui.label(theme::muted(format!(
+                                    "{} · {}",
+                                    kind_label(&target.kind),
+                                    target.id
+                                )));
+                            }
                         }
+                        ui.horizontal_wrapped(|ui| {
+                            if ui.button("阅读资料").clicked() {
+                                self.open_reading(target.clone());
+                            }
+                            if ui.button("作为中心").clicked() {
+                                self.network_state.enter(target.clone());
+                            }
+                            if ui.button("创建关系").clicked() {
+                                self.edit_relation(None, Some(target.clone()));
+                            }
+                        });
                     }
-                    ui.horizontal_wrapped(|ui| {
-                        if ui.button("阅读资料").clicked() {
-                            self.open_reading(target.clone());
-                        }
-                        if ui.button("作为中心").clicked() {
-                            self.network_state.enter(target.clone());
-                        }
-                        if ui.button("创建关系").clicked() {
-                            self.edit_relation(None, Some(target.clone()));
-                        }
-                    });
+                    self.network_edge_list(ui);
+                    self.network_saved_views(ui);
                 }
-                self.network_edge_list(ui);
-                self.network_saved_views(ui);
             });
         egui::CentralPanel::default()
             .frame(theme::panel().fill(BG))
             .show(ctx, |ui| {
-                self.network_toolbar(ui);
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .add_enabled(
-                            self.network_state.can_previous(),
-                            egui::Button::new("上一页"),
-                        )
-                        .clicked()
-                    {
-                        self.network_state.previous_page();
-                    }
-                    if ui
-                        .add_enabled(
-                            self.network_state
-                                .result
-                                .as_ref()
-                                .is_some_and(|result| result.continuation.is_some()),
-                            egui::Button::new("下一页"),
-                        )
-                        .clicked()
-                    {
-                        self.network_state.next_page();
-                    }
-                    ui.label(theme::muted(format!(
-                        "第 {} 页 · 最多 250 节点 / 500 关系",
-                        self.network_state.offset / 500 + 1
-                    )));
-                });
-                ui.separator();
-                self.network_canvas(ui);
+                if !self.topic_views(ui) {
+                    self.network_toolbar(ui);
+                    ui.horizontal_wrapped(|ui| {
+                        if ui
+                            .add_enabled(
+                                self.network_state.can_previous(),
+                                egui::Button::new("上一页"),
+                            )
+                            .clicked()
+                        {
+                            self.network_state.previous_page();
+                        }
+                        if ui
+                            .add_enabled(
+                                self.network_state
+                                    .result
+                                    .as_ref()
+                                    .is_some_and(|result| result.continuation.is_some()),
+                                egui::Button::new("下一页"),
+                            )
+                            .clicked()
+                        {
+                            self.network_state.next_page();
+                        }
+                        ui.label(theme::muted(format!(
+                            "第 {} 页 · 最多 250 节点 / 500 关系",
+                            self.network_state.offset / 500 + 1
+                        )));
+                    });
+                    ui.separator();
+                    self.network_canvas(ui);
+                }
             });
     }
 }

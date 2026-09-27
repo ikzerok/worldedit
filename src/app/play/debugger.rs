@@ -94,7 +94,7 @@ pub(super) fn render_debugger_controls(
         ui.add(egui::DragValue::new(&mut debugger.time_budget_ms).range(1..=600_000));
     });
     #[cfg(target_arch = "wasm32")]
-    ui.label("浏览器内重放上限为 100,000 步或 2,000 ms；执行期间无法响应取消。");
+    ui.label("浏览器每帧最多执行 512 个解释器步骤或 4 ms；单步与状态恢复不可中断，总上限 100,000 步或 2,000 ms。");
     let has_path = debugger
         .selected_path
         .is_some_and(|index| debugger.saved_paths.get(index).is_some());

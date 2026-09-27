@@ -110,6 +110,7 @@ impl WorldeditApp {
             map_locate_request: None,
             map_failed_command: None,
             network_state: network_state::NetworkState::default(),
+            topic_session: 0,
             network_loaded_view: None,
             network_view_id: String::new(),
             network_view_title: String::new(),
@@ -117,6 +118,7 @@ impl WorldeditApp {
             pending_preset_layers: None,
             review: collaboration_ui::ReviewState::default(),
             manuscript: manuscript::WorkbenchState::default(),
+            localization_ui: localization_ui::LocalizationUiState::default(),
             template_manager: template_manager::ManagerState::default(),
             checkpoint_history: checkpoint_history::HistoryState::default(),
             reader_publish: reader_publish::ReaderPublishState::default(),
@@ -303,6 +305,7 @@ impl WorldeditApp {
         self.map_failed_command = None;
         self.map_canvas.clear();
         self.network_state = network_state::NetworkState::default();
+        self.topic_session = self.topic_session.wrapping_add(1);
         self.network_loaded_view = None;
         self.network_view_id.clear();
         self.network_view_title.clear();
@@ -311,6 +314,7 @@ impl WorldeditApp {
         self.review = collaboration_ui::ReviewState::default();
         self.manuscript = manuscript::WorkbenchState::default();
         self.checkpoint_history = checkpoint_history::HistoryState::default();
+        self.localization_ui = localization_ui::LocalizationUiState::default();
         self.reader_publish = reader_publish::ReaderPublishState::default();
     }
     pub(super) fn has_open_authoring_form(&self) -> bool {
@@ -336,5 +340,6 @@ impl WorldeditApp {
             || self.map_canvas.has_uncommitted_work()
             || self.map_failed_command.is_some()
             || self.manuscript.has_unsubmitted_work()
+            || self.localization_ui.has_unsubmitted_work()
     }
 }

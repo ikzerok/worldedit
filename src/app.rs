@@ -21,6 +21,7 @@ mod entities;
 mod frame_profile;
 mod init;
 mod inspector;
+mod localization_ui;
 mod manuscript;
 mod map_creation;
 mod maps;
@@ -43,6 +44,7 @@ mod tags;
 mod template_manager;
 mod templates;
 mod temporal;
+mod topic_views;
 mod update;
 mod views;
 mod wiki;
@@ -53,7 +55,11 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use worldline_core::authoring::{CharacterDraft, EventDraft, WorldDraft};
 use worldline_core::project::Project;
+#[cfg(target_arch = "wasm32")]
+use worldline_core::{Analysis, Program};
 use worldline_core::{CompileResult, Diagnostic};
+#[cfg(target_arch = "wasm32")]
+use worldline_runtime::ReplaySession;
 use worldline_runtime::{ChoiceExplanation, ReplayCancellation, ReplayResult, ReplayTrace, Story};
 
 pub(super) fn workspace_source_path(project: &Project, path: &Path) -> PathBuf {
@@ -74,6 +80,7 @@ enum Tab {
     World,
     Edit,
     Play,
+    Localization,
     Manuscript,
     Templates,
     CheckpointHistory,
@@ -93,6 +100,7 @@ impl Tab {
             Self::World => "世界观",
             Self::Edit => "源文件",
             Self::Play => "试玩",
+            Self::Localization => "本地化",
             Self::Manuscript => "书稿工作台",
             Self::Templates => "工程模板",
             Self::CheckpointHistory => "检查点历史",
@@ -123,9 +131,17 @@ struct SavedReplayPath {
     name: String,
     trace: ReplayTrace,
 }
+#[cfg(not(target_arch = "wasm32"))]
 struct ReplayJob {
     cancellation: ReplayCancellation,
     receiver: std::sync::mpsc::Receiver<Result<ReplayResult, String>>,
+}
+#[cfg(target_arch = "wasm32")]
+struct ReplayJob {
+    cancellation: ReplayCancellation,
+    program: Program,
+    analysis: Analysis,
+    session: ReplaySession,
 }
 impl Drop for ReplayJob {
     fn drop(&mut self) {
@@ -293,6 +309,7 @@ pub struct WorldeditApp {
     map_locate_request: Option<maps::LocateRequest>,
     map_failed_command: Option<maps::PendingMapCommand>,
     network_state: network_state::NetworkState,
+    topic_session: u64,
     network_loaded_view: Option<String>,
     network_view_id: String,
     network_view_title: String,
@@ -300,6 +317,7 @@ pub struct WorldeditApp {
     pending_preset_layers: Option<(String, std::collections::BTreeMap<String, bool>)>,
     review: collaboration_ui::ReviewState,
     manuscript: manuscript::WorkbenchState,
+    localization_ui: localization_ui::LocalizationUiState,
     template_manager: template_manager::ManagerState,
     checkpoint_history: checkpoint_history::HistoryState,
     reader_publish: reader_publish::ReaderPublishState,

@@ -131,6 +131,9 @@ impl eframe::App for WorldeditApp {
         self.top_bar(ctx);
         self.status_bar(ctx);
         self.sidebar(ctx);
+        if self.tab != Tab::Play {
+            self.poll_replay(ctx);
+        }
         match self.tab {
             Tab::Timeline | Tab::Graph => {
                 self.event_inspector(ctx);
@@ -146,6 +149,19 @@ impl eframe::App for WorldeditApp {
             Tab::Wiki => self.wiki_tab(ctx),
             Tab::World => self.world_tab(ctx),
             Tab::Play => self.play_tab(ctx),
+            Tab::Localization => {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    if localization_ui::show(ui, &mut self.project, &mut self.localization_ui) {
+                        self.history.clear();
+                        self.redo.clear();
+                        self.recompile();
+                        self.message = Some("本地化译文已导入并保存".into());
+                    }
+                });
+                if let Some(source) = self.localization_ui.take_navigation() {
+                    self.jump_to_file(&source.file, source.line, 1);
+                }
+            }
             Tab::Manuscript => self.manuscript_tab(ctx),
             Tab::Templates => self.template_manager_tab(ctx),
             Tab::CheckpointHistory => self.checkpoint_history_tab(ctx),
