@@ -31,17 +31,17 @@
 ### worldedit#14 / CAP-01C
 
 - 地图编辑展示模式新增“点落位后新建地点资料并放置入口”。落点保留地图、图层、坐标和内容基线；提交调用 core 组合事务，一次记录资料与入口，不推断关系语义。
-- 真实 egui 点按测试覆盖新建、单步撤销/重做、保存/重开；陈旧基线拒绝且保留输入。提交 `50e84ec`、`4c3f222`。桌面/Web 端到端交互未验证，票保持开放。
+- 真实 egui 点按覆盖新建、单步撤销/重做、保存/重开和陈旧拒绝。Edge 153 导入独立作品后实测浏览/取消零写入、地图落点一次创建地点与入口、撤销/重做、保存刷新和陈旧基线失败；三份 ZIP 的源码与地图对照在 `../qa-cap01c-web-evidence/evidence.json`。原生实际操作及物理 IME 未验收，票开放。
 
 ### worldedit#15 / CAP-02B
 
 - 书稿工作台支持创建、分节与章节、目标选择、状态、章节树/卡片/列表、正文草稿及 core 阅读投影；编排应用与撤销均经 core。
-- 独立分支实现集成于 `64abcf4`，与 CAP-01B 的测试冲突已解，新增 7 项真实 egui 事件回归。配对 editor 116 项单元与 16 项集成测试、严格 Clippy、wasm32 check 通过；桌面/Web 端到端交互未验证，票保持开放。
+- `64abcf4` 已集成书稿工作台。Edge 153 新建书稿/章节，绑定 event:arrival、状态 revised、目标 40，保存刷新及导出后由 core 公开投影复核；证据 `../qa-cap02b-web-evidence/evidence.json`。`e8729a8` 为短窗口增加垂直滚动，`809d3ad` 在窄窗堆叠章节与详情，`c8524ff` 让全局侧栏标签可滚动；800×600 Edge 可进入、编辑和阅读预览。原生/实际作者/真实 IME 仍未验收。
 
 ### worldline#15 / CAP-03A
 
 - core 组合查询、共享保存查询、只读待办投影以及复用同一 DTO 的 `wl catalog-query` / RPC `catalog.query` 已提交 `25f4436`，core 票关闭。游标预算、注册 ID 与文件 ID、扩展字段重排三个自审问题已修。
-- core/CLI/RPC 公共回归、D5 本机样本和协议边界已记录。同步 CLI/RPC 不支持进行中中断，未宣称支持。worldedit#16 的筛选与待办界面已并入 `c63fdf0`，集成测试窗口冲突修于 `d63992d`；124 项编辑器单元与 16 项集成测试、严格 Clippy、格式检查通过。本地收藏通过 eframe 应用存储跨进程保存，不进入作品；桌面/Web 交互、浏览器中途取消与同一端到端修复回归仍缺，票保持开放。
+- core/CLI/RPC 公共回归及 D5 查询样本已记录。worldedit#16 的筛选与待办界面已并入 `c63fdf0`。Edge 153 组合筛选精确匹配、共享查询存于作者 ZIP、本地收藏仅留浏览器存储、待办跳转源码且 ZIP 字节不变，证据 `../qa-cap03b-web-evidence-20260927/`；磁盘下载确认和原生/实际作者验收仍缺，票开放。
 
 ### worldline#16 / CAP-04A 与 worldedit#17 / CAP-04B
 
@@ -57,19 +57,20 @@
 ### worldline#18 / CAP-05A 与 worldline#19 / CAP-06A
 
 - 工程模板 core 切片 `2ab7b94`、`8c5b439`、`ce46a23`、`4195a15`、`aeeab1b`：注册、导入/替换/删除预览及基线保护；显式 `entity`/`relation` 对象引用参与重构和删除保护，旧 1.9 工程只读拒绝，1.10 导入自动声明能力。20 项模板测试、schema 正反例及 workspace 全量回归通过。编辑器模板管理器由 worldedit#19 跟踪。
+- worldedit#19 / CAP-05B：Edge 153 实测模板复制/影响预览/替换/停用、只读及未知控件解释，按字段类型应用并保存重载；停用后实例旧值和未知扩展仍在，保存 ZIP 与显式导出七文件字节一致。证据在 `../worldedit-cap05b/.scratch/cap05b-web-evidence-20260927/`；原生及真实 IME 未验收。
 - 确定性重放 `55c7018`、`cb0a781`、`661ca39`：runtime seed/checkpoint/trace、只读条件解释、预算与取消 API；CLI/RPC 共享能力并区分无效参数与故事失败。runtime、CLI、RPC 定向和 workspace 全量回归通过。同步 CLI/RPC 没有传输层中途取消；调试器界面由 worldedit#20 跟踪。
 
 ### worldline#20 / CAP-07A
 
 - Markdown 迁移 core `52e6389`、`2fce0bb` 提供预算内 dry-run、来源与链接映射、冲突/损失清单、确认后基线保护应用；`dbb1831` 接入 CLI/RPC 等价入口和协议。12 项 Markdown 回归及合并后 workspace 全量测试、严格 Clippy 通过；契约外 Markdown 结构报告损失，导入向导由 worldedit#21 跟踪。
-- `8cd0632` 修复 front matter 结束符误报，`2645438` 修复已有 import.wl 的预检冲突提前失败；`aaed960` 强化预检无损回归。实际 CLI/RPC 预览/应用/重开及恶意路径、坏编码、容量拒绝证据在 `../qa-cap07a-evidence-20260927/acceptance-report.txt`；精确上限及其他平台联接行为未覆盖。
+- `8cd0632` 修复 front matter 结束符误报，`2645438` 修复已有 import.wl 的预检冲突提前失败；`aaed960` 强化预检无损回归。实际 CLI/RPC 预览/应用/重开及恶意路径、坏编码、容量拒绝证据在 `../qa-cap07a-evidence-20260927/acceptance-report.txt`；core #20 已关闭，精确上限及其他平台联接行为未覆盖。
 
-- worldline#25 / CAP-07C：静态阅读包 Edge 检查 7 页、24 内链和 14 资源均无断链；RPC 对 5000 唯一章节可预览、5001 拒绝，坏编码 CLI 拒绝；证据在 `../qa-capqa-stage1/evidence/cap07c-static-reader-20260927/`。Windows 命令行长度使 5000 项选择无法作为 `wl --selection-json` 参数输入，core/RPC stdin 已验。
+- worldline#25 / CAP-07C：静态阅读包 Edge 检查 7 页、24 内链和 14 资源均无断链；RPC 对 5000 唯一章节可预览、5001 拒绝，坏编码 CLI 拒绝；证据在 `../qa-capqa-stage1/evidence/cap07c-static-reader-20260927/`。Windows 命令行长度使 5000 项选择无法作为 `wl --selection-json` 参数输入，core/RPC stdin 已验；core #25 已关闭。
 - worldedit#27 / CAP-07D：Web 发布向导实际选择公开范围、预览并下载 ZIP；12 文件、3 公开项、12 排除项，私有哨兵扫描零命中，搜索无私有结果；证据在 `../.scratch/cap07d-main-web/`。原生保存目标/取消/进度仍需实际验收。
 
 ### worldedit#20 / CAP-06B
 
-- editor `3e02fa7` 已接入路径录制/重放、状态差异、条件解释、覆盖与失败定位、暂停/停止/取消及窄屏调试视图。真实 egui 事件回归覆盖过期路径和浏览零写入；集成后 136 项单元、16 项集成及严格原生 Clippy 通过。真实浏览器交互与取消、CLI 结果逐项对照仍待证据，票保持开放。
+- editor `3e02fa7` 接入路径录制/重放、状态差异、条件解释与覆盖。Edge 153 的双选择轨迹与 CLI trace、RPC 重放 DTO 对齐；解释条件不推进，Stop 保持工程已保存，证据 `../qa-cap06b-evidence-20260927/`。`e6e616d` 折行长状态差异，`d4e3a61` 移除 Web 固定画布最小尺寸并让 800×600 正文/调试入口始终可达。WASM 同步重放期间仍不能响应取消，原生/实际作者未验收，票开放。
 
 ## 研究交付
 

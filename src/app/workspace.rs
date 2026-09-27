@@ -207,7 +207,11 @@ impl WorldeditApp {
                                 [ui.available_width(), 38.0],
                                 egui::Button::selectable(
                                     selected,
-                                    RichText::new(tab.title()).color(if selected { ACCENT } else { TEXT }),
+                                    RichText::new(tab.title()).color(if selected {
+                                        ACCENT
+                                    } else {
+                                        TEXT
+                                    }),
                                 ),
                             );
                             nav_icon(

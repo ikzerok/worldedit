@@ -428,6 +428,12 @@ impl WorldeditApp {
                         )
                     })
                     .collect();
+                let editor_context = EntryEditorContext {
+                    book_id: &book_id,
+                    objects: &objects,
+                    preview_index: &preview_index,
+                    read_only,
+                };
                 if ui.available_width() >= 820.0 {
                     ui.columns(2, |columns| {
                         draw_entry_list(&mut columns[0], layout, &mut local, &entries);
@@ -435,10 +441,7 @@ impl WorldeditApp {
                             self,
                             &mut columns[1],
                             &mut local,
-                            &book_id,
-                            &objects,
-                            &preview_index,
-                            read_only,
+                            &editor_context,
                             &mut load_body_for,
                             &mut apply_body_for,
                         );
@@ -499,10 +502,7 @@ impl WorldeditApp {
                         self,
                         ui,
                         &mut local,
-                        &book_id,
-                        &objects,
-                        &preview_index,
-                        read_only,
+                        &editor_context,
                         &mut load_body_for,
                         &mut apply_body_for,
                     );
@@ -768,13 +768,7 @@ fn draw_entry_list(
                         .as_deref()
                         .map(|parent| format!(" · {parent}"))
                         .unwrap_or_default();
-                    let label = format!(
-                        "{}{}{}{}",
-                        "  ".repeat(*depth),
-                        prefix,
-                        title,
-                        relation
-                    );
+                    let label = format!("{}{}{}{}", "  ".repeat(*depth), prefix, title, relation);
                     if ui
                         .selectable_label(local.selected_entry.as_deref() == Some(id), label)
                         .clicked()
@@ -830,17 +824,28 @@ fn draw_entry_list(
         });
 }
 
+#[derive(Clone, Copy)]
+struct EntryEditorContext<'a> {
+    book_id: &'a str,
+    objects: &'a [CatalogObject],
+    preview_index: &'a ManuscriptIndex,
+    read_only: bool,
+}
+
 fn draw_entry_editor(
     app: &mut WorldeditApp,
     ui: &mut egui::Ui,
     local: &mut LocalBook,
-    book_id: &str,
-    objects: &[CatalogObject],
-    preview_index: &ManuscriptIndex,
-    read_only: bool,
+    context: &EntryEditorContext<'_>,
     load_body_for: &mut Option<(String, String)>,
     apply_body_for: &mut Option<(String, String)>,
 ) {
+    let EntryEditorContext {
+        book_id,
+        objects,
+        preview_index,
+        read_only,
+    } = *context;
     ui.heading("编排与来源");
     let selected_id = local.selected_entry.clone();
     let selected_index = selected_id
@@ -925,22 +930,14 @@ fn draw_entry_editor(
                             .as_deref()
                             .is_some_and(|goal| !goal.trim().is_empty())
                         {
-                            ui.label(theme::muted(
-                                "目标说明不是数字；输入数字可显示词数进度。",
-                            ));
+                            ui.label(theme::muted("目标说明不是数字；输入数字可显示词数进度。"));
                         }
                     }
                 }
             }
             let body_key = (book_id.to_owned(), selected_entry_id.clone());
             if let Some(body) = app.manuscript.body_drafts.get_mut(&body_key) {
-                ui_body_draft(
-                    ui,
-                    body,
-                    apply_body_for,
-                    book_id,
-                    &selected_entry_id,
-                );
+                ui_body_draft(ui, body, apply_body_for, book_id, &selected_entry_id);
             } else {
                 let has_source = preview_index
                     .entries
