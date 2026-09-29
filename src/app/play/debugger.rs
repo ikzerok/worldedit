@@ -193,12 +193,17 @@ pub(super) fn render_debugger_controls(
                     debugger.notice = Some("轨迹 JSON 超过 1 MiB 边界".into());
                 }
             } else {
-                ui.add(
-                    egui::TextEdit::multiline(&mut debugger.import_json)
-                        .code_editor()
-                        .desired_rows(3)
-                        .desired_width(f32::INFINITY),
-                );
+                egui::ScrollArea::vertical()
+                    .id_salt("debugger-import-json")
+                    .max_height(120.0)
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(&mut debugger.import_json)
+                                .code_editor()
+                                .desired_rows(3)
+                                .desired_width(f32::INFINITY),
+                        );
+                    });
                 if ui.button("检查并导入路径").clicked() {
                     match validate_imported_trace(&debugger.import_json) {
                         Ok(trace) => {
@@ -220,12 +225,17 @@ pub(super) fn render_debugger_controls(
             }
         });
     if !debugger.export_json.is_empty() {
-        ui.add(
-            egui::TextEdit::multiline(&mut debugger.export_json)
-                .code_editor()
-                .desired_rows(4)
-                .desired_width(f32::INFINITY),
-        );
+        egui::ScrollArea::vertical()
+            .id_salt("debugger-export-json")
+            .max_height(120.0)
+            .show(ui, |ui| {
+                ui.add(
+                    egui::TextEdit::multiline(&mut debugger.export_json)
+                        .code_editor()
+                        .desired_rows(4)
+                        .desired_width(f32::INFINITY),
+                );
+            });
         if ui.button("复制 JSON").clicked() {
             ui.ctx().copy_text(debugger.export_json.clone());
         }

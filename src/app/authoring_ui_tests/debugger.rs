@@ -400,3 +400,34 @@ fn pause_stop_and_checkpoint_import_controls_keep_debug_state_out_of_project() {
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(app.history.is_empty());
 }
+
+/// 超长轨迹 JSON 只占固定高度：其后的“复制 JSON”等控件必须仍留在调试面板可视区内。
+#[test]
+fn long_trace_json_keeps_the_following_debugger_controls_reachable() {
+    let (ctx, mut app) = replay_app("event start\n  结束。\n  -> END\n", 20);
+    app.replay_debugger.export_json = (0..300)
+        .map(|index| format!("  \"step{index}\": {index},\n"))
+        .collect();
+
+    for _ in 0..3 {
+        let _ = frame(&ctx, &mut app, Vec::new(), 20);
+    }
+    let output = frame(&ctx, &mut app, Vec::new(), 20);
+    assert!(
+        output
+            .shapes
+            .iter()
+            .any(|shape| text_position(&shape.shape, "复制 JSON").is_some()),
+        "超长轨迹 JSON 把后续控件挤出调试面板可视区（导出 JSON {} 字节）",
+        app.replay_debugger.export_json.len()
+    );
+
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(
+        !rendered.contains("ScrollArea ID"),
+        "导入/导出 JSON 滚动区发生 egui id 冲突"
+    );
+}
