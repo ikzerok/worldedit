@@ -3,14 +3,17 @@ import base64
 import copy
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import shutil
+import stat
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+import warnings
 import zipfile
 
 spec = importlib.util.spec_from_file_location("release", Path(__file__).with_name("release.py"))
@@ -74,6 +77,10 @@ class GateTests(unittest.TestCase):
         self.assertEqual(result["worldedit"]["sha"], E)
         self.assertEqual(result["worldline"]["version"], "0.3.0")
         self.assertEqual(self.absent.call_count, 2)
+        self.assertIn("ci 字段", result["acceptance"])
+        self.assertIn("独立版本更新报告", result["acceptance"])
+        self.assertNotIn("仓库文本记录", result["acceptance"])
+        self.assertEqual(result["ci"][release.EDITOR]["url"], "https://github.com/example/actions/runs/99")
 
     def test_wrong_repository(self):
         with patch.dict(os.environ, {"GITHUB_REPOSITORY": "attacker/worldedit"}):
@@ -502,6 +509,211 @@ class WorkflowTests(unittest.TestCase):
         for command in ["python -X warn_default_encoding -W error::EncodingWarning -m unittest discover -s scripts -p 'test_check_pair.py' -v", "python -X warn_default_encoding -W error::EncodingWarning scripts/release-test.py -v"]:
             self.assertIn(command + "\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", ci)
         self.assertNotIn("--clobber", Path(__file__).with_name("release.py").read_text(encoding="utf-8"))
+
+    def test_ci_and_release_share_pinned_trunk_installer(self):
+        root = Path(__file__).parents[1]
+        for workflow in ["ci.yml", "release.yml"]:
+            text = (root / ".github/workflows" / workflow).read_text(encoding="utf-8")
+            with self.subTest(workflow=workflow):
+                self.assertEqual(text.count("scripts/install-trunk.py\n"), 1)
+                self.assertEqual(text.count("scripts/install-trunk.py --verify-path\n"), 1)
+                self.assertNotIn("cargo install trunk", text)
+                self.assertLess(text.index("scripts/install-trunk.py\n"),
+                                text.index("scripts/install-trunk.py --verify-path\n"))
+
+
+class TrunkInstallTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("install_trunk", Path(__file__).with_name("install-trunk.py"))
+        self.installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.installer)
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.path_file = self.root / "github-path"
+        self.path_file.write_text("", encoding="utf-8")
+        self.binary = b"offline fixture, never execute"
+        for mocked in [patch.dict(os.environ, {"RUNNER_TEMP": str(self.root), "GITHUB_PATH": str(self.path_file)}),
+                       patch.object(self.installer.platform, "system", return_value="Windows"),
+                       patch.object(self.installer.platform, "machine", return_value="AMD64"),
+                       patch.object(self.installer, "EXE_SHA256", hashlib.sha256(self.binary).hexdigest())]:
+            mocked.start()
+            self.addCleanup(mocked.stop)
+        self.run = patch.object(self.installer.subprocess, "run", return_value=subprocess.CompletedProcess(
+            [], 0, "trunk 0.21.14\n", "")).start()
+        self.addCleanup(patch.stopall)
+
+    def archive(self, names=("trunk.exe",), attributes=0):
+        buffer = io.BytesIO()
+        with warnings.catch_warnings(), zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            warnings.simplefilter("ignore", UserWarning)  # duplicate-name fixture
+            for name in names:
+                entry = zipfile.ZipInfo(name)
+                entry.external_attr = attributes
+                archive.writestr(entry, self.binary)
+        return buffer.getvalue()
+
+    def unpack(self, data):
+        with patch.object(self.installer, "ZIP_SHA256", hashlib.sha256(data).hexdigest()):
+            return self.installer.unpack_verified(data)
+
+    def install(self, data=None):
+        if data is None:
+            data = self.archive()
+        with patch.object(self.installer, "download", return_value=data), \
+             patch.object(self.installer, "ZIP_SHA256", hashlib.sha256(data).hexdigest()):
+            self.installer.install()
+
+    def test_official_pins(self):
+        self.assertEqual(self.installer.VERSION, "0.21.14")
+        self.assertEqual(self.installer.URL, "https://github.com/trunk-rs/trunk/releases/download/v0.21.14/"
+                         "trunk-x86_64-pc-windows-msvc.zip")
+        self.assertEqual(self.installer.ZIP_SHA256,
+                         "cd6ac15b9daff0365e5695036791ef2ce3c63f61c014f5a8c532363266e4569c")
+        source = Path(__file__).with_name("install-trunk.py").read_text(encoding="utf-8")
+        self.assertIn("209f218e2c01516ef4e59b97ab73b879ff2180c73f4187fa152b15532e8eecae", source)
+
+    def test_only_verified_binary_is_written_and_executed_before_path(self):
+        def version(command, **kwargs):
+            self.assertEqual(self.path_file.read_text(encoding="utf-8"), "")
+            self.assertEqual(command, [str(self.installer.installed_path()), "--version"])
+            self.assertTrue(kwargs["check"])
+            self.assertEqual(kwargs["timeout"], 30)
+            return subprocess.CompletedProcess(command, 0, "trunk 0.21.14\n", "")
+        self.run.side_effect = version
+        self.install()
+        executable = self.installer.installed_path()
+        self.assertEqual(executable.read_bytes(), self.binary)
+        self.assertEqual(list(executable.parent.iterdir()), [executable])
+        self.assertEqual(self.path_file.read_text(encoding="utf-8"), str(executable.parent) + "\n")
+
+    def test_wrong_zip_hash_stops_before_parse_write_or_execute(self):
+        with patch.object(self.installer, "download", return_value=self.archive()), \
+             patch.object(self.installer.zipfile, "ZipFile") as archive:
+            with self.assertRaisesRegex(RuntimeError, "ZIP SHA256"):
+                self.installer.install()
+            archive.assert_not_called()
+        self.run.assert_not_called()
+        self.assertFalse(self.installer.installed_path().parent.exists())
+        self.assertEqual(self.path_file.read_text(encoding="utf-8"), "")
+
+    def test_wrong_executable_hash_stops_before_write_or_execute(self):
+        with patch.object(self.installer, "EXE_SHA256", "0" * 64):
+            with self.assertRaisesRegex(RuntimeError, "EXE SHA256"):
+                self.install()
+        self.run.assert_not_called()
+        self.assertFalse(self.installer.installed_path().parent.exists())
+
+    def test_root_single_entry_only(self):
+        for names in [("../trunk.exe",), ("sub/trunk.exe",), ("C:/trunk.exe",), ("\\trunk.exe",),
+                      ("other.exe",), ("trunk.exe/",), (), ("trunk.exe", "extra.txt"),
+                      ("trunk.exe", "trunk.exe")]:
+            with self.subTest(names=names), self.assertRaises(RuntimeError):
+                self.unpack(self.archive(names))
+
+    def test_links_directories_and_special_files_rejected(self):
+        for attributes in [stat.S_IFLNK << 16, stat.S_IFIFO << 16, stat.S_IFDIR << 16, 0x10, 0x400]:
+            with self.subTest(attributes=attributes), self.assertRaises(RuntimeError):
+                self.unpack(self.archive(attributes=attributes))
+
+    def test_archive_and_decompressed_size_bounds(self):
+        data = self.archive()
+        for name, limit in [("MAX_ZIP_BYTES", len(data) - 1), ("MAX_EXE_BYTES", len(self.binary) - 1)]:
+            with self.subTest(name=name), patch.object(self.installer, name, limit), self.assertRaises(RuntimeError):
+                self.unpack(data)
+        with self.assertRaises(RuntimeError):
+            self.installer.read_bounded(io.BytesIO(b"12345"), 4)
+        with self.assertRaises(RuntimeError):
+            self.installer.read_bounded(io.BytesIO(b""), 4)
+
+    def test_bad_version_or_exit_never_updates_path(self):
+        for stdout, stderr in [("trunk 0.21.13\n", ""), ("trunk 0.21.14 extra\n", ""),
+                               (" trunk 0.21.14\n", ""), ("trunk 0.21.14\n", "warning")]:
+            self.run.return_value = subprocess.CompletedProcess([], 0, stdout, stderr)
+            with self.subTest(stdout=stdout, stderr=stderr), self.assertRaises(RuntimeError):
+                self.install()
+            self.assertEqual(self.path_file.read_text(encoding="utf-8"), "")
+            self.assertFalse(self.installer.installed_path().parent.exists())
+        self.run.side_effect = subprocess.CalledProcessError(1, ["fixture"])
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.install()
+        self.assertEqual(self.path_file.read_text(encoding="utf-8"), "")
+
+    def test_following_step_verifies_path_hash_and_version(self):
+        self.install()
+        executable = self.installer.installed_path()
+        with patch.object(self.installer.shutil, "which", return_value=str(executable)):
+            self.installer.verify_path()
+            self.assertEqual(self.run.call_count, 2)
+            executable.write_bytes(b"changed")
+            with self.assertRaisesRegex(RuntimeError, "SHA256"):
+                self.installer.verify_path()
+            self.assertEqual(self.run.call_count, 2)
+        for actual in [None, str(self.path_file)]:
+            with self.subTest(actual=actual), patch.object(self.installer.shutil, "which", return_value=actual):
+                with self.assertRaisesRegex(RuntimeError, "PATH"):
+                    self.installer.verify_path()
+
+    def test_success_logs_support_strict_cp1252_with_unicode_paths(self):
+        runner_temp = self.root / "CI-中文路径"
+        runner_temp.mkdir()
+        buffer = io.BytesIO()
+        with io.TextIOWrapper(buffer, encoding="cp1252", errors="strict") as stdout, \
+             patch("sys.stdout", stdout), patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+            self.install()
+            executable = self.installer.installed_path()
+            with patch.object(self.installer.shutil, "which", return_value=str(executable)):
+                self.installer.verify_path()
+            stdout.flush()
+            log = buffer.getvalue().decode("ascii")
+        self.assertIn("Verified official Trunk 0.21.14", log)
+        self.assertIn(ascii(str(executable)), log)
+        self.assertEqual(self.run.call_count, 2)
+        self.assertEqual(executable.read_bytes(), self.binary)
+        self.assertEqual(self.path_file.read_text(encoding="utf-8"), str(executable.parent) + "\n")
+
+    def test_download_rejects_untrusted_redirect_and_http(self):
+        for url in ["http://github.com/file", "https://evil.invalid/file", "https://github.com.evil.invalid/file",
+                    "https://user:secret@github.com/file", "https://github.com:444/file"]:
+            with self.subTest(url=url), self.assertRaises(RuntimeError):
+                self.installer.OfficialRedirect().redirect_request(None, None, 302, "Found", {}, url)
+        for url in [self.installer.URL, "https://release-assets.githubusercontent.com/file?signature=fixture"]:
+            self.installer.check_url(url)
+
+    def test_download_has_no_credentials_and_checks_response_size(self):
+        for length, body, allowed in [("3", b"zip", True), (str(self.installer.MAX_ZIP_BYTES + 1), b"x", False),
+                                      (None, b"x" * 5, False)]:
+            response = io.BytesIO(body)
+            response.status, response.headers = 200, {} if length is None else {"Content-Length": length}
+            response.geturl = lambda: self.installer.URL
+            with self.subTest(length=length), patch.object(self.installer.urllib.request, "build_opener") as build, \
+                 patch.dict(os.environ, {"GH_TOKEN": "fixture-secret", "GITHUB_TOKEN": "fixture-secret"}), \
+                 patch.object(self.installer, "MAX_ZIP_BYTES", 4):
+                build.return_value.open.return_value = response
+                if allowed:
+                    self.assertEqual(self.installer.download(), body)
+                else:
+                    with self.assertRaises(RuntimeError):
+                        self.installer.download()
+                request = build.return_value.open.call_args.args[0]
+                self.assertEqual(request.get_method(), "GET")
+                self.assertEqual(request.header_items(), [("User-agent", "worldedit-trunk-bootstrap")])
+                self.assertEqual(build.call_args.args[0].proxies, {})
+
+    def test_unsupported_platform_stops_before_download(self):
+        with patch.object(self.installer.platform, "system", return_value="Linux"), \
+             patch.object(self.installer, "download") as download:
+            with self.assertRaises(RuntimeError):
+                self.installer.install()
+            download.assert_not_called()
+
+    def test_existing_install_not_reused(self):
+        self.install()
+        previous = self.path_file.read_text(encoding="utf-8")
+        with self.assertRaises(FileExistsError):
+            self.install()
+        self.assertEqual(self.run.call_count, 1)
+        self.assertEqual(self.path_file.read_text(encoding="utf-8"), previous)
 
 
 if __name__ == "__main__":

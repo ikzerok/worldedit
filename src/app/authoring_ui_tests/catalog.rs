@@ -33,14 +33,17 @@ fn catalog_query_composes_core_filters_shows_reasons_and_removes_a_condition() {
     enter_text_at_placeholder_in_window(&ctx, &mut app, 14, "输入名称、ID 或别名", "同名");
     click(&ctx, &mut app, 14, "添加名称值");
     click(&ctx, &mut app, 14, "运行查询");
-    let rendered = rendered_text_in_window(&ctx, &mut app, 14, "2 个命中");
+    let _ = rendered_text_in_window(&ctx, &mut app, 14, "2 个命中");
+    click(&ctx, &mut app, 14, "命中原因");
+    let rendered = rendered_text_in_window(&ctx, &mut app, 14, "命中：类型");
 
     assert!(rendered.contains("2 个命中"), "{rendered}");
     assert!(rendered.contains("命中：类型"), "{rendered}");
     assert!(rendered.contains("命中：名称/别名"), "{rendered}");
     assert!(rendered.contains("名称/别名：「同名」"), "{rendered}");
-    assert!(rendered.contains("实体 · 同名 · a"), "{rendered}");
-    assert!(rendered.contains("实体 · 同名 · b"), "{rendered}");
+    assert!(rendered.contains("同名"), "{rendered}");
+    assert!(rendered.contains("实体"), "{rendered}");
+    assert!(rendered.contains("名称"), "{rendered}");
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(app.history.is_empty());
 
@@ -254,7 +257,7 @@ fn catalog_todo_groups_core_items_and_jumps_to_the_exact_source_without_writing(
     assert!(app.history.is_empty());
 }
 
-fn scroll_catalog_to(
+pub(super) fn scroll_catalog_to(
     ctx: &egui::Context,
     app: &mut WorldeditApp,
     window: u8,

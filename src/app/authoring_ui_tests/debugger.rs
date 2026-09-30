@@ -316,6 +316,12 @@ fn imported_trace_size_limit_is_enforced_without_rendering_or_retaining_it() {
     let source = "event start\n  choice \"继续\"\n    -> END\n";
     let (ctx, mut app) = replay_app(source, 20);
     app.replay_debugger.import_json = "x".repeat(1024 * 1024 + 1);
+    click(
+        &ctx,
+        &mut app,
+        20,
+        "导入路径 JSON（最多 1 MiB / 20,000 步）",
+    );
     click(&ctx, &mut app, 20, "拒绝超限轨迹");
 
     assert!(app.replay_debugger.saved_paths.is_empty());
@@ -380,6 +386,12 @@ fn pause_stop_and_checkpoint_import_controls_keep_debug_state_out_of_project() {
         worldline_runtime::ReplayOrigin::Checkpoint { .. }
     ));
     app.replay_debugger.import_json = serde_json::to_string(&checkpoint_trace).unwrap();
+    click(
+        &ctx,
+        &mut app,
+        20,
+        "导入路径 JSON（最多 1 MiB / 20,000 步）",
+    );
     click(&ctx, &mut app, 20, "检查并导入路径");
     assert_eq!(app.replay_debugger.saved_paths.len(), 1);
     assert!(matches!(

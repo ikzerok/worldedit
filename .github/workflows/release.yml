@@ -75,10 +75,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           rustup target add wasm32-unknown-unknown
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo install trunk --version 0.21.14 --locked
+          python scripts/install-trunk.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: 固定提交快照打包与离线核验
-        run: python worldedit/scripts/release-build.py --editor worldedit --core worldline --pair gate/release-pair.json --output release-assets
+        shell: pwsh
+        run: |
+          python worldedit/scripts/install-trunk.py --verify-path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python worldedit/scripts/release-build.py --editor worldedit --core worldline --pair gate/release-pair.json --output release-assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: release-assets

@@ -1,6 +1,27 @@
 use super::*;
 use worldline_core::queries::QueryError;
 impl WorkbenchState {
+    pub(super) fn apply_sort(
+        &mut self,
+        app: &WorldeditApp,
+        ctx: &egui::Context,
+        sort: Option<CatalogQuerySort>,
+    ) {
+        if self.query.sort == sort {
+            return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(running) = self.running.take() {
+            running
+                .cancel
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.query.set_sort(sort);
+        self.page = None;
+        self.error = None;
+        self.run_query(app, ctx);
+    }
+
     pub(super) fn run_query(&mut self, app: &WorldeditApp, _ctx: &egui::Context) {
         self.page = None;
         self.error = None;

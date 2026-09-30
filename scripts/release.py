@@ -165,7 +165,7 @@ def gate(existing=False):
     require(main_sha(EDITOR) == editor_sha and main_sha(CORE) == core_sha, "门禁查询期间 main 已变动")
     return {"schema_version": 1, "tag": tag, "worldedit": {"repository": EDITOR, "sha": editor_sha, "version": editor_version},
             "worldline": {"repository": CORE, "sha": core_sha, "version": core_version}, "ci": evidence,
-            "acceptance": "两仓 open issues 为零；仅引用精确 main push CI。云端 Linux/AI 验收见仓库文本记录。"}
+            "acceptance": "两仓 open issues 为零；自动校验见本记录 ci 字段中的精确 main push CI 链接。人工与 AI 验收结论通过独立版本更新报告提供，原始验收记录不随源码发布。"}
 
 
 QA_TEXT_EXTENSIONS = {".md", ".txt", ".json", ".jsonl", ".log", ".csv", ".tsv", ".yaml", ".yml",
