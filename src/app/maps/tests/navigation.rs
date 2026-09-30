@@ -310,6 +310,8 @@ fn snapshot_switch_rejects_unsubmitted_canvas_state() {
         map_id: "other".into(),
         title: "另一张地图".into(),
         extent: vec2(500.0, 300.0),
+        canvas: core_canvas(500.0 as u32, 300.0 as u32),
+        measurement: None,
         raster_layers: Vec::new(),
         layers: Vec::new(),
     };

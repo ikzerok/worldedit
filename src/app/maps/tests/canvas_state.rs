@@ -6,6 +6,8 @@ fn refreshing_a_map_preserves_selection_and_draft_without_resetting_camera_or_la
         map_id: "map".into(),
         title: "测试地图".into(),
         extent: vec2(400.0, 400.0),
+        canvas: core_canvas(400.0 as u32, 400.0 as u32),
+        measurement: None,
         raster_layers: Vec::new(),
         layers: vec![MapLayer {
             id: "places".into(),
@@ -44,6 +46,8 @@ fn refreshing_a_map_preserves_selection_and_draft_without_resetting_camera_or_la
             map_id: "map".into(),
             title: "更新地图".into(),
             extent: vec2(400.0, 400.0),
+            canvas: core_canvas(400.0 as u32, 400.0 as u32),
+            measurement: None,
             raster_layers: Vec::new(),
             layers: vec![MapLayer {
                 id: "places".into(),
@@ -95,6 +99,8 @@ fn selection_uses_stable_placement_id_when_layer_order_changes() {
         map_id: "map".into(),
         title: "测试地图".into(),
         extent: vec2(400.0, 400.0),
+        canvas: core_canvas(400.0 as u32, 400.0 as u32),
+        measurement: None,
         raster_layers: Vec::new(),
         layers: vec![MapLayer {
             id: "places".into(),
@@ -111,6 +117,8 @@ fn selection_uses_stable_placement_id_when_layer_order_changes() {
             map_id: "map".into(),
             title: "测试地图".into(),
             extent: vec2(400.0, 400.0),
+            canvas: core_canvas(400.0 as u32, 400.0 as u32),
+            measurement: None,
             raster_layers: Vec::new(),
             layers: vec![MapLayer {
                 id: "places".into(),

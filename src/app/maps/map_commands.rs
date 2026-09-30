@@ -35,6 +35,15 @@ impl super::super::WorldeditApp {
             self.io_error = Some("请先进入编辑展示模式".into());
             return false;
         }
+        if self.map_canvas.measurement.calibration.is_some()
+            && !matches!(
+                &command,
+                worldline_core::presentation_commands::Command::SetMapMeasurement { .. }
+            )
+        {
+            self.io_error = Some("请先确认或取消两点校准".into());
+            return false;
+        }
         let path =
             match worldline_core::presentation_commands::map_document_path(&self.project, map_id) {
                 Ok(path) => path,
@@ -110,7 +119,7 @@ impl super::super::WorldeditApp {
     }
 
     pub(super) fn retry_failed_map_command(&mut self) {
-        let Some(pending) = self.map_failed_command.take() else {
+        let Some(mut pending) = self.map_failed_command.take() else {
             return;
         };
         if !self.map_canvas.is_edit_mode() {
@@ -136,6 +145,16 @@ impl super::super::WorldeditApp {
             self.map_failed_command = Some(pending);
             return;
         };
+        if matches!(pending.intent, EditIntent::SetMeasurement(_)) {
+            match self.map_canvas.calibration_value() {
+                Ok(value) => pending.intent = EditIntent::SetMeasurement(value),
+                Err(error) => {
+                    self.io_error = Some(error);
+                    self.map_failed_command = Some(pending);
+                    return;
+                }
+            }
+        }
         self.message = Some("按当前地图版本重新检查并提交展示预览".into());
         self.apply_map_intents(vec![pending.intent], vec![Some(baseline)]);
     }
@@ -151,6 +170,22 @@ impl super::super::WorldeditApp {
         for (index, intent) in intents.into_iter().enumerate() {
             let baseline = baselines.get(index).cloned().unwrap_or(None);
             match intent {
+                EditIntent::SetMeasurement(measurement) => {
+                    let pending = EditIntent::SetMeasurement(measurement.clone());
+                    if !self.apply_map_command_with_baseline(
+                        &map_id,
+                        worldline_core::presentation_commands::Command::SetMapMeasurement {
+                            map_id: map_id.clone(),
+                            measurement,
+                        },
+                        "已保存地图校准（可撤销）；读者站不公开校准与临时尺子",
+                        baseline,
+                    ) {
+                        self.map_canvas.restore_failed_preview(&pending);
+                        self.remember_failed_map_command(&map_id, pending);
+                        break;
+                    }
+                }
                 EditIntent::Move {
                     placement,
                     geometry,

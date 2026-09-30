@@ -538,6 +538,8 @@ fn raster_budget_eviction_does_not_retry_reads_on_each_repaint() {
         map_id: "budget".into(),
         title: "预算测试".into(),
         extent: vec2(100.0, 100.0),
+        canvas: core_canvas(100.0 as u32, 100.0 as u32),
+        measurement: None,
         raster_layers: vec![
             RasterPlacement {
                 asset_key: "first".into(),

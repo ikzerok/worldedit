@@ -7,9 +7,10 @@ impl MapCanvas {
     pub(super) fn set_mode(&mut self, mode: CanvasMode) {
         self.mode = mode;
         self.last_error = None;
+        // 尺子与校准切换模式时保留几何预览，避免恢复编辑时丢失草稿。
+        // SVG 导入沿用离开编辑展示即取消的既有契约。
         if mode == CanvasMode::Browse {
             self.svg_import = Default::default();
-            self.draft = None;
             self.drag = None;
         }
     }
@@ -45,12 +46,11 @@ impl MapCanvas {
             }
             if ui.small_button("重置镜头").clicked() {
                 self.camera.reset();
-                self.draft = None;
-                self.drag = None;
             }
             ui.label(format!("{:.0}%", self.camera.zoom() * 100.0));
         });
-        if self.mode == CanvasMode::Edit {
+        self.measurement_toolbar(ui);
+        if self.mode == CanvasMode::Edit && !self.measurement_active() {
             ui.horizontal_wrapped(|ui| {
                 ui.label(crate::theme::muted("绘制"));
                 let previous_tool = self.tool;
@@ -177,7 +177,11 @@ impl MapCanvas {
                 response.rect,
             );
         }
-        if self.snapshot.layers.is_empty() && self.snapshot.raster_layers.is_empty() {
+        self.draw_measurement(&painter, response.rect);
+        if self.snapshot.layers.is_empty()
+            && self.snapshot.raster_layers.is_empty()
+            && !self.measurement_active()
+        {
             painter.text(
                 response.rect.center(),
                 egui::Align2::CENTER_CENTER,
@@ -189,7 +193,10 @@ impl MapCanvas {
     }
 
     pub(super) fn handle_input(&mut self, response: &egui::Response, ui: &egui::Ui) {
-        if self.svg_import.open {
+        if ui.input(|input| input.key_pressed(egui::Key::Escape)) && self.cancel_measurement() {
+            return;
+        }
+        if self.svg_import.open && self.is_edit_mode() {
             return;
         }
         if self.mode == CanvasMode::Edit && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
@@ -212,6 +219,10 @@ impl MapCanvas {
                 self.camera
                     .zoom_at(pointer, (scroll * 0.01).exp(), response.rect);
             }
+        }
+        if self.measurement_active() {
+            self.measurement_input(response, ui);
+            return;
         }
         if self.mode == CanvasMode::Browse {
             if response.dragged_by(egui::PointerButton::Primary) {
