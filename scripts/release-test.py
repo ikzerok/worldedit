@@ -229,7 +229,7 @@ class AssetTests(unittest.TestCase):
 
     def test_duplicate_hash_entry(self):
         file = self.root / "SHA256SUMS.txt"
-        file.write_text(file.read_text() * 2)
+        file.write_text(file.read_text(encoding="utf-8") * 2, encoding="utf-8")
         with self.assertRaises(RuntimeError): release.verify_assets(self.root, self.pair)
 
 
@@ -363,7 +363,7 @@ class SnapshotTests(unittest.TestCase):
         self.git("config", "user.name", "Offline test")
         self.git("config", "user.email", "test@example.invalid")
         (self.repo / ".agent").mkdir()
-        (self.repo / ".agent/README.md").write_text("public text")
+        (self.repo / ".agent/README.md").write_text("public text", encoding="utf-8")
         self.git("add", ".")
         self.git("commit", "-qm", "fixture")
         self.sha = self.git("rev-parse", "HEAD").strip()
@@ -372,7 +372,7 @@ class SnapshotTests(unittest.TestCase):
         spec.loader.exec_module(self.builder)
 
     def git(self, *args):
-        return subprocess.check_output(["git", "-C", str(self.repo), *args], text=True)
+        return subprocess.check_output(["git", "-C", str(self.repo), *args], text=True, encoding="utf-8")
 
     def test_only_committed_snapshot_and_hidden_files(self):
         (self.repo / "private.png").write_bytes(b"not public")
@@ -452,7 +452,7 @@ class PaginationTests(unittest.TestCase):
 
 class WorkflowTests(unittest.TestCase):
     def test_minimum_permissions_and_no_push_pr_trigger(self):
-        text = Path(__file__).parents[1].joinpath(".github/workflows/release.yml").read_text()
+        text = Path(__file__).parents[1].joinpath(".github/workflows/release.yml").read_text(encoding="utf-8")
         self.assertIn("on:\n  create:\n", text)
         self.assertEqual(text.count("contents: write"), 1)
         self.assertEqual(text.count("persist-credentials: false"), text.count("uses: actions/checkout@"))
@@ -460,13 +460,15 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("packages:", text)
         self.assertNotIn("actions: write", text)
         self.assertNotIn("pull_request_target", text)
-        ci = Path(__file__).parents[1].joinpath(".github/workflows/ci.yml").read_text()
+        ci = Path(__file__).parents[1].joinpath(".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("on: [push, pull_request]", ci)
         self.assertNotIn("contents: write", ci)
+        self.assertNotIn("actions/upload-artifact", ci)
+        self.assertNotIn("worldedit/target/paired-check/", ci)
         self.assertIn("python-version: '3.12'", ci)
-        for command in ["python -m unittest discover -s scripts -p 'test_check_pair.py' -v", "python scripts/release-test.py -v"]:
+        for command in ["python -X warn_default_encoding -W error::EncodingWarning -m unittest discover -s scripts -p 'test_check_pair.py' -v", "python -X warn_default_encoding -W error::EncodingWarning scripts/release-test.py -v"]:
             self.assertIn(command + "\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", ci)
-        self.assertNotIn("--clobber", Path(__file__).with_name("release.py").read_text())
+        self.assertNotIn("--clobber", Path(__file__).with_name("release.py").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ spec.loader.exec_module(release)
 
 def snapshot(repository, name, sha, destination):
     release.require(subprocess.check_output(["git", "-C", str(repository), "rev-parse", "HEAD"],
-                                           text=True).strip() == sha, "检出 SHA 不匹配")
+                                           text=True, encoding="utf-8").strip() == sha, "检出 SHA 不匹配")
     subprocess.run(["git", "-C", str(repository), "archive", "--format=zip", "--prefix=" + name + "/",
                     "--output=" + str(destination), sha], check=True)
     with zipfile.ZipFile(destination) as archive:

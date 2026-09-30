@@ -31,7 +31,7 @@ class PairTests(unittest.TestCase):
 
     def test_steps_match_windows_checker_and_preserve_locked_strict_targets(self):
         steps = pair.checks(Path("/tmp/a path/worldedit"), Path("/tmp/a path/worldline"))
-        windows = Path(__file__).with_name("check-pair.ps1").read_text()
+        windows = Path(__file__).with_name("check-pair.ps1").read_text(encoding="utf-8")
         import re
         self.assertEqual([name for name, _ in steps], re.findall(r"Invoke-Recorded '([^']+)'", windows))
         invocations = {name: arguments for name, program, arguments in re.findall(
@@ -57,10 +57,10 @@ class PairTests(unittest.TestCase):
             root = Path(directory)
             with self.assertRaises(pair.CheckFailure), contextlib.redirect_stdout(io.StringIO()):
                 pair.recorded("bad", [sys.executable, "-c", "print('evidence'); raise SystemExit(3)"], root, root)
-            self.assertIn("evidence\nexit code: 3", (root / "bad.log").read_text())
+            self.assertIn("evidence\nexit code: 3", (root / "bad.log").read_text(encoding="utf-8"))
             with self.assertRaises(pair.CheckFailure):
                 pair.recorded("missing", [str(root / "absent-command")], root, root)
-            self.assertIn("not started:", (root / "missing.log").read_text())
+            self.assertIn("not started:", (root / "missing.log").read_text(encoding="utf-8"))
 
     def test_each_run_inherits_environment_but_isolates_all_temp_variables(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -77,7 +77,7 @@ class PairTests(unittest.TestCase):
             command = [sys.executable, "-c", "import os,tempfile; print(tempfile.gettempdir()); print(os.environ['PAIR_TEST_SENTINEL'])"]
             with contextlib.redirect_stdout(io.StringIO()):
                 pair.recorded("temp", command, evidence, evidence, environment)
-            log = (evidence / "temp.log").read_text()
+            log = (evidence / "temp.log").read_text(encoding="utf-8")
             self.assertIn(str(first) + "\nkept\nexit code: 0", log)
             self.assertTrue(first.exists(), "证据临时根不能由检查器自动删除")
             first.rmdir()
@@ -89,9 +89,9 @@ class PairTests(unittest.TestCase):
             editor, language, evidence = [root / part for part in ["worldedit", "worldline", "evidence"]]
             for path in [editor, language, evidence]:
                 path.mkdir()
-            (editor / "compatibility.json").write_text(json.dumps({"worldline": {"repository": "ikzerok/worldline", "sha": SHA}}))
+            (editor / "compatibility.json").write_text(json.dumps({"worldline": {"repository": "ikzerok/worldline", "sha": SHA}}), encoding="utf-8")
             for repo in [editor, language]:
-                (repo / "Cargo.lock").write_text("lock")
+                (repo / "Cargo.lock").write_text("lock", encoding="utf-8")
             invoked = []
             def record(name, *_):
                 invoked.append(name)
@@ -103,9 +103,9 @@ class PairTests(unittest.TestCase):
                 return actual if args[0] == "rev-parse" else " M example.rs"
             with patch.object(pair, "git", git), patch.object(pair, "recorded", record), contextlib.redirect_stderr(io.StringIO()):
                 code = pair.run(editor, evidence)
-            summary = json.loads((evidence / "summary.json").read_text())
+            summary = json.loads((evidence / "summary.json").read_text(encoding="utf-8"))
             environment_path = evidence / "environment.json"
-            environment = json.loads(environment_path.read_text()) if environment_path.exists() else None
+            environment = json.loads(environment_path.read_text(encoding="utf-8")) if environment_path.exists() else None
             return code, summary, environment, invoked
 
     def test_failed_step_does_not_claim_later_checks_ran(self):

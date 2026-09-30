@@ -32,11 +32,11 @@ jobs:
           python-version: '3.12'
       - name: 配对脚本离线测试
         run: |
-          python -m unittest discover -s scripts -p 'test_check_pair.py' -v
+          python -X warn_default_encoding -W error::EncodingWarning -m unittest discover -s scripts -p 'test_check_pair.py' -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: 发行门禁离线测试
         run: |
-          python scripts/release-test.py -v
+          python -X warn_default_encoding -W error::EncodingWarning scripts/release-test.py -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: 安装仓库工具链
         run: |
@@ -46,11 +46,3 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: 配对构建与回归
         run: ./scripts/check-pair.ps1
-      - name: 归档配对与测试证据
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: paired-check-${{ github.sha }}
-          path: worldedit/target/paired-check/
-          if-no-files-found: warn
-          retention-days: 90
