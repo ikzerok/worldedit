@@ -214,3 +214,86 @@ pub(super) fn replace_manuscript_source(
         13,
     );
 }
+
+/// 通过真实滚动区域找到可见控件，避免依赖特定字体或视口恰好把整张表单放在首屏。
+pub(super) fn scroll_from_visible_anchor_to(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    window: u8,
+    anchor: &str,
+    needle: &str,
+) -> String {
+    for _ in 0..3 {
+        let _ = frame(ctx, app, Vec::new(), window);
+    }
+    let output = frame(ctx, app, Vec::new(), window);
+    let point = visible_text_position(&output, anchor)
+        .unwrap_or_else(|| panic!("未显示滚动锚点：{anchor}"));
+    let mut rendered = String::new();
+    for delta in [-60.0, 60.0] {
+        for _ in 0..80 {
+            let output = frame(ctx, app, Vec::new(), window);
+            rendered.clear();
+            for shape in &output.shapes {
+                collect_text(&shape.shape, &mut rendered);
+            }
+            if visible_text_position(&output, needle).is_some() {
+                return rendered;
+            }
+            let _ = frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(point),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: vec2(0.0, delta),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                window,
+            );
+        }
+    }
+    panic!("滚动后仍不可达：{needle}；当前文字：{rendered}");
+}
+
+/// 在指定滚动区域等待惯性稳定后重新查找可见文字，避免路径换行改变滚动锚点。
+pub(super) fn scroll_at_to_visible(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    window: u8,
+    point: egui::Pos2,
+    needle: &str,
+) -> String {
+    let mut rendered = String::new();
+    for delta in [-60.0, 60.0] {
+        for _ in 0..100 {
+            for _ in 0..12 {
+                let _ = frame(ctx, app, Vec::new(), window);
+            }
+            let output = frame(ctx, app, Vec::new(), window);
+            rendered.clear();
+            for shape in &output.shapes {
+                collect_text(&shape.shape, &mut rendered);
+            }
+            if visible_text_position(&output, needle).is_some() {
+                return rendered;
+            }
+            let _ = frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(point),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: vec2(0.0, delta),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                window,
+            );
+        }
+    }
+    panic!("滚动稳定后控件仍不可达：{needle}；{rendered}");
+}

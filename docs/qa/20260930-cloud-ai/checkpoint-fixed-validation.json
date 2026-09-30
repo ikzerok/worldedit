@@ -1,0 +1,6 @@
+{
+  "cancel_preserved_external_source": true,
+  "sha256_after_cancel": "e36b376c76a423d095c9398b83ba87376cb5ecffe0f4b905736206198acc8f34",
+  "restored_source_equals_original": true,
+  "restored_sha256": "614e062481b93c8b9cd3d4428342f2356262816c8f500d45a696a173162c1eef"
+}

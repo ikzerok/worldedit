@@ -36,19 +36,7 @@ fn main() -> eframe::Result<()> {
         eprintln!("{error}");
         return Ok(());
     }
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_icon(
-                eframe::icon_data::from_png_bytes(include_bytes!("../assets/worldedit-icon.png"))
-                    .expect("内置 worldedit 图标应为有效 PNG"),
-            )
-            .with_inner_size([1280.0, 760.0])
-            .with_min_inner_size([1040.0, 660.0])
-            .with_decorations(false)
-            .with_transparent(true)
-            .with_title("worldedit · worldline 作者工作台"),
-        ..Default::default()
-    };
+    let options = native_options();
     eframe::run_native(
         "worldedit",
         options,
@@ -59,4 +47,33 @@ fn main() -> eframe::Result<()> {
 #[cfg(target_arch = "wasm32")]
 fn main() {
     web::start();
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn native_options() -> eframe::NativeOptions {
+    eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_icon(
+                eframe::icon_data::from_png_bytes(include_bytes!("../assets/worldedit-icon.png"))
+                    .expect("内置 worldedit 图标应为有效 PNG"),
+            )
+            .with_inner_size([1280.0, 760.0])
+            .with_min_inner_size([1040.0, 660.0])
+            .with_decorations(false)
+            .with_transparent(true)
+            .with_title("worldedit · worldline 作者工作台"),
+        persist_window: false,
+        ..Default::default()
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[test]
+fn native_favorite_storage_uses_the_user_profile_without_persisting_window_state() {
+    let options = native_options();
+    assert!(!options.persist_window);
+    assert!(options.persistence_path.is_none());
+    // 此 API 只有启用 eframe persistence 才存在，防止再次漏接原生存储。
+    let storage = eframe::storage_dir("worldedit").expect("原生用户应有独立数据目录");
+    assert!(storage.is_absolute());
 }

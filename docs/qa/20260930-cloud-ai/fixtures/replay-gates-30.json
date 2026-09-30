@@ -1,0 +1,1576 @@
+{
+  "schema_version": 1,
+  "runtime_version": "0.3.0",
+  "fingerprint": 11467336848669814960,
+  "origin": {
+    "kind": "entry",
+    "seed": 7
+  },
+  "initial_observation": {
+    "outputs": [],
+    "choices": [
+      {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      }
+    ],
+    "state": {
+      "anchors": [],
+      "coverage": {
+        "selected_choices": [],
+        "visited_nodes": {
+          "start": 1
+        }
+      },
+      "current_node": "start",
+      "ended": false,
+      "met": [],
+      "paused": true,
+      "perms": [],
+      "state_history": [],
+      "states": {},
+      "storyline": "main",
+      "turns": 0,
+      "vars": {},
+      "visits": {
+        "start": 1
+      }
+    }
+  },
+  "steps": [
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 1,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 2
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 1,
+          "vars": {},
+          "visits": {
+            "start": 2
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 2,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 3
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 2,
+          "vars": {},
+          "visits": {
+            "start": 3
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 3,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 4
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 3,
+          "vars": {},
+          "visits": {
+            "start": 4
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 4,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 5
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 4,
+          "vars": {},
+          "visits": {
+            "start": 5
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 5,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 6
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 5,
+          "vars": {},
+          "visits": {
+            "start": 6
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 6,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 7
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 6,
+          "vars": {},
+          "visits": {
+            "start": 7
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 7,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 8
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 7,
+          "vars": {},
+          "visits": {
+            "start": 8
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 8,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 9
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 8,
+          "vars": {},
+          "visits": {
+            "start": 9
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 9,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 10
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 9,
+          "vars": {},
+          "visits": {
+            "start": 10
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 10,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 11
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 10,
+          "vars": {},
+          "visits": {
+            "start": 11
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 11,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 12
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 11,
+          "vars": {},
+          "visits": {
+            "start": 12
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 12,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 13
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 12,
+          "vars": {},
+          "visits": {
+            "start": 13
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 13,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 14
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 13,
+          "vars": {},
+          "visits": {
+            "start": 14
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 14,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 15
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 14,
+          "vars": {},
+          "visits": {
+            "start": 15
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 15,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 16
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 15,
+          "vars": {},
+          "visits": {
+            "start": 16
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 16,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 17
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 16,
+          "vars": {},
+          "visits": {
+            "start": 17
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 17,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 18
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 17,
+          "vars": {},
+          "visits": {
+            "start": 18
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 18,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 19
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 18,
+          "vars": {},
+          "visits": {
+            "start": 19
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 19,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 20
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 19,
+          "vars": {},
+          "visits": {
+            "start": 20
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 20,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 21
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 20,
+          "vars": {},
+          "visits": {
+            "start": 21
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 21,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 22
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 21,
+          "vars": {},
+          "visits": {
+            "start": 22
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 22,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 23
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 22,
+          "vars": {},
+          "visits": {
+            "start": 23
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 23,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 24
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 23,
+          "vars": {},
+          "visits": {
+            "start": 24
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 24,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 25
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 24,
+          "vars": {},
+          "visits": {
+            "start": 25
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 25,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 26
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 25,
+          "vars": {},
+          "visits": {
+            "start": 26
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 26,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 27
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 26,
+          "vars": {},
+          "visits": {
+            "start": 27
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 27,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 28
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 27,
+          "vars": {},
+          "visits": {
+            "start": 28
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 28,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 29
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 28,
+          "vars": {},
+          "visits": {
+            "start": 29
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 29,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 30
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 29,
+          "vars": {},
+          "visits": {
+            "start": 30
+          }
+        }
+      }
+    },
+    {
+      "choice": {
+        "id": "start:0768a8aaf6cf971b:0",
+        "node": "start",
+        "line": 2,
+        "offset": 0,
+        "label": "Continue"
+      },
+      "observation": {
+        "outputs": [],
+        "choices": [
+          {
+            "id": "start:0768a8aaf6cf971b:0",
+            "node": "start",
+            "line": 2,
+            "offset": 0,
+            "label": "Continue"
+          }
+        ],
+        "state": {
+          "anchors": [],
+          "coverage": {
+            "selected_choices": [
+              {
+                "count": 30,
+                "id": "start:0768a8aaf6cf971b:0",
+                "label": "Continue",
+                "line": 2,
+                "node": "start"
+              }
+            ],
+            "visited_nodes": {
+              "start": 31
+            }
+          },
+          "current_node": "start",
+          "ended": false,
+          "met": [],
+          "paused": true,
+          "perms": [],
+          "state_history": [],
+          "states": {},
+          "storyline": "main",
+          "turns": 30,
+          "vars": {},
+          "visits": {
+            "start": 31
+          }
+        }
+      }
+    }
+  ],
+  "complete": false
+}

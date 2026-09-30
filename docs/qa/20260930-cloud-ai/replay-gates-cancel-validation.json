@@ -1,0 +1,32 @@
+{
+  "evidence_kind": "AI-operated cloud Linux native UI, not human study",
+  "source": "5236c04c770721362fd9031e36905273779d7521",
+  "binary_sha256": "949f5d6e8ec6f482d746879b836fe88d2c1cd536c7af34d36bcb23093398c982",
+  "core": "f0be20778e7b5272c8bc7e6fd2ffe539e7e95da3",
+  "fixture": "fixtures/replay-gates/world.wl",
+  "fixture_description": "1000 ordinary conditional hidden routes gated by visits(start), one available loop choice; no product sleeps or speed changes",
+  "recording": "wl play world.wl --seed 7 --trace-output=replay-gates-30.json; 30 actual stdin choices 1",
+  "recorded_choices": 30,
+  "trace_bytes": 36145,
+  "ui_import_formatted_bytes": 36145,
+  "default_max_steps": 100000,
+  "default_time_budget_ms": 30000,
+  "cli_uncancelled_replay_seconds": 21.39937931699933,
+  "cli_uncancelled_status": {
+    "complete": false,
+    "ended": false,
+    "status": "replayed"
+  },
+  "cli_uncancelled_executed_steps": 61,
+  "ui_result": "Cancelled",
+  "ui_completed_choices": 20,
+  "ui_executed_statements": 41,
+  "ui_coverage_start": 21,
+  "source_sha256": "4ffd2abd94d1640805fcedcc76121d30783f5a394c2c429f10546823f9ca2db4",
+  "source_unchanged": true,
+  "ui_normal_exit_confirmed": true,
+  "web_verified": false,
+  "trace": "fixtures/replay-gates-30.json",
+  "trace_sha256": "bae326351b0f784b8df6e7138f47752436724531a9a33517be375ffdcf6b51c4",
+  "image_evidence": "retained in the maintainer private validation archive; not published here"
+}

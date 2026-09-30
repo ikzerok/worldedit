@@ -266,27 +266,30 @@ fn markdown_import_resolves_a_real_id_conflict_without_merging_same_name_targets
         &source.display().to_string(),
     );
     click(&ctx, &mut app, 17, "预检导入");
-    scroll_rendered_text(&ctx, &mut app, 17, "阻塞冲突 ·");
+    scroll_import_details_to(&ctx, &mut app, "阻塞冲突 ·");
     click_containing(&ctx, &mut app, 17, "阻塞冲突 ·");
     let conflict = format!(
         "{}{}",
-        scroll_rendered_text(&ctx, &mut app, 17, "ENTITY_ID_CONFLICT"),
-        scroll_rendered_text(&ctx, &mut app, 17, "a_import_2")
+        scroll_import_details_to(&ctx, &mut app, "ENTITY_ID_CONFLICT"),
+        scroll_import_details_to(&ctx, &mut app, "a_import_2")
     );
     assert!(conflict.contains("page.md"), "{conflict}");
     assert!(conflict.contains("a_import_2"), "{conflict}");
+    scroll_import_details_to(&ctx, &mut app, "阻塞冲突 ·");
     click_containing(&ctx, &mut app, 17, "阻塞冲突 ·");
     scroll_window_to_top(&ctx, &mut app, 17);
-    scroll_rendered_text(&ctx, &mut app, 17, "同名资料提示 ·");
+    scroll_import_details_to(&ctx, &mut app, "同名资料提示 ·");
     click_containing(&ctx, &mut app, 17, "同名资料提示 ·");
-    let name_conflict = scroll_rendered_text(&ctx, &mut app, 17, "工程中存在同名资料");
+    let name_conflict = scroll_import_details_to(&ctx, &mut app, "工程中存在同名资料");
     assert!(name_conflict.contains("entity:a"), "{name_conflict}");
     assert!(name_conflict.contains("entity:b"), "{name_conflict}");
 
     scroll_window_to_top(&ctx, &mut app, 17);
+    scroll_import_details_to(&ctx, &mut app, "同名资料提示 ·");
     click_containing(&ctx, &mut app, 17, "同名资料提示 ·");
+    scroll_import_details_to(&ctx, &mut app, "阻塞冲突 ·");
     click_containing(&ctx, &mut app, 17, "阻塞冲突 ·");
-    scroll_rendered_text(&ctx, &mut app, 17, "a_import_2");
+    scroll_import_details_to(&ctx, &mut app, "a_import_2");
     click(&ctx, &mut app, 17, "a_import_2");
     click(&ctx, &mut app, 17, "预检导入");
     let ready = rendered_text_in_window(&ctx, &mut app, 17, "预检完成：");
@@ -297,6 +300,7 @@ fn markdown_import_resolves_a_real_id_conflict_without_merging_same_name_targets
     if ready.contains("我已检查目标语言版本升级及其影响") {
         click(&ctx, &mut app, 17, "我已检查目标语言版本升级及其影响");
     }
+    scroll_import_details_to(&ctx, &mut app, "页面映射 ·");
     click_containing(&ctx, &mut app, 17, "页面映射 ·");
     let resolved = rendered_text_in_window(&ctx, &mut app, 17, "entity:a_import_2");
     assert!(resolved.contains("page.md"), "{resolved}");
@@ -315,4 +319,70 @@ fn markdown_import_resolves_a_real_id_conflict_without_merging_same_name_targets
     assert!(result.analysis.catalog.entities.contains_key("a"));
     std::fs::remove_dir_all(source.parent().unwrap()).unwrap();
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn markdown_import_window_stays_bounded_across_repaints() {
+    for size in [vec2(1188.0, 848.0), vec2(760.0, 620.0)] {
+        let (ctx, mut app) = app();
+        app.markdown_import_wizard = Some(super::super::markdown_import_ui::Wizard::default());
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), size);
+        let mut settled_width = None;
+        for pass in 0..120 {
+            let output = ctx.run(
+                RawInput {
+                    screen_rect: Some(screen),
+                    ..Default::default()
+                },
+                |ctx| app.markdown_import_window(ctx),
+            );
+            let rect = egui::AreaState::load(&ctx, egui::Id::new("markdown-import-wizard"))
+                .expect("导入窗口应保持打开")
+                .rect();
+            if pass >= 4 {
+                let width = *settled_width.get_or_insert(rect.width());
+                assert!(
+                    (rect.width() - width).abs() <= 1.0,
+                    "窗口不能逐帧增长：视口 {size:?}，第 {pass} 帧，初始宽 {width}，当前 {rect:?}"
+                );
+                assert!(screen.contains_rect(rect), "导入窗口不能超出视口：{rect:?}");
+                for label in [
+                    "选择 Markdown 来源目录…",
+                    "选择空工程目录…",
+                    "预检导入",
+                    "取消",
+                ] {
+                    assert!(
+                        visible_text_position(&output, label).is_some(),
+                        "控件应可见：{label}"
+                    );
+                }
+                let pickers = output
+                    .shapes
+                    .iter()
+                    .filter_map(|shape| {
+                        text_position(&shape.shape, "选择目录…").filter(|point| {
+                            shape.clip_rect.contains(*point) && screen.contains(*point)
+                        })
+                    })
+                    .count();
+                assert_eq!(pickers, 2, "两个目录选择按钮都必须在视口内");
+            }
+        }
+    }
+}
+
+fn scroll_import_details_to(ctx: &egui::Context, app: &mut WorldeditApp, needle: &str) -> String {
+    let _ = frame(ctx, app, Vec::new(), 17);
+    let rect = egui::AreaState::load(ctx, egui::Id::new("markdown-import-wizard"))
+        .expect("导入向导应打开")
+        .rect()
+        .intersect(ctx.screen_rect());
+    scroll_at_to_visible(
+        ctx,
+        app,
+        17,
+        pos2(rect.center().x, rect.bottom() - 50.0),
+        needle,
+    )
 }

@@ -156,16 +156,24 @@ fn project_template_fields_render_by_type_and_leave_unowned_values_intact() {
     assert!(rendered.contains("Weight · weight"), "{rendered}");
     assert!(rendered.contains("Available · available"), "{rendered}");
     assert!(rendered.contains("Status · status"), "{rendered}");
-    assert!(rendered.contains("Home · home"), "{rendered}");
     drag_numeric_value(&ctx, &mut app, 0, "1.5", 10.0);
     click(&ctx, &mut app, 0, "draft");
     click(&ctx, &mut app, 0, "ready");
     click(&ctx, &mut app, 0, "Available · available");
+    let home = scroll_from_visible_anchor_to(
+        &ctx,
+        &mut app,
+        0,
+        "Available · available",
+        "同名 · entity:b",
+    );
+    assert!(home.contains("Home · home"), "{home}");
     click(&ctx, &mut app, 0, "同名 · entity:b");
     click(&ctx, &mut app, 0, "同名 · entity:c");
-    let scrolled = scroll_window(&ctx, &mut app, 0, "Home · home", -12.0);
+    let scrolled = scroll_from_visible_anchor_to(&ctx, &mut app, 0, "Home · home", "Details");
     assert!(scrolled.contains("old-format"), "{scrolled}");
     assert!(scrolled.contains("Details"), "{scrolled}");
+    scroll_from_visible_anchor_to(&ctx, &mut app, 0, "Details", "应用资料");
     click(&ctx, &mut app, 0, "应用资料");
 
     let entity = &app.project.compile().analysis.catalog.entities["a"];
@@ -232,6 +240,7 @@ fn read_only_project_template_shows_reason_and_preserves_instance_values() {
     );
     assert!(rendered.contains("TPL002"), "{rendered}");
     assert!(!rendered.contains("＋ Memo"), "{rendered}");
+    scroll_from_visible_anchor_to(&ctx, &mut app, 0, "Future template", "应用资料");
     click(&ctx, &mut app, 0, "应用资料");
 
     assert_eq!(

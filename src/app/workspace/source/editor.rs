@@ -1,10 +1,6 @@
 use super::super::super::WorldeditApp;
 use super::text::{active_mention, source_link_at_cursor, source_selection};
-use crate::{
-    highlight,
-    theme::{self, *},
-};
-use egui::RichText;
+use crate::{highlight, theme};
 use std::path::PathBuf;
 
 impl WorldeditApp {
@@ -48,10 +44,13 @@ impl WorldeditApp {
         let id = egui::Id::new(("source", &path));
         let target = self.jump.take();
         let mut changed = false;
+        let source_focused = ctx.memory(|memory| memory.has_focus(id));
         let ime_events = ctx.input(|input| input.events.clone());
         for event in &ime_events {
             match event {
-                egui::Event::Ime(egui::ImeEvent::Enabled | egui::ImeEvent::Preedit(_)) => {
+                egui::Event::Ime(egui::ImeEvent::Enabled | egui::ImeEvent::Preedit(_))
+                    if source_focused =>
+                {
                     self.ime_composing = true;
                     if self
                         .ime_source_baseline
@@ -84,20 +83,7 @@ impl WorldeditApp {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 ui.horizontal_top(|ui| {
-                    let count = text.lines().count().max(1);
-                    let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
-                    ui.add(egui::Label::new(
-                        RichText::new(
-                            (1..=count)
-                                .map(|i| i.to_string())
-                                .collect::<Vec<_>>()
-                                .join("\n"),
-                        )
-                        .monospace()
-                        .size(14.0)
-                        .line_height(Some(row_height))
-                        .color(MUTED),
-                    ));
+                    let gutter = super::gutter::reserve(ui, &text);
                     ui.separator();
                     let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, _: f32| {
                         ui.fonts(|f| {
@@ -219,6 +205,7 @@ impl WorldeditApp {
                         .frame(false)
                         .layouter(&mut layouter)
                         .show(ui);
+                    super::gutter::paint(ui, gutter, &output.galley, output.galley_pos);
                     changed = output.response.changed();
                     if output.response.clicked() {
                         if let (Some(pointer), Some(snapshot)) = (
@@ -478,6 +465,7 @@ impl WorldeditApp {
             }
         }
         if let Some((target, cursor)) = source_link_action {
+            ctx.memory_mut(|memory| memory.surrender_focus(id));
             self.reading_return = Some((path.clone(), cursor));
             self.open_reading(target);
         }

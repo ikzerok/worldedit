@@ -25,6 +25,12 @@ impl eframe::App for WorldeditApp {
         self.catalog_workbench.save_favorites(storage);
     }
 
+    // 原生持久化仅保存明确的个人收藏，不顺带保存编辑草稿或 egui 窗口状态。
+    #[cfg(not(target_arch = "wasm32"))]
+    fn persist_egui_memory(&self) -> bool {
+        false
+    }
+
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         [0.0; 4]
     }
@@ -73,28 +79,41 @@ impl eframe::App for WorldeditApp {
                             .collect::<std::io::Result<Vec<_>>>()
                     });
                 match scan {
-                    Ok(stamp) if stamp != self.disk_stamp => match self.project.refresh() {
-                        Ok(conflicts) => {
-                            self.disk_stamp = stamp;
-                            self.history.clear();
-                            self.redo.clear();
-                            if !self.project.documents.contains_key(&self.active_file) {
-                                self.active_file = self.project.entry.clone();
+                    Ok(stamp) if stamp != self.disk_stamp => {
+                        let baseline = self.project.content_baseline();
+                        let recovery_conflicts = self.project.recovery_conflicts().to_vec();
+                        match self.project.refresh() {
+                            Ok(conflicts) => {
+                                self.disk_stamp = stamp;
+                                // 保存、触碰时间戳也会改变磁盘元数据；只有 core 确认
+                                // 缓冲变化、外部冲突或恢复安全状态变化时，才使版本失效。
+                                let editing_state_changed = self.project.content_baseline()
+                                    != baseline
+                                    || !conflicts.is_empty()
+                                    || self.project.recovery_conflicts() != recovery_conflicts;
+                                self.map_canvas.invalidate_rasters();
+                                if editing_state_changed {
+                                    self.history.clear();
+                                    self.redo.clear();
+                                    if !self.project.documents.contains_key(&self.active_file) {
+                                        self.active_file = self.project.entry.clone();
+                                    }
+                                    self.recompile();
+                                }
+                                if !conflicts.is_empty() {
+                                    self.io_error = Some(format!(
+                                        "外部修改与未保存内容冲突，已保留缓冲：{}",
+                                        conflicts
+                                            .iter()
+                                            .map(|p| p.display().to_string())
+                                            .collect::<Vec<_>>()
+                                            .join("、")
+                                    ));
+                                }
                             }
-                            self.recompile();
-                            if !conflicts.is_empty() {
-                                self.io_error = Some(format!(
-                                    "外部修改与未保存内容冲突，已保留缓冲：{}",
-                                    conflicts
-                                        .iter()
-                                        .map(|p| p.display().to_string())
-                                        .collect::<Vec<_>>()
-                                        .join("、")
-                                ));
-                            }
+                            Err(e) => self.io_error = Some(e),
                         }
-                        Err(e) => self.io_error = Some(e),
-                    },
+                    }
                     Err(e) => self.io_error = Some(e.to_string()),
                     _ => {}
                 }

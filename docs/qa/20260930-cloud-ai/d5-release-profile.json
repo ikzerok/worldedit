@@ -1,0 +1,79 @@
+{
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "machine": "x86_64",
+  "logical_cpu_count": 9,
+  "affinity_count": 9,
+  "toolchain": "Rust 1.98.0",
+  "profile": "release",
+  "measurement": "original core ignored D5 query test; first query then 20 warm queries per independent process",
+  "not_measured": [
+    "GUI frame time",
+    "GPU/present",
+    "OS-cache-cold startup",
+    "release editor performance"
+  ],
+  "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+  "cpu.max": "unavailable",
+  "memory.max": "unavailable",
+  "utc": "2026-09-30T07:58:45.117594+00:00",
+  "worldline_sha": "f0be20778e7b5272c8bc7e6fd2ffe539e7e95da3",
+  "worldline_working_tree_clean": true,
+  "fixture_source_file": "core/tests/catalog_queries/filters.rs",
+  "fixture_source_sha256": "9ad1246b4ce03bcde5e3600a41ce0f3320fbef494d0b246c4b8cc6b944b309f5",
+  "fixture": {
+    "entities": 1000,
+    "relations": 3000,
+    "long_text_chars": 16000
+  },
+  "binary_sha256": "0652210fb3eadaeea76ed45732cec808fbc313001a2ae5dfbf6f961c7e235a87",
+  "build_command": "cargo test --manifest-path worldline/Cargo.toml -p worldline-core --test catalog_queries --release --locked --no-run",
+  "run_command": "<compiled catalog_queries executable> --ignored --exact filters::d5_profile_1000_objects_3000_relations_and_long_text --nocapture",
+  "runs": [
+    {
+      "run": 1,
+      "cold_us": 57272,
+      "warm_samples": 20,
+      "warm_p95_us": 52403,
+      "results": 1000,
+      "test_counts": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 14
+      }
+    },
+    {
+      "run": 2,
+      "cold_us": 52858,
+      "warm_samples": 20,
+      "warm_p95_us": 52900,
+      "results": 1000,
+      "test_counts": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 14
+      }
+    },
+    {
+      "run": 3,
+      "cold_us": 48140,
+      "warm_samples": 20,
+      "warm_p95_us": 52756,
+      "results": 1000,
+      "test_counts": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 14
+      }
+    }
+  ],
+  "boundaries": [
+    "Cold means first query in each fresh process; OS caches were not cleared.",
+    "Original test reports cold and warm P95 only, not raw 20 sample values, P50 or maximum.",
+    "Shared cloud CPU workload was not controlled as dedicated benchmark hardware.",
+    "This is core query timing, not editor/GPU/frame/present/startup timing."
+  ],
+  "public_log_format": "Trailing blank lines normalized; original captured process output retained locally."
+}

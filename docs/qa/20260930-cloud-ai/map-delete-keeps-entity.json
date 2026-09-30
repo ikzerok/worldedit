@@ -1,0 +1,22 @@
+{
+  "placements": {
+    "marker_2": {
+      "annotation": "地图标记",
+      "geometry": {
+        "kind": "point",
+        "position": [
+          0.7933333516120911,
+          0.4888888895511627
+        ]
+      },
+      "layer_id": "places",
+      "role": "说明",
+      "target_ref": {
+        "id": "harbor",
+        "kind": "entity"
+      }
+    }
+  },
+  "original_source_unchanged": true,
+  "harbor_exists": true
+}

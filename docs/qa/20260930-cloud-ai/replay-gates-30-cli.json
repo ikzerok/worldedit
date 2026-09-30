@@ -1,0 +1,76 @@
+{
+  "completed_choices": 30,
+  "coverage": {
+    "selected_choices": [
+      {
+        "count": 30,
+        "id": "start:0768a8aaf6cf971b:0",
+        "label": "Continue",
+        "line": 2,
+        "node": "start"
+      }
+    ],
+    "visited_nodes": {
+      "start": 31
+    }
+  },
+  "current_node": "start",
+  "current_state": {
+    "anchors": [],
+    "coverage": {
+      "selected_choices": [
+        {
+          "count": 30,
+          "id": "start:0768a8aaf6cf971b:0",
+          "label": "Continue",
+          "line": 2,
+          "node": "start"
+        }
+      ],
+      "visited_nodes": {
+        "start": 31
+      }
+    },
+    "current_node": "start",
+    "ended": false,
+    "met": [],
+    "paused": true,
+    "perms": [],
+    "state_history": [],
+    "states": {},
+    "storyline": "main",
+    "turns": 30,
+    "vars": {},
+    "visits": {
+      "start": 31
+    }
+  },
+  "executed_steps": 61,
+  "original_fingerprint": 11467336848669814960,
+  "source_fingerprint": 11467336848669814960,
+  "state_diff": {
+    "coverage": {
+      "selected_choices": [
+        {
+          "count": 30,
+          "id": "start:0768a8aaf6cf971b:0",
+          "label": "Continue",
+          "line": 2,
+          "node": "start"
+        }
+      ],
+      "visited_nodes": {
+        "start": 31
+      }
+    },
+    "turns": 30,
+    "visits": {
+      "start": 31
+    }
+  },
+  "status": {
+    "complete": false,
+    "ended": false,
+    "status": "replayed"
+  }
+}

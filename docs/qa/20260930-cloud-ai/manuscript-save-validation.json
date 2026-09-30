@@ -1,0 +1,9 @@
+{
+  "order": [
+    "departure",
+    "opening",
+    "harbor",
+    "notes"
+  ],
+  "source_wl_unchanged": true
+}

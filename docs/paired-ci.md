@@ -35,6 +35,20 @@ rustup target add wasm32-unknown-unknown
 
 CI 无论成功失败均上传 `paired-check-<编辑器SHA>` artifact，保留 90 天；到期前从 Actions 下载长期所需的证据。原始本机日志只留 target，不上传源码仓库。没有执行到的检查不能视作成功。
 
+## Linux / macOS 云端检查入口
+
+安装仓库指定的 Rust 工具链（含 rustfmt/clippy）及 `wasm32-unknown-unknown` 后，可在同级两仓检出中运行：
+
+```sh
+python3 scripts/check-pair.py
+```
+
+跨平台入口与 Windows 脚本保留相同的 14 个检查步骤及失败即停语义，不自动安装依赖、不切换分支、不更新锁文件。原生构建仍需要对应平台的系统开发库。脚本先校验兼容仓库名、完整 SHA 和实际 worldline HEAD，然后记录两仓提交、未提交变更、锁文件摘要及平台信息；硬件或 GUI 信息未测时明确记为未测。
+
+证据保存在 `target/paired-check/<UTC>/`：`environment.json`、`compatibility.json`、`locks.json`、逐步骤日志和 `summary.json`。汇总区分 `passed`、`failed`、`not_run`，工具缺失或失败后的步骤不会被计为通过。脏工作区的结果仅为开发检查，不作为干净提交的正式配对证据。此入口不证明 Windows、GUI、物理 IME 或真人作者验收；Windows CI 保留现有 PowerShell 入口。
+
+检查入口本身的回归不需要 Rust：`python3 -m unittest discover -s scripts -p 'test_*.py' -v`，覆盖固定版本拒绝、与 Windows 步骤一致、严格锁文件/Clippy/WASM 参数、缺失工具、失败即停及证据边界。
+
 ## 验收口径
 
 2026-09-19 本地验证结果：worldline 156 项（含 1 项文档测试）、worldedit 6 项测试通过，失败 0；两仓格式与严格 clippy、两仓原生构建、编辑器 WASM clippy 与实际构建全部通过。原始日志保存在上述本地证据目录；尚未推送本次变更，因此此处不声称 GitHub Actions 已运行通过。

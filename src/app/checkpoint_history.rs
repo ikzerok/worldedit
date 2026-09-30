@@ -103,13 +103,17 @@ impl WorldeditApp {
                         &mut self.checkpoint_history,
                         &mut action,
                     );
-                    list::draw_selected_record(
-                        &mut columns[1],
-                        &records,
-                        &self.checkpoint_history,
-                        &self.project,
-                        &mut action,
-                    );
+                    ScrollArea::vertical()
+                        .id_salt("checkpoint-history-details")
+                        .show(&mut columns[1], |ui| {
+                            list::draw_selected_record(
+                                ui,
+                                &records,
+                                &self.checkpoint_history,
+                                &self.project,
+                                &mut action,
+                            );
+                        });
                 });
             } else {
                 ScrollArea::vertical()

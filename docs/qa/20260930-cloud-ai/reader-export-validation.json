@@ -1,0 +1,20 @@
+{
+  "sha256": "2fd56351b219e28a246f932c668d49fdde16c36d21c10d80b29895246ec7f13a",
+  "size": 3493,
+  "files": [
+    "index.html",
+    "manuscripts/index.html",
+    "objects/index.html",
+    "objects/o0001.html",
+    "reader-manifest.json",
+    "reader.js",
+    "search-data.js",
+    "search-index.json",
+    "search.html",
+    "style.css"
+  ],
+  "bad_crc": null,
+  "index_exists": true,
+  "object_page": "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Native QA</title><link rel=\"stylesheet\" href=\"../style.css\"></head><body><header><a href=\"../index.html\">离线阅读包</a> · <a href=\"../search.html\">搜索</a></header><main><h1>Native QA</h1><p>Native QA\n\nThis is isolated Markdown import evidence.</p></main></body></html>",
+  "private_names_present": false
+}

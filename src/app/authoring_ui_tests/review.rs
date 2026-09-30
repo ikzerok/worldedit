@@ -85,32 +85,16 @@ fn narrow_review_switches_between_selectable_three_way_text() {
     click(&ctx, &mut app, 7, "保存修改提案");
     app.project.set_text(&entry, original.clone()).unwrap();
     app.recompile();
+    scroll_from_visible_anchor_to(&ctx, &mut app, 16, "协作审阅", "重新比较提案");
     click(&ctx, &mut app, 16, "重新比较提案");
-    for _ in 0..4 {
-        let _ = frame(
-            &ctx,
-            &mut app,
-            vec![
-                Event::PointerMoved(pos2(200.0, 450.0)),
-                Event::MouseWheel {
-                    unit: egui::MouseWheelUnit::Line,
-                    delta: vec2(0.0, -8.0),
-                    modifiers: egui::Modifiers::NONE,
-                },
-            ],
-            16,
-        );
-    }
-    let output = frame(&ctx, &mut app, Vec::new(), 16);
-    let mut rendered = String::new();
-    for shape in &output.shapes {
-        collect_text(&shape.shape, &mut rendered);
-    }
+    let rendered = scroll_review_to(&ctx, &mut app, "基底");
     assert!(rendered.contains("基底"), "{rendered}");
     assert!(rendered.contains("当前"), "{rendered}");
     assert!(rendered.contains("提议"), "{rendered}");
     assert!(rendered.contains("提议修改"), "{rendered}");
     click(&ctx, &mut app, 16, "提议");
+    assert_eq!(app.review.preview_side, 2, "必须实际切到提议侧");
+    scroll_review_to(&ctx, &mut app, "新增地点");
     let output = frame(&ctx, &mut app, Vec::new(), 16);
     let mut proposed_view = String::new();
     for shape in &output.shapes {
@@ -118,6 +102,7 @@ fn narrow_review_switches_between_selectable_three_way_text() {
     }
     assert!(proposed_view.contains("新增地点"), "{proposed_view}");
     let history_before_apply = app.history.len();
+    scroll_review_to(&ctx, &mut app, "采纳提案");
     click(&ctx, &mut app, 16, "采纳提案");
     assert!(
         app.project.document(&entry).unwrap().contains("新增地点"),
@@ -127,6 +112,43 @@ fn narrow_review_switches_between_selectable_three_way_text() {
     assert_eq!(app.history.len(), history_before_apply + 1);
     app.undo(false);
     assert_eq!(app.project.document(&entry).unwrap(), original);
+}
+
+fn scroll_review_to(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) -> String {
+    let mut rendered = String::new();
+    for delta in [-60.0, 60.0] {
+        for _ in 0..160 {
+            for _ in 0..8 {
+                let _ = frame(ctx, app, Vec::new(), 16);
+            }
+            let output = frame(ctx, app, Vec::new(), 16);
+            rendered.clear();
+            for shape in &output.shapes {
+                collect_text(&shape.shape, &mut rendered);
+            }
+            if visible_text_position(&output, label).is_some() {
+                return rendered;
+            }
+            let point = pos2(
+                ctx.screen_rect().width() * 0.25,
+                ctx.screen_rect().height() * 0.5,
+            );
+            let _ = frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(point),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: vec2(0.0, delta),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                16,
+            );
+        }
+    }
+    panic!("审阅控件滚动后不可达：{label}；{rendered}");
 }
 
 fn prepare_proposal_title_conflict(
@@ -301,5 +323,84 @@ fn proposal_conflict_can_be_edited_before_core_application() {
             .draft
             .status,
         worldline_core::collaboration::ProposalStatus::Accepted
+    );
+}
+
+#[test]
+fn conflicting_zero_write_preview_is_explicit_and_close_preserves_drafts_and_stale_guard() {
+    let (ctx, mut app) = app();
+    app.project.save().unwrap();
+    let entry = app.project.entry.clone();
+    let base = app.project.document(&entry).unwrap().to_owned();
+    let proposed = base.replacen("同名", "提议地名", 1);
+    app.project.set_text(&entry, proposed.clone()).unwrap();
+    app.recompile();
+    app.review.author = "乙".into();
+    app.review.reason = "文案同字段冲突".into();
+    app.review.proposal_id = "summary_conflict".into();
+    click(&ctx, &mut app, 7, "保存修改提案");
+    app.project
+        .set_text(&entry, base.replacen("同名", "当前地名", 1))
+        .unwrap();
+    app.recompile();
+    click(&ctx, &mut app, 7, "重新比较提案");
+    let proposal =
+        &app.snapshot.as_ref().unwrap().proposal_index.proposals["summary_conflict"].draft;
+    let preview = worldline_core::collaboration::preview_proposal(&app.project, proposal).unwrap();
+    assert_eq!(
+        preview.content_files(),
+        0,
+        "core计数是当前合并结果，不是三方版本差异"
+    );
+    assert_eq!(preview.conflicts.len(), 1);
+    let rendered = rendered_text_in_window(&ctx, &mut app, 7, "提案三方预览");
+    assert!(
+        rendered.contains("当前合并结果拟写入：内容 0 个文件"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("待解决冲突 · 暂不可应用"), "{rendered}");
+    assert!(
+        !rendered.contains("content · world.wl · 无变化"),
+        "{rendered}"
+    );
+    let before = app.project.content_baseline();
+    let history = app.history.len();
+    click(&ctx, &mut app, 7, "关闭预览");
+    assert!(app.review.selected_proposal.is_none());
+    assert!(app.review.preview.is_some(), "关闭不能清掉过期检查的原基线");
+    assert_eq!(app.project.content_baseline(), before);
+    assert_eq!(app.history.len(), history);
+    click(&ctx, &mut app, 7, "待审阅 · 乙 · 文案同字段冲突");
+    click(&ctx, &mut app, 7, "采用提议");
+    let rendered = rendered_text_in_window(&ctx, &mut app, 7, "解决草稿已齐");
+    assert!(rendered.contains("仍待明确采纳"), "{rendered}");
+    assert_eq!(app.project.content_baseline(), before);
+    click(&ctx, &mut app, 7, "关闭预览");
+    let newer = base.replacen("同名", "后来地名", 1);
+    app.project.set_text(&entry, newer.clone()).unwrap();
+    app.recompile();
+    let changed = app.project.content_baseline();
+    click(&ctx, &mut app, 7, "待审阅 · 乙 · 文案同字段冲突");
+    let rendered = rendered_text_in_window(&ctx, &mut app, 7, "当前差异已过期");
+    assert!(rendered.contains("采纳已禁用"), "{rendered}");
+    click(&ctx, &mut app, 7, "采纳提案");
+    assert_eq!(app.project.content_baseline(), changed);
+    assert_eq!(app.history.len(), history);
+    click(&ctx, &mut app, 7, "重新比较提案");
+    let rendered = rendered_text_in_window(&ctx, &mut app, 7, "解决草稿已齐");
+    assert!(
+        rendered.contains("仍待明确采纳"),
+        "关闭重开与重新比较应保留解决草稿：{rendered}"
+    );
+    click(&ctx, &mut app, 7, "采纳提案");
+    assert_eq!(app.project.document(&entry).unwrap(), proposed);
+    assert_eq!(app.history.len(), history + 1);
+    app.undo(false);
+    assert_eq!(app.project.document(&entry).unwrap(), newer);
+    assert_eq!(
+        app.snapshot.as_ref().unwrap().proposal_index.proposals["summary_conflict"]
+            .draft
+            .status,
+        worldline_core::collaboration::ProposalStatus::Open
     );
 }

@@ -253,3 +253,114 @@ fn catalog_todo_groups_core_items_and_jumps_to_the_exact_source_without_writing(
     assert_eq!(app.project.sources(), sources);
     assert!(app.history.is_empty());
 }
+
+fn scroll_catalog_to(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    window: u8,
+    label: &str,
+) -> String {
+    let mut rendered = String::new();
+    for delta in [-90.0, 90.0] {
+        for _ in 0..250 {
+            let output = frame(ctx, app, Vec::new(), window);
+            rendered.clear();
+            for shape in &output.shapes {
+                collect_text(&shape.shape, &mut rendered);
+            }
+            if visible_text_position(&output, label).is_some() {
+                return rendered;
+            }
+            // 从结果区域滚动到底，继续滚动必须能到达外层操作区。
+            let point = ctx.screen_rect().center() + vec2(100.0, 60.0);
+            let _ = frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(point),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: vec2(0.0, delta),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                window,
+            );
+        }
+    }
+    panic!("组合查询控件滚动后仍不可达：{label}；{rendered}");
+}
+
+#[test]
+fn small_catalog_viewport_can_page_save_and_favorite_after_scrolling() {
+    for window in [34, 35] {
+        let (ctx, mut app) = app();
+        app.tab = super::Tab::Catalog;
+        let source = (0..68)
+            .map(|index| format!("entity object_{index:02} kind place as \"对象 {index:02}\"\n"))
+            .collect::<String>();
+        app.project
+            .set_text(&app.project.entry.clone(), source)
+            .unwrap();
+        app.recompile();
+        let baseline = app.project.content_baseline();
+        let sources = app.project.sources();
+        let fingerprint = app.snapshot.as_ref().unwrap().result.analysis.fingerprint;
+        click(&ctx, &mut app, 34, "组合查询与待办");
+        click(&ctx, &mut app, 34, "＋ 添加条件");
+        click(&ctx, &mut app, 34, "对象类型");
+        click(&ctx, &mut app, 34, "实体 · entity");
+        click(&ctx, &mut app, 34, "运行查询");
+        let first = rendered_text_in_window(&ctx, &mut app, window, "68 个命中");
+        assert!(first.contains("显示 1–50"), "{first}");
+        scroll_catalog_to(&ctx, &mut app, window, "下一页");
+        click(&ctx, &mut app, window, "下一页");
+        let second = scroll_catalog_to(&ctx, &mut app, window, "显示 51–68");
+        assert!(second.contains("68 个命中"), "{second}");
+        scroll_catalog_to(&ctx, &mut app, window, "上一页");
+        click(&ctx, &mut app, window, "上一页");
+        let first_again = scroll_catalog_to(&ctx, &mut app, window, "显示 1–50");
+        assert!(first_again.contains("68 个命中"), "{first_again}");
+        assert_eq!(app.project.content_baseline(), baseline);
+        assert_eq!(app.project.sources(), sources);
+        assert!(app.history.is_empty());
+
+        scroll_catalog_to(&ctx, &mut app, window, "保存为共享查询");
+        click(&ctx, &mut app, window, "保存为共享查询");
+        scroll_catalog_to(&ctx, &mut app, window, "稳定 ID");
+        enter_text_at_placeholder_in_window(&ctx, &mut app, window, "稳定 ID", "paged");
+        scroll_catalog_to(&ctx, &mut app, window, "查询名称");
+        enter_text_at_placeholder_in_window(&ctx, &mut app, window, "查询名称", "分页资料");
+        scroll_catalog_to(&ctx, &mut app, window, "保存共享定义");
+        click(&ctx, &mut app, window, "保存共享定义");
+        assert!(
+            app.project
+                .saved_query_index()
+                .queries
+                .contains_key("paged"),
+            "{:?}",
+            app.io_error
+        );
+        assert_eq!(app.history.len(), 1);
+        assert_eq!(app.project.sources(), sources);
+        assert_eq!(
+            app.snapshot.as_ref().unwrap().result.analysis.fingerprint,
+            fingerprint
+        );
+        let saved_baseline = app.project.content_baseline();
+        scroll_catalog_to(&ctx, &mut app, window, "共享查询定义 · 1 项");
+        click(&ctx, &mut app, window, "共享查询定义 · 1 项");
+        scroll_catalog_to(&ctx, &mut app, window, "☆ 收藏到本机");
+        click(&ctx, &mut app, window, "☆ 收藏到本机");
+        scroll_catalog_to(&ctx, &mut app, window, "本地收藏 · 1 项");
+        assert_eq!(app.project.content_baseline(), saved_baseline);
+        assert_eq!(app.history.len(), 1);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn native_app_does_not_persist_editor_memory_with_favorites() {
+    let (_, app) = app();
+    assert!(!eframe::App::persist_egui_memory(&app));
+}

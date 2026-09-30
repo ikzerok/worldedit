@@ -1,0 +1,11 @@
+{
+  "unchanged": true,
+  "before": {
+    "world.wl": "f75c58d065fe1f8229b1bad0117be224fffb9ea3b08159a2cbdbf44149def557",
+    ".world/project.json": "854b69d201d86012a9118efda8aef10c7b74071af650b49422b140e205c24019"
+  },
+  "after": {
+    "world.wl": "f75c58d065fe1f8229b1bad0117be224fffb9ea3b08159a2cbdbf44149def557",
+    ".world/project.json": "854b69d201d86012a9118efda8aef10c7b74071af650b49422b140e205c24019"
+  }
+}

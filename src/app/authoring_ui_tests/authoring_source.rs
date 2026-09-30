@@ -428,3 +428,116 @@ fn missing_entity_link_offers_a_repair_draft_with_the_stable_missing_id() {
         .iter()
         .any(|diagnostic| diagnostic.code == "A218"));
 }
+
+#[test]
+fn ime_in_another_window_does_not_mark_the_source_as_an_unsubmitted_draft() {
+    let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
+    let other_id = egui::Id::new("unrelated-directory-path");
+    let mut directory = String::new();
+    let mut draw = |events| {
+        ctx.run(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 900.0))),
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                app.source_tab(ctx);
+                egui::Window::new("独立路径输入").show(ctx, |ui| {
+                    ui.add(egui::TextEdit::singleline(&mut directory).id(other_id));
+                });
+            },
+        )
+    };
+    for _ in 0..3 {
+        let _ = draw(Vec::new());
+    }
+    ctx.memory_mut(|memory| memory.request_focus(other_id));
+    let _ = draw(vec![
+        Event::Ime(egui::ImeEvent::Enabled),
+        Event::Ime(egui::ImeEvent::Preedit("目录".into())),
+    ]);
+    assert!(!app.ime_composing, "别的输入框不能把源码标记为组合中");
+    assert!(app.ime_source_draft.is_none());
+    assert!(app.ime_source_baseline.is_none());
+    assert!(!app.has_open_authoring_form());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(ctx.memory(|memory| memory.has_focus(other_id)));
+    assert_eq!(directory, "目录", "组合事件仍应由当前输入框接收");
+}
+
+#[test]
+fn switching_ime_focus_preserves_an_existing_source_draft() {
+    let (ctx, mut app) = app();
+    let entry = app.active_file.clone();
+    let original = app.project.document(&entry).unwrap().to_owned();
+    let baseline = app.project.content_baseline();
+    let source_id = egui::Id::new(("source", &entry));
+    let other_id = egui::Id::new("directory-after-source-composition");
+    let mut directory = String::new();
+    let mut state = egui::TextEdit::load_state(&ctx, source_id).unwrap_or_default();
+    state
+        .cursor
+        .set_char_range(Some(egui::text::CCursorRange::one(
+            egui::text::CCursor::new(original.chars().count()),
+        )));
+    egui::TextEdit::store_state(&ctx, source_id, state);
+    ctx.memory_mut(|memory| memory.request_focus(source_id));
+    let _ = frame(
+        &ctx,
+        &mut app,
+        vec![
+            Event::Ime(egui::ImeEvent::Enabled),
+            Event::Ime(egui::ImeEvent::Preedit("未提交草稿".into())),
+        ],
+        11,
+    );
+    let draft = app.ime_source_draft.clone().expect("源码组合稿应保留");
+    assert!(draft.1.contains("未提交草稿"));
+    for events in [
+        Vec::new(),
+        vec![
+            Event::Ime(egui::ImeEvent::Enabled),
+            Event::Ime(egui::ImeEvent::Preedit("目录".into())),
+        ],
+        vec![
+            Event::Ime(egui::ImeEvent::Commit("目录".into())),
+            Event::Ime(egui::ImeEvent::Disabled),
+        ],
+    ] {
+        ctx.memory_mut(|memory| memory.request_focus(other_id));
+        let _ = ctx.run(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 900.0))),
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                app.source_tab(ctx);
+                egui::Window::new("独立路径输入").show(ctx, |ui| {
+                    ui.add(egui::TextEdit::singleline(&mut directory).id(other_id));
+                });
+            },
+        );
+        assert_eq!(app.ime_source_draft.as_ref(), Some(&draft));
+        assert_eq!(app.project.document(&entry).unwrap(), original);
+        assert_eq!(app.project.content_baseline(), baseline);
+        assert!(
+            app.has_open_authoring_form(),
+            "真实源码草稿的安全门不能失效"
+        );
+    }
+    assert_eq!(directory, "目录");
+    assert!(
+        !app.ime_composing,
+        "Disabled结束活动组合态，但不丢弃源码草稿"
+    );
+    ctx.memory_mut(|memory| memory.request_focus(source_id));
+    let output = frame(&ctx, &mut app, Vec::new(), 11);
+    assert!(output
+        .shapes
+        .iter()
+        .any(|shape| text_position_contains(&shape.shape, "未提交草稿").is_some()));
+    assert_eq!(app.ime_source_draft.as_ref(), Some(&draft));
+}

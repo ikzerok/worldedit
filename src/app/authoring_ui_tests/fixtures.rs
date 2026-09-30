@@ -9,8 +9,12 @@ pub(super) fn app() -> (egui::Context, WorldeditApp) {
     let creation = eframe::CreationContext::_new_kittest(ctx.clone());
     let mut app = WorldeditApp::new(&creation, None);
     let root = std::env::temp_dir().join(format!(
-        "worldedit-form-ui-{}-{}",
+        "worldedit-form-ui-{}-{}-{}",
         std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos(),
         NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed)
     ));
     app.project = Project::new(&root);

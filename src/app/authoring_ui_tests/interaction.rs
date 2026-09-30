@@ -15,7 +15,11 @@ pub(super) fn frame(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
-                if window == 33 {
+                if window == 34 || window == 36 {
+                    vec2(1188.0, 848.0)
+                } else if window == 35 {
+                    vec2(800.0, 600.0)
+                } else if window == 33 {
                     vec2(760.0, 620.0)
                 } else if window == 32 {
                     vec2(800.0, 600.0)
@@ -66,6 +70,18 @@ pub(super) fn frame(
                 });
             }
             14 => app.catalog_tab(ctx),
+            36 => {
+                app.top_bar(ctx);
+                app.status_bar(ctx);
+                app.sidebar(ctx);
+                app.checkpoint_history_tab(ctx);
+            }
+            34 | 35 => {
+                app.top_bar(ctx);
+                app.status_bar(ctx);
+                app.sidebar(ctx);
+                app.catalog_tab(ctx);
+            }
             29 | 30 => {
                 app.top_bar(ctx);
                 app.status_bar(ctx);
@@ -209,7 +225,7 @@ pub(super) fn replace_text_area(
     let point = output
         .shapes
         .iter()
-        .find_map(|shape| text_position_contains(&shape.shape, placeholder))
+        .find_map(|shape| clipped_text_position(&shape.shape, placeholder, shape.clip_rect))
         .unwrap_or_else(|| panic!("未显示可编辑文本：{placeholder}"));
     for pressed in [true, false] {
         let _ = frame(
@@ -247,42 +263,6 @@ pub(super) fn replace_text_area(
         vec![key, release, Event::Text(replacement.into())],
         window,
     );
-}
-
-pub(super) fn scroll_window(
-    ctx: &egui::Context,
-    app: &mut WorldeditApp,
-    window: u8,
-    anchor: &str,
-    lines: f32,
-) -> String {
-    let output = frame(ctx, app, Vec::new(), window);
-    let point = output
-        .shapes
-        .iter()
-        .find_map(|shape| text_position_contains(&shape.shape, anchor))
-        .unwrap_or_else(|| panic!("未显示滚动锚点：{anchor}"));
-    let mut rendered = String::new();
-    for _ in 0..12 {
-        let output = frame(
-            ctx,
-            app,
-            vec![
-                Event::PointerMoved(point),
-                Event::MouseWheel {
-                    unit: egui::MouseWheelUnit::Line,
-                    delta: vec2(0.0, lines),
-                    modifiers: egui::Modifiers::NONE,
-                },
-            ],
-            window,
-        );
-        rendered.clear();
-        for shape in &output.shapes {
-            collect_text(&shape.shape, &mut rendered);
-        }
-    }
-    rendered
 }
 
 pub(super) fn drag_numeric_value(
@@ -396,6 +376,27 @@ pub(super) fn open_selected_entity_form(
     let _ = frame(ctx, app, Vec::new(), 11);
     click(ctx, app, 11, "从选中文本建档");
     entry
+}
+
+fn clipped_text_position(
+    shape: &egui::Shape,
+    fragment: &str,
+    clip: egui::Rect,
+) -> Option<egui::Pos2> {
+    match shape {
+        egui::Shape::Text(text) if text.galley.job.text.contains(fragment) => {
+            let visible = text
+                .galley
+                .rect
+                .translate(text.pos.to_vec2())
+                .intersect(clip);
+            visible.is_positive().then(|| visible.center())
+        }
+        egui::Shape::Vec(shapes) => shapes
+            .iter()
+            .find_map(|shape| clipped_text_position(shape, fragment, clip)),
+        _ => None,
+    }
 }
 
 pub(super) fn text_position_contains(shape: &egui::Shape, fragment: &str) -> Option<egui::Pos2> {

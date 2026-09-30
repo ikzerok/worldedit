@@ -22,26 +22,30 @@ impl WorkbenchState {
         let previous_query = self.query.clone();
         let previous_options = current_options(self);
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("资料库组合查询与待办");
-                if ui.button("返回资料索引").clicked() {
-                    self.open = false;
-                }
-            });
-            ui.horizontal_wrapped(|ui| {
-                ui.selectable_value(&mut self.view, View::Query, "资料筛选");
-                ui.selectable_value(&mut self.view, View::Todos, "统一待办");
-                ui.label(
-                    egui::RichText::new("只读浏览；内容处理须另行编辑")
-                        .small()
-                        .weak(),
-                );
-            });
-            ui.separator();
-            match self.view {
-                View::Query => self.query_view(app, ui, &mut action),
-                View::Todos => self.todo_view(app, ui, &mut action),
-            }
+            egui::ScrollArea::vertical()
+                .id_salt("catalog-query-workbench")
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.heading("资料库组合查询与待办");
+                        if ui.button("返回资料索引").clicked() {
+                            self.open = false;
+                        }
+                    });
+                    ui.horizontal_wrapped(|ui| {
+                        ui.selectable_value(&mut self.view, View::Query, "资料筛选");
+                        ui.selectable_value(&mut self.view, View::Todos, "统一待办");
+                        ui.label(
+                            egui::RichText::new("只读浏览；内容处理须另行编辑")
+                                .small()
+                                .weak(),
+                        );
+                    });
+                    ui.separator();
+                    match self.view {
+                        View::Query => self.query_view(app, ui, &mut action),
+                        View::Todos => self.todo_view(app, ui, &mut action),
+                    }
+                });
         });
 
         if self.query != previous_query || current_options(self) != previous_options {
@@ -348,7 +352,7 @@ impl WorkbenchState {
             .entry(app.project.root.clone())
             .or_default();
         ui.collapsing(format!("本地收藏 · {} 项", favorites.len()), |ui| {
-            ui.label("当前会话的个人收藏，不写入工程清单或共享查询文档。");
+            ui.label("保存在当前用户或浏览器存储中的个人收藏，不写入工程清单或共享查询文档。");
             for id in favorites.iter() {
                 if let Some(document) = saved.queries.get(id) {
                     if ui
