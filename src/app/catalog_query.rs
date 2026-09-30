@@ -145,6 +145,37 @@ mod persistence_tests {
     }
 
     #[test]
+    fn local_favorites_keep_workspace_and_profile_namespaces_separate() {
+        let first_root = PathBuf::from("project-a");
+        let second_root = PathBuf::from("project-b");
+        let mut state = WorkbenchState::default();
+        state.toggle_favorite(&first_root, "people".into());
+        state.toggle_favorite(&second_root, "places".into());
+        let mut first_profile = MemoryStorage::default();
+        state.save_favorites(&mut first_profile);
+        assert_eq!(first_profile.0.len(), 1);
+        assert!(first_profile.0.contains_key(FAVORITES_STORAGE_KEY));
+        let mut reopened = WorkbenchState::default();
+        reopened.restore_favorites(Some(&first_profile));
+        assert_eq!(
+            reopened.local_favorites[&first_root],
+            BTreeSet::from(["people".into()])
+        );
+        assert_eq!(
+            reopened.local_favorites[&second_root],
+            BTreeSet::from(["places".into()])
+        );
+        let mut other_user = WorkbenchState::default();
+        other_user.restore_favorites(Some(&MemoryStorage::default()));
+        assert!(other_user.local_favorites.is_empty());
+        first_profile
+            .0
+            .insert(FAVORITES_STORAGE_KEY.into(), "invalid JSON".into());
+        reopened.restore_favorites(Some(&first_profile));
+        assert!(reopened.local_favorites[&first_root].contains("people"));
+    }
+
+    #[test]
     fn local_favorites_survive_reopen_without_entering_project_documents() {
         let mut state = WorkbenchState::default();
         let root = PathBuf::from("sample-project");

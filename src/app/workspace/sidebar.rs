@@ -234,7 +234,9 @@ impl WorldeditApp {
                         .into_owned();
                     groups.entry(parent).or_default().push((path, name, false));
                 }
-                egui::ScrollArea::vertical()
+                // 文件路径可能很长；保留全文并水平滚动，不能撑大侧栏布局。
+                egui::ScrollArea::both()
+                    .auto_shrink([false, true])
                     .id_salt("files")
                     .show(ui, |ui| {
                         for (folder, entries) in groups {

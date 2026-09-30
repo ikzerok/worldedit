@@ -1,4 +1,5 @@
 mod editor;
+mod gutter;
 mod readonly;
 mod text;
 

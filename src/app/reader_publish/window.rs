@@ -26,6 +26,7 @@ impl WorldeditApp {
             .resizable(true)
             .default_width(780.0)
             .default_height(980.0)
+            .vscroll(true)
             .show(ctx, |ui| {
                 ui.label(RichText::new("只生成明确选择的离线静态内容。完整工程备份仍保留原有全部文件。").color(crate::theme::MUTED));
                 ui.label(RichText::new("离线选择不是权限认证；拿到阅读包的人可以查看包内全部内容。").strong().color(crate::theme::GOLD));

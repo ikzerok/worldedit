@@ -35,25 +35,20 @@ impl Wizard {
 
         ui.label("Markdown 来源目录");
         #[cfg(not(target_arch = "wasm32"))]
-        ui.horizontal(|ui| {
-            let changed = ui
-                .add(
-                    egui::TextEdit::singleline(&mut self.source_root)
-                        .hint_text("选择 Markdown 来源目录…")
-                        .desired_width(ui.available_width() - 105.0),
-                )
-                .changed();
+        {
+            let (changed, pick) =
+                directory_path_row(ui, &mut self.source_root, "选择 Markdown 来源目录…");
             if changed {
                 self.invalidate_preview();
             }
-            if ui.button("选择目录…").clicked() {
+            if pick {
                 if let Some(path) = rfd::FileDialog::new().pick_folder() {
                     self.source_root = path.display().to_string();
                     self.source_files = None;
                     self.invalidate_preview();
                 }
             }
-        });
+        }
         #[cfg(target_arch = "wasm32")]
         ui.horizontal(|ui| {
             ui.label(if self.source_root.is_empty() {
@@ -74,24 +69,19 @@ impl Wizard {
                 #[cfg(target_arch = "wasm32")]
                 ui.label("应用后切换到新浏览器工程；当前工程不会在预检或取消时改变。");
                 #[cfg(not(target_arch = "wasm32"))]
-                ui.horizontal(|ui| {
-                    let changed = ui
-                        .add(
-                            egui::TextEdit::singleline(&mut self.target_root)
-                                .hint_text("选择空工程目录…")
-                                .desired_width(ui.available_width() - 105.0),
-                        )
-                        .changed();
+                {
+                    let (changed, pick) =
+                        directory_path_row(ui, &mut self.target_root, "选择空工程目录…");
                     if changed {
                         self.invalidate_preview();
                     }
-                    if ui.button("选择目录…").clicked() {
+                    if pick {
                         if let Some(path) = rfd::FileDialog::new().pick_folder() {
                             self.target_root = path.display().to_string();
                             self.invalidate_preview();
                         }
                     }
-                });
+                }
             }
             TargetMode::CurrentProject => {
                 #[cfg(not(target_arch = "wasm32"))]
@@ -224,4 +214,25 @@ impl Wizard {
             self.closed = true;
         }
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn directory_path_row(ui: &mut egui::Ui, path: &mut String, hint: &str) -> (bool, bool) {
+    ui.horizontal(|ui| {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // 先分配按钮实际宽度，再让输入框填充剩余空间（含其边距）。
+            // 固定减去一个估算宽度会让窗口在每次重绘时反向撑大。
+            let pick = ui.button("选择目录…").clicked();
+            let changed = ui
+                .add(
+                    egui::TextEdit::singleline(path)
+                        .hint_text(hint)
+                        .desired_width(f32::INFINITY),
+                )
+                .changed();
+            (changed, pick)
+        })
+        .inner
+    })
+    .inner
 }

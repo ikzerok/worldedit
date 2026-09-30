@@ -33,7 +33,21 @@ rustup target add wasm32-unknown-unknown
 
 脚本校验 worldline HEAD，分别指定两个 Cargo.toml，先对两仓库的 Rust 源文件（包括测试）执行单文件 600 物理行检查，再执行格式、完整测试、严格 clippy、原生实际构建及编辑器 WASM 检查和实际构建，任一步失败立即失败。`target/paired-check/` 保存操作系统、CPU、内存、GPU 清单、两仓 SHA、工作区修改状态、锁文件摘要及逐项日志；有工作区修改时只能视为开发验证，正式配对证据必须来自干净检出。此脚本用于 Windows 自动检查，不启动 GUI 或浏览器，浏览器版本与 DPI 明确记为未测；它们须在后续实际 GUI/浏览器验收时另行记录。
 
-CI 无论成功失败均上传 `paired-check-<编辑器SHA>` artifact，保留 90 天；到期前从 Actions 下载长期所需的证据。原始本机日志只留 target，不上传源码仓库。没有执行到的检查不能视作成功。
+CI 只运行必要检查并保留平台自身的运行状态与日志，不再额外上传配对验收 artifact。原始本机记录只留 target，不上传源码仓库；没有执行到的检查不能视作成功。正式发行工作流的 release-gate/release-assets 是发行必需制品，不是配对验收包。
+
+## Linux / macOS 云端检查入口
+
+安装仓库指定的 Rust 工具链（含 rustfmt/clippy）及 `wasm32-unknown-unknown` 后，可在同级两仓检出中运行：
+
+```sh
+python3 scripts/check-pair.py
+```
+
+跨平台入口与 Windows 脚本保留相同的 19 个检查步骤（包含 5 项显式开启 eds11_prototype 的测试、native/WASM 严格 Clippy 与构建）及失败即停语义，不自动安装依赖、不切换分支、不更新锁文件。原生构建仍需要对应平台的系统开发库。脚本先校验兼容仓库名、完整 SHA 和实际 worldline HEAD，然后记录两仓提交、未提交变更、锁文件摘要及平台信息；硬件或 GUI 信息未测时明确记为未测。
+
+证据保存在 `target/paired-check/<UTC>/`：`environment.json`、`compatibility.json`、`locks.json`、逐步骤日志和 `summary.json`。汇总区分 `passed`、`failed`、`not_run`，工具缺失或失败后的步骤不会被计为通过。脏工作区的结果仅为开发检查，不作为干净提交的正式配对证据。此入口不证明 Windows、GUI、物理 IME 或真人作者验收；Windows CI 保留现有 PowerShell 入口。
+
+检查入口本身的回归不需要 Rust：`python3 -m unittest discover -s scripts -p 'test_*.py' -v`，覆盖固定版本拒绝、与 Windows 步骤一致、严格锁文件/Clippy/WASM 参数、缺失工具、失败即停及证据边界。
 
 ## 验收口径
 
@@ -44,8 +58,10 @@ CI 无论成功失败均上传 `paired-check-<编辑器SHA>` artifact，保留 9
 
 ## 成对升级与回滚
 
-本次是首次兼容配对登记：worldline 固定到 `5443226192b424edb01c6d5644694188c3a8ef4c`，worldedit 为包含此记录并通过 CI 的提交（完整 SHA 写入每次 artifact 的 environment.txt）。之前的 CI 没有固定配对记录，本次未执行版本升级或回滚演练。WP-00 交付升级/回滚验收口径；后续每次实际操作必须记录旧、新两组成对 SHA、工具链/锁变更、检查 artifact 链接和结果，不能只记录操作意图。
+本次是首次兼容配对登记：worldline 固定到 `5443226192b424edb01c6d5644694188c3a8ef4c`，worldedit 为包含此记录并通过 CI 的提交（当时完整 SHA 写入配对环境记录）。之前的 CI 没有固定配对记录，本次未执行版本升级或回滚演练。WP-00 交付升级/回滚验收口径；后续每次实际操作必须记录旧、新两组成对 SHA、工具链/锁变更、CI 结果与本地配对记录，不能只记录操作意图。
 
-升级时先选择已经提交的 worldline SHA，再在 worldedit 修改兼容记录；如果 Rust 或依赖有变化，同时提交相应工具链/锁文件和验收文档。运行配对检查，记录新的编辑器提交及 worldline SHA，并保存 CI artifact 后才将该组合视为已验证。
+升级时先选择已经提交的 worldline SHA，再在 worldedit 修改兼容记录；如果 Rust 或依赖有变化，同时提交相应工具链/锁文件和验收文档。运行配对检查，记录新的编辑器提交及 worldline SHA，并确认精确提交的 CI 通过后才将该组合视为已验证。
 
 回滚时在独立目录检出先前通过验收的编辑器提交，并按其兼容记录检出 worldline；若需在主分支回退，则一并回退编辑器适配代码、兼容记录、工具链与锁文件，重跑配对检查。只改 worldline ref 不构成已验证回滚。
+
+默认与 prototype feature 开启的测试结果分别统计；feature 结果包含基础测试，不把两次执行相加当成唯一用例数。两入口每轮建立独立临时根，保留诊断数据；PowerShell 在退出时恢复调用者原有 TMPDIR/TMP/TEMP。

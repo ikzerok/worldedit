@@ -84,6 +84,14 @@ fn c_interp() -> Color32 {
 
 /// 生成整段源码的 LayoutJob(逐行状态机,支持跨行块注释)。
 pub fn layout_job(text: &str, size: f32, language_version: LanguageVersion) -> LayoutJob {
+    if text.is_empty() {
+        return LayoutJob::simple(
+            String::new(),
+            FontId::monospace(size),
+            c_default(),
+            f32::INFINITY,
+        );
+    }
     let mut job = LayoutJob {
         text: text.into(),
         ..Default::default()
@@ -92,7 +100,15 @@ pub fn layout_job(text: &str, size: f32, language_version: LanguageVersion) -> L
     let mut pos = 0usize;
     for line in text.split('\n') {
         highlight_line(&mut job, line, pos, &mut in_block, size, language_version);
-        pos += line.len() + 1; // 含换行符
+        let end = pos + line.len();
+        let covered = job
+            .sections
+            .last()
+            .map_or(0, |section| section.byte_range.end);
+        push(&mut job, covered..end, c_default(), size);
+        // LayoutJob 的片段必须完整覆盖字符，空行也需要字体度量。
+        push(&mut job, end..(end + 1).min(text.len()), c_default(), size);
+        pos = end + 1; // 含换行符
     }
     job
 }
@@ -100,6 +116,13 @@ pub fn layout_job(text: &str, size: f32, language_version: LanguageVersion) -> L
 fn push(job: &mut LayoutJob, range: std::ops::Range<usize>, color: Color32, size: f32) {
     if range.start >= range.end {
         return;
+    }
+    let covered = job
+        .sections
+        .last()
+        .map_or(0, |section| section.byte_range.end);
+    if covered < range.start {
+        push(job, covered..range.start, c_default(), size);
     }
     if let Some(last) = job.sections.last_mut() {
         if last.byte_range.end == range.start
@@ -295,6 +318,32 @@ fn inline(job: &mut LayoutJob, code: &str, from: usize, base: usize, size: f32) 
     let trimmed = code.trim_end();
     if trimmed.ends_with('~') && !trimmed.ends_with("\\~") {
         let pos = base + trimmed.len() - 1;
-        push(job, pos..pos + 1, c_divert(), size);
+        // 重新着色已有片段，不能重复追加同一个字符。
+        if let Some(index) = job
+            .sections
+            .iter()
+            .rposition(|section| section.byte_range.contains(&pos))
+        {
+            let section = job.sections[index].clone();
+            let mut replacement = Vec::with_capacity(3);
+            if section.byte_range.start < pos {
+                replacement.push(LayoutSection {
+                    byte_range: section.byte_range.start..pos,
+                    ..section.clone()
+                });
+            }
+            replacement.push(LayoutSection {
+                byte_range: pos..pos + 1,
+                format: TextFormat::simple(FontId::monospace(size), c_divert()),
+                leading_space: 0.0,
+            });
+            if pos + 1 < section.byte_range.end {
+                replacement.push(LayoutSection {
+                    byte_range: pos + 1..section.byte_range.end,
+                    ..section
+                });
+            }
+            job.sections.splice(index..=index, replacement);
+        }
     }
 }

@@ -165,11 +165,22 @@ fn character_and_place_history_show_unknown_parallel_and_explicit_sources() {
     install_topic_fixture(&mut editor);
     editor.open_network(TargetRef::new("character", "lin"));
     click(&ctx, &mut editor, 4, "人物 / 地点历史");
-    let character_history = rendered_text_in_window(&ctx, &mut editor, 4, "时间未知");
-    assert!(character_history.contains("时间未知 · core 未补日期或时段"));
-    assert!(character_history.contains("同层并列 · 不代表同时发生"));
-    assert!(character_history.contains("明确先后约束"));
-    assert!(character_history.contains("成员来源：正文显式 with"));
+    let mut character_history = String::new();
+    for label in [
+        "时间未知 · core 未补日期或时段",
+        "同层并列 · 不代表同时发生",
+        "明确先后约束",
+        "成员来源：正文显式 with",
+    ] {
+        character_history.push_str(&scroll_at_to_visible(
+            &ctx,
+            &mut editor,
+            4,
+            pos2(850.0, 800.0),
+            label,
+        ));
+        assert!(character_history.contains(label), "{character_history}");
+    }
     let undated = editor
         .snapshot
         .as_ref()
@@ -180,6 +191,13 @@ fn character_and_place_history_show_unknown_parallel_and_explicit_sources() {
         .object(&TargetRef::new("event", "undated"))
         .unwrap()
         .clone();
+    scroll_at_to_visible(
+        &ctx,
+        &mut editor,
+        4,
+        pos2(850.0, 800.0),
+        &format!("阅读 事件 · {} · undated", undated.display),
+    );
     click(
         &ctx,
         &mut editor,
@@ -189,6 +207,13 @@ fn character_and_place_history_show_unknown_parallel_and_explicit_sources() {
     assert_eq!(
         editor.reading_target,
         Some(TargetRef::new("event", "undated"))
+    );
+    scroll_at_to_visible(
+        &ctx,
+        &mut editor,
+        4,
+        pos2(850.0, 800.0),
+        &format!("定位事件 {}:{}", undated.file, undated.line),
     );
     click(
         &ctx,
@@ -200,6 +225,13 @@ fn character_and_place_history_show_unknown_parallel_and_explicit_sources() {
 
     editor.open_network(TargetRef::new("entity", "harbor"));
     click(&ctx, &mut editor, 4, "人物 / 地点历史");
+    scroll_at_to_visible(
+        &ctx,
+        &mut editor,
+        4,
+        pos2(850.0, 800.0),
+        "角色标签 · happens_at",
+    );
     replace_text_area(&ctx, &mut editor, 4, "角色标签 · happens_at", "发生地点");
     let place_history = tall_network_frame(&ctx, &mut editor, Vec::new());
     let mut place_text = String::new();
@@ -305,4 +337,50 @@ fn topic_relation_pages_continue_with_the_explicit_role_mapping() {
     assert!(next_page.contains("家人"));
     assert!(!next_page.contains("阅读关系 edge_000"));
     assert_eq!(editor.project.content_baseline(), baseline);
+}
+
+#[test]
+fn keyboard_narrow_topic_relation_list_can_open_relation_without_writing() {
+    let (ctx, mut app) = app();
+    install_topic_fixture(&mut app);
+    app.open_network(TargetRef::new("character", "lin"));
+    let baseline = app.project.content_baseline();
+    keyboard::tab_to(&ctx, &mut app, 37, "家族关系", false);
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Enter, false);
+    keyboard::tab_to(&ctx, &mut app, 37, "角色标签 · biological_parent", false);
+    let _ = frame(&ctx, &mut app, vec![Event::Text("生亲".into())], 37);
+    keyboard::tab_to(&ctx, &mut app, 37, "阅读关系 birth_edge", false);
+    let text = rendered_text_in_window(&ctx, &mut app, 37, "窄屏使用下方可访问关系列表");
+    assert!(text.contains("窄屏使用下方可访问关系列表"), "{text}");
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Tab, false);
+    keyboard::tab_to(&ctx, &mut app, 37, "阅读关系 birth_edge", true);
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Enter, false);
+    assert_eq!(
+        app.reading_target,
+        Some(TargetRef::new("relation", "birth_edge"))
+    );
+    keyboard::tab_to(&ctx, &mut app, 37, "人物 / 地点历史", false);
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Enter, false);
+    let undated = app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .result
+        .analysis
+        .catalog
+        .object(&TargetRef::new("event", "undated"))
+        .unwrap()
+        .display
+        .clone();
+    keyboard::tab_to(
+        &ctx,
+        &mut app,
+        37,
+        &format!("阅读 事件 · {undated} · undated"),
+        false,
+    );
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Enter, false);
+    assert_eq!(app.reading_target, Some(TargetRef::new("event", "undated")));
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
 }

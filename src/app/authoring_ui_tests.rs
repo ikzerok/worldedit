@@ -27,3 +27,11 @@ mod reading;
 mod review;
 mod templates;
 mod topic_views;
+
+mod source_gutter;
+
+mod source_focus;
+
+mod workspace_refresh;
+
+mod keyboard;

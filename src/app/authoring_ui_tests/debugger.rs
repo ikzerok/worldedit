@@ -222,6 +222,7 @@ fn replay_state_delta_keeps_body_visible_in_narrow_play_pane() {
     let (ctx, mut app) = replay_app(source, 21);
     click(&ctx, &mut app, 21, "选择：继续");
     click(&ctx, &mut app, 21, "● 保存当前路径");
+    scroll_from_visible_anchor_to(&ctx, &mut app, 21, "叙事调试器", "▶ 重放所选路径");
     click(&ctx, &mut app, 21, "▶ 重放所选路径");
     wait_for_replay(&ctx, &mut app);
 
@@ -239,7 +240,9 @@ fn replay_state_delta_keeps_body_visible_in_narrow_play_pane() {
             .result
             .as_ref()
             .is_some_and(|result| result.state_diff.contains_key("vars")),
-        "replay result must include the variable change"
+        "replay result must include the variable change: {:?}; trace: {:?}",
+        app.replay_debugger.result,
+        app.replay_debugger.saved_paths[0].trace
     );
     assert!(body_visible, "{rendered}");
 }

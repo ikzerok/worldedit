@@ -305,6 +305,9 @@ fn stale_manuscript_body_keeps_input_and_does_not_overwrite_new_source() {
     app.recompile();
     let baseline = app.project.content_baseline();
 
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    let anchor = visible_text_position(&output, "来源文件草稿").expect("来源编辑区域应可见");
+    scroll_at_to_visible(&ctx, &mut app, 13, anchor, "应用正文草稿");
     click(&ctx, &mut app, 13, "应用正文草稿");
     assert_eq!(
         app.project.document(&app.active_file).unwrap(),
@@ -494,4 +497,90 @@ fn sidebar_manuscript_tab_remains_reachable_in_short_viewport() {
     );
     click(&ctx, &mut app, 32, "事件关系图");
     assert_eq!(app.tab, super::Tab::Graph);
+}
+
+#[test]
+fn long_project_paths_do_not_expand_sidebar_beyond_its_painted_width() {
+    let (ctx, mut app) = app();
+    app.project.save().unwrap();
+    let folder = app
+        .project
+        .root
+        .join(".world/markdown-imports/a_very_long_import_namespace_0123456789abcdef/sources");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(
+        folder.join("a_very_long_source_file_name_0123456789abcdef.wl"),
+        "entity imported kind place\n",
+    )
+    .unwrap();
+    app.project.refresh().unwrap();
+    app.recompile();
+    let baseline = app.project.content_baseline();
+    for _ in 0..30 {
+        let _ = ctx.run(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1188.0, 848.0))),
+                ..Default::default()
+            },
+            |ctx| {
+                app.sidebar(ctx);
+                assert!(
+                    ctx.available_rect().left() <= 320.0,
+                    "长目录不能把侧栏撑出320px绘制范围：{:?}",
+                    ctx.available_rect()
+                );
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.label("主内容");
+                });
+            },
+        );
+    }
+    // 更高视口中实际水平滚动到长路径末端，不截断或隐藏文件名。
+    let mut end_before = None;
+    let mut end_after = None;
+    for pass in 0..15 {
+        let output = ctx.run(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1188.0, 1800.0))),
+                events: if let Some((_, y)) = end_before {
+                    vec![
+                        Event::PointerMoved(pos2(150.0, y)),
+                        Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: vec2(-100.0, 0.0),
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ]
+                } else {
+                    Vec::new()
+                },
+                ..Default::default()
+            },
+            |ctx| {
+                app.sidebar(ctx);
+                egui::CentralPanel::default().show(ctx, |_| {});
+            },
+        );
+        for shape in &output.shapes {
+            if let egui::Shape::Text(text) = &shape.shape {
+                if text.galley.job.text.ends_with("/sources") {
+                    let end = text.pos + text.galley.rect.right_center().to_vec2();
+                    if pass == 3 {
+                        end_before = Some((end.x, end.y));
+                    }
+                    if pass > 3 && shape.clip_rect.contains(end) {
+                        end_after = Some(end.x);
+                    }
+                }
+            }
+        }
+    }
+    assert!(end_before.is_some(), "长目录全文仍应渲染");
+    assert!(
+        end_after.is_some_and(|end| end < end_before.unwrap().0),
+        "水平滚动应让路径末端进入裁剪区"
+    );
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+    std::fs::remove_dir_all(&app.project.root).unwrap();
 }

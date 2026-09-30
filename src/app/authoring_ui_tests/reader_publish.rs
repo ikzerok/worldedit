@@ -18,6 +18,11 @@ fn reader_publish_entry_is_separate_and_explains_the_offline_boundary() {
         "reader-site.zip",
         &destination.to_string_lossy(),
     );
+    assert!(
+        rendered_text_in_window(&ctx, &mut app, 26, &destination.to_string_lossy())
+            .contains(destination.to_string_lossy().as_ref()),
+        "必须实际编辑目标路径后才能继续发布"
+    );
 
     click(&ctx, &mut app, 26, "生成 / 更新预览");
     let output = frame(&ctx, &mut app, Vec::new(), 26);
@@ -61,6 +66,11 @@ fn reader_publish_uses_explicit_choices_and_publishes_the_reviewed_static_zip() 
         "reader-site.zip",
         &destination.to_string_lossy(),
     );
+    assert!(
+        rendered_text_in_window(&ctx, &mut app, 26, &destination.to_string_lossy())
+            .contains(destination.to_string_lossy().as_ref()),
+        "必须实际编辑目标路径后才能继续发布"
+    );
     click(&ctx, &mut app, 26, "生成 / 更新预览");
     wait_for_reader_publish(&ctx, &mut app);
 
@@ -72,7 +82,10 @@ fn reader_publish_uses_explicit_choices_and_publishes_the_reviewed_static_zip() 
     assert!(rendered.contains("Public Event"), "{rendered}");
     assert!(rendered.contains("Public Chapter"), "{rendered}");
     assert!(rendered.contains("Public Cover"), "{rendered}");
+    let exclusions = "查看排除明细（11 项；仅供作者核对）";
+    let rendered = scroll_from_visible_anchor_to(&ctx, &mut app, 26, "作者只读预览", exclusions);
     assert!(rendered.contains("未公开内容"), "{rendered}");
+    scroll_from_visible_anchor_to(&ctx, &mut app, 26, exclusions, "发布 ZIP");
     assert!(!destination.exists(), "preview must not write output");
     assert_eq!(app.project.content_baseline(), baseline);
     assert_eq!(app.project.is_dirty(), dirty);
@@ -140,11 +153,8 @@ fn reader_publish_uses_explicit_choices_and_publishes_the_reviewed_static_zip() 
     assert_eq!(app.project.content_baseline(), baseline);
     assert_eq!(app.project.is_dirty(), dirty);
     assert_eq!(app.history.len(), history_len);
-    let output = frame(&ctx, &mut app, Vec::new(), 26);
-    let mut rendered = String::new();
-    for shape in &output.shapes {
-        collect_text(&shape.shape, &mut rendered);
-    }
+    let rendered =
+        scroll_from_visible_anchor_to(&ctx, &mut app, 26, "作者只读预览", "阅读包已写入");
     assert!(rendered.contains("阅读包已写入"), "{rendered}");
     let _ = std::fs::remove_file(destination);
 }
@@ -168,6 +178,11 @@ fn reader_publish_cancel_after_preview_leaves_no_output_and_preserves_author_sta
         26,
         "reader-site.zip",
         &destination.to_string_lossy(),
+    );
+    assert!(
+        rendered_text_in_window(&ctx, &mut app, 26, &destination.to_string_lossy())
+            .contains(destination.to_string_lossy().as_ref()),
+        "必须实际编辑目标路径后才能继续发布"
     );
     click(&ctx, &mut app, 26, "生成 / 更新预览");
     wait_for_reader_publish(&ctx, &mut app);
@@ -202,6 +217,11 @@ fn reader_publish_recompile_refreshes_candidates_and_invalidates_the_old_review(
         26,
         "reader-site.zip",
         &destination.to_string_lossy(),
+    );
+    assert!(
+        rendered_text_in_window(&ctx, &mut app, 26, &destination.to_string_lossy())
+            .contains(destination.to_string_lossy().as_ref()),
+        "必须实际编辑目标路径后才能继续发布"
     );
     click(&ctx, &mut app, 26, "生成 / 更新预览");
     wait_for_reader_publish(&ctx, &mut app);
@@ -253,6 +273,11 @@ fn reader_publish_cancel_and_existing_target_failure_never_write_or_overwrite() 
         26,
         "reader-site.zip",
         &destination.to_string_lossy(),
+    );
+    assert!(
+        rendered_text_in_window(&ctx, &mut app, 26, &destination.to_string_lossy())
+            .contains(destination.to_string_lossy().as_ref()),
+        "必须实际编辑目标路径后才能继续发布"
     );
     click(&ctx, &mut app, 26, "生成 / 更新预览");
     wait_for_reader_publish(&ctx, &mut app);

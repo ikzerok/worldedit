@@ -274,7 +274,15 @@ impl WorldeditApp {
 
                         if let Some(id) = self.review.selected_proposal.clone() {
                             ui.separator();
-                            ui.label(egui::RichText::new("提案三方预览").strong());
+                            let close_preview = ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("提案三方预览").strong());
+                                ui.small_button("关闭预览").clicked()
+                            }).inner;
+                            if close_preview {
+                                // 仅收起；保留原比较基线与解决草稿，重开不能绕过过期门。
+                                self.review.selected_proposal = None;
+                                return;
+                            }
                             let proposal = self
                                 .snapshot
                                 .as_ref()
@@ -317,23 +325,38 @@ impl WorldeditApp {
                                 match result {
                                     Ok(preview) => {
                                         ui.label(format!(
-                                            "内容差异 {} 个文件 · 版式差异 {} 个文件",
+                                            "当前合并结果拟写入：内容 {} 个文件 · 版式 {} 个文件",
                                             preview.content_files(),
                                             preview.presentation_files()
                                         ));
-                                        for file in &preview.files {
-                                            ui.label(format!(
-                                                "{} · {}{}",
-                                                file.domain,
-                                                file.path,
-                                                if file.changed {
-                                                    " · 将修改"
-                                                } else {
-                                                    " · 无变化"
-                                                }
+                                        let conflict_files = preview.files.iter()
+                                            .filter(|file| !file.conflicts.is_empty()).count();
+                                        if conflict_files > 0 {
+                                            ui.colored_label(theme::GOLD, format!(
+                                                "{conflict_files} 个文件有冲突；解决草稿尚未计入上面的数量，冲突不是无变化。"
                                             ));
+                                        }
+                                        for file in &preview.files {
+                                            let status = if !file.conflicts.is_empty() {
+                                                if stale {
+                                                    "有冲突 · 比较已过期，暂不可应用"
+                                                } else if proposal_conflicts_resolved(&id, &file.conflicts, &self.review.conflict_resolutions) {
+                                                    "冲突解决草稿已齐 · 仍待明确采纳"
+                                                } else {
+                                                    "待解决冲突 · 暂不可应用"
+                                                }
+                                            } else if file.changed {
+                                                "当前合并结果将修改"
+                                            } else {
+                                                "当前合并结果无改动"
+                                            };
+                                            ui.label(format!("{} · {} · {status}", file.domain, file.path));
                                             if ui.small_button("打开当前原文").clicked() {
-                                                self.jump_to_file(&file.path, 1, 1);
+                                                let path = super::super::workspace_source_path(
+                                                    &self.project,
+                                                    std::path::Path::new(&file.path),
+                                                );
+                                                self.jump_to_file(&path.to_string_lossy(), 1, 1);
                                             }
                                             for difference in &file.differences {
                                                 ui.label(format!(
@@ -364,12 +387,10 @@ impl WorldeditApp {
                                                             columns.iter_mut().zip(sides)
                                                         {
                                                             column.strong(heading);
-                                                            column.add(
-                                                                egui::Label::new(
-                                                                    value.as_deref().unwrap_or("∅"),
-                                                                )
-                                                                .selectable(true)
-                                                                .wrap(),
+                                                            read_only_review_text(
+                                                                column,
+                                                                egui::Id::new(("review-difference", &id, &file.path, &difference.path, heading)),
+                                                                value.as_deref().unwrap_or("∅"),
                                                             );
                                                         }
                                                     });
@@ -388,12 +409,10 @@ impl WorldeditApp {
                                                     let (heading, value) = sides
                                                         [self.review.preview_side.min(sides.len() - 1)];
                                                     ui.strong(heading);
-                                                    ui.add(
-                                                        egui::Label::new(
-                                                            value.as_deref().unwrap_or("∅"),
-                                                        )
-                                                        .selectable(true)
-                                                        .wrap(),
+                                                    read_only_review_text(
+                                                        ui,
+                                                        egui::Id::new(("review-difference", &id, &file.path, &difference.path, heading)),
+                                                        value.as_deref().unwrap_or("∅"),
                                                     );
                                                 }
                                             }
@@ -410,12 +429,10 @@ impl WorldeditApp {
                                                     ("提议", &file.raw.proposed),
                                                 ] {
                                                     ui.strong(heading);
-                                                    ui.add(
-                                                        egui::Label::new(
-                                                            value.as_deref().unwrap_or("∅"),
-                                                        )
-                                                        .selectable(true)
-                                                        .wrap(),
+                                                    read_only_review_text(
+                                                        ui,
+                                                        egui::Id::new(("review-raw", &id, &file.path, heading)),
+                                                        value.as_deref().unwrap_or("∅"),
                                                     );
                                                 }
                                             });
@@ -450,10 +467,13 @@ impl WorldeditApp {
                                             &self.review.conflict_resolutions,
                                         );
                                         if !preview.conflicts.is_empty() {
-                                            ui.label(format!(
-                                                "待逐项解决冲突 {} 项",
-                                                preview.conflicts.len()
-                                            ));
+                                            if stale {
+                                                ui.label("待重新比较：解决草稿保留，暂不可应用");
+                                            } else if conflicts_resolved {
+                                                ui.label("解决草稿已齐 · 仍待明确采纳；提交时 core 会重新验证");
+                                            } else {
+                                                ui.label(format!("待逐项解决冲突 {} 项", preview.conflicts.len()));
+                                            }
                                         }
                                         let open = proposal.status == ProposalStatus::Open;
                                         if ui
@@ -477,7 +497,31 @@ impl WorldeditApp {
                                 }
                             }
                         }
+                        if let Some(response) = ui
+                            .ctx()
+                            .memory(|memory| memory.focused())
+                            .and_then(|id| ui.ctx().read_response(id))
+                        {
+                            if response.gained_focus()
+                                && response.layer_id == ui.layer_id()
+                                && ui.min_rect().contains_rect(response.rect)
+                            {
+                                response.scroll_to_me(None);
+                            }
+                        }
                     });
             });
     }
+}
+
+fn read_only_review_text(ui: &mut egui::Ui, id: egui::Id, mut text: &str) {
+    // &str 实现不可变 TextBuffer：可用键盘选择与复制，但输入、剪切不会改写原文。
+    ui.add(
+        egui::TextEdit::multiline(&mut text)
+            .id(id)
+            .font(egui::TextStyle::Body)
+            .desired_width(f32::INFINITY)
+            .desired_rows(1)
+            .frame(false),
+    );
 }

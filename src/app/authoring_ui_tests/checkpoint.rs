@@ -314,3 +314,129 @@ fn checkpoint_confirmation_repreviews_external_workspace_changes_before_restorin
         .is_some_and(|error| error.contains("过期")));
     assert!(app.project.list_checkpoints().unwrap()[0].available);
 }
+
+fn scroll_checkpoint_details_to(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) {
+    for delta in [-90.0, 90.0] {
+        for _ in 0..100 {
+            let output = frame(ctx, app, Vec::new(), 36);
+            if visible_text_position(&output, label).is_some() {
+                return;
+            }
+            let point = pos2(1000.0, 550.0);
+            let _ = frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(point),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: vec2(0.0, delta),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                36,
+            );
+        }
+    }
+    panic!("宽屏检查点详情滚动后仍不可达：{label}");
+}
+
+#[test]
+fn wide_checkpoint_long_details_can_scroll_to_cancel_and_confirm_restore() {
+    let (ctx, mut app) = app();
+    let source = app.active_file.clone();
+    let original = (0..80).map(|index| {
+        format!("entity checkpoint_related_object_{index:03} kind place as \"关联地点 {index:03}\"\n")
+    }).collect::<String>();
+    app.project.set_text(&source, original.clone()).unwrap();
+    app.project.save().unwrap();
+    let checkpoint = app
+        .project
+        .create_checkpoint(
+            Some("长关联对象检查点".into()),
+            worldline_core::project::CheckpointLimits::default(),
+        )
+        .unwrap();
+    app.tab = super::Tab::CheckpointHistory;
+    app.checkpoint_history.selected_id = Some(checkpoint.id.clone());
+    let draft = format!("{original}\n// 需要保留的未保存草稿\n");
+    app.project.set_text(&source, draft.clone()).unwrap();
+    app.recompile();
+    let baseline = app.project.content_baseline();
+    click(&ctx, &mut app, 36, "预览恢复…");
+    assert!(app
+        .checkpoint_history
+        .preview
+        .as_ref()
+        .unwrap()
+        .changes
+        .iter()
+        .any(|change| change.affected_objects.len() >= 80));
+    scroll_checkpoint_details_to(&ctx, &mut app, "打开恢复确认…");
+    click(&ctx, &mut app, 36, "打开恢复确认…");
+    scroll_checkpoint_details_to(&ctx, &mut app, "取消恢复");
+    click(&ctx, &mut app, 36, "取消恢复");
+    assert!(!app.checkpoint_history.restore_confirmation);
+    assert!(app.checkpoint_history.preview.is_none());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.project.document(&source).unwrap(), draft);
+    assert_eq!(std::fs::read_to_string(&source).unwrap(), original);
+    assert!(app.history.is_empty());
+    assert_eq!(app.project.list_checkpoints().unwrap().len(), 1);
+
+    click(&ctx, &mut app, 36, "预览恢复…");
+    scroll_checkpoint_details_to(&ctx, &mut app, "打开恢复确认…");
+    click(&ctx, &mut app, 36, "打开恢复确认…");
+    assert!(app.checkpoint_history.restore_confirmation);
+    scroll_checkpoint_details_to(&ctx, &mut app, "确认恢复此工程检查点");
+    click(&ctx, &mut app, 36, "确认恢复此工程检查点");
+    assert_eq!(app.project.document(&source).unwrap(), original);
+    assert_eq!(std::fs::read_to_string(&source).unwrap(), original);
+    assert!(!app.project.is_dirty());
+    assert_eq!(app.history.len(), 1);
+    app.undo(false);
+    assert_eq!(app.project.document(&source).unwrap(), draft);
+    assert!(app.project.is_dirty());
+}
+
+#[test]
+fn keyboard_checkpoint_preview_compare_and_cancel_keep_draft() {
+    let (ctx, mut app) = app();
+    app.project.save().unwrap();
+    let source = app.active_file.clone();
+    let original = app.project.document(&source).unwrap().to_owned();
+    let checkpoint = app
+        .project
+        .create_checkpoint(
+            Some("键盘比较".into()),
+            worldline_core::project::CheckpointLimits::default(),
+        )
+        .unwrap();
+    app.checkpoint_history.selected_id = Some(checkpoint.id);
+    let draft = format!("{original}\n// keyboard draft\n");
+    app.project.set_text(&source, draft.clone()).unwrap();
+    app.recompile();
+    let baseline = app.project.content_baseline();
+    keyboard::tab_to(&ctx, &mut app, 23, "预览恢复…", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Enter, false);
+    assert!(app.checkpoint_history.preview.is_some());
+    keyboard::tab_to(&ctx, &mut app, 23, "文本差异：world.wl", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Enter, false);
+    let text = rendered_text_in_window(&ctx, &mut app, 23, "keyboard draft");
+    for label in ["base", "current", "checkpoint", "keyboard draft"] {
+        assert!(text.contains(label), "{text}");
+    }
+    keyboard::tab_to(&ctx, &mut app, 23, "打开恢复确认…", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Enter, false);
+    assert!(app.checkpoint_history.restore_confirmation);
+    keyboard::tab_to(&ctx, &mut app, 23, "取消恢复", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Tab, true);
+    keyboard::tab_to(&ctx, &mut app, 23, "取消恢复", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Escape, false);
+    assert!(!app.checkpoint_history.restore_confirmation);
+    assert!(app.checkpoint_history.preview.is_none());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.project.document(&source).unwrap(), draft);
+    assert_eq!(std::fs::read_to_string(source).unwrap(), original);
+    assert!(app.history.is_empty());
+}
