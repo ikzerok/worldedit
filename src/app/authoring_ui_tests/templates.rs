@@ -123,6 +123,13 @@ fn project_template_replacement_requires_preview_and_confirm_and_keeps_instances
 
 #[test]
 fn project_template_fields_render_by_type_and_leave_unowned_values_intact() {
+    template_fields_preserve_values(false);
+}
+#[test]
+fn project_template_fields_select_complete_identity_with_windows_sources() {
+    template_fields_preserve_values(true);
+}
+fn template_fields_preserve_values(windows_sources: bool) {
     let (ctx, mut app) = app();
     let source = concat!(
         "entity a kind place as \"同名\"\n",
@@ -151,6 +158,30 @@ fn project_template_fields_render_by_type_and_leave_unowned_values_intact() {
     );
     app.edit_entity(Some("a"));
     assert!(app.entity_editor.is_some(), "{:?}", app.io_error);
+    // 仅改变 UI 候选来源显示，模拟 Windows 路径匹配 c；不改作品文件或身份。
+    if windows_sources {
+        for object in &mut app
+            .snapshot
+            .as_mut()
+            .unwrap()
+            .result
+            .analysis
+            .catalog
+            .objects
+        {
+            object.file = r"C:\Users\runneradmin\AppData\Local\Temp\worldedit-form-ui-12345-1234567890123456789-0\world.wl".into();
+        }
+        assert_eq!(
+            crate::app::object_picker::candidates(
+                &app.snapshot.as_ref().unwrap().result.analysis.catalog,
+                "c",
+                &["entity"]
+            )
+            .len(),
+            3,
+            "来源路径中的 c 必须同时保留三个同名候选"
+        );
+    }
 
     let rendered = rendered_text_in_window(&ctx, &mut app, 0, "工程模板");
 

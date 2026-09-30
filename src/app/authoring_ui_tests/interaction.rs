@@ -332,7 +332,7 @@ pub(super) fn click_containing(
     let point = output
         .shapes
         .iter()
-        .find_map(|shape| text_position_contains(&shape.shape, fragment))
+        .find_map(|shape| clipped_text_position(&shape.shape, fragment, shape.clip_rect))
         .unwrap_or_else(|| {
             let mut rendered = String::new();
             for shape in &output.shapes {
