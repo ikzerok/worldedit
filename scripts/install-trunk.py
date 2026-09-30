@@ -120,7 +120,7 @@ def install():
     except BaseException:
         shutil.rmtree(executable.parent)
         raise
-    print(f"已验证官方 Trunk {VERSION}；下一步核对 PATH 后使用")
+    print(f"Verified official Trunk {VERSION}; verify PATH in the next step before use")
 
 
 def verify_path():
@@ -129,7 +129,7 @@ def verify_path():
     require(actual is not None and Path(actual).resolve(strict=True) == executable,
             "PATH 未命中本次安装的固定 Trunk")
     verify_executable(executable)
-    print(f"Trunk PATH、SHA256 和版本已验证：{executable}")
+    print(f"Verified Trunk PATH, SHA256 and version: {str(executable)!a}")
 
 
 if __name__ == "__main__":

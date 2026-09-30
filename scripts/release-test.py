@@ -654,6 +654,24 @@ class TrunkInstallTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "PATH"):
                     self.installer.verify_path()
 
+    def test_success_logs_support_strict_cp1252_with_unicode_paths(self):
+        runner_temp = self.root / "CI-中文路径"
+        runner_temp.mkdir()
+        buffer = io.BytesIO()
+        with io.TextIOWrapper(buffer, encoding="cp1252", errors="strict") as stdout, \
+             patch("sys.stdout", stdout), patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+            self.install()
+            executable = self.installer.installed_path()
+            with patch.object(self.installer.shutil, "which", return_value=str(executable)):
+                self.installer.verify_path()
+            stdout.flush()
+            log = buffer.getvalue().decode("ascii")
+        self.assertIn("Verified official Trunk 0.21.14", log)
+        self.assertIn(ascii(str(executable)), log)
+        self.assertEqual(self.run.call_count, 2)
+        self.assertEqual(executable.read_bytes(), self.binary)
+        self.assertEqual(self.path_file.read_text(encoding="utf-8"), str(executable.parent) + "\n")
+
     def test_download_rejects_untrusted_redirect_and_http(self):
         for url in ["http://github.com/file", "https://evil.invalid/file", "https://github.com.evil.invalid/file",
                     "https://user:secret@github.com/file", "https://github.com:444/file"]:
