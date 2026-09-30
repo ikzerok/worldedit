@@ -11,6 +11,7 @@ import stat
 import unicodedata
 import subprocess
 import tempfile
+import time
 import tomllib
 import zipfile
 
@@ -67,17 +68,27 @@ def pages(path, collection=None):
     return output
 
 
-def release_set(tag, expected_id=None):
-    # A contents:write token sees drafts, unlike a read-only token/tag endpoint.
-    releases = pages(f"repos/{EDITOR}/releases?per_page=100")
-    require(all(isinstance(item.get("id"), int) and isinstance(item.get("tag_name"), str)
-                and isinstance(item.get("draft"), bool) for item in releases), "Release 分页条目缺少必要字段")
-    matches = [item for item in releases if item["tag_name"] == tag]
-    if expected_id is None:
-        require(not matches, "已有同名 draft 或公开 Release，停止且不覆盖")
-    else:
-        require(len(matches) == 1 and matches[0].get("id") == expected_id,
-                "同名 Release 不唯一或 ID 改变，停止")
+def release_set(tag, expected_id=None, target_sha=None):
+    # 新建 draft 的列表可见性允许有限延迟；固定 ID 身份每轮仍须核验。
+    for attempt in range(4 if target_sha is not None else 1):
+        if target_sha is not None:
+            fixed = api(f"repos/{EDITOR}/releases/{expected_id}")
+            require(fixed.get("id") == expected_id and fixed.get("tag_name") == tag
+                    and fixed.get("target_commitish") == target_sha and fixed.get("draft") is True,
+                    "新建 draft 的身份、来源或状态已改变，停止")
+        releases = pages(f"repos/{EDITOR}/releases?per_page=100")
+        require(all(isinstance(item.get("id"), int) and isinstance(item.get("tag_name"), str)
+                    and isinstance(item.get("draft"), bool) for item in releases), "Release 分页条目缺少必要字段")
+        matches = [item for item in releases if item["tag_name"] == tag]
+        if expected_id is None:
+            require(not matches, "已有同名 draft 或公开 Release，停止且不覆盖")
+            return
+        if matches:
+            require(len(matches) == 1 and matches[0].get("id") == expected_id,
+                    "同名 Release 不唯一或 ID 改变，停止")
+            return
+        require(target_sha is not None and attempt < 3, "新建 draft 未在有界等待内可见，停止")
+        time.sleep(2 ** attempt)
 
 
 def absent(path):
@@ -260,7 +271,7 @@ def publish(root):
         "prerelease": False, "body": "Windows/Web 与双仓源码。完整配对提交及 CI 见 release-pair.json；下载后核对 SHA256SUMS.txt。"})
     release_id = release["id"]
     require(release.get("draft") is True, "创建结果不是 draft，停止")
-    release_set(tag, release_id)
+    release_set(tag, release_id, sha)
     gh("release", "upload", tag, *[str(root / n) for n in sorted(ASSETS)], "--repo", EDITOR)
     uploaded = api(f"repos/{EDITOR}/releases/{release_id}")
     require(uploaded.get("draft") is True and uploaded.get("tag_name") == tag

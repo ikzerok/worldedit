@@ -70,19 +70,15 @@ impl WorldeditApp {
         egui::CentralPanel::default()
             .frame(theme::panel().fill(BG))
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.heading("人物");
-                        ui.label(theme::muted(format!(
-                            "{} 位人物 · 全局 ID 与反向事件索引",
-                            ids.len()
-                        )));
-                    });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(theme::primary("＋ 新建人物")).clicked() {
-                            self.new_character();
-                        }
-                    });
+                theme::page_heading(
+                    ui,
+                    "人物",
+                    &format!("{} 位人物 · 全局 ID 与反向事件索引", ids.len()),
+                );
+                theme::toolbar(ui, |ui| {
+                    if ui.add(theme::primary("＋ 新建人物")).clicked() {
+                        self.new_character();
+                    }
                 });
                 ui.add_space(18.0);
                 egui::ScrollArea::horizontal()

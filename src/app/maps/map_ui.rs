@@ -180,6 +180,7 @@ impl super::super::WorldeditApp {
                         self.map_overview_panel(ui, &map_summaries, &mut back_requested);
                         if has_document {
                             self.map_layers_panel(ui, &selected_map_id);
+                            self.svg_import_panel(ui);
 
                             self.map_search_panel(ui);
 

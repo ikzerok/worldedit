@@ -15,6 +15,7 @@ mod map_ui;
 pub(super) mod navigation;
 mod raster;
 mod render;
+mod svg_import_ui;
 
 use camera::Camera2D;
 use egui::{Color32, Pos2, Rect, Vec2};
@@ -144,7 +145,7 @@ pub(super) fn render_snapshot(document: &MapDocument) -> MapRenderSnapshot {
                         role: placement.role.clone(),
                         label_override: placement.label_override.clone(),
                         geometry: geometry_from_core(&placement.geometry),
-                        style: MapStyle::default(),
+                        style: svg_import_ui::map_style(placement.style.as_ref()),
                     }
                 })
                 .collect(),
@@ -316,6 +317,7 @@ pub(super) struct PendingMapCommand {
 }
 
 pub(super) struct MapCanvas {
+    svg_import: svg_import_ui::SvgImportForm,
     snapshot: MapRenderSnapshot,
     core_snapshot: MapRenderSnapshot,
     source_version: u64,

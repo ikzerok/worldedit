@@ -198,16 +198,12 @@ pub(super) fn draw_geometry(
                 .map(|point| camera.normalized_to_screen(point.as_pos2(), viewport))
                 .collect::<Vec<_>>();
             if let Some(triangles) = triangulate_polygon(points) {
-                for triangle in triangles {
-                    painter.add(Shape::convex_polygon(
-                        triangle
-                            .into_iter()
-                            .map(|index| screen_points[index])
-                            .collect(),
-                        style.fill,
-                        Stroke::NONE,
-                    ));
-                }
+                // 三角形共享同一网格，避免每片单独抗锯齿造成半透明接缝。
+                painter.add(Shape::mesh(polygon_fill_mesh(
+                    &screen_points,
+                    &triangles,
+                    style.fill,
+                )));
             }
             if screen_points.len() >= 3 {
                 painter.add(Shape::closed_line(
@@ -239,5 +235,35 @@ pub(super) fn draw_control_points(
                 draw(painter, point);
             }
         }
+    }
+}
+
+fn polygon_fill_mesh(points: &[Pos2], triangles: &[[usize; 3]], color: Color32) -> egui::Mesh {
+    let mut mesh = egui::Mesh::default();
+    for point in points {
+        mesh.colored_vertex(*point, color);
+    }
+    for &[a, b, c] in triangles {
+        mesh.add_triangle(a as u32, b as u32, c as u32);
+    }
+    mesh
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn polygon_fill_uses_shared_vertices_without_internal_aa_edges() {
+        let color = Color32::from_rgba_unmultiplied(10, 50, 90, 128);
+        let points = [
+            Pos2::ZERO,
+            egui::pos2(10., 0.),
+            egui::pos2(10., 10.),
+            egui::pos2(0., 10.),
+        ];
+        let mesh = polygon_fill_mesh(&points, &[[0, 1, 2], [0, 2, 3]], color);
+        assert_eq!(mesh.vertices.len(), 4);
+        assert_eq!(mesh.indices, [0, 1, 2, 0, 2, 3]);
+        assert!(mesh.vertices.iter().all(|vertex| vertex.color == color));
     }
 }

@@ -46,8 +46,8 @@ pub fn install(ctx: &egui::Context) {
     style.visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, ACCENT);
     style.visuals.hyperlink_color = ACCENT;
     style.animation_time = 0.12;
-    style.spacing.item_spacing = Vec2::new(10.0, 9.0);
-    style.spacing.button_padding = Vec2::new(12.0, 7.0);
+    style.spacing.item_spacing = Vec2::new(8.0, 8.0);
+    style.spacing.button_padding = Vec2::new(10.0, 6.0);
     style.spacing.interact_size = Vec2::new(36.0, 32.0);
     style.spacing.window_margin = egui::Margin::same(20);
     style
@@ -61,7 +61,7 @@ pub fn install(ctx: &egui::Context) {
         .insert(TextStyle::Heading, FontId::proportional(22.0));
     style
         .text_styles
-        .insert(TextStyle::Small, FontId::proportional(11.0));
+        .insert(TextStyle::Small, FontId::proportional(12.0));
     ctx.set_style(style);
 }
 
@@ -80,4 +80,25 @@ pub fn card() -> egui::Frame {
         .corner_radius(12)
         .inner_margin(16)
         .stroke(Stroke::new(1.0_f32, BORDER))
+}
+
+/// 同一节奏用于功能页标题；说明自动换行，不挤占右侧操作空间。
+pub fn page_heading(ui: &mut egui::Ui, title: &str, subtitle: &str) {
+    ui.heading(title);
+    if !subtitle.is_empty() {
+        ui.add(egui::Label::new(muted(subtitle)).wrap());
+    }
+    ui.add_space(8.0);
+}
+
+/// 密集工具区与阅读区分开，窄面板时自然换行。
+pub fn toolbar<R>(ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let result = ui
+        .horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
+            contents(ui)
+        })
+        .inner;
+    ui.add_space(8.0);
+    result
 }

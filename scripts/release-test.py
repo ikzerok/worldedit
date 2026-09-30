@@ -352,6 +352,39 @@ class AssetTests(unittest.TestCase):
         release.verify_assets(self.root, self.pair)
 
 
+class ReleaseVisibilityTests(unittest.TestCase):
+    def setUp(self):
+        self.draft = {"id": 77, "tag_name": "v0.4.0", "draft": True, "target_commitish": E}
+
+    def test_new_draft_waits_one_two_four_seconds_with_fixed_id_checks(self):
+        with patch.object(release, "api", return_value=self.draft) as api, \
+             patch.object(release, "pages", side_effect=[[], [], [], [self.draft]]), \
+             patch.object(release.time, "sleep") as sleep:
+            release.release_set("v0.4.0", 77, E)
+            self.assertEqual([c.args[0] for c in sleep.call_args_list], [1, 2, 4])
+            self.assertEqual(api.call_count, 4)
+            self.assertTrue(all(c.args == (f"repos/{release.EDITOR}/releases/77",) for c in api.call_args_list))
+
+    def test_missing_draft_stops_after_bounded_wait(self):
+        with patch.object(release, "api", return_value=self.draft), \
+             patch.object(release, "pages", return_value=[]), patch.object(release.time, "sleep") as sleep:
+            with self.assertRaises(RuntimeError): release.release_set("v0.4.0", 77, E)
+            self.assertEqual(sleep.call_count, 3)
+
+    def test_duplicate_or_changed_identity_never_retries(self):
+        for listing, fixed in [([self.draft, self.draft], self.draft),
+                               ([dict(self.draft, id=78)], self.draft),
+                               ([], dict(self.draft, id=78)),
+                               ([], dict(self.draft, draft=False)),
+                               ([], dict(self.draft, target_commitish=C)),
+                               ([], dict(self.draft, tag_name="v9.9.9"))]:
+            with self.subTest(listing=listing, fixed=fixed), \
+                 patch.object(release, "api", return_value=fixed), \
+                 patch.object(release, "pages", return_value=listing), patch.object(release.time, "sleep") as sleep:
+                with self.assertRaises(RuntimeError): release.release_set("v0.4.0", 77, E)
+                sleep.assert_not_called()
+
+
 class SnapshotTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

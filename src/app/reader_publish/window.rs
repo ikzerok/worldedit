@@ -45,6 +45,17 @@ impl WorldeditApp {
                     .id_salt("reader-publish-choices")
                     .max_height(440.0)
                     .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            if ui.button("选择全部资料").clicked() {
+                                state.objects = objects.iter().map(|o| o.target.clone()).collect();
+                                changed = true;
+                            }
+                            if ui.button("清空资料选择").clicked() {
+                                state.objects.clear();
+                                changed = true;
+                            }
+                        });
+                        ui.label("全部资料不包含地图、章节和附件；它们仍需逐项选择并核对。");
                         ui.heading(format!("资料对象（{}）", objects.len()));
                         for choice in &objects {
                             let mut selected = state.objects.contains(&choice.target);
@@ -127,6 +138,7 @@ impl WorldeditApp {
                         if attachments.is_empty() {
                             ui.label("当前工程没有已登记的附件。");
                         }
+                        changed |= state.map_choices_ui(ui);
                     });
                 if changed {
                     state.invalidate_review();

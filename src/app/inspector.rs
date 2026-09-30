@@ -8,8 +8,11 @@ use worldline_core::authoring::{EffectDraft, WorldDraft};
 use worldline_core::catalog::Catalog;
 
 pub(super) fn field(ui: &mut egui::Ui, label: &str, value: &mut String) {
-    ui.label(theme::muted(label));
-    ui.add(egui::TextEdit::singleline(value).desired_width(f32::INFINITY));
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 4.0;
+        ui.add(egui::Label::new(theme::muted(label)).wrap());
+        ui.add(egui::TextEdit::singleline(value).desired_width(f32::INFINITY));
+    });
 }
 
 fn effect_label(when: EffectWhen) -> &'static str {

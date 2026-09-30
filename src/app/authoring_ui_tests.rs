@@ -35,3 +35,5 @@ mod source_focus;
 mod workspace_refresh;
 
 mod keyboard;
+
+mod visual_layout;
