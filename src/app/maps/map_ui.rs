@@ -1,6 +1,9 @@
 use super::*;
 impl super::super::WorldeditApp {
     pub(in crate::app) fn map_tab(&mut self, ctx: &egui::Context) {
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.map_form.text_draft = None;
+        }
         let (map_summaries, map_ids, map_diagnostics) = self
             .snapshot
             .as_ref()
@@ -153,6 +156,9 @@ impl super::super::WorldeditApp {
 
         let selected_placement = self.map_canvas.selected_placement();
         let selected_label = selected_placement.as_ref().and_then(|placement| {
+            if let MapGeometry::Text { text, .. } = &placement.geometry {
+                return Some(text.clone());
+            }
             placement.label_override.clone().or_else(|| {
                 placement.target_ref.as_ref().and_then(|target| {
                     self.snapshot
@@ -226,7 +232,13 @@ impl super::super::WorldeditApp {
                         scroll = scroll.vertical_scroll_offset(0.0);
                     }
                     scroll.show(ui, |ui| {
-                        if has_document {
+                        let text_active = has_document
+                            && self.map_text_panel(
+                                ui,
+                                selected_map_id.as_deref(),
+                                selected_placement.as_ref(),
+                            );
+                        if has_document && !text_active {
                             self.map_selected_marker_panel(
                                 ui,
                                 selected_map_id.clone(),
@@ -239,7 +251,13 @@ impl super::super::WorldeditApp {
                         if has_document {
                             // 打开的导入表单不能被折叠或藏在其他长表单之后。
                             self.svg_import_panel(ui);
-                            self.map_markers_panel(ui, selected_map_id.clone(), selected_placement);
+                            if !text_active {
+                                self.map_markers_panel(
+                                    ui,
+                                    selected_map_id.clone(),
+                                    selected_placement,
+                                );
+                            }
                             self.map_layers_panel(ui, &selected_map_id);
                             self.map_search_panel(ui);
                         } else if self.map_form.has_uncommitted_work() {
@@ -336,6 +354,7 @@ impl super::super::WorldeditApp {
                     });
                 }
                 ui.separator();
+                self.map_canvas.form_blocked = self.map_form.text_draft.is_some();
                 self.map_canvas.show(ui);
             });
 

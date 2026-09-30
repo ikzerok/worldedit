@@ -304,7 +304,7 @@ impl WorldeditApp {
                             let purpose = match placement.geometry {
                                 MapGeometry::Polyline { .. } => Some("path"),
                                 MapGeometry::Polygon { .. } => Some("distribution"),
-                                MapGeometry::Point { .. } => None,
+                                MapGeometry::Point { .. } | MapGeometry::Text { .. } => None,
                             };
                             let Some(purpose) = purpose else {
                                 continue;

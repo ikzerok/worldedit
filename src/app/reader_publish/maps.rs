@@ -14,7 +14,13 @@ impl ReaderPublishState {
                 placements: map
                     .placements
                     .into_values()
-                    .map(|p| (p.id, p.label_override.unwrap_or_else(|| "地图标记".into())))
+                    .map(|p| {
+                        let label = match p.geometry {
+                            worldline_core::presentation::MapGeometry::Text { text, .. } => text,
+                            _ => p.label_override.unwrap_or_else(|| "地图标记".into()),
+                        };
+                        (p.id, label)
+                    })
                     .collect(),
                 rasters: map
                     .raster_layers

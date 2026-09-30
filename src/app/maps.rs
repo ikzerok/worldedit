@@ -16,6 +16,7 @@ pub(super) mod navigation;
 mod raster;
 mod render;
 mod svg_import_ui;
+mod text_labels;
 
 use camera::Camera2D;
 use egui::{Color32, Pos2, Rect, Vec2};
@@ -170,6 +171,17 @@ fn geometry_from_core(geometry: &worldline_core::presentation::MapGeometry) -> M
         worldline_core::presentation::MapGeometry::Point { position } => {
             MapGeometry::Point(NormalizedPoint::new(position[0] as f32, position[1] as f32))
         }
+        worldline_core::presentation::MapGeometry::Text {
+            position,
+            text,
+            font_size,
+            color,
+        } => MapGeometry::Text {
+            position: NormalizedPoint::new(position[0] as f32, position[1] as f32),
+            text: text.clone(),
+            font_size: *font_size as f32,
+            color: color.clone(),
+        },
         worldline_core::presentation::MapGeometry::Polyline { points } => MapGeometry::Polyline(
             points
                 .iter()
@@ -190,6 +202,17 @@ fn core_geometry(geometry: &MapGeometry) -> worldline_core::presentation::MapGeo
         MapGeometry::Point(point) => {
             worldline_core::presentation::MapGeometry::point([point.x as f64, point.y as f64])
         }
+        MapGeometry::Text {
+            position,
+            text,
+            font_size,
+            color,
+        } => worldline_core::presentation::MapGeometry::Text {
+            position: [position.x as f64, position.y as f64],
+            text: text.clone(),
+            font_size: *font_size as f64,
+            color: color.clone(),
+        },
         MapGeometry::Polyline(points) => worldline_core::presentation::MapGeometry::Polyline {
             points: points
                 .iter()
@@ -235,12 +258,14 @@ pub(super) enum CanvasMode {
 pub(super) enum CanvasTool {
     Select,
     Point,
+    Text,
     Polyline,
     Polygon,
 }
 
 #[derive(Default)]
 pub(super) struct PlacementForm {
+    pub(super) text_draft: Option<text_labels::TextDraft>,
     pub(super) target: Option<TargetRef>,
     pub(super) target_query: String,
     pub(super) annotation: String,
@@ -266,7 +291,8 @@ pub(super) struct PendingPlace {
 
 impl PlacementForm {
     pub(super) fn has_uncommitted_work(&self) -> bool {
-        self.pending_place.is_some()
+        self.text_draft.is_some()
+            || self.pending_place.is_some()
             || self.editing_placement.is_some()
             || self.target.is_some()
             || !self.target_query.trim().is_empty()
@@ -280,6 +306,12 @@ impl PlacementForm {
     }
 
     pub(super) fn clipboard_text(&self) -> String {
+        if let Some(draft) = &self.text_draft {
+            return format!(
+                "文字标签：{}\n字号：{}\n颜色：{}",
+                draft.text, draft.font_size, draft.color
+            );
+        }
         let target = self
             .target
             .as_ref()
@@ -319,12 +351,14 @@ pub(super) struct PendingMapCommand {
 pub(super) struct MapCanvas {
     svg_import: svg_import_ui::SvgImportForm,
     snapshot: MapRenderSnapshot,
+    text_sizes: HashMap<String, (Vec2, f32)>,
     core_snapshot: MapRenderSnapshot,
     source_version: u64,
     camera: Camera2D,
     fit_pending: bool,
     viewport: Rect,
     mode: CanvasMode,
+    form_blocked: bool,
     tool: CanvasTool,
     draft: Option<MapGeometry>,
     selected: Option<(String, GeometryHit)>,
@@ -389,3 +423,7 @@ mod tests_support;
 #[cfg(test)]
 #[path = "maps/tests/layout.rs"]
 mod tests_layout;
+
+#[cfg(test)]
+#[path = "maps/tests/text_labels.rs"]
+mod tests_text_labels;

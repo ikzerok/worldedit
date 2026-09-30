@@ -58,6 +58,8 @@ impl MapCanvas {
                     .on_hover_text("选择标记并拖动控制点，释放后提交一个展示命令");
                 ui.selectable_value(&mut self.tool, CanvasTool::Point, "点")
                     .on_hover_text("在地图范围内放置一个点预览");
+                ui.selectable_value(&mut self.tool, CanvasTool::Text, "文字")
+                    .on_hover_text("点按放置独立文字；填写文字后保存，Esc 取消落点");
                 ui.selectable_value(&mut self.tool, CanvasTool::Polyline, "线")
                     .on_hover_text("连续点按添加线段，双击完成，Esc 取消");
                 ui.selectable_value(&mut self.tool, CanvasTool::Polygon, "面")
@@ -97,7 +99,27 @@ impl MapCanvas {
         for layer in &self.snapshot.layers {
             if layer.visible {
                 for placement in &layer.placements {
-                    if let Some(hit) = hit_test(&placement.geometry, point, screen_scale, tolerance)
+                    let text_hit = if let MapGeometry::Text { position, .. } = &placement.geometry {
+                        self.text_sizes
+                            .get(&placement.id)
+                            .filter(|(size, zoom)| {
+                                Rect::from_min_size(
+                                    self.camera
+                                        .normalized_to_screen(position.as_pos2(), self.viewport),
+                                    *size * (self.camera.zoom() / *zoom),
+                                )
+                                .expand(4.0)
+                                .contains(
+                                    self.camera
+                                        .normalized_to_screen(point.as_pos2(), self.viewport),
+                                )
+                            })
+                            .map(|_| GeometryHit::Vertex(0))
+                    } else {
+                        None
+                    };
+                    if let Some(hit) = text_hit
+                        .or_else(|| hit_test(&placement.geometry, point, screen_scale, tolerance))
                     {
                         found = Some((placement.id.clone(), hit));
                     }
@@ -113,6 +135,30 @@ impl MapCanvas {
         if self.fit_pending && self.viewport.is_positive() {
             self.camera.fit(self.viewport);
             self.fit_pending = false;
+        }
+        self.text_sizes.clear();
+        for layer in &self.snapshot.layers {
+            if layer.visible {
+                for placement in &layer.placements {
+                    if let MapGeometry::Text {
+                        text,
+                        font_size,
+                        color,
+                        ..
+                    } = &placement.geometry
+                    {
+                        let galley = text_labels::text_layout(
+                            &painter,
+                            &self.camera,
+                            text,
+                            *font_size,
+                            color,
+                        );
+                        self.text_sizes
+                            .insert(placement.id.clone(), (galley.size(), self.camera.zoom()));
+                    }
+                }
+            }
         }
         self.handle_input(&response, ui);
         painter.rect_filled(response.rect, 0.0, Color32::from_gray(22));
@@ -184,6 +230,9 @@ impl MapCanvas {
     }
 
     pub(super) fn handle_edit_input(&mut self, response: &egui::Response, ui: &egui::Ui) {
+        if self.form_blocked {
+            return;
+        }
         if ui.input(|input| input.key_pressed(egui::Key::Delete))
             && ui.ctx().memory(|memory| memory.focused()).is_none()
         {
@@ -267,6 +316,14 @@ impl MapCanvas {
                 CanvasTool::Point => {
                     let geometry = MapGeometry::Point(normalized);
                     self.submit_intent(EditIntent::Create(geometry.clone()), &geometry);
+                }
+                CanvasTool::Text => {
+                    self.push_intent(EditIntent::Create(MapGeometry::Text {
+                        position: normalized,
+                        text: String::new(),
+                        font_size: 24.0,
+                        color: "#e8eef8".into(),
+                    }));
                 }
                 CanvasTool::Polyline | CanvasTool::Polygon => self.append_draft_point(normalized),
                 CanvasTool::Select => {
