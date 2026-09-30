@@ -18,6 +18,7 @@ mod frame_profile;
 mod inspector;
 mod map_creation;
 mod maps;
+mod navigation;
 mod network;
 mod network_state;
 mod overview;
@@ -187,6 +188,7 @@ pub struct WorldeditApp {
     catalog_filter: String,
     catalog_query: String,
     catalog_recursive: bool,
+    sidebar_collapsed: bool,
     tag_editor: Option<(Option<String>, WorldDraft)>,
     anchor_editor: Option<(Option<String>, worldline_core::anchors::AnchorDraft)>,
     overview_storyline: String,
@@ -278,6 +280,7 @@ impl WorldeditApp {
             catalog_filter: "tag".into(),
             catalog_query: String::new(),
             catalog_recursive: true,
+            sidebar_collapsed: false,
             tag_editor: None,
             state_editor: None,
             anchor_editor: None,
@@ -860,9 +863,19 @@ impl eframe::App for WorldeditApp {
             self.link_from = None;
             self.character_link = None;
         }
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::B,
+            )
+        }) {
+            self.sidebar_collapsed = !self.sidebar_collapsed;
+        }
         self.top_bar(ctx);
         self.status_bar(ctx);
-        self.sidebar(ctx);
+        if !self.sidebar_collapsed {
+            self.sidebar(ctx);
+        }
         match self.tab {
             Tab::Timeline | Tab::Graph => {
                 self.event_inspector(ctx);
@@ -919,21 +932,42 @@ impl WorldeditApp {
                     if close {
                         self.request_action(Pending::Close, ctx);
                     }
-                    ui.add_space(16.0);
+                    if ui
+                        .button(if self.sidebar_collapsed {
+                            "展开侧栏"
+                        } else {
+                            "收起侧栏"
+                        })
+                        .on_hover_text("切换导航侧栏 · Ctrl+Shift+B")
+                        .clicked()
+                    {
+                        self.sidebar_collapsed = !self.sidebar_collapsed;
+                    }
+                    ui.add_space(6.0);
                     ui.label(
                         egui::RichText::new("worldedit")
                             .strong()
                             .size(18.0)
                             .color(TEXT),
                     );
-                    ui.add_space(12.0);
-                    crate::chrome::subtitle(ui, "世界创作工作台");
+                    if ui.available_width() > 630.0 {
+                        ui.separator();
+                        crate::chrome::subtitle(ui, self.tab.title());
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(theme::primary("导出工程  ↗")).clicked() {
-                            self.directory_dialog(true);
-                        }
-                        if ui.button("保存全部").clicked() {
+                        if ui
+                            .add(theme::primary("保存全部"))
+                            .on_hover_text("保存工作区 · Ctrl+S")
+                            .clicked()
+                        {
                             self.save();
+                        }
+                        if ui
+                            .button("导出")
+                            .on_hover_text("导出完整工程，不是读者发布包")
+                            .clicked()
+                        {
+                            self.directory_dialog(true);
                         }
                         if ui
                             .button("搜索")
@@ -1024,13 +1058,14 @@ impl WorldeditApp {
                         .iter()
                         .filter(|d| d.severity == Severity::Warning)
                         .count();
-                    ui.colored_label(
-                        if errors > 0 { ERROR } else { ACCENT },
-                        if errors > 0 {
-                            format!("● {errors} 个错误")
+                    theme::badge(
+                        ui,
+                        &if errors > 0 {
+                            format!("{errors} 个错误")
                         } else {
-                            "● 编译通过".into()
+                            "检查通过".into()
                         },
+                        if errors > 0 { ERROR } else { ACCENT },
                     );
                     if warnings > 0 {
                         ui.label(theme::muted(format!("{warnings} 个提醒")));
@@ -1042,7 +1077,14 @@ impl WorldeditApp {
                         "全部文件已保存"
                     }));
                     if let Some(message) = &self.message {
-                        ui.label(theme::muted(message));
+                        let width = (ui.available_width() - 260.0).clamp(0.0, 330.0);
+                        if width > 60.0 {
+                            ui.add_sized(
+                                [width, 20.0],
+                                egui::Label::new(theme::muted(message)).truncate(),
+                            )
+                            .on_hover_text(message);
+                        }
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(theme::muted(format!(
@@ -1069,8 +1111,6 @@ impl WorldeditApp {
             });
     }
     fn page_heading(&self, ui: &mut egui::Ui, title: &str, subtitle: &str) {
-        ui.heading(title);
-        ui.label(theme::muted(subtitle));
-        ui.add_space(12.0);
+        theme::page_heading(ui, title, subtitle);
     }
 }

@@ -41,6 +41,16 @@ fn frame(
             4 => app.network_tab(ctx),
             5 => app.target_rename_window(ctx),
             6 => app.preset_editor_window(ctx),
+            8 => {
+                app.top_bar(ctx);
+                app.status_bar(ctx);
+                if !app.sidebar_collapsed {
+                    app.sidebar(ctx);
+                }
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.label("测试内容");
+                });
+            }
             7 => app.review_tab(ctx),
             _ => app.content_deletion_window(ctx),
         },
@@ -470,4 +480,63 @@ fn collaboration_review_saves_comments_and_keeps_conflicting_proposals_open() {
             .status,
         worldline_core::collaboration::ProposalStatus::Open
     );
+}
+
+#[test]
+fn grouped_navigation_and_sidebar_toggle_do_not_change_project() {
+    let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
+    for label in ["世界关联", "协作审阅", "地图画布", "正文概览", "源文件"] {
+        click(&ctx, &mut app, 8, label);
+        assert_eq!(app.tab.title(), label);
+        assert_eq!(app.project.content_baseline(), baseline);
+        assert!(app.history.is_empty());
+    }
+    click(&ctx, &mut app, 8, "收起侧栏");
+    assert!(app.sidebar_collapsed);
+    click(&ctx, &mut app, 8, "展开侧栏");
+    assert!(!app.sidebar_collapsed);
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+}
+
+#[test]
+fn toolbar_actions_stay_outside_window_controls_at_supported_sizes() {
+    fn bounds(shape: &egui::Shape, label: &str) -> Option<Rect> {
+        match shape {
+            egui::Shape::Text(t) if t.galley.job.text == label => {
+                Some(t.galley.rect.translate(t.pos.to_vec2()))
+            }
+            egui::Shape::Vec(items) => items.iter().find_map(|shape| bounds(shape, label)),
+            _ => None,
+        }
+    }
+    for (width, height) in [(1040.0, 660.0), (1280.0, 760.0), (1700.0, 1000.0)] {
+        let (ctx, mut app) = app();
+        for _ in 0..4 {
+            let output = ctx.run(
+                RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(width, height))),
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.top_bar(ctx);
+                    app.status_bar(ctx);
+                    app.sidebar(ctx);
+                },
+            );
+            for label in ["保存全部", "导出", "收起侧栏"] {
+                let rect = output
+                    .shapes
+                    .iter()
+                    .find_map(|s| bounds(&s.shape, label))
+                    .expect(label);
+                assert!(
+                    rect.left() >= 0.0 && rect.right() < width - 126.0,
+                    "{label} at {width}: {rect:?}"
+                );
+                assert!(rect.top() >= 0.0 && rect.bottom() < 60.0);
+            }
+        }
+    }
 }

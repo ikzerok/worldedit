@@ -116,11 +116,11 @@ impl WorldeditApp {
             return;
         };
         let mut open = true;
-        egui::Window::new("Wiki · 注释索引")
+        egui::Window::new("资料阅读")
             .id(egui::Id::new("object-reading"))
             .open(&mut open)
-            .default_width(720.0)
-            .default_height(660.0)
+            .default_width(820.0)
+            .default_height(700.0)
             .resizable(true)
             .vscroll(true)
             .show(ctx, |ui| {
@@ -129,7 +129,7 @@ impl WorldeditApp {
                     self.reading_target = self.reading_history.pop();
                     self.alias_input.clear();
                 }
-                self.reading_content(ui, target);
+                theme::reading_column(ui, |ui| self.reading_content(ui, target));
             });
         if !open {
             self.reading_target = None;
