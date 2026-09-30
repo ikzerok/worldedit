@@ -44,5 +44,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           rustup target add wasm32-unknown-unknown
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: 安装固定 Trunk 官方预编译文件
+        run: |
+          python scripts/install-trunk.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: 核对固定 Trunk 路径与版本
+        run: |
+          python scripts/install-trunk.py --verify-path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: 配对构建与回归
         run: ./scripts/check-pair.ps1

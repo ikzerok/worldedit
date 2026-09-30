@@ -1,5 +1,6 @@
 //! 试玩与重放集成。
 mod debugger;
+mod evidence;
 mod replay;
 mod story;
 

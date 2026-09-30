@@ -56,7 +56,9 @@ impl WorldeditApp {
                 ui.heading("选择");
                 if let Some(play) = &mut self.play {
                     ui.horizontal(|ui| {
-                        if play.paused {
+                        if play.error.is_some() {
+                            ui.label("错误已暂停；重新开始可重试。 ");
+                        } else if play.paused {
                             if ui.button("▶ 继续").clicked() {
                                 play.paused = false;
                             }
@@ -136,6 +138,7 @@ impl WorldeditApp {
                                         .map(|s| s.choose(i))
                                         .is_some_and(|r| r.is_ok())
                                 {
+                                    self.replay_debugger.explanations = None;
                                     self.play_scroll_bottom = true;
                                 }
                             }
@@ -313,7 +316,7 @@ impl WorldeditApp {
                 if play.paused {
                     ui.colored_label(Color32::GRAY, "试玩已暂停；调试重放不会推进当前正文。");
                 }
-                if !play.paused && !play.ended {
+                if !play.paused && !play.ended && play.error.is_none() {
                     match story.continue_story() {
                         Ok(outputs) => {
                             for o in outputs {
@@ -342,7 +345,10 @@ impl WorldeditApp {
                                 }
                             }
                         }
-                        Err(e) => play.error = Some(e.to_string()),
+                        Err(e) => {
+                            play.error = Some(e.to_string());
+                            play.paused = true;
+                        }
                     }
                 }
             }
@@ -386,6 +392,7 @@ impl WorldeditApp {
         if snap.result.has_errors() {
             return;
         }
+        self.replay_debugger.explanations = None;
         // 泄漏快照换取 'static 生命周期(点击级频率;见 PlayState 注释)
         let leaked: &'static (Program, Analysis) = Box::leak(Box::new((
             snap.result.program.clone(),

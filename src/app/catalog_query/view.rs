@@ -1,5 +1,5 @@
 use super::filters::{filter_dimension, push_empty_filter, render_filter_row};
-use super::results::{render_match, render_todo, todo_kind_label};
+use super::results::{render_todo, todo_kind_label};
 use super::*;
 use egui::{RichText, Ui};
 use worldline_core::catalog::TARGET_KINDS;
@@ -62,6 +62,7 @@ impl WorkbenchState {
         match action {
             Action::None => {}
             Action::Run => self.run_query(app, ctx),
+            Action::Sort(sort) => self.apply_sort(app, ctx, sort),
             Action::Next => self.next_page(app),
             Action::Previous(offset) => self.previous_page(app, offset),
             Action::Save => self.save_query(app),
@@ -141,7 +142,7 @@ impl WorkbenchState {
                     .speed(100),
             );
             if ui.button("清空条件").clicked() {
-                self.query = CatalogQuery::default();
+                self.query.filters.clear();
             }
         });
         if let Some(error) = &self.error {
@@ -221,70 +222,6 @@ impl WorkbenchState {
                 }
             }
         });
-    }
-
-    fn render_results(&self, app: &WorldeditApp, ui: &mut Ui, action: &mut Action) {
-        if let Some(page) = &self.page {
-            let stale = page.snapshot != app.project.content_baseline();
-            if stale {
-                ui.colored_label(
-                    crate::theme::GOLD,
-                    "结果已过期：Project 缓冲发生变化。请重新运行查询。",
-                );
-                if ui.button("从第一页重新查询").clicked() {
-                    *action = Action::Run;
-                }
-                return;
-            }
-            ui.separator();
-            if page.total == 0 {
-                ui.label(RichText::new("没有找到匹配资料").strong());
-            } else {
-                let first = page.offset + 1;
-                let last = page.offset + page.items.len();
-                ui.label(
-                    RichText::new(format!("{} 个命中 · 显示 {first}–{last}", page.total)).strong(),
-                );
-            }
-            if !page.diagnostics.is_empty() {
-                egui::CollapsingHeader::new(format!("索引诊断 · {} 项", page.diagnostics.len()))
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        for diagnostic in &page.diagnostics {
-                            ui.colored_label(
-                                if diagnostic.severity == worldline_core::Severity::Error {
-                                    crate::theme::ERROR
-                                } else {
-                                    crate::theme::GOLD
-                                },
-                                format!(
-                                    "{}:{} · {}",
-                                    diagnostic.file, diagnostic.span.line, diagnostic.message
-                                ),
-                            );
-                        }
-                    });
-            }
-            egui::ScrollArea::vertical()
-                .id_salt("catalog-query-results")
-                .max_height(480.0)
-                .show(ui, |ui| {
-                    for item in &page.items {
-                        render_match(ui, app, item, action);
-                    }
-                });
-            ui.horizontal(|ui| {
-                if page.offset > 0 && ui.button("上一页").clicked() {
-                    let offset = page.offset.saturating_sub(self.page_size);
-                    *action = Action::Previous(offset);
-                }
-                if page.next.is_some() && ui.button("下一页").clicked() {
-                    *action = Action::Next;
-                }
-            });
-        } else if self.error.is_none() {
-            ui.label(RichText::new("运行查询后显示结果、来源与 core 命中原因。").weak());
-        }
     }
 
     fn render_saved_queries(&mut self, app: &WorldeditApp, ui: &mut Ui, action: &mut Action) {

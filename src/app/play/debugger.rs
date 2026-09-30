@@ -1,7 +1,7 @@
 use super::super::{PlayState, ReplayDebugger, SavedReplayPath};
 use egui::Color32;
 use worldline_runtime::{
-    ReplayOrigin, ReplayResult, ReplayStatus, ReplayTrace, Story, REPLAY_SCHEMA_VERSION,
+    ReplayOrigin, ReplayResult, ReplayStatus, ReplayTrace, REPLAY_SCHEMA_VERSION,
 };
 
 const MAX_IMPORTED_TRACE_BYTES: usize = 1024 * 1024;
@@ -62,15 +62,28 @@ pub(super) fn render_debugger_controls(
     } else {
         ui.colored_label(Color32::GRAY, "开始试玩后可录制实际选择路径。");
     }
-    if ui.button("解释当前条件（只读）").clicked() {
-        debugger.explanations = match play.story.as_ref().map(Story::explain_choices) {
-            Some(Ok(explanations)) => Some(explanations),
-            Some(Err(error)) => {
-                debugger.notice = Some(format!("条件解释失败：{error}"));
-                None
-            }
-            None => Some(Vec::new()),
-        };
+    let actual_evidence = play
+        .story
+        .as_ref()
+        .and_then(|story| story.choice_evidence());
+    if debugger
+        .explanations
+        .as_deref()
+        .is_some_and(|shown| Some(shown) != actual_evidence)
+    {
+        debugger.explanations = None;
+    }
+    if ui
+        .add_enabled(
+            actual_evidence.is_some(),
+            egui::Button::new("解释当前条件（只读）"),
+        )
+        .clicked()
+    {
+        debugger.explanations = actual_evidence.map(<[_]>::to_vec);
+    }
+    if let Some(explanations) = &debugger.explanations {
+        super::evidence::render(ui, explanations, play.version, current_version);
     }
 
     let selected_text = debugger
@@ -179,7 +192,7 @@ pub(super) fn render_debugger_controls(
         }
     }
     egui::CollapsingHeader::new("导入路径 JSON（最多 1 MiB / 20,000 步）")
-        .default_open(true)
+        .default_open(false)
         .show(ui, |ui| {
             if debugger.import_json.len() > MAX_IMPORTED_TRACE_BYTES {
                 ui.colored_label(
@@ -239,35 +252,6 @@ pub(super) fn render_debugger_controls(
         if ui.button("复制 JSON").clicked() {
             ui.ctx().copy_text(debugger.export_json.clone());
         }
-    }
-    if let Some(explanations) = &debugger.explanations {
-        egui::CollapsingHeader::new(format!("条件说明 · {} 项", explanations.len()))
-            .default_open(true)
-            .show(ui, |ui| {
-                for explanation in explanations {
-                    ui.label(format!(
-                        "{} · {}",
-                        explanation.choice.node, explanation.choice.label
-                    ));
-                    if let Some(condition) = &explanation.condition {
-                        ui.monospace(&condition.expression);
-                        ui.label(format!(
-                            "结果：{}",
-                            condition
-                                .result
-                                .map_or_else(|| "错误".into(), |value| value.to_string())
-                        ));
-                        if let Some(error) = &condition.error {
-                            ui.colored_label(Color32::LIGHT_RED, error);
-                        }
-                    }
-                    if let Some(reason) = &explanation.unavailable_reason {
-                        ui.colored_label(Color32::from_rgb(240, 180, 100), reason);
-                    } else if explanation.available {
-                        ui.label("可选择");
-                    }
-                }
-            });
     }
     if let Some(result) = &debugger.result {
         ui.separator();

@@ -268,6 +268,7 @@ impl WorldeditApp {
         self.alias_input.clear();
         self.link_query.clear();
         self.play = None;
+        self.replay_debugger.explanations = None;
         self.event_editor = None;
         self.character_editor = None;
         self.world_editor = None;

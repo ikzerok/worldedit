@@ -3,6 +3,7 @@ mod actions;
 mod filters;
 mod persistence;
 mod results;
+mod results_view;
 mod view;
 
 use super::WorldeditApp;
@@ -10,9 +11,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use worldline_core::catalog::TargetRef;
 use worldline_core::queries::{
-    CatalogQuery, CatalogQueryOptions, CatalogQueryPage, RelationDirection, SavedQueryDraft,
-    TodoProjection, DEFAULT_CATALOG_QUERY_CANDIDATES, MAX_CATALOG_QUERY_CANDIDATES,
-    MAX_CATALOG_QUERY_PAGE_SIZE,
+    CatalogQuery, CatalogQueryOptions, CatalogQueryPage, CatalogQuerySort, CatalogSortDirection,
+    CatalogSortField, RelationDirection, SavedQueryDraft, TodoProjection,
+    DEFAULT_CATALOG_QUERY_CANDIDATES, MAX_CATALOG_QUERY_CANDIDATES, MAX_CATALOG_QUERY_PAGE_SIZE,
 };
 
 const FAVORITES_STORAGE_KEY: &str = "worldedit.catalog.local_favorites.v1";
@@ -114,6 +115,7 @@ impl WorldeditApp {
 enum Action {
     None,
     Run,
+    Sort(Option<CatalogQuerySort>),
     Next,
     Previous(usize),
     Save,
@@ -190,3 +192,6 @@ mod persistence_tests {
         assert!(reopened.local_favorites[&root].contains("people"));
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod sorting_tests;

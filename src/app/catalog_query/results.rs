@@ -1,48 +1,7 @@
 use super::filters::relative_path;
 use super::*;
 use egui::{RichText, Ui};
-use worldline_core::queries::{CatalogQueryMatch, TodoItem, TodoKind};
-pub(super) fn render_match(
-    ui: &mut Ui,
-    app: &WorldeditApp,
-    item: &CatalogQueryMatch,
-    action: &mut Action,
-) {
-    let object = app
-        .snapshot
-        .as_ref()
-        .and_then(|snapshot| snapshot.result.analysis.catalog.object(&item.target));
-    let label = object.map_or_else(
-        || format!("{} · {}", item.target.kind, item.target.id),
-        |object| {
-            format!(
-                "{} · {} · {}",
-                super::super::catalog::kind_label(&item.target.kind),
-                object.display,
-                item.target.id
-            )
-        },
-    );
-    ui.group(|ui| {
-        ui.horizontal_wrapped(|ui| {
-            if ui.button(label).clicked() {
-                *action = Action::Navigate(item.target.clone());
-            }
-            if ui.button("定位来源").clicked() {
-                *action = Action::Jump(item.source.file.clone(), item.source.line, 1);
-            }
-            ui.label(format!(
-                "{}:{}",
-                relative_path(&app.project.root, &item.source.file),
-                item.source.line
-            ));
-        });
-        for reason in &item.reasons {
-            ui.label(RichText::new(reason).small().weak());
-        }
-    });
-}
-
+use worldline_core::queries::{TodoItem, TodoKind};
 pub(super) fn render_todo(ui: &mut Ui, app: &WorldeditApp, item: &TodoItem, action: &mut Action) {
     ui.group(|ui| {
         ui.label(RichText::new(&item.reason).strong());
