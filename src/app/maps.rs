@@ -385,3 +385,7 @@ mod tests_navigation;
 #[cfg(test)]
 #[path = "maps/tests/support.rs"]
 mod tests_support;
+
+#[cfg(test)]
+#[path = "maps/tests/layout.rs"]
+mod tests_layout;

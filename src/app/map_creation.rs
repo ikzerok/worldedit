@@ -179,7 +179,7 @@ impl super::WorldeditApp {
         }
     }
 
-    fn map_manifest_baseline(&self) -> String {
+    pub(super) fn map_manifest_baseline(&self) -> String {
         let manifest = self.project.root.join(".world/project.json");
         self.project
             .authoring_document(&manifest)
