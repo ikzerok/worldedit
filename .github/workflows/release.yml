@@ -1,5 +1,4 @@
-name: 正式发行
-# GitHub create 覆盖 API 创建分支。普通 push/PR 不触发此工作流。
+name: 恢复既有 v0.3.1 发行
 on:
   create:
 permissions:
@@ -8,85 +7,11 @@ concurrency:
   group: official-release
   cancel-in-progress: false
 jobs:
-  gate:
+  publish:
     if: >-
       github.repository == 'ikzerok/worldedit' &&
       github.event.ref_type == 'branch' &&
-      startsWith(github.event.ref, 'release/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      issues: read
-    outputs:
-      editor_sha: ${{ steps.gate.outputs.editor_sha }}
-      core_sha: ${{ steps.gate.outputs.core_sha }}
-      tag: ${{ steps.gate.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: 离线门禁回归
-        run: python scripts/release-test.py -v
-      - name: 检查版本、双仓 main、CI 和所有工单
-        id: gate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python scripts/release.py gate
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-gate
-          path: release-pair.json
-          if-no-files-found: error
-          retention-days: 14
-  build:
-    needs: gate
-    runs-on: windows-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.gate.outputs.editor_sha }}
-          path: worldedit
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: ikzerok/worldline
-          ref: ${{ needs.gate.outputs.core_sha }}
-          path: worldline
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: actions/download-artifact@v4
-        with:
-          name: release-gate
-          path: gate
-      - name: 安装固定工具链与 Trunk
-        working-directory: worldedit
-        shell: pwsh
-        run: |
-          rustup show active-toolchain
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          rustup target add wasm32-unknown-unknown
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo install trunk --version 0.21.14 --locked
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: 固定提交快照打包与离线核验
-        run: python worldedit/scripts/release-build.py --editor worldedit --core worldline --pair gate/release-pair.json --output release-assets
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-assets
-          path: release-assets/*
-          if-no-files-found: error
-          retention-days: 14
-  publish:
-    needs: [gate, build]
+      github.event.ref == 'release/recover-v0.3.1-399987295'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -95,16 +20,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.gate.outputs.editor_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: 有界恢复离线回归
+        run: python -X warn_default_encoding -W error::EncodingWarning scripts/release-recover-test.py
       - uses: actions/download-artifact@v4
         with:
-          name: release-assets
+          artifact-ids: '11094220457'
+          run-id: '36707894610'
+          github-token: ${{ github.token }}
+          repository: ikzerok/worldedit
+          merge-multiple: true
           path: release-assets
-      - name: 重查门禁，创建 draft，回读全部附件后公开
+      - name: 核对固定草稿及已构建资产，回读后公开
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/release.py publish --directory release-assets
+        run: python scripts/release-recover.py
