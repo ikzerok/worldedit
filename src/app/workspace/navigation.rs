@@ -29,6 +29,7 @@ impl WorldeditApp {
                 .authoring_document(&path)
                 .is_ok_and(|document| !document.is_deleted());
         if known_source {
+            self.remember_author_position();
             self.active_file = path;
             self.tab = Tab::Edit;
             self.jump = Some((line, column));

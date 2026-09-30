@@ -1,15 +1,21 @@
 //! 工作台布局回归，确保收紧导航后仍保留文件入口与创作动作。
-use super::{app, frame, text_position_contains, visible_text_position, Tab};
+use super::{app, click, frame, text_position_contains, visible_text_position, Tab};
 
 #[test]
 fn compact_sidebar_keeps_files_and_primary_actions_visible() {
     let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
     for _ in 0..3 {
         let _ = frame(&ctx, &mut app, Vec::new(), 32);
     }
     let output = frame(&ctx, &mut app, Vec::new(), 32);
-    for label in ["工程文件", "保存全部", "发布给读者", "时间线", "书稿工作台"]
-    {
+    for label in [
+        "工程文件",
+        "保存全部",
+        "发布给读者",
+        "世界资料",
+        "书稿工作台",
+    ] {
         let point = visible_text_position(&output, label)
             .unwrap_or_else(|| panic!("窄窗缺少可见入口：{label}"));
         assert!(
@@ -17,6 +23,19 @@ fn compact_sidebar_keeps_files_and_primary_actions_visible() {
             "{label}: {point:?}"
         );
     }
+    // 最小宽窗通过真实折叠/展开导航到结构视图；不是要求全部模块常驻。
+    click(&ctx, &mut app, 32, "世界资料");
+    click(&ctx, &mut app, 32, "结构与审阅");
+    let expanded = frame(&ctx, &mut app, Vec::new(), 32);
+    let point = visible_text_position(&expanded, "时间线").expect("展开后时间线必须可见");
+    assert!(point.x < 800.0 && point.y < 600.0);
+    click(&ctx, &mut app, 32, "时间线");
+    assert_eq!(app.tab, Tab::Timeline);
+    assert_eq!(
+        app.project.content_baseline(),
+        baseline,
+        "仅导航不能修改作品"
+    );
 }
 
 #[test]

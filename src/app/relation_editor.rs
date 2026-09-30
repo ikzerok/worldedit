@@ -27,45 +27,23 @@ pub(super) fn object_picker(
     query: &mut String,
     constraint: Option<&str>,
 ) -> bool {
-    let mut changed = false;
-    ui.push_id(label, |ui| {
-        ui.label(label);
-        ui.menu_button(object_label(catalog, target), |ui| {
-            ui.set_min_width(320.0);
-            ui.add(egui::TextEdit::singleline(query).hint_text("搜索名称、别名或 ID"));
-            let matches: Vec<_> = catalog
-                .search_objects(query)
-                .into_iter()
-                .filter(|object| constraint.is_none_or(|kind| kind == object.target.kind))
-                .collect();
-            ui.label(theme::muted(format!(
-                "{} 个匹配对象；同名对象以类型与 ID 区分",
-                matches.len()
-            )));
-            egui::ScrollArea::vertical()
-                .max_height(300.0)
-                .show(ui, |ui| {
-                    for object in matches.iter().take(100) {
-                        if ui.button(object_label(catalog, &object.target)).clicked() {
-                            *target = object.target.clone();
-                            changed = true;
-                            ui.close();
-                        }
-                    }
-                });
-            if matches.len() > 100 {
-                ui.label("仅显示前 100 项，请继续输入以缩小范围。");
-            }
-        });
-        if constraint.is_some_and(|kind| !target.id.is_empty() && kind != target.kind) {
-            ui.colored_label(
-                theme::ERROR,
-                "当前端点不符合关系类型约束，请明确选择新的对象。",
-            );
-        }
-    });
+    let _ = query; // 搜索输入由共用选择器的个人UI状态持有。
+    let mut selected = (!target.id.is_empty()).then(|| target.clone());
+    let allowed: Vec<_> = constraint.into_iter().collect();
+    let changed = super::object_picker::object_picker(
+        ui,
+        ("relation-target", label),
+        label,
+        &mut selected,
+        catalog,
+        &allowed,
+    );
+    if changed {
+        *target = selected.unwrap_or_default();
+    }
     changed
 }
+
 fn kind_constraint(ui: &mut egui::Ui, label: &str, kind: &mut Option<String>) {
     egui::ComboBox::from_id_salt(label)
         .selected_text(format!(
@@ -99,6 +77,9 @@ fn optional_text(ui: &mut egui::Ui, label: &str, value: &mut Option<String>, mul
 
 impl WorldeditApp {
     pub(super) fn edit_relation(&mut self, id: Option<&str>, from: Option<TargetRef>) {
+        if self.prevent_replacing_draft("语义关系") {
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -112,8 +93,12 @@ impl WorldeditApp {
             Ok(form) => self.relation_editor = Some(form),
             Err(error) => self.io_error = Some(error),
         }
+        self.reset_new_draft_baseline("语义关系");
     }
     pub(super) fn edit_relation_type(&mut self, id: Option<&str>) {
+        if self.prevent_replacing_draft("关系类型") {
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -126,8 +111,10 @@ impl WorldeditApp {
             Ok(form) => self.relation_type_editor = Some(form),
             Err(error) => self.io_error = Some(error),
         }
+        self.reset_new_draft_baseline("关系类型");
     }
     pub(super) fn relation_editor_window(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         let Some(mut form) = self.relation_editor.take() else {
             return;
         };
@@ -247,12 +234,12 @@ impl WorldeditApp {
             let current = form.guard.is_current(&self.project, self.version);
             if !current {
                 ui.colored_label(
-                    theme::GOLD,
+                    theme::GOLD(),
                     "工程已变化。请保留输入，关闭并重新打开表单后合并。",
                 );
             }
             let ready = current
-                && self.project.language_version() == "1.10"
+                && self.project.language_version_kind().supports_relations()
                 && kind.is_some()
                 && catalog.object(&form.draft.from).is_some()
                 && catalog.object(&form.draft.to).is_some();
@@ -284,6 +271,7 @@ impl WorldeditApp {
         }
     }
     pub(super) fn relation_type_editor_window(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         let Some(mut form) = self.relation_type_editor.take() else {
             return;
         };
@@ -302,9 +290,9 @@ impl WorldeditApp {
                 ui.label(theme::muted("稳定 ID"));
                 ui.add_enabled(form.original.is_none(), egui::TextEdit::singleline(&mut form.draft.id));
                 let current = form.guard.is_current(&self.project, self.version);
-                if !current { ui.colored_label(theme::GOLD, "工程已变化，请保留输入并重新打开后合并。"); }
-                if self.project.language_version() != "1.10" { ui.colored_label(theme::GOLD, "关系类型需要显式启用语言 1.10 与 content.relations.v1，不会自动升级旧项目。"); }
-                if ui.add_enabled(current && self.project.language_version() == "1.10" && !form.draft.display.trim().is_empty(), theme::primary("应用关系类型")).clicked() {
+                if !current { ui.colored_label(theme::GOLD(), "工程已变化，请保留输入并重新打开后合并。"); }
+                if !self.project.language_version_kind().supports_relations() { ui.colored_label(theme::GOLD(), "关系类型需要显式启用语言 1.10 与 content.relations.v1，不会自动升级旧项目。"); }
+                if ui.add_enabled(current && self.project.language_version_kind().supports_relations() && !form.draft.display.trim().is_empty(), theme::primary("应用关系类型")).clicked() {
                     let before = self.project.clone();
                     let result = form.apply(&mut self.project, self.version);
                     applied = self.finish_content_command(before, result, "关系类型已更新；现在可以新建关系");

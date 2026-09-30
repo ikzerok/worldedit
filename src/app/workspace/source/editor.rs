@@ -31,7 +31,7 @@ impl WorldeditApp {
             });
         if stale_ime_draft {
             ui.colored_label(
-                theme::GOLD,
+                theme::GOLD(),
                 "源码在输入法组合期间被外部修改。草稿已保留，尚未写入工程。",
             );
             if ui.button("放弃本地草稿并恢复外部版本").clicked() {
@@ -78,7 +78,17 @@ impl WorldeditApp {
         let mut selection_anchor = None;
         let mut source_link_action = None;
         let language_version = self.project.language_version_kind();
-        egui::ScrollArea::both()
+        let body_size = self.personal.settings.body_size;
+        let line_height = body_size * self.personal.settings.line_spacing;
+        let mut scroll = egui::ScrollArea::both();
+        if self.personal.restore_source {
+            scroll = scroll.scroll_offset(egui::vec2(
+                self.personal.source_scroll[0],
+                self.personal.source_scroll[1],
+            ));
+            self.personal.restore_source = false;
+        }
+        let scroll_output = scroll
             .id_salt(("source-scroll", &path))
             .auto_shrink([false, false])
             .show(ui, |ui| {
@@ -87,11 +97,12 @@ impl WorldeditApp {
                     ui.separator();
                     let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, _: f32| {
                         ui.fonts(|f| {
-                            f.layout_job(highlight::layout_job(
-                                buffer.as_str(),
-                                14.0,
-                                language_version,
-                            ))
+                            let mut job =
+                                highlight::layout_job(buffer.as_str(), body_size, language_version);
+                            for section in &mut job.sections {
+                                section.format.line_height = Some(line_height);
+                            }
+                            f.layout_job(job)
                         })
                     };
                     let editor_state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
@@ -199,7 +210,7 @@ impl WorldeditApp {
                     let mut output = egui::TextEdit::multiline(&mut text)
                         .id(id)
                         .code_editor()
-                        .font(egui::FontId::monospace(14.0))
+                        .font(egui::FontId::monospace(body_size))
                         .desired_width(ui.available_width().max(500.0))
                         .desired_rows(36)
                         .frame(false)
@@ -343,6 +354,7 @@ impl WorldeditApp {
                     }
                 });
             });
+        self.personal.source_scroll = [scroll_output.state.offset.x, scroll_output.state.offset.y];
         if let (Some((at_char, query, candidates, selected_index)), Some(anchor)) =
             (mention_popup.take(), mention_anchor)
         {

@@ -105,7 +105,7 @@ impl WorldeditApp {
                             .map(|t| t.display.as_str())
                             .unwrap_or(id);
                         if ui
-                            .small_button(RichText::new(format!("# {display}")).color(ACCENT))
+                            .small_button(RichText::new(format!("# {display}")).color(ACCENT()))
                             .clicked()
                         {
                             self.catalog_target = Some(TargetRef::new("tag", id));
@@ -208,7 +208,7 @@ impl WorldeditApp {
         let mut remove = None;
         for asset in &assets {
             ui.horizontal_wrapped(|ui| {
-                let color = if asset.available { BLUE } else { GOLD };
+                let color = if asset.available { BLUE() } else { GOLD() };
                 if ui
                     .button(
                         RichText::new(format!(
@@ -287,7 +287,7 @@ impl WorldeditApp {
         .default_open(target.kind == "event")
         .show(ui, |ui| {
             if !impact.complete {
-                ui.colored_label(ERROR, "引用检查不完整，修复诊断前不能删除资料。");
+                ui.colored_label(ERROR(), "引用检查不完整，修复诊断前不能删除资料。");
                 for diagnostic in impact
                     .diagnostics
                     .iter()

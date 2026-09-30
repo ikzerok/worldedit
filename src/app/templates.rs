@@ -2,7 +2,7 @@
 use crate::theme;
 use egui::RichText;
 use worldline_core::ast::PropertyValue;
-use worldline_core::catalog::{Catalog, TargetRef};
+use worldline_core::catalog::Catalog;
 use worldline_core::project_templates::{
     ProjectTemplate, ProjectTemplateField, ProjectTemplateIndex,
 };
@@ -121,7 +121,7 @@ pub(super) fn template_panel(
                 ui.label(theme::muted(format!("稳定模板 ID · {id}")));
                 if document.read_only {
                     ui.colored_label(
-                        theme::GOLD,
+                        theme::GOLD(),
                         "模板格式或必需能力不受支持，只读查看；不会覆盖未知字段。",
                     );
                     for diagnostic in &document.diagnostics {
@@ -141,7 +141,7 @@ pub(super) fn template_panel(
                     .any(|diagnostic| diagnostic.severity == worldline_core::Severity::Error)
                 {
                     ui.colored_label(
-                        theme::GOLD,
+                        theme::GOLD(),
                         "模板含有字段错误；为避免丢失原值，暂不显示可编辑字段。",
                     );
                     for diagnostic in &document.diagnostics {
@@ -183,7 +183,7 @@ fn render_project_fields(
             }
             let Some(key) = field.key.as_deref() else {
                 ui.colored_label(
-                    theme::GOLD,
+                    theme::GOLD(),
                     format!("{} · 字段 key 缺失，按只读显示。", field.label),
                 );
                 return;
@@ -204,7 +204,7 @@ fn render_project_fields(
                 if !matches && !enum_value {
                     ui.label(RichText::new(&label).strong());
                     ui.colored_label(
-                        theme::GOLD,
+                        theme::GOLD(),
                         format!("已有值类型不匹配，保留原值：{}", value_summary(value)),
                     );
                     return;
@@ -333,7 +333,7 @@ fn render_reference_field(
     values: &mut Vec<(String, PropertyValue)>,
 ) {
     let Some(target_kind) = field.target.as_ref().map(|target| target.kind.as_str()) else {
-        ui.colored_label(theme::GOLD, format!("{label} · 缺少对象类型约束。"));
+        ui.colored_label(theme::GOLD(), format!("{label} · 缺少对象类型约束。"));
         return;
     };
     let index = values.iter().position(|(name, _)| name == key);
@@ -358,33 +358,24 @@ fn render_reference_field(
         })
         .collect::<Vec<_>>();
     let mut selected = old.clone();
-    let selected_text = old
-        .as_ref()
-        .map(|target| target_label(catalog, target))
-        .unwrap_or_else(|| "选择对象…".into());
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(label).strong());
-        egui::ComboBox::from_id_salt(("project-template-reference", &field.id, key))
-            .selected_text(selected_text)
-            .show_ui(ui, |ui| {
-                if candidates.is_empty() {
-                    ui.label(theme::muted("没有符合类型约束的对象。"));
-                }
-                for candidate in candidates {
-                    ui.selectable_value(
-                        &mut selected,
-                        Some(candidate.target.clone()),
-                        format!(
-                            "{} · {}:{}",
-                            candidate.display, candidate.target.kind, candidate.target.id
-                        ),
-                    );
-                }
-            });
-    });
+    let eligible = Catalog {
+        objects: candidates.into_iter().cloned().collect(),
+        aliases: catalog.aliases.clone(),
+        ..Default::default()
+    };
+    super::object_picker::object_picker(
+        ui,
+        ("project-template-reference", &field.id, key),
+        label,
+        &mut selected,
+        &eligible,
+        &[target_kind],
+    );
     if selected != old {
         if let Some(target) = selected {
             set_property(values, key, PropertyValue::Ref(target));
+        } else {
+            values.retain(|(name, _)| name != key);
         }
     }
 }
@@ -422,11 +413,4 @@ fn value_summary(value: &PropertyValue) -> String {
         PropertyValue::Bool(value) => format!("布尔值 `{value}`"),
         PropertyValue::Ref(target) => format!("引用 `{}:{}`", target.kind, target.id),
     }
-}
-
-fn target_label(catalog: &Catalog, target: &TargetRef) -> String {
-    catalog
-        .object(target)
-        .map(|object| format!("{} · {}:{}", object.display, target.kind, target.id))
-        .unwrap_or_else(|| format!("未解析引用 · {}:{}", target.kind, target.id))
 }

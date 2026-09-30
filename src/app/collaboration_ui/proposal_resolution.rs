@@ -103,7 +103,7 @@ pub(super) fn show_conflict_resolution(
 
     ui.group(|ui| {
         ui.colored_label(
-            ERROR,
+            ERROR(),
             format!(
                 "冲突 {}{} · {}",
                 conflict.path, conflict.location, conflict.message
@@ -111,7 +111,7 @@ pub(super) fn show_conflict_resolution(
         );
         if file.truncated {
             ui.colored_label(
-                theme::GOLD,
+                theme::GOLD(),
                 "预览已截断；请先打开原文，并在下方输入完整解决内容",
             );
         }

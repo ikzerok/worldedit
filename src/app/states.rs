@@ -9,6 +9,9 @@ use worldline_core::states::StateDraft;
 
 impl WorldeditApp {
     pub(super) fn new_state(&mut self, target: TargetRef) {
+        if self.prevent_catalog_switch() {
+            return;
+        }
         let mut n = 1;
         if let Some(snapshot) = &self.snapshot {
             while snapshot
@@ -30,6 +33,7 @@ impl WorldeditApp {
                 tags: Vec::new(),
             },
         ));
+        self.reset_new_draft_baseline("状态");
         self.catalog_target = None;
         self.tag_editor = None;
         self.anchor_editor = None;
@@ -38,6 +42,7 @@ impl WorldeditApp {
     }
 
     pub(super) fn state_form(&mut self, ui: &mut egui::Ui, catalog: &Catalog) {
+        self.capture_new_draft_baselines();
         if let Some(target) = &self.catalog_target {
             if target.kind != "state" {
                 self.state_editor = None;
@@ -147,7 +152,7 @@ impl WorldeditApp {
                             _ => "事件过程中",
                         };
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(RichText::new(timing).color(ACCENT));
+                            ui.label(RichText::new(timing).color(ACCENT()));
                             if ui.button(format!("事件 · {}", change.event)).clicked() {
                                 self.select_event(&change.event);
                                 self.tab = Tab::Timeline;

@@ -118,7 +118,7 @@ impl super::super::WorldeditApp {
         if let Some(request) = self.map_locate_request.clone() {
             if request.map_id == selected_map_id.as_deref().unwrap_or_default() {
                 ui.separator();
-                ui.colored_label(crate::theme::GOLD, "命中对象位于隐藏图层");
+                ui.colored_label(crate::theme::GOLD(), "命中对象位于隐藏图层");
                 ui.label(crate::theme::muted(format!(
                     "图层 `{}` 当前隐藏。是否临时显示以定位？",
                     request.layer_id

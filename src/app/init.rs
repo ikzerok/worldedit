@@ -14,11 +14,17 @@ pub(super) fn draft_root() -> PathBuf {
 impl WorldeditApp {
     pub fn new(cc: &eframe::CreationContext<'_>, initial_file: Option<PathBuf>) -> Self {
         install_cjk_fonts(&cc.egui_ctx);
-        theme::install(&cc.egui_ctx);
+        theme::configure(&cc.egui_ctx, theme::ThemeMode::Dark);
         let project = Project::new(&draft_root());
         let mut app = Self {
             active_file: project.entry.clone(),
             project,
+            personal: personal::PersonalState::restore(cc.storage),
+            command_palette: commands::CommandPalette::default(),
+            draft_action: None,
+            new_draft_baselines: HashMap::new(),
+            frame_dirty_drafts: Vec::new(),
+            event_draft_cache: std::cell::RefCell::new(None),
             #[cfg(not(target_arch = "wasm32"))]
             last_refresh: std::time::Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
@@ -124,10 +130,12 @@ impl WorldeditApp {
             reader_publish: reader_publish::ReaderPublishState::default(),
         };
         app.catalog_workbench.restore_favorites(cc.storage);
+        app.catalog_workbench.restore_columns(cc.storage);
         if let Some(path) = initial_file {
             app.load_project(path);
         }
         app.recompile();
+        app.restore_personal_view(&cc.egui_ctx);
         app
     }
 
@@ -240,12 +248,20 @@ impl WorldeditApp {
                 self.saved_location = true;
                 self.reset_views();
                 self.recompile();
+                self.personal.pending_restore = true;
                 self.message = Some("已载入整个工程".into());
             }
             Err(e) => self.io_error = Some(e),
         }
     }
     pub(super) fn reset_views(&mut self) {
+        self.personal.history.clear();
+        self.personal.source_scroll = [0.0; 2];
+        self.command_palette = commands::CommandPalette::default();
+        self.draft_action = None;
+        self.new_draft_baselines.clear();
+        self.frame_dirty_drafts.clear();
+        self.event_draft_cache.replace(None);
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.conflict_view = conflicts::ConflictView::default();
@@ -319,28 +335,6 @@ impl WorldeditApp {
         self.reader_publish = reader_publish::ReaderPublishState::default();
     }
     pub(super) fn has_open_authoring_form(&self) -> bool {
-        self.ime_composing
-            || self.ime_source_draft.is_some()
-            || self.entity_editor.is_some()
-            || self.relation_editor.is_some()
-            || self.relation_type_editor.is_some()
-            || self.event_editor.is_some()
-            || self.character_editor.is_some()
-            || self.world_editor.is_some()
-            || self.tag_editor.is_some()
-            || self.anchor_editor.is_some()
-            || self.state_editor.is_some()
-            || self.wiki_editor.is_some()
-            || self.preset_editor.is_some()
-            || self.rename_form.is_some()
-            || self.new_period.is_some()
-            || self.new_file.is_some()
-            || self.review.comment_editor.is_some()
-            || self.map_creation.open
-            || self.map_form.has_uncommitted_work()
-            || self.map_canvas.has_uncommitted_work()
-            || self.map_failed_command.is_some()
-            || self.manuscript.has_unsubmitted_work()
-            || self.localization_ui.has_unsubmitted_work()
+        !self.dirty_draft_names().is_empty()
     }
 }

@@ -63,18 +63,18 @@ pub(super) fn draw_reader_preview(
                     ui.label(theme::muted(format!("目标：{goal}")));
                 }
                 let Some(target) = &chapter.target_ref else {
-                    ui.colored_label(theme::ERROR, "章节尚未选择正文来源。");
+                    ui.colored_label(theme::ERROR(), "章节尚未选择正文来源。");
                     return;
                 };
                 let Some(source) = &chapter.source else {
                     ui.colored_label(
-                        theme::ERROR,
+                        theme::ERROR(),
                         format!("来源不可用：{}:{}", target.kind, target.id),
                     );
                     return;
                 };
                 if source.status != ManuscriptReferenceStatus::Resolved {
-                    ui.colored_label(theme::ERROR, source_status_text(source.status));
+                    ui.colored_label(theme::ERROR(), source_status_text(source.status));
                 }
                 if let Some(location) = &source.location {
                     ui.label(theme::muted(format!(
@@ -102,7 +102,10 @@ pub(super) fn draw_reader_preview(
                         if let Some(parts) = event_parts {
                             render_static_body(ui, app, &parts);
                         } else {
-                            ui.colored_label(theme::ERROR, "事件来源无法在当前 core 快照中定位。");
+                            ui.colored_label(
+                                theme::ERROR(),
+                                "事件来源无法在当前 core 快照中定位。",
+                            );
                         }
                     }
                     "scene" => {
@@ -123,7 +126,27 @@ pub(super) fn draw_reader_preview(
                         if let Some(parts) = scene_parts {
                             render_static_body(ui, app, &parts);
                         } else {
-                            ui.colored_label(theme::ERROR, "场景来源无法在当前 core 快照中定位。");
+                            ui.colored_label(
+                                theme::ERROR(),
+                                "场景来源无法在当前 core 快照中定位。",
+                            );
+                        }
+                    }
+                    "fragment" => {
+                        let parts = app
+                            .snapshot
+                            .as_ref()
+                            .and_then(|snapshot| {
+                                snapshot
+                                    .result
+                                    .program
+                                    .fragments
+                                    .iter()
+                                    .find(|fragment| fragment.name == target.id)
+                            })
+                            .map(|fragment| reader_parts(&fragment.body));
+                        if let Some(parts) = parts {
+                            render_static_body(ui, app, &parts);
                         }
                     }
                     "entity" => {
@@ -142,13 +165,13 @@ pub(super) fn draw_reader_preview(
                                 ui.label(theme::muted("该实体尚无 description 正文。"));
                             }
                             None => {
-                                ui.colored_label(theme::ERROR, "实体正文来源不可用。");
+                                ui.colored_label(theme::ERROR(), "实体正文来源不可用。");
                             }
                         }
                     }
                     _ => {
                         ui.colored_label(
-                            theme::ERROR,
+                            theme::ERROR(),
                             format!("不支持的章节来源：{}", target.kind),
                         );
                     }
@@ -205,6 +228,23 @@ fn collect_reader_parts(stmts: &[Stmt], lines: &mut Vec<Vec<ReaderPart>>) {
     for stmt in stmts {
         match stmt {
             Stmt::Text(text) => lines.push(reader_parts_from_text(&text.parts, None)),
+            Stmt::Say(say) => {
+                lines.push(vec![ReaderPart {
+                    text: format!("{}：", say.speaker),
+                    target: Some(TargetRef {
+                        kind: "character".into(),
+                        id: say.speaker.clone(),
+                    }),
+                }]);
+                lines.push(reader_parts_from_text(&say.text.parts, None));
+            }
+            Stmt::Call(call) => lines.push(vec![ReaderPart {
+                text: format!("[调用片段 {}，静态预览不展开]", call.name),
+                target: Some(TargetRef {
+                    kind: "fragment".into(),
+                    id: call.name.clone(),
+                }),
+            }]),
             Stmt::Choice(choice) => {
                 lines.push(reader_parts_from_text(&choice.label, Some("选项：")));
                 collect_reader_parts(&choice.body, lines);
@@ -215,7 +255,10 @@ fn collect_reader_parts(stmts: &[Stmt], lines: &mut Vec<Vec<ReaderPart>>) {
                 }
             }
             Stmt::Scene(scene) => collect_reader_parts(&scene.body, lines),
-            Stmt::Divert(_)
+            Stmt::Local(_)
+            | Stmt::Return(_)
+            | Stmt::DynamicChange(_)
+            | Stmt::Divert(_)
             | Stmt::Let(_)
             | Stmt::Set(_)
             | Stmt::Change(_)

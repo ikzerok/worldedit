@@ -319,7 +319,7 @@ impl WorldeditApp {
                         }
                     }
                     Some(Err(error)) => {
-                        ui.colored_label(ERROR, format!("专题查询失败：{error}"));
+                        ui.colored_label(ERROR(), format!("专题查询失败：{error}"));
                     }
                     None => {}
                 }
@@ -407,6 +407,6 @@ fn scope_controls(ui: &mut egui::Ui, state: &mut TopicViewState) {
         }
     }
     if let Some(error) = &state.scope_error {
-        ui.colored_label(ERROR, error);
+        ui.colored_label(ERROR(), error);
     }
 }

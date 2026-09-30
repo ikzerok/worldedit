@@ -19,6 +19,7 @@ impl WorldeditApp {
             index += 1;
         }
         self.new_period = Some((format!("period_{index}"), "新时段".into(), None));
+        self.reset_new_draft_baseline("时段资料");
     }
 
     pub(super) fn temporal_tab(&mut self, ctx: &egui::Context) {
@@ -28,7 +29,7 @@ impl WorldeditApp {
         let graph = snapshot.result.analysis.graph.clone();
         let timeline = snapshot.result.analysis.timeline.clone();
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(BG))
+            .frame(theme::panel().fill(BG()))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -51,7 +52,7 @@ impl WorldeditApp {
                 ui.horizontal_wrapped(|ui| {
                     if let Some(from) = self.link_from.clone() {
                         ui.colored_label(
-                            ACCENT,
+                            ACCENT(),
                             format!("{from} 先发生 → 点击同一时段中较晚的事件"),
                         );
                         if ui.small_button("取消").clicked() {
@@ -190,11 +191,11 @@ impl WorldeditApp {
                                 screen(Pos2::new(indent, *y)),
                                 Vec2::new(width - indent, bottom - y) * zoom,
                             );
-                            painter.rect_filled(band, 12, PANEL);
+                            painter.rect_filled(band, 12, PANEL());
                             painter.rect_stroke(
                                 band,
                                 12,
-                                Stroke::new(1.0_f32, BORDER),
+                                Stroke::new(1.0_f32, BORDER()),
                                 egui::StrokeKind::Inside,
                             );
                             painter.text(
@@ -202,7 +203,7 @@ impl WorldeditApp {
                                 egui::Align2::LEFT_TOP,
                                 display,
                                 egui::FontId::proportional(16.0 * zoom),
-                                TEXT,
+                                TEXT(),
                             );
                             painter.text(
                                 band.min + Vec2::new(24.0, 42.0) * zoom,
@@ -213,7 +214,7 @@ impl WorldeditApp {
                                     descendants.len()
                                 ),
                                 egui::FontId::proportional(11.0 * zoom),
-                                MUTED,
+                                MUTED(),
                             );
                             let button = Rect::from_min_size(
                                 band.min + Vec2::new(width - indent - 116.0, 16.0) * zoom,
@@ -275,6 +276,7 @@ impl WorldeditApp {
                                             .find(|p| &p.id == id)
                                             .and_then(|p| p.parent.clone()),
                                     ));
+                                    self.reset_new_draft_baseline("时段资料");
                                 }
                             }
                         }
@@ -322,15 +324,15 @@ impl WorldeditApp {
                             let c1 = end - Vec2::new(42.0 * zoom, 0.0);
                             painter.add(egui::Shape::line(
                                 bezier_points(start, c0, c1, end, 24),
-                                Stroke::new(1.8_f32, ACCENT),
+                                Stroke::new(1.8_f32, ACCENT()),
                             ));
-                            draw_arrow(&painter, c1, end, ACCENT);
+                            draw_arrow(&painter, c1, end, ACCENT());
                             painter.text(
                                 start.lerp(end, 0.5) - Vec2::new(0.0, 12.0),
                                 egui::Align2::CENTER_BOTTOM,
                                 "先于",
                                 egui::FontId::proportional(11.0 * zoom),
-                                ACCENT,
+                                ACCENT(),
                             );
                         }
                         for (&id, rect) in &rects {
@@ -398,7 +400,7 @@ impl WorldeditApp {
                             }
                             let port =
                                 Rect::from_center_size(rect.right_center(), Vec2::splat(18.0));
-                            painter.circle_filled(port.center(), 4.0, ACCENT);
+                            painter.circle_filled(port.center(), 4.0, ACCENT());
                             let response = ui.interact(
                                 port,
                                 egui::Id::new(("temporal-port", &node.name)),
@@ -415,7 +417,7 @@ impl WorldeditApp {
                                 if let Some(rect) = rects.get(&(*id as usize)) {
                                     painter.line_segment(
                                         [rect.right_center(), pointer],
-                                        Stroke::new(1.5_f32, ACCENT),
+                                        Stroke::new(1.5_f32, ACCENT()),
                                     );
                                 }
                                 if ui.input(|i| i.pointer.any_released()) {
@@ -436,7 +438,7 @@ impl WorldeditApp {
                         });
                     });
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("— 先后约束").color(ACCENT).size(12.0));
+                    ui.label(RichText::new("— 先后约束").color(ACCENT()).size(12.0));
                     if ui.small_button("−").clicked() {
                         self.zoom = (self.zoom - 0.1).max(0.5);
                     }

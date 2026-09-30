@@ -56,7 +56,7 @@ impl MapCanvas {
                         ui.label(crate::theme::muted("再次点按开始新测量"));
                     }
                     Err(message) if self.measurement.ruler_points.len() == 2 => {
-                        ui.colored_label(crate::theme::GOLD, message);
+                        ui.colored_label(crate::theme::GOLD(), message);
                     }
                     Err(_) => {
                         ui.label(if self.measurement.ruler_points.is_empty() {
@@ -125,7 +125,7 @@ impl MapCanvas {
         }
         if editing {
             if let Err(error) = &validation {
-                ui.colored_label(crate::theme::GOLD, error);
+                ui.colored_label(crate::theme::GOLD(), error);
             }
         }
         let mut confirm = false;
@@ -147,7 +147,7 @@ impl MapCanvas {
             self.confirm_calibration();
         }
         if let Some(error) = &self.measurement.error {
-            ui.colored_label(crate::theme::ERROR, error);
+            ui.colored_label(crate::theme::ERROR(), error);
         }
     }
 

@@ -28,7 +28,7 @@ impl WorldeditApp {
         let mut copied_json = None;
 
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(crate::theme::BG))
+            .frame(theme::panel().fill(crate::theme::BG()))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt("template-manager-page")
@@ -125,13 +125,13 @@ impl WorldeditApp {
                                 }
                                 if document.read_only {
                                     right.colored_label(
-                                        theme::GOLD,
+                                        theme::GOLD(),
                                         "只读模板：版本、必需能力或注册状态不受支持。",
                                     );
                                 }
                                 for diagnostic in &document.diagnostics {
                                     right.colored_label(
-                                        theme::GOLD,
+                                        theme::GOLD(),
                                         format!(
                                             "{} · {}:{} · {}",
                                             diagnostic.code,
@@ -245,7 +245,7 @@ impl WorldeditApp {
                     }
 
                     if let Some(error) = &state.error {
-                        right.colored_label(theme::ERROR, error);
+                        right.colored_label(theme::ERROR(), error);
                     }
                     if let Some(preview) = &state.preview {
                         right.separator();
@@ -254,7 +254,7 @@ impl WorldeditApp {
                             || preview.expected_baseline != current_baseline
                         {
                             right.colored_label(
-                                theme::GOLD,
+                                theme::GOLD(),
                                 "预览已过期；应用会被 core 拒绝，请重新预览。",
                             );
                         }
@@ -289,9 +289,9 @@ impl WorldeditApp {
                         for diagnostic in &preview.diagnostics {
                             right.colored_label(
                                 if diagnostic.severity == worldline_core::Severity::Error {
-                                    theme::ERROR
+                                    theme::ERROR()
                                 } else {
-                                    theme::GOLD
+                                    theme::GOLD()
                                 },
                                 format!("{} · {}", diagnostic.code, diagnostic.message),
                             );
@@ -314,7 +314,7 @@ impl WorldeditApp {
                     ui.label(RichText::new("工程模板诊断").strong());
                     for diagnostic in &index.diagnostics {
                         ui.colored_label(
-                            theme::ERROR,
+                            theme::ERROR(),
                             format!("{} · {}", diagnostic.code, diagnostic.message),
                         );
                     }

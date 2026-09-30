@@ -325,10 +325,36 @@ impl WorldeditApp {
                                         content,
                                         new_line,
                                         links,
+                                        speaker,
                                         ..
                                     } => {
                                         if new_line && !play.transcript.is_empty() {
                                             play.transcript.push('\n');
+                                        }
+                                        if let Some(speaker) = speaker {
+                                            let name = self
+                                                .snapshot
+                                                .as_ref()
+                                                .and_then(|snapshot| {
+                                                    snapshot
+                                                        .result
+                                                        .analysis
+                                                        .catalog
+                                                        .object(&speaker)
+                                                })
+                                                .map(|object| object.display.clone())
+                                                .unwrap_or_else(|| speaker.id.clone());
+                                            let start = play.transcript.len();
+                                            play.transcript.push_str(&name);
+                                            let end = play.transcript.len();
+                                            play.transcript_links.push(
+                                                worldline_core::navigation::RenderedLink {
+                                                    target: speaker,
+                                                    start,
+                                                    end,
+                                                },
+                                            );
+                                            play.transcript.push('：');
                                         }
                                         let offset = play.transcript.len();
                                         play.transcript_links.extend(links.into_iter().map(

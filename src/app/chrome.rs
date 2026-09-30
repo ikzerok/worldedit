@@ -18,13 +18,22 @@ impl WorldeditApp {
                         egui::RichText::new("worldedit")
                             .strong()
                             .size(18.0)
-                            .color(TEXT),
+                            .color(TEXT()),
                     );
                     ui.add_space(12.0);
                     if ui.available_width() > 950.0 {
                         crate::chrome::subtitle(ui, "世界创作工作台");
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        self.workspace_view_menu(ui);
+                        self.compact_navigation_menu(ui);
+                        if ui
+                            .button("快速切换")
+                            .on_hover_text("Ctrl/Cmd+P 对象 · Ctrl/Cmd+Shift+P 命令")
+                            .clicked()
+                        {
+                            self.open_commands(ctx, false);
+                        }
                         ui.menu_button("工程", |ui| {
                             if ui.button("导出工程  ↗").clicked() {
                                 self.directory_dialog(true);
@@ -112,10 +121,10 @@ impl WorldeditApp {
             });
         if let Some(error) = self.io_error.clone() {
             egui::TopBottomPanel::top("error")
-                .frame(theme::panel().fill(egui::Color32::from_rgb(65, 36, 44)))
+                .frame(theme::panel().fill(theme::error_background()))
                 .show(ctx, |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.colored_label(ERROR, error);
+                        ui.colored_label(ERROR(), error);
                         #[cfg(not(target_arch = "wasm32"))]
                         if ui.small_button("查看冲突差异").clicked() {
                             self.conflict_view = conflicts::ConflictView::capture(&self.project);
@@ -131,7 +140,7 @@ impl WorldeditApp {
         egui::TopBottomPanel::bottom("status")
             .frame(
                 egui::Frame::new()
-                    .fill(BG)
+                    .fill(BG())
                     .corner_radius(egui::CornerRadius {
                         nw: 0,
                         ne: 0,
@@ -153,7 +162,7 @@ impl WorldeditApp {
                         .filter(|d| d.severity == Severity::Warning)
                         .count();
                     ui.colored_label(
-                        if errors > 0 { ERROR } else { ACCENT },
+                        if errors > 0 { ERROR() } else { ACCENT() },
                         if errors > 0 {
                             format!("● {errors} 个错误")
                         } else {
@@ -164,7 +173,10 @@ impl WorldeditApp {
                         ui.label(theme::muted(format!("{warnings} 个提醒")));
                     }
                     ui.separator();
-                    ui.label(theme::muted(if self.project.is_dirty() {
+                    let has_draft = self.has_open_authoring_form();
+                    ui.label(theme::muted(if has_draft {
+                        "有未应用输入（尚未保存）"
+                    } else if self.project.is_dirty() {
                         "有未保存修改"
                     } else {
                         "全部文件已保存"

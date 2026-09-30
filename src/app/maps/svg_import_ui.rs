@@ -112,7 +112,7 @@ impl super::super::WorldeditApp {
             form.check();
         }
         if let Some(error) = &form.error {
-            ui.colored_label(crate::theme::GOLD, error);
+            ui.colored_label(crate::theme::GOLD(), error);
         }
         if let Some(preview) = &form.preview {
             ui.label(format!(

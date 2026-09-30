@@ -124,6 +124,9 @@ impl WorldeditApp {
     }
 
     pub(super) fn new_comment_for_anchor(&mut self, anchor: CommentAnchor) {
+        if self.prevent_replacing_draft("审阅批注") {
+            return;
+        }
         let id = self.next_comment_id();
         self.review.comment_editor = Some(CommentEditor {
             original: None,
@@ -137,6 +140,7 @@ impl WorldeditApp {
             baseline: self.project.content_baseline(),
             version: self.version,
         });
+        self.reset_new_draft_baseline("审阅批注");
         self.tab = Tab::Review;
     }
 

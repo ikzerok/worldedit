@@ -48,7 +48,7 @@ impl WorldeditApp {
                 ));
                 ui.label("这会删除内容声明，不是仅隐藏图形。存在引用或检查不完整时不会执行删除。");
                 if !form.impact.complete {
-                    ui.colored_label(theme::ERROR, "引用检查不完整，请先修复诊断。");
+                    ui.colored_label(theme::ERROR(), "引用检查不完整，请先修复诊断。");
                     for diagnostic in &form.impact.diagnostics {
                         ui.label(format!(
                             "{} · {} · {}",
@@ -94,7 +94,7 @@ impl WorldeditApp {
                 let current = form.guard.is_current(&self.project, self.version);
                 if !current {
                     ui.colored_label(
-                        theme::GOLD,
+                        theme::GOLD(),
                         "工程已变化，旧影响计划失效。请关闭后重新检查。",
                     );
                 }
@@ -119,7 +119,7 @@ impl WorldeditApp {
                     }
                 }
                 if let Some(error) = &self.io_error {
-                    ui.colored_label(theme::ERROR, error);
+                    ui.colored_label(theme::ERROR(), error);
                 }
             });
         if open && !applied {

@@ -23,6 +23,8 @@ fn frame_profile_input_active(ctx: &egui::Context) -> bool {
 impl eframe::App for WorldeditApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.catalog_workbench.save_favorites(storage);
+        self.personal.save(storage);
+        self.catalog_workbench.save_columns(storage);
     }
 
     // 原生持久化仅保存明确的个人收藏，不顺带保存编辑草稿或 egui 窗口状态。
@@ -36,6 +38,13 @@ impl eframe::App for WorldeditApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.capture_new_draft_baselines();
+        self.frame_dirty_drafts = self.dirty_draft_names();
+        crate::theme::configure(ctx, self.personal.settings.theme);
+        if self.personal.pending_restore {
+            self.restore_personal_view(ctx);
+        }
+        self.author_shortcuts(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         let input_active = self
             .frame_profile
@@ -82,6 +91,7 @@ impl eframe::App for WorldeditApp {
                     Ok(stamp) if stamp != self.disk_stamp => {
                         let baseline = self.project.content_baseline();
                         let recovery_conflicts = self.project.recovery_conflicts().to_vec();
+                        let had_draft = self.has_open_authoring_form();
                         match self.project.refresh() {
                             Ok(conflicts) => {
                                 self.disk_stamp = stamp;
@@ -93,6 +103,9 @@ impl eframe::App for WorldeditApp {
                                     || self.project.recovery_conflicts() != recovery_conflicts;
                                 self.map_canvas.invalidate_rasters();
                                 if editing_state_changed {
+                                    if had_draft {
+                                        self.stale_form = true;
+                                    }
                                     self.history.clear();
                                     self.redo.clear();
                                     if !self.project.documents.contains_key(&self.active_file) {
@@ -128,28 +141,51 @@ impl eframe::App for WorldeditApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.request_action(Pending::Close, ctx);
         }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
+        if !self.ime_composing
+            && !self.command_palette.ime
+            && !self.command_palette.ime_frame
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S))
+        {
             self.save();
         }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O)) {
+        if !self.ime_composing
+            && !self.command_palette.ime
+            && !self.command_palette.ime_frame
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O))
+        {
             self.open_dialog(ctx, false);
         }
-        if ctx.input_mut(|i| {
-            i.consume_key(
-                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
-                egui::Key::F,
-            )
-        }) {
+        if !self.ime_composing
+            && !self.command_palette.ime
+            && !self.command_palette.ime_frame
+            && ctx.input_mut(|i| {
+                i.consume_key(
+                    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                    egui::Key::F,
+                )
+            })
+        {
             self.search_open = true;
             self.search_focus = true;
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if !self.ime_composing
+            && !self.command_palette.ime
+            && !self.command_palette.ime_frame
+            && ctx.input(|i| i.key_pressed(egui::Key::Escape))
+        {
+            self.personal.catalog_drawer_open = false;
             self.link_from = None;
             self.character_link = None;
         }
         self.top_bar(ctx);
         self.status_bar(ctx);
-        self.sidebar(ctx);
+        if self.personal.settings.navigation
+            && !self.personal.settings.focus
+            && !self.compact_reference_navigation(ctx)
+        {
+            self.sidebar(ctx);
+        }
+        self.docked_reading(ctx);
         if self.tab != Tab::Play {
             self.poll_replay(ctx);
         }
@@ -187,6 +223,9 @@ impl eframe::App for WorldeditApp {
         }
         self.dialogs(ctx);
         self.project_search(ctx);
+        self.command_window(ctx);
+        self.preferences_window(ctx);
+        self.draft_exit_dialog(ctx);
         self.reading_window(ctx);
         self.wiki_editor_window(ctx);
         self.entity_editor_window(ctx);
@@ -208,6 +247,12 @@ impl eframe::App for WorldeditApp {
                 || self.has_open_authoring_form())
                 && !self.allow_close,
         );
+        self.capture_personal_view(ctx);
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.personal.save_browser();
+            self.catalog_workbench.save_browser_columns(ctx);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(input_active) = input_active {
             if let Some(profile) = self.frame_profile.as_mut() {

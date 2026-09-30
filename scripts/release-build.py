@@ -47,7 +47,7 @@ def build(editor, core, pair_file, output):
                         str(packaged / "windows/worldline/examples/harbor-world"), "--json"], check=True)
     pair["build"] = {"platform": "windows-x64", "web": "trunk release --locked",
                      "cli_smoke": "packaged wl check harbor-world --json exited 0",
-                     "ui_scope": "本次打包只做资产完整性及 CLI 烟测；交互验收见仓库已完成工单与文本证据"}
+                     "ui_scope": "本次 CI 打包验证资产完整性及已打包 CLI 烟测；原生交互验收另见独立验收报告，CI 构建不代表 Windows/macOS 原生交互已验收"}
     (output / "release-pair.json").write_text(json.dumps(pair, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (output / "SHA256SUMS.txt").write_text("".join(
         f"{hashlib.sha256((output / name).read_bytes()).hexdigest()}  {name}\n"

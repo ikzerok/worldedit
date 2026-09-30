@@ -107,7 +107,7 @@ pub(super) fn draw_selected_record(
     ));
     if !record.available {
         ui.colored_label(
-            theme::ERROR,
+            theme::ERROR(),
             format!(
                 "此记录不可恢复：{}",
                 record.unavailable_reason.as_deref().unwrap_or("原因未知")

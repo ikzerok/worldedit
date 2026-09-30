@@ -20,16 +20,34 @@ impl WorldeditApp {
         let mut action = None;
         let mut open = self.reader_publish.open;
         let state = &mut self.reader_publish;
-        egui::Window::new("发布给读者")
+        let viewport = ctx.screen_rect().shrink(8.0);
+        // egui's resize limit is the content size, excluding themed margins and title chrome.
+        let style = ctx.style();
+        let window_frame = egui::Frame::window(&style);
+        let title = RichText::new("发布给读者").heading();
+        let title_height = ctx
+            .fonts(|fonts| title.font_height(fonts, &style))
+            .max(style.spacing.interact_size.y)
+            + window_frame.inner_margin.sum().y;
+        let margins = window_frame.total_margin().sum();
+        let content_height =
+            (viewport.height() - margins.y - title_height - window_frame.stroke.width - 2.0)
+                .max(80.0);
+        let content_width = (viewport.width() - margins.x - 2.0).max(240.0);
+        egui::Window::new(title)
+            .frame(window_frame)
             .id(egui::Id::new("reader-publish-window"))
             .open(&mut open)
             .resizable(true)
-            .default_width(780.0)
-            .default_height(980.0)
+            .constrain_to(viewport)
+            .default_width(780.0_f32.min(content_width))
+            .max_width(content_width)
+            .default_height(980.0_f32.min(content_height))
+            .max_height(content_height)
             .vscroll(true)
             .show(ctx, |ui| {
-                ui.label(RichText::new("只生成明确选择的离线静态内容。完整工程备份仍保留原有全部文件。").color(crate::theme::MUTED));
-                ui.label(RichText::new("离线选择不是权限认证；拿到阅读包的人可以查看包内全部内容。").strong().color(crate::theme::GOLD));
+                ui.label(RichText::new("只生成明确选择的离线静态内容。完整工程备份仍保留原有全部文件。").color(crate::theme::MUTED()));
+                ui.label(RichText::new("离线选择不是权限认证；拿到阅读包的人可以查看包内全部内容。").strong().color(crate::theme::GOLD()));
                 if let Some(status) = &state.status {
                     ui.label(status);
                 }
@@ -43,7 +61,7 @@ impl WorldeditApp {
                 ui.separator();
                 egui::ScrollArea::vertical()
                     .id_salt("reader-publish-choices")
-                    .max_height(440.0)
+                    .max_height(440.0_f32.min((content_height - 240.0).max(120.0)))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             if ui.button("选择全部资料").clicked() {
@@ -55,7 +73,7 @@ impl WorldeditApp {
                                 changed = true;
                             }
                         });
-                        ui.label("全部资料不包含地图、章节和附件；它们仍需逐项选择并核对。");
+                        ui.label("全部资料不包含属性字段、地图、章节和附件；它们仍需逐项选择并核对。");
                         ui.heading(format!("资料对象（{}）", objects.len()));
                         for choice in &objects {
                             let mut selected = state.objects.contains(&choice.target);
@@ -71,6 +89,19 @@ impl WorldeditApp {
                                 }
                                 changed = true;
                             }
+                            if selected && !choice.fields.is_empty() {
+                                ui.indent((&choice.target.kind, &choice.target.id), |ui| {
+                                    ui.label("公开属性（默认不选）");
+                                    for field in &choice.fields {
+                                        let keys = state.fields.entry(choice.target.clone()).or_default();
+                                        let mut checked = keys.contains(&field.key);
+                                        if ui.checkbox(&mut checked, format!("{}：{}", field.key, field.preview)).changed() {
+                                            if checked { keys.insert(field.key.clone()); } else { keys.remove(&field.key); }
+                                            changed = true;
+                                        }
+                                    }
+                                });
+                            }
                         }
                         if objects.is_empty() {
                             ui.label("当前工程没有可选择的资料对象。");
@@ -81,7 +112,7 @@ impl WorldeditApp {
                         for book in &manuscripts {
                             ui.label(RichText::new(&book.title).strong());
                             if let Some(reason) = &book.unavailable {
-                                ui.label(RichText::new(reason).color(crate::theme::GOLD));
+                                ui.label(RichText::new(reason).color(crate::theme::GOLD()));
                                 continue;
                             }
                             for (chapter_id, chapter_title) in &book.chapters {
@@ -132,7 +163,7 @@ impl WorldeditApp {
                                 changed = true;
                             }
                             if !choice.available {
-                                ui.label(RichText::new("此附件当前不可用。").color(crate::theme::GOLD));
+                                ui.label(RichText::new("此附件当前不可用。").color(crate::theme::GOLD()));
                             }
                         }
                         if attachments.is_empty() {
@@ -200,12 +231,13 @@ impl WorldeditApp {
                             }
                         });
                         ui.separator();
-                        for (title, url, text) in reviewed.public_pages.iter().take(8) {
-                            ui.label(RichText::new(title).strong());
-                            ui.label(format!("{url} · {text}"));
-                        }
-                        if reviewed.public_pages.len() > 8 {
-                            ui.label(format!("另有 {} 页……", reviewed.public_pages.len() - 8));
+                        for page in &reviewed.preview.content {
+                            egui::CollapsingHeader::new(format!("{} · {}", page.title, page.output_path))
+                                .id_salt(&page.output_path).default_open(true).show(ui, |ui| {
+                                    if page.empty_content { ui.colored_label(crate::theme::GOLD(), "此页没有静态阅读正文；可返回逐项选择要公开的字段。"); }
+                                    else { ui.label(&page.text); }
+                                });
+                            if page.empty_content { ui.colored_label(crate::theme::GOLD(), format!("{}：空正文", page.title)); }
                         }
                         egui::CollapsingHeader::new(format!(
                             "查看排除明细（{} 项；仅供作者核对）",
@@ -218,7 +250,7 @@ impl WorldeditApp {
                                     "排除：{} · {}",
                                     exclusion.reason_code,
                                     exclusion.source_path.as_deref().unwrap_or("未公开内容")
-                                )).color(crate::theme::MUTED));
+                                )).color(crate::theme::MUTED()));
                             }
                         });
                     });

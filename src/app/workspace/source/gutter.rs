@@ -5,7 +5,7 @@ pub(super) fn reserve(ui: &mut egui::Ui, text: &str) -> egui::Rect {
     let last = text.split('\n').count().to_string();
     let width = ui.fonts(|fonts| {
         fonts
-            .layout_no_wrap(last, egui::FontId::monospace(14.0), MUTED)
+            .layout_no_wrap(last, egui::FontId::monospace(14.0), MUTED())
             .size()
             .x
     });
@@ -25,7 +25,7 @@ pub(super) fn paint(ui: &egui::Ui, gutter: egui::Rect, galley: &egui::Galley, or
                     egui::Align2::RIGHT_CENTER,
                     physical_line.to_string(),
                     egui::FontId::monospace(14.0),
-                    MUTED,
+                    MUTED(),
                 );
             }
         }

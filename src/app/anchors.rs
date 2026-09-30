@@ -10,6 +10,9 @@ use worldline_core::catalog::{Catalog, TargetRef};
 
 impl WorldeditApp {
     pub(super) fn new_anchor(&mut self) {
+        if self.prevent_catalog_switch() {
+            return;
+        }
         let mut n = 1;
         if let Some(snapshot) = &self.snapshot {
             while snapshot
@@ -30,6 +33,7 @@ impl WorldeditApp {
                 ..Default::default()
             },
         ));
+        self.reset_new_draft_baseline("锚点");
         self.catalog_target = None;
         self.tag_editor = None;
         self.state_editor = None;
@@ -38,6 +42,7 @@ impl WorldeditApp {
     }
 
     pub(super) fn anchor_form(&mut self, ui: &mut egui::Ui, catalog: &Catalog) {
+        self.capture_new_draft_baselines();
         if let Some(target) = &self.catalog_target {
             if target.kind != "anchor" {
                 self.anchor_editor = None;

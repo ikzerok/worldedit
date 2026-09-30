@@ -31,6 +31,9 @@ fn scope_label(catalog: &worldline_core::Catalog, target: &TargetRef) -> String 
 }
 impl WorldeditApp {
     pub(super) fn open_preset_editor(&mut self, id: Option<&str>) {
+        if self.prevent_replacing_draft("展示预设") {
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -91,6 +94,7 @@ impl WorldeditApp {
             baseline: self.project.content_baseline(),
             version: self.version,
         });
+        self.reset_new_draft_baseline("展示预设");
     }
 
     pub(super) fn apply_presentation_preset(&mut self, id: &str) {
@@ -161,6 +165,7 @@ impl WorldeditApp {
     }
 
     pub(super) fn preset_editor_window(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         let Some(mut form) = self.preset_editor.take() else {
             return;
         };
@@ -390,7 +395,10 @@ impl WorldeditApp {
             let current =
                 form.version == self.version && form.baseline == self.project.content_baseline();
             if !current {
-                ui.colored_label(GOLD, "工程已变化；预设输入保留，但旧基线不能覆盖当前内容。");
+                ui.colored_label(
+                    GOLD(),
+                    "工程已变化；预设输入保留，但旧基线不能覆盖当前内容。",
+                );
             }
             if ui
                 .add_enabled(

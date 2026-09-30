@@ -49,7 +49,7 @@ impl WorldeditApp {
             }
         }
 
-        egui::CentralPanel::default().frame(theme::panel().fill(theme::BG)).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(theme::panel().fill(theme::BG())).show(ctx, |ui| {
             theme::page_heading(ui, "检查点历史", &format!(
                 "{} 条记录 · {} · 恢复会写入工程目录",
                 records.len(),
@@ -87,7 +87,7 @@ impl WorldeditApp {
             });
 
             if let Some(error) = &self.checkpoint_history.error {
-                ui.colored_label(theme::ERROR, error);
+                ui.colored_label(theme::ERROR(), error);
             }
             if let Some(notice) = &self.checkpoint_history.notice {
                 ui.label(theme::muted(notice));

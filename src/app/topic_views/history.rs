@@ -29,7 +29,10 @@ pub(super) fn history_projection(
         ));
     }
     if result.history.truncated {
-        ui.colored_label(GOLD, "历史页已截断；使用独立的历史 continuation 继续读取。");
+        ui.colored_label(
+            GOLD(),
+            "历史页已截断；使用独立的历史 continuation 继续读取。",
+        );
     }
     let events: BTreeMap<_, _> = result
         .history

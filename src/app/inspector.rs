@@ -153,6 +153,7 @@ pub(super) fn properties(ui: &mut egui::Ui, values: &mut Vec<(String, PropertyVa
 
 impl WorldeditApp {
     pub(super) fn event_inspector(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         egui::SidePanel::right("event-inspector")
             .default_width(300.0)
             .width_range(270.0..=410.0)
@@ -162,7 +163,7 @@ impl WorldeditApp {
                     ui.label(RichText::new("事件详情").strong().size(17.0));
                     ui.add_space(18.0);
                     theme::card().show(ui, |ui| {
-                        ui.label(RichText::new("开始编织你的世界").color(ACCENT));
+                        ui.label(RichText::new("开始编织你的世界").color(ACCENT()));
                         ui.label(theme::muted(
                             "点击卡片编辑内容与人物。时段内用连线添加先后约束,未连接的事件保持自由。",
                         ));
@@ -203,7 +204,7 @@ impl WorldeditApp {
                                 .desired_width(f32::INFINITY),
                         );
                         field(ui, "事件名称 / 简述", &mut editor.draft.summary);
-                        if let Err(error) = super::choices::choice_cards(ui, &mut editor.draft, self.snapshot.as_ref().map(|s| &s.result.analysis.graph), self.snapshot.as_ref().map(|s| &s.result.analysis.catalog)) {
+                        if let Err(error) = super::choices::choice_cards(ui, &mut editor.draft, self.snapshot.as_ref().map(|s| &s.result.analysis.graph), self.snapshot.as_ref().map(|s| &s.result.analysis.catalog), self.snapshot.as_ref().map(|s| &s.result.analysis.symbols)) {
                             self.io_error = Some(error);
                         }
                         ui.add_space(12.0);
@@ -397,7 +398,7 @@ impl WorldeditApp {
                             });
                             ui.add_space(8.0);
                             delete = ui
-                                .small_button(RichText::new("删除事件").color(ERROR))
+                                .small_button(RichText::new("删除事件").color(ERROR()))
                                 .on_hover_text("仍有引用时阻止删除;删除后可撤销")
                                 .clicked();
                         }
@@ -453,13 +454,13 @@ impl WorldeditApp {
                     ..Default::default()
                 })
         });
-        egui::CentralPanel::default().frame(theme::panel().fill(BG)).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(theme::panel().fill(BG())).show(ctx, |ui| {
             self.page_heading(ui, "世界观", "整个工程的共同设定 · 所有引用文件共享这一份世界观");
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.set_max_width(860.0);
                 theme::card().show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("◎  世界档案").size(20.0).color(ACCENT));
+                        ui.label(RichText::new("◎  世界档案").size(20.0).color(ACCENT()));
                         ui.label(theme::muted(format!("{} 份文件共享", self.project.documents.len())));
                     });
                     field(ui, "世界 ID", &mut draft.id); field(ui, "世界名称", &mut draft.display);
@@ -495,6 +496,8 @@ impl WorldeditApp {
                 });
                 ui.add_space(12.0);
                 if ui.add(theme::primary("应用世界观")).clicked() { self.commit("世界观已更新", |p| p.write_world(&draft)); }
+                if ui.button("恢复为已应用内容").clicked() { draft = self.current_world_draft(); }
+                ui.label(theme::muted("浏览不会产生草稿；改动后先应用，再保存工程。"));
                 if let Some(world) = &world { self.object_links(ui, &worldline_core::catalog::TargetRef::new("world", &world.id)); }
                 ui.add_space(18.0);
                 theme::card().show(ui, |ui| {

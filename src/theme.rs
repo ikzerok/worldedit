@@ -1,30 +1,151 @@
 //! 作者工作台的统一色彩、间距与控件样式。
 use egui::{Color32, FontId, RichText, Stroke, TextStyle, Vec2};
 
-pub const BG: Color32 = Color32::from_rgb(22, 23, 27);
-pub const PANEL: Color32 = Color32::from_rgb(29, 30, 35);
-pub const CARD: Color32 = Color32::from_rgb(38, 40, 46);
-pub const BORDER: Color32 = Color32::from_rgb(53, 55, 63);
-pub const TEXT: Color32 = Color32::from_rgb(237, 239, 245);
-pub const MUTED: Color32 = Color32::from_rgb(156, 160, 172);
-pub const ACCENT: Color32 = Color32::from_rgb(143, 183, 248);
-pub const BLUE: Color32 = Color32::from_rgb(151, 179, 226);
-pub const GOLD: Color32 = Color32::from_rgb(217, 188, 142);
-pub const ERROR: Color32 = Color32::from_rgb(235, 143, 150);
+thread_local! { static LIGHT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ThemeMode {
+    #[default]
+    Dark,
+    Light,
+    System,
+}
+
+#[allow(non_snake_case)]
+pub fn BG() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(248, 249, 252)
+    } else {
+        Color32::from_rgb(22, 23, 27)
+    }
+}
+#[allow(non_snake_case)]
+pub fn PANEL() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(242, 244, 248)
+    } else {
+        Color32::from_rgb(29, 30, 35)
+    }
+}
+#[allow(non_snake_case)]
+pub fn CARD() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(255, 255, 255)
+    } else {
+        Color32::from_rgb(38, 40, 46)
+    }
+}
+#[allow(non_snake_case)]
+pub fn BORDER() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(190, 197, 209)
+    } else {
+        Color32::from_rgb(53, 55, 63)
+    }
+}
+#[allow(non_snake_case)]
+pub fn TEXT() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(31, 38, 50)
+    } else {
+        Color32::from_rgb(237, 239, 245)
+    }
+}
+#[allow(non_snake_case)]
+pub fn MUTED() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(79, 91, 110)
+    } else {
+        Color32::from_rgb(156, 160, 172)
+    }
+}
+#[allow(non_snake_case)]
+pub fn ACCENT() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(27, 81, 158)
+    } else {
+        Color32::from_rgb(143, 183, 248)
+    }
+}
+#[allow(non_snake_case)]
+pub fn BLUE() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(36, 87, 152)
+    } else {
+        Color32::from_rgb(151, 179, 226)
+    }
+}
+#[allow(non_snake_case)]
+pub fn GOLD() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(113, 75, 13)
+    } else {
+        Color32::from_rgb(217, 188, 142)
+    }
+}
+#[allow(non_snake_case)]
+pub fn ERROR() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(166, 38, 48)
+    } else {
+        Color32::from_rgb(235, 143, 150)
+    }
+}
+
+/// 错误文字与关闭悬停共用的可读背景；亮色不沿用深红底。
+pub fn error_background() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(255, 232, 235)
+    } else {
+        Color32::from_rgb(65, 36, 44)
+    }
+}
+
+pub fn is_light() -> bool {
+    LIGHT.get()
+}
+
+pub fn configure(ctx: &egui::Context, mode: ThemeMode) {
+    let light = match mode {
+        ThemeMode::Dark => false,
+        ThemeMode::Light => true,
+        ThemeMode::System => ctx.system_theme() == Some(egui::Theme::Light),
+    };
+    let previous = LIGHT.replace(light);
+    let key = egui::Id::new("worldedit.theme.installed");
+    let installed = ctx.data(|data| data.get_temp::<bool>(key)).unwrap_or(false);
+    if previous != light || !installed {
+        install(ctx);
+        ctx.data_mut(|data| data.insert_temp(key, true));
+    }
+}
 
 pub fn install(ctx: &egui::Context) {
-    ctx.set_theme(egui::Theme::Dark);
+    let light = LIGHT.get();
+    ctx.set_theme(if light {
+        egui::Theme::Light
+    } else {
+        egui::Theme::Dark
+    });
     let mut style = (*ctx.style()).clone();
-    style.visuals = egui::Visuals::dark();
-    style.visuals.override_text_color = Some(TEXT);
-    style.visuals.panel_fill = PANEL;
-    style.visuals.window_fill = PANEL;
-    style.visuals.extreme_bg_color = BG;
-    style.visuals.faint_bg_color = CARD;
+    style.visuals = if light {
+        egui::Visuals::light()
+    } else {
+        egui::Visuals::dark()
+    };
+    style.visuals.override_text_color = Some(TEXT());
+    style.visuals.panel_fill = PANEL();
+    style.visuals.window_fill = PANEL();
+    style.visuals.extreme_bg_color = BG();
+    style.visuals.faint_bg_color = CARD();
     style.visuals.window_corner_radius = 14.into();
-    style.visuals.window_stroke = Stroke::new(1.0_f32, BORDER);
-    style.visuals.selection.bg_fill = Color32::from_rgb(49, 66, 92);
-    style.visuals.selection.stroke = Stroke::new(1.0_f32, ACCENT);
+    style.visuals.window_stroke = Stroke::new(1.0_f32, BORDER());
+    style.visuals.selection.bg_fill = if light {
+        Color32::from_rgb(207, 224, 249)
+    } else {
+        Color32::from_rgb(49, 66, 92)
+    };
+    style.visuals.selection.stroke = Stroke::new(1.0_f32, ACCENT());
     for widget in [
         &mut style.visuals.widgets.inactive,
         &mut style.visuals.widgets.active,
@@ -32,19 +153,27 @@ pub fn install(ctx: &egui::Context) {
         &mut style.visuals.widgets.noninteractive,
     ] {
         widget.corner_radius = 8.into();
-        widget.bg_stroke = Stroke::new(1.0_f32, BORDER);
-        widget.fg_stroke = Stroke::new(1.0_f32, TEXT);
+        widget.bg_stroke = Stroke::new(1.0_f32, BORDER());
+        widget.fg_stroke = Stroke::new(1.0_f32, TEXT());
         widget.expansion = 0.0;
     }
-    style.visuals.widgets.inactive.bg_fill = CARD;
-    style.visuals.widgets.inactive.weak_bg_fill = CARD;
+    style.visuals.widgets.inactive.bg_fill = CARD();
+    style.visuals.widgets.inactive.weak_bg_fill = CARD();
     style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
-    style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(49, 52, 61);
+    style.visuals.widgets.hovered.bg_fill = if light {
+        Color32::from_rgb(226, 233, 244)
+    } else {
+        Color32::from_rgb(49, 52, 61)
+    };
     style.visuals.widgets.hovered.weak_bg_fill = style.visuals.widgets.hovered.bg_fill;
-    style.visuals.widgets.active.bg_fill = Color32::from_rgb(51, 64, 84);
+    style.visuals.widgets.active.bg_fill = if light {
+        Color32::from_rgb(208, 222, 245)
+    } else {
+        Color32::from_rgb(51, 64, 84)
+    };
     style.visuals.widgets.active.weak_bg_fill = style.visuals.widgets.active.bg_fill;
-    style.visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, ACCENT);
-    style.visuals.hyperlink_color = ACCENT;
+    style.visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, ACCENT());
+    style.visuals.hyperlink_color = ACCENT();
     style.animation_time = 0.12;
     style.spacing.item_spacing = Vec2::new(8.0, 8.0);
     style.spacing.button_padding = Vec2::new(10.0, 6.0);
@@ -66,20 +195,20 @@ pub fn install(ctx: &egui::Context) {
 }
 
 pub fn muted(text: impl Into<String>) -> RichText {
-    RichText::new(text).color(MUTED).size(12.0)
+    RichText::new(text).color(MUTED()).size(12.0)
 }
 pub fn primary(text: &str) -> egui::Button<'_> {
-    egui::Button::new(RichText::new(text).color(BG).strong()).fill(ACCENT)
+    egui::Button::new(RichText::new(text).color(BG()).strong()).fill(ACCENT())
 }
 pub fn panel() -> egui::Frame {
-    egui::Frame::new().fill(PANEL).inner_margin(18)
+    egui::Frame::new().fill(PANEL()).inner_margin(18)
 }
 pub fn card() -> egui::Frame {
     egui::Frame::new()
-        .fill(CARD)
+        .fill(CARD())
         .corner_radius(12)
         .inner_margin(16)
-        .stroke(Stroke::new(1.0_f32, BORDER))
+        .stroke(Stroke::new(1.0_f32, BORDER()))
 }
 
 /// 同一节奏用于功能页标题；说明自动换行，不挤占右侧操作空间。

@@ -152,6 +152,7 @@ impl WorldeditApp {
                 self.browser_pending_save = true;
                 self.reset_views();
                 self.recompile();
+                self.personal.pending_restore = true;
                 self.message = Some("工程已载入浏览器；保存全部可下载工程包".into());
             }
             Err(e) => self.io_error = Some(e),

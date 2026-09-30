@@ -1,5 +1,6 @@
 //! 目录组合查询和待办视图；筛选、分页、解释与待办语义仅由 worldline-core 提供。
 mod actions;
+mod columns;
 mod filters;
 mod persistence;
 mod results;
@@ -61,6 +62,7 @@ pub(super) struct WorkbenchState {
     error: Option<String>,
     inputs: FilterInputs,
     local_favorites: BTreeMap<PathBuf, BTreeSet<String>>,
+    personal_columns: BTreeMap<PathBuf, Vec<columns::Column>>,
     todo_cache: Option<TodoProjection>,
     #[cfg(not(target_arch = "wasm32"))]
     running: Option<RunningQuery>,
@@ -80,6 +82,7 @@ impl Default for WorkbenchState {
             error: None,
             inputs: FilterInputs::default(),
             local_favorites: BTreeMap::new(),
+            personal_columns: BTreeMap::new(),
             todo_cache: None,
             #[cfg(not(target_arch = "wasm32"))]
             running: None,

@@ -10,6 +10,7 @@ fn project_template_manager_browses_builtin_and_project_templates_without_writin
     let baseline = app.project.content_baseline();
     let sources = app.project.sources().clone();
     let was_dirty = app.project.is_dirty();
+    click(&ctx, &mut app, 18, "工程工具");
     click(&ctx, &mut app, 18, "工程模板");
     assert_eq!(app.tab, super::Tab::Templates);
 
@@ -55,6 +56,7 @@ fn project_template_replacement_requires_preview_and_confirm_and_keeps_instances
     let original_template = r#"{"schema_version":1,"id":"project:typed","title":"Typed fields","applies_to":{"kind":"entity","entity_type":"place"},"fields":[{"id":"memo","key":"memo","label":"Memo","type":"text","required":false}]}"#;
     register_project_template(&mut app, original_template);
     let baseline = app.project.content_baseline();
+    click(&ctx, &mut app, 18, "工程工具");
     click(&ctx, &mut app, 18, "工程模板");
     click(&ctx, &mut app, 17, "Typed fields · project:typed");
 
@@ -169,7 +171,21 @@ fn project_template_fields_render_by_type_and_leave_unowned_values_intact() {
     );
     assert!(home.contains("Home · home"), "{home}");
     click(&ctx, &mut app, 0, "同名 · entity:b");
-    click(&ctx, &mut app, 0, "同名 · entity:c");
+    enter_text_at_placeholder_in_window(&ctx, &mut app, 0, "搜索名称、类型、ID或来源", "c");
+    click_containing(&ctx, &mut app, 0, "同名 · 实体:c");
+    assert_eq!(
+        app.entity_editor
+            .as_ref()
+            .unwrap()
+            .draft
+            .properties
+            .iter()
+            .find(|(key, _)| key == "home")
+            .unwrap()
+            .1,
+        worldline_core::ast::PropertyValue::Ref(TargetRef::new("entity", "c")),
+        "选择的是完整entity:c身份，不能因为同名误选a/b"
+    );
     let scrolled = scroll_from_visible_anchor_to(&ctx, &mut app, 0, "Home · home", "Details");
     assert!(scrolled.contains("old-format"), "{scrolled}");
     assert!(scrolled.contains("Details"), "{scrolled}");
@@ -261,6 +277,7 @@ fn stale_project_template_preview_is_rejected_and_keeps_the_json_draft() {
     let (ctx, mut app) = app();
     let original_template = r#"{"schema_version":1,"id":"project:typed","title":"Typed fields","applies_to":{"kind":"entity","entity_type":"place"},"fields":[{"id":"memo","key":"memo","label":"Memo","type":"text","required":false}]}"#;
     register_project_template(&mut app, original_template);
+    click(&ctx, &mut app, 18, "工程工具");
     click(&ctx, &mut app, 18, "工程模板");
     click(&ctx, &mut app, 17, "Typed fields · project:typed");
     let replacement = r#"{"schema_version":1,"id":"project:typed","title":"Updated draft","applies_to":{"kind":"entity","entity_type":"place"},"fields":[{"id":"memo","key":"memo","label":"Memo","type":"text","required":false}]}"#;
@@ -367,6 +384,7 @@ fn copying_importing_exporting_and_deactivating_templates_keeps_instance_content
     app.recompile();
     let original_baseline = app.project.content_baseline();
 
+    click(&ctx, &mut app, 18, "工程工具");
     click(&ctx, &mut app, 18, "工程模板");
     click(&ctx, &mut app, 19, "地理与地点 · template_place");
     click(&ctx, &mut app, 19, "复制为新模板 JSON");

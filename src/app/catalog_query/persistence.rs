@@ -25,8 +25,10 @@ impl WorkbenchState {
                 .store(true, std::sync::atomic::Ordering::Relaxed);
         }
         let favorites = std::mem::take(&mut self.local_favorites);
+        let columns = std::mem::take(&mut self.personal_columns);
         *self = Self::default();
         self.local_favorites = favorites;
+        self.personal_columns = columns;
     }
     pub(super) fn save_query(&mut self, app: &mut WorldeditApp) {
         let draft = SavedQueryDraft {

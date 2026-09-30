@@ -118,16 +118,23 @@ fn build_reviewed_package_with_progress(
         .ok_or("静态包缺少公开搜索索引")?;
     let search_entries: Vec<SearchPreviewEntry> = serde_json::from_slice(search_index)
         .map_err(|error| format!("公开搜索索引格式无效：{error}"))?;
-    let public_pages = search_entries
-        .into_iter()
-        .map(|entry| (entry.title, entry.url, entry.text))
-        .collect();
+    if search_entries.len() != preview.content.len()
+        || search_entries
+            .iter()
+            .zip(&preview.content)
+            .any(|(entry, page)| {
+                entry.title != page.title
+                    || entry.url != page.output_path
+                    || entry.text != page.text
+            })
+    {
+        return Err("实际阅读页与 core 预览内容不一致".into());
+    }
     Ok(ReviewedPackage {
         selection,
         preview,
         files,
         zip,
-        public_pages,
         raw_bytes,
     })
 }

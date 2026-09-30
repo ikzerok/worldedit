@@ -8,7 +8,7 @@ impl super::super::WorldeditApp {
     ) {
         if self.map_form.pending_place.is_some() && !self.map_canvas.is_edit_mode() {
             ui.separator();
-            ui.colored_label(crate::theme::GOLD, "地点落点已保留；返回编辑展示后可提交");
+            ui.colored_label(crate::theme::GOLD(), "地点落点已保留；返回编辑展示后可提交");
             if ui.small_button("取消落点").clicked() {
                 self.cancel_map_form();
             }
@@ -28,7 +28,7 @@ impl super::super::WorldeditApp {
                 self.map_canvas.set_tool(CanvasTool::Point);
             }
             if let Some(pending) = self.map_form.pending_place.as_ref() {
-                ui.colored_label(crate::theme::GOLD, "落点已保留，尚未写入资料或标记");
+                ui.colored_label(crate::theme::GOLD(), "落点已保留，尚未写入资料或标记");
                 ui.label(format!(
                     "地图 {} · 图层 {} · 资料 {} · 入口 {}",
                     pending.map_id, pending.layer_id, pending.entity_id, pending.placement_id
@@ -162,9 +162,9 @@ impl super::super::WorldeditApp {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(&asset);
                     if available && error.is_none() {
-                        ui.colored_label(crate::theme::ACCENT, "已加载");
+                        ui.colored_label(crate::theme::ACCENT(), "已加载");
                     } else {
-                        ui.colored_label(crate::theme::GOLD, "不可用");
+                        ui.colored_label(crate::theme::GOLD(), "不可用");
                     }
                 });
                 let unavailable = !available || error.is_some();
@@ -229,7 +229,7 @@ impl super::super::WorldeditApp {
                     snapshot.result.analysis.catalog.object(&target).is_some()
                 });
                 if !target_resolved {
-                    ui.colored_label(crate::theme::GOLD, "对象引用未解析");
+                    ui.colored_label(crate::theme::GOLD(), "对象引用未解析");
                     if ui.small_button("编辑展示并重绑定").clicked() {
                         self.map_canvas.set_mode(CanvasMode::Edit);
                         self.map_form.editing_placement = Some(placement.id.clone());
@@ -256,7 +256,7 @@ impl super::super::WorldeditApp {
                     }
                 } else {
                     ui.colored_label(
-                        crate::theme::GOLD,
+                        crate::theme::GOLD(),
                         if target.available {
                             "目标地图文档不可用，请修复原文"
                         } else {

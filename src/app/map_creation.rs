@@ -90,11 +90,13 @@ impl super::WorldeditApp {
         if ui.button("新建空白地图").clicked() {
             self.map_creation
                 .open_with_defaults(self.map_revision, self.map_manifest_baseline());
+            self.reset_new_draft_baseline("新建地图");
         }
         if !self.map_creation.open {
             return;
         }
 
+        self.capture_new_draft_baselines();
         let mut submit = false;
         let mut cancel = false;
         ui.group(|ui| {

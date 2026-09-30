@@ -2,7 +2,7 @@
 use crate::theme::{self, BORDER, CARD, ERROR, MUTED, TEXT};
 #[cfg(not(target_arch = "wasm32"))]
 use egui::CursorIcon;
-use egui::{Color32, Context, Pos2, Rect, Sense, Stroke, Vec2, ViewportCommand};
+use egui::{Context, Pos2, Rect, Sense, Stroke, Vec2, ViewportCommand};
 
 const CONTROL_SIZE: Vec2 = Vec2::splat(32.0);
 const CONTROL_GAP: f32 = 2.0;
@@ -50,9 +50,9 @@ pub fn controls(ui: &mut egui::Ui) -> bool {
             rect.shrink(1.0),
             7,
             if index == 2 {
-                Color32::from_rgb(76, 42, 48)
+                theme::error_background()
             } else {
-                CARD
+                CARD()
             }
             .linear_multiply(hover),
         );
@@ -64,14 +64,14 @@ pub fn controls(ui: &mut egui::Ui) -> bool {
             },
             if highlighted {
                 if index == 2 {
-                    ERROR
+                    ERROR()
                 } else {
-                    TEXT
+                    TEXT()
                 }
             } else if focused {
-                MUTED
+                MUTED()
             } else {
-                MUTED.gamma_multiply(0.6)
+                MUTED().gamma_multiply(0.6)
             },
         );
         match index {
@@ -113,7 +113,7 @@ pub fn controls(ui: &mut egui::Ui) -> bool {
             ui.painter().rect_stroke(
                 rect.shrink(1.0),
                 7,
-                Stroke::new(1.0_f32, BORDER),
+                Stroke::new(1.0_f32, BORDER()),
                 egui::StrokeKind::Inside,
             );
         }
@@ -275,7 +275,7 @@ pub fn title_frame(ctx: &Context) -> egui::Frame {
 }
 
 pub fn subtitle(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).color(MUTED).size(12.0));
+    ui.label(egui::RichText::new(text).color(MUTED()).size(12.0));
 }
 
 #[cfg(test)]

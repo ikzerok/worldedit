@@ -44,6 +44,7 @@ impl WorldeditApp {
     }
 
     pub(in crate::app) fn review_tab(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         let comments = self
             .snapshot
             .as_ref()
@@ -132,7 +133,7 @@ impl WorldeditApp {
             });
 
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(BG))
+            .frame(theme::panel().fill(BG()))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt("collaboration-review")
@@ -171,7 +172,7 @@ impl WorldeditApp {
                                     .unwrap_or(AnchorStatus::Attached);
                                 if status == AnchorStatus::Detached {
                                     ui.colored_label(
-                                        GOLD,
+                                        GOLD(),
                                         "原锚点已失效；不会自动绑定到相邻对象或段落。",
                                     );
                                 }
@@ -222,7 +223,7 @@ impl WorldeditApp {
                                     && comment.baseline == self.project.content_baseline();
                                 if !current {
                                     ui.colored_label(
-                                        GOLD,
+                                        GOLD(),
                                         "工程已变化；旧批注表单不能覆盖当前稿。",
                                     );
                                 }
@@ -309,7 +310,7 @@ impl WorldeditApp {
                                 });
                                 if stale {
                                     ui.colored_label(
-                                        ERROR,
+                                        ERROR(),
                                         "内容已变化；当前差异已过期，采纳已禁用",
                                     );
                                 }
@@ -332,7 +333,7 @@ impl WorldeditApp {
                                         let conflict_files = preview.files.iter()
                                             .filter(|file| !file.conflicts.is_empty()).count();
                                         if conflict_files > 0 {
-                                            ui.colored_label(theme::GOLD, format!(
+                                            ui.colored_label(theme::GOLD(), format!(
                                                 "{conflict_files} 个文件有冲突；解决草稿尚未计入上面的数量，冲突不是无变化。"
                                             ));
                                         }
@@ -418,7 +419,7 @@ impl WorldeditApp {
                                             }
                                             if file.alignment_uncertain || file.truncated {
                                                 ui.colored_label(
-                                                    theme::GOLD,
+                                                    theme::GOLD(),
                                                     "对齐不确定或预览截断；请检查三方原文",
                                                 );
                                             }
@@ -447,7 +448,7 @@ impl WorldeditApp {
                                             }
                                             if !file.reference_impact_complete {
                                                 ui.colored_label(
-                                                    theme::GOLD,
+                                                    theme::GOLD(),
                                                     "引用影响不完整，请打开原文核对",
                                                 );
                                             }
@@ -492,7 +493,7 @@ impl WorldeditApp {
                                         }
                                     }
                                     Err(error) => {
-                                        ui.colored_label(ERROR, error);
+                                        ui.colored_label(ERROR(), error);
                                     }
                                 }
                             }

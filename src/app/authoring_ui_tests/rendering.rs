@@ -165,7 +165,7 @@ pub(super) fn replace_manuscript_source(
     app: &mut WorldeditApp,
     replacement: &str,
 ) {
-    click(ctx, app, 13, "编辑来源文件");
+    click(ctx, app, 13, "源码");
     for _ in 0..3 {
         let _ = frame(ctx, app, Vec::new(), 13);
     }
