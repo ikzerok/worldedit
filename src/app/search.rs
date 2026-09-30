@@ -84,7 +84,7 @@ impl WorldeditApp {
                                                 file.display(),
                                                 hit.line
                                             ))
-                                            .color(ACCENT),
+                                            .color(ACCENT()),
                                         )
                                         .frame(false),
                                     )

@@ -26,7 +26,19 @@ impl ReaderPublishState {
 
     pub(super) fn selection(&self) -> ReaderExportSelection {
         ReaderExportSelection {
-            schema_version: worldline_core::reader_export::READER_EXPORT_SCHEMA_VERSION,
+            required_features: vec![worldline_core::reader_export::READER_FIELDS_FEATURE.into()],
+            fields: self
+                .fields
+                .iter()
+                .filter(|(target, keys)| self.objects.contains(*target) && !keys.is_empty())
+                .map(
+                    |(target, keys)| worldline_core::reader_export::ReaderFieldSelection {
+                        target: target.clone(),
+                        keys: keys.iter().cloned().collect(),
+                    },
+                )
+                .collect(),
+            schema_version: worldline_core::reader_export::READER_FIELDS_SCHEMA_VERSION,
             site_title: self.site_title.clone(),
             objects: self.objects.iter().cloned().collect(),
             manuscripts: self
@@ -68,6 +80,8 @@ impl ReaderPublishState {
                         matches!(
                             object.target.kind.as_str(),
                             "event"
+                                | "fragment"
+                                | "rule"
                                 | "scene"
                                 | "character"
                                 | "entity"
@@ -82,6 +96,7 @@ impl ReaderPublishState {
                         )
                     })
                     .map(|object| ObjectChoice {
+                        fields: snapshot.result.reader_field_candidates(&object.target),
                         target: object.target.clone(),
                         display: object.display.clone(),
                     })
@@ -149,6 +164,13 @@ impl ReaderPublishState {
                 book.chapters.iter().map(|(id, _)| id.as_str()).collect();
             chapters.retain(|id| allowed_chapters.contains(id.as_str()));
             !chapters.is_empty()
+        });
+        self.fields.retain(|target, keys| {
+            let Some(choice) = object_choices.iter().find(|c| c.target == *target) else {
+                return false;
+            };
+            keys.retain(|key| choice.fields.iter().any(|field| field.key == *key));
+            !keys.is_empty()
         });
         self.object_choices = object_choices;
         self.manuscript_choices = manuscript_choices;

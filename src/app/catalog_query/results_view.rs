@@ -4,7 +4,13 @@ use egui::{RichText, Ui};
 use worldline_core::queries::CatalogQueryMatch;
 
 impl WorkbenchState {
-    pub(super) fn render_results(&self, app: &WorldeditApp, ui: &mut Ui, action: &mut Action) {
+    pub(super) fn render_results(&mut self, app: &WorldeditApp, ui: &mut Ui, action: &mut Action) {
+        self.columns_menu(app, ui);
+        let columns = self
+            .personal_columns
+            .get(&app.personal_workspace_key())
+            .cloned()
+            .unwrap_or_default();
         ui.separator();
         ui.horizontal_wrapped(|ui| {
             ui.strong("查询结果");
@@ -25,7 +31,7 @@ impl WorkbenchState {
         };
         if page.snapshot != app.project.content_baseline() {
             ui.colored_label(
-                crate::theme::GOLD,
+                crate::theme::GOLD(),
                 "结果已过期：Project 缓冲发生变化。请重新运行查询。",
             );
             if ui.button("从第一页重新查询").clicked() {
@@ -53,9 +59,9 @@ impl WorkbenchState {
                     for diagnostic in &page.diagnostics {
                         ui.colored_label(
                             if diagnostic.severity == worldline_core::Severity::Error {
-                                crate::theme::ERROR
+                                crate::theme::ERROR()
                             } else {
-                                crate::theme::GOLD
+                                crate::theme::GOLD()
                             },
                             format!(
                                 "{}:{} · {}",
@@ -66,28 +72,35 @@ impl WorkbenchState {
                 });
         }
         let compact = ui.available_width() < 700.0;
-        if !compact {
-            table_header(ui, self.query.sort, action);
-            ui.separator();
-        }
-        result_scroll_area().show(ui, |ui| {
-            for (index, item) in page.items.iter().enumerate() {
-                // Widget identity follows the complete object, never its position after sorting.
-                ui.push_id((&item.target.kind, &item.target.id), |ui| {
-                    let fill = if index % 2 == 0 {
-                        ui.visuals().faint_bg_color
-                    } else {
-                        egui::Color32::TRANSPARENT
-                    };
-                    egui::Frame::NONE
-                        .fill(fill)
-                        .inner_margin(egui::Margin::symmetric(6, 5))
-                        .show(ui, |ui| {
-                            render_row(ui, app, item, compact, action);
+        egui::ScrollArea::horizontal()
+            .id_salt("catalog-personal-columns")
+            .show(ui, |ui| {
+                if !compact && !columns.is_empty() {
+                    ui.set_min_width(530.0 + columns.len() as f32 * 168.0);
+                }
+                if !compact {
+                    table_header(ui, self.query.sort, action, &columns);
+                    ui.separator();
+                }
+                result_scroll_area().show(ui, |ui| {
+                    for (index, item) in page.items.iter().enumerate() {
+                        // Widget identity follows the complete object, never its position after sorting.
+                        ui.push_id((&item.target.kind, &item.target.id), |ui| {
+                            let fill = if index % 2 == 0 {
+                                ui.visuals().faint_bg_color
+                            } else {
+                                egui::Color32::TRANSPARENT
+                            };
+                            egui::Frame::NONE
+                                .fill(fill)
+                                .inner_margin(egui::Margin::symmetric(6, 5))
+                                .show(ui, |ui| {
+                                    render_row(ui, app, item, compact, action, &columns);
+                                });
                         });
+                    }
                 });
-            }
-        });
+            });
         ui.horizontal_wrapped(|ui| {
             if page.offset > 0 && ui.button("上一页").clicked() {
                 *action = Action::Previous(page.offset.saturating_sub(self.page_size));
@@ -143,7 +156,10 @@ fn sort_label(sort: Option<CatalogQuerySort>) -> &'static str {
     }
 }
 
-fn column_widths(ui: &Ui) -> [f32; 3] {
+fn column_widths(ui: &Ui, extended: bool) -> [f32; 3] {
+    if extended {
+        return [190.0, 100.0, 210.0];
+    }
     let width = (ui.available_width() - ui.spacing().item_spacing.x * 2.0).max(0.0);
     [width * 0.44, width * 0.2, width * 0.36]
 }
@@ -159,11 +175,16 @@ fn cell(ui: &mut Ui, width: f32, contents: impl FnOnce(&mut Ui)) {
     );
 }
 
-fn table_header(ui: &mut Ui, sort: Option<CatalogQuerySort>, action: &mut Action) {
+fn table_header(
+    ui: &mut Ui,
+    sort: Option<CatalogQuerySort>,
+    action: &mut Action,
+    columns: &[columns::Column],
+) {
     egui::Frame::NONE
         .inner_margin(egui::Margin::symmetric(6, 0))
         .show(ui, |ui| {
-            let widths = column_widths(ui);
+            let widths = column_widths(ui, !columns.is_empty());
             ui.horizontal_top(|ui| {
                 for (field, label, width) in [
                     (CatalogSortField::Name, "名称", widths[0]),
@@ -201,6 +222,11 @@ fn table_header(ui: &mut Ui, sort: Option<CatalogQuerySort>, action: &mut Action
                 cell(ui, widths[2], |ui| {
                     ui.strong("来源");
                 });
+                for column in columns {
+                    cell(ui, 160.0, |ui| {
+                        ui.strong(column.label());
+                    });
+                }
             });
         });
 }
@@ -211,6 +237,7 @@ fn render_row(
     item: &CatalogQueryMatch,
     compact: bool,
     action: &mut Action,
+    columns: &[columns::Column],
 ) {
     ui.spacing_mut().item_spacing.y = 4.0;
     ui.spacing_mut().interact_size.y = 22.0;
@@ -239,8 +266,17 @@ fn render_row(
         );
         source_cell(ui, app, item, action);
         reasons_cell(ui, item);
+        if let Some(snapshot) = &app.snapshot {
+            for column in columns {
+                ui.label(format!(
+                    "{}：{}",
+                    column.label(),
+                    columns::value(&snapshot.result.analysis, &item.target, column)
+                ));
+            }
+        }
     } else {
-        let widths = column_widths(ui);
+        let widths = column_widths(ui, !columns.is_empty());
         ui.horizontal_top(|ui| {
             cell(ui, widths[0], |ui| {
                 if ui
@@ -263,6 +299,20 @@ fn render_row(
                 source_cell(ui, app, item, action);
                 reasons_cell(ui, item);
             });
+            if let Some(snapshot) = &app.snapshot {
+                for column in columns {
+                    cell(ui, 160.0, |ui| {
+                        ui.add(
+                            egui::Label::new(columns::value(
+                                &snapshot.result.analysis,
+                                &item.target,
+                                column,
+                            ))
+                            .wrap(),
+                        );
+                    });
+                }
+            }
         });
     }
 }
@@ -285,7 +335,7 @@ fn source_cell(ui: &mut Ui, app: &WorldeditApp, item: &CatalogQueryMatch, action
     );
     if ui
         .add(
-            egui::Button::new(RichText::new(&source).color(crate::theme::ACCENT))
+            egui::Button::new(RichText::new(&source).color(crate::theme::ACCENT()))
                 .frame(false)
                 .wrap(),
         )

@@ -14,6 +14,39 @@ pub(super) struct WikiEditor {
     version: u64,
 }
 
+impl WikiEditor {
+    pub(in crate::app) fn new_draft_value(&self) -> Option<serde_json::Value> {
+        self.original.is_none().then(|| {
+            serde_json::json!([
+                self.draft.id,
+                self.draft.display,
+                self.draft.description,
+                self.draft.properties,
+                self.aliases
+            ])
+        })
+    }
+
+    pub(super) fn is_dirty(&self, catalog: Option<&Catalog>) -> bool {
+        let Some(tag) = self
+            .original
+            .as_deref()
+            .and_then(|id| catalog?.tags.get(id))
+        else {
+            return true;
+        };
+        self.draft.id != tag.id
+            || self.draft.display != tag.display
+            || self.draft.description != tag.description
+            || self.draft.properties != tag.properties.clone().into_iter().collect::<Vec<_>>()
+            || self.aliases
+                != catalog
+                    .unwrap()
+                    .aliases_for(&TargetRef::new("tag", &tag.id))
+                    .join("\n")
+    }
+}
+
 pub(super) fn keyword_inline(
     ui: &mut egui::Ui,
     text: &str,
@@ -32,7 +65,7 @@ pub(super) fn keyword_inline(
         ui.push_id(found.start, |ui| {
             if found.targets.len() == 1 {
                 if ui
-                    .link(RichText::new(label).size(size).color(ACCENT).underline())
+                    .link(RichText::new(label).size(size).color(ACCENT()).underline())
                     .on_hover_text("查看 Wiki 释义与出现位置")
                     .clicked()
                 {
@@ -41,7 +74,7 @@ pub(super) fn keyword_inline(
             } else {
                 ui.spacing_mut().button_padding = egui::Vec2::ZERO;
                 ui.menu_button(
-                    RichText::new(label).size(size).color(ACCENT).underline(),
+                    RichText::new(label).size(size).color(ACCENT()).underline(),
                     |ui| {
                         ui.label(theme::muted("同名词条，请选择要查看的释义"));
                         for target in &found.targets {
@@ -193,6 +226,9 @@ impl WorldeditApp {
     }
 
     pub(super) fn edit_wiki_entry(&mut self, id: Option<&str>) {
+        if self.prevent_replacing_draft("Wiki词条") {
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -226,6 +262,7 @@ impl WorldeditApp {
             aliases,
             version: self.version,
         });
+        self.reset_new_draft_baseline("Wiki词条");
     }
 
     pub(super) fn wiki_tab(&mut self, ctx: &egui::Context) {
@@ -277,7 +314,7 @@ impl WorldeditApp {
                         }
                     });
             });
-        egui::CentralPanel::default().frame(theme::panel().fill(BG)).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(theme::panel().fill(BG())).show(ctx, |ui| {
             theme::page_heading(ui, "Wiki", "为关键词写下释义。在正文、资料和试玩中点击关键词，即可查看注释与出现位置。");
             theme::toolbar(ui, |ui| {
                 if ui.add(theme::primary("＋ 新建词条")).clicked() { self.edit_wiki_entry(None); }
@@ -297,6 +334,7 @@ impl WorldeditApp {
     }
 
     pub(super) fn wiki_editor_window(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         let Some(mut editor) = self.wiki_editor.take() else {
             return;
         };
@@ -335,7 +373,7 @@ impl WorldeditApp {
             let stale = editor.version != self.version;
             if stale {
                 ui.colored_label(
-                    theme::GOLD,
+                    theme::GOLD(),
                     "词条打开后工程已更新。请复制需要保留的输入，关闭并重新打开词条后合并。",
                 );
             }

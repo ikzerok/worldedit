@@ -28,29 +28,12 @@ fn main() -> eframe::Result<()> {
             Box::new(|cc| Ok(Box::new(eds11_prototype::Prototype::new(cc)))),
         );
     }
-    let initial: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from).or_else(|| {
-        rfd::FileDialog::new()
-            .set_title("选择工作区目录，空目录将创建示例工程")
-            .pick_folder()
-    });
-    let Some(path) = initial.as_ref() else {
-        return Ok(());
-    };
-    if path.is_dir() && std::fs::read_dir(path).is_ok_and(|mut entries| entries.next().is_none()) {
-        if let Err(error) = worldline_core::project::Project::new(path).save() {
-            eprintln!("{error}");
-            return Ok(());
-        }
-    }
-    if let Err(error) = worldline_core::project::Project::open(path) {
-        eprintln!("{error}");
-        return Ok(());
-    }
+    let initial: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from);
     let options = native_options();
     eframe::run_native(
         "worldedit",
         options,
-        Box::new(|cc| Ok(Box::new(app::WorldeditApp::new(cc, initial)))),
+        Box::new(|cc| Ok(Box::new(app::WorldeditApp::start_native(cc, initial)))),
     )
 }
 

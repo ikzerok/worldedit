@@ -38,7 +38,7 @@ impl WorldeditApp {
                 let current = form.guard.is_current(&self.project, self.version);
                 if !current {
                     ui.colored_label(
-                        theme::GOLD,
+                        theme::GOLD(),
                         "工程已变化，旧输入/预览已失效；请关闭后重新打开。",
                     );
                 }
@@ -72,7 +72,7 @@ impl WorldeditApp {
                         ));
                     }
                     ui.colored_label(
-                        theme::GOLD,
+                        theme::GOLD(),
                         "这不是改显示名。应用后旧 ID 将不存在；可用应用级撤销恢复。",
                     );
                     if ui
@@ -95,7 +95,7 @@ impl WorldeditApp {
                 }
                 if let Some(error) = &self.io_error {
                     ui.separator();
-                    ui.colored_label(theme::ERROR, error);
+                    ui.colored_label(theme::ERROR(), error);
                 }
             });
         if open && !applied {

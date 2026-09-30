@@ -270,7 +270,7 @@ impl super::super::WorldeditApp {
                             ui.separator();
                             ui.label(egui::RichText::new("保留的标记表单").strong());
                             ui.colored_label(
-                        crate::theme::GOLD,
+                        crate::theme::GOLD(),
                         "当前地图文档不可用，表单输入已保留；修复地图或取消表单后才能切换。",
                     );
                             ui.label(crate::theme::muted(self.map_form.clipboard_text()));
@@ -293,9 +293,15 @@ impl super::super::WorldeditApp {
                                 .show(ui, |ui| {
                                     for diagnostic in &map_diagnostics {
                                         let color = match diagnostic.severity {
-                                            worldline_core::Severity::Error => crate::theme::ERROR,
-                                            worldline_core::Severity::Warning => crate::theme::GOLD,
-                                            worldline_core::Severity::Hint => crate::theme::ACCENT,
+                                            worldline_core::Severity::Error => {
+                                                crate::theme::ERROR()
+                                            }
+                                            worldline_core::Severity::Warning => {
+                                                crate::theme::GOLD()
+                                            }
+                                            worldline_core::Severity::Hint => {
+                                                crate::theme::ACCENT()
+                                            }
                                         };
                                         ui.colored_label(
                                             color,
@@ -327,7 +333,7 @@ impl super::super::WorldeditApp {
         let mut retry_failed = false;
         let mut cancel_failed = false;
         egui::CentralPanel::default()
-            .frame(crate::theme::panel().fill(crate::theme::BG))
+            .frame(crate::theme::panel().fill(crate::theme::BG()))
             .show(ctx, |ui| {
                 if has_document || self.map_canvas.has_uncommitted_work() {
                     self.map_canvas.measurement_blocked = self.map_form.has_uncommitted_work()
@@ -346,7 +352,7 @@ impl super::super::WorldeditApp {
                 if self.map_failed_command.is_some() {
                     ui.separator();
                     ui.colored_label(
-                        crate::theme::GOLD,
+                        crate::theme::GOLD(),
                         "展示命令未提交，当前预览仍保留；重试会按当前地图版本重新检查。",
                     );
                     ui.horizontal(|ui| {

@@ -31,7 +31,7 @@ impl WorldeditApp {
             .map(|result| result.coverage.visited_nodes.clone());
         let timeline = self.tab == Tab::Timeline;
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(BG))
+            .frame(theme::panel().fill(BG()))
             .show(ctx, |ui| {
                 let storyline_count = graph.storyline_order.len();
                 let event_count = graph.nodes.iter().filter(|node| node.is_event).count();
@@ -146,14 +146,14 @@ impl WorldeditApp {
                                 self.focus_event = None;
                             }
                         }
-                        painter.rect_filled(canvas, 10, BG);
+                        painter.rect_filled(canvas, 10, BG());
                         let dot = 26.0 * zoom;
                         for x in 0..(total.x / dot) as i32 {
                             for y in 0..(total.y / dot) as i32 {
                                 let pos = canvas.min
                                     + Vec2::new(x as f32 * dot + 8.0, y as f32 * dot + 8.0);
                                 if painter.clip_rect().contains(pos) {
-                                    painter.circle_filled(pos, 0.8, BORDER.gamma_multiply(0.6));
+                                    painter.circle_filled(pos, 0.8, BORDER().gamma_multiply(0.6));
                                 }
                             }
                         }
@@ -176,7 +176,7 @@ impl WorldeditApp {
                                     to_screen(Pos2::new(0.0, 20.0 + li as f32 * LANE)),
                                     Vec2::new(width * zoom, (LANE - 14.0) * zoom),
                                 );
-                                painter.rect_filled(band, 10, PANEL.gamma_multiply(0.7));
+                                painter.rect_filled(band, 10, PANEL().gamma_multiply(0.7));
                                 let (id, display) = &graph.storyline_order[li];
                                 painter.rect_filled(
                                     Rect::from_min_size(
@@ -184,21 +184,21 @@ impl WorldeditApp {
                                         Vec2::new(3.0, 40.0) * zoom,
                                     ),
                                     2,
-                                    if li % 2 == 0 { ACCENT } else { BLUE },
+                                    if li % 2 == 0 { ACCENT() } else { BLUE() },
                                 );
                                 painter.text(
                                     to_screen(Pos2::new(24.0, 45.0 + li as f32 * LANE)),
                                     egui::Align2::LEFT_TOP,
                                     truncated(display, 9),
                                     egui::FontId::proportional(14.0 * zoom),
-                                    TEXT,
+                                    TEXT(),
                                 );
                                 painter.text(
                                     to_screen(Pos2::new(24.0, 73.0 + li as f32 * LANE)),
                                     egui::Align2::LEFT_TOP,
                                     format!("{}  /  {} 事件", truncated(id, 10), lane.len()),
                                     egui::FontId::proportional(10.0 * zoom),
-                                    MUTED,
+                                    MUTED(),
                                 );
                                 let add = Rect::from_min_size(
                                     to_screen(Pos2::new(
@@ -241,10 +241,10 @@ impl WorldeditApp {
                                 continue;
                             };
                             let color = match edge.kind {
-                                EdgeKind::Drift => BLUE,
-                                EdgeKind::Choice => ACCENT,
-                                EdgeKind::Divert => GOLD,
-                                EdgeKind::Enter => MUTED,
+                                EdgeKind::Drift => BLUE(),
+                                EdgeKind::Choice => ACCENT(),
+                                EdgeKind::Divert => GOLD(),
+                                EdgeKind::Enter => MUTED(),
                             };
                             let start = from.right_center();
                             let end = to.left_center();
@@ -367,7 +367,7 @@ impl WorldeditApp {
                                     egui::Align2::RIGHT_BOTTOM,
                                     "◆",
                                     egui::FontId::proportional(11.0 * zoom),
-                                    ACCENT,
+                                    ACCENT(),
                                 );
                             }
                             response.clone().on_hover_text(format!(
@@ -408,7 +408,7 @@ impl WorldeditApp {
                                     rect.right_center(),
                                     Vec2::splat(18.0 * zoom),
                                 );
-                                painter.circle_filled(port.center(), 4.0 * zoom, ACCENT);
+                                painter.circle_filled(port.center(), 4.0 * zoom, ACCENT());
                                 let port_response = ui.interact(
                                     port,
                                     egui::Id::new(("port", timeline, &node.name)),
@@ -428,7 +428,7 @@ impl WorldeditApp {
                             ) {
                                 painter.line_segment(
                                     [rects[&i].right_center(), pointer],
-                                    Stroke::new(1.5_f32, ACCENT),
+                                    Stroke::new(1.5_f32, ACCENT()),
                                 );
                                 if ui.input(|i| i.pointer.any_released()) {
                                     if let Some((&target, _)) = rects.iter().find(|(i, r)| {
@@ -457,7 +457,7 @@ impl WorldeditApp {
                                         ));
                                         painter.line_segment(
                                             [x, x + Vec2::new(0.0, 122.0 * zoom)],
-                                            Stroke::new(3.0_f32, ACCENT),
+                                            Stroke::new(3.0_f32, ACCENT()),
                                         );
                                         if ui.input(|i| i.pointer.any_released())
                                             && canvas.contains(pointer)
@@ -496,7 +496,7 @@ impl WorldeditApp {
                                 egui::Align2::CENTER_CENTER,
                                 "从第一个事件开始",
                                 egui::FontId::proportional(20.0),
-                                MUTED,
+                                MUTED(),
                             );
                         }
                     });

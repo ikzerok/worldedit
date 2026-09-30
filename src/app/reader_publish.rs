@@ -19,6 +19,7 @@ pub(super) struct ReaderPublishState {
     manuscript_choices: Vec<ManuscriptChoice>,
     attachment_choices: Vec<AttachmentChoice>,
     objects: BTreeSet<TargetRef>,
+    fields: BTreeMap<TargetRef, BTreeSet<String>>,
     map_choices: Vec<MapChoice>,
     maps: BTreeMap<String, worldline_core::reader_export::ReaderMapSelection>,
     chapters: BTreeMap<String, BTreeSet<String>>,
@@ -37,7 +38,6 @@ struct ReviewedPackage {
     preview: ReaderExportPreview,
     files: archive::Files,
     zip: Vec<u8>,
-    public_pages: Vec<(String, String, String)>,
     raw_bytes: usize,
 }
 
@@ -63,6 +63,7 @@ struct ManuscriptChoice {
 
 #[derive(Clone, PartialEq, Eq)]
 struct ObjectChoice {
+    fields: Vec<worldline_core::reader_export::ReaderFieldCandidate>,
     target: TargetRef,
     display: String,
 }

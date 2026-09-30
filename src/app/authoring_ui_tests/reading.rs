@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn pinning_two_reading_panels_keeps_source_and_undo_unchanged() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     let baseline = app.project.content_baseline();
     app.open_reading(TargetRef::new("entity", "a"));
     click(&ctx, &mut app, 8, "钉住旁查");
@@ -18,6 +19,7 @@ fn pinning_two_reading_panels_keeps_source_and_undo_unchanged() {
 #[test]
 fn two_pinned_panels_keep_targets_and_back_history_independent_through_real_links() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     let entry = app.project.entry.clone();
     let mut source = app.project.sources()[&entry].clone();
     source.push_str(concat!(
@@ -101,6 +103,7 @@ fn two_pinned_panels_keep_targets_and_back_history_independent_through_real_link
 #[test]
 fn narrow_reading_panels_can_switch_and_close_without_losing_an_edit_draft() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     let first = app
         .reading_panels
         .pin(TargetRef::new("entity", "a"))
@@ -140,6 +143,7 @@ fn narrow_reading_panels_can_switch_and_close_without_losing_an_edit_draft() {
 #[test]
 fn project_switch_preserves_unsubmitted_form_even_with_clean_project() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     app.project.mark_saved();
     app.edit_entity(Some("a"));
     app.entity_editor.as_mut().unwrap().draft.description = "未提交资料".into();
@@ -155,6 +159,7 @@ fn project_switch_preserves_unsubmitted_form_even_with_clean_project() {
 #[test]
 fn opening_another_project_clears_all_personal_reading_targets() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     let original_root = app.project.root.clone();
     app.project.mark_saved();
     app.open_reading(TargetRef::new("entity", "a"));
@@ -203,6 +208,7 @@ fn opening_another_project_clears_all_personal_reading_targets() {
 #[test]
 fn opening_another_project_is_blocked_without_dropping_pinned_context_or_form_draft() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     let original_root = app.project.root.clone();
     app.project.mark_saved();
     let panel = app
@@ -237,6 +243,7 @@ fn opening_another_project_is_blocked_without_dropping_pinned_context_or_form_dr
 #[test]
 fn project_switch_preserves_an_unsubmitted_period_form() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     app.project.mark_saved();
     app.new_period = Some(("age".into(), "未提交时代".into(), None));
     app.request_action(super::Pending::Close, &ctx);
@@ -248,6 +255,7 @@ fn project_switch_preserves_an_unsubmitted_period_form() {
 #[test]
 fn pinned_wiki_navigation_does_not_close_an_independent_temporary_reader() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     let id = app
         .reading_panels
         .pin(TargetRef::new("entity", "a"))
@@ -276,6 +284,7 @@ fn pinned_wiki_navigation_does_not_close_an_independent_temporary_reader() {
 #[test]
 fn pinned_target_refreshes_updates_and_never_falls_back_to_a_same_name_id() {
     let (ctx, mut app) = app();
+    app.personal.settings.dock_references = false; // 此组专门验证保留的浮动模式
     let id = app
         .reading_panels
         .pin(TargetRef::new("entity", "a"))

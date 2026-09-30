@@ -14,58 +14,60 @@ impl WorldeditApp {
         if !self.active_file.is_absolute() {
             self.active_file = super::workspace_source_path(&self.project, &self.active_file);
         }
-        egui::SidePanel::right("diagnostics")
-            .default_width(300.0)
-            .width_range(240.0..=420.0)
-            .frame(theme::panel())
-            .show(ctx, |ui| {
-                ui.label(RichText::new("工程诊断").strong().size(17.0));
-                ui.label(theme::muted("检查工作区全部源码，点击定位"));
-                ui.separator();
-                let diagnostics = self.diagnostics().to_vec();
-                if diagnostics.is_empty() {
-                    ui.colored_label(ACCENT, "✓ 所有文件校验通过");
-                }
-                egui::ScrollArea::vertical()
-                    .id_salt("diagnostics-scroll")
-                    .show(ui, |ui| {
-                        for (i, d) in diagnostics.iter().enumerate() {
-                            ui.push_id(i, |ui| {
-                                let color = match d.severity {
-                                    Severity::Error => ERROR,
-                                    Severity::Warning => GOLD,
-                                    Severity::Hint => BLUE,
-                                };
-                                theme::card().show(ui, |ui| {
-                                    if ui
-                                        .add(egui::Button::new(
-                                            RichText::new(format!(
-                                                "{}  {}:{}",
-                                                d.code,
-                                                Path::new(&d.file)
-                                                    .file_name()
-                                                    .unwrap_or_default()
-                                                    .to_string_lossy(),
-                                                d.span.line
+        if self.personal.settings.diagnostics && !self.personal.settings.focus {
+            egui::SidePanel::right("diagnostics")
+                .default_width(300.0)
+                .width_range(240.0..=420.0)
+                .frame(theme::panel())
+                .show(ctx, |ui| {
+                    ui.label(RichText::new("工程诊断").strong().size(17.0));
+                    ui.label(theme::muted("检查工作区全部源码，点击定位"));
+                    ui.separator();
+                    let diagnostics = self.diagnostics().to_vec();
+                    if diagnostics.is_empty() {
+                        ui.colored_label(ACCENT(), "✓ 所有文件校验通过");
+                    }
+                    egui::ScrollArea::vertical()
+                        .id_salt("diagnostics-scroll")
+                        .show(ui, |ui| {
+                            for (i, d) in diagnostics.iter().enumerate() {
+                                ui.push_id(i, |ui| {
+                                    let color = match d.severity {
+                                        Severity::Error => ERROR(),
+                                        Severity::Warning => GOLD(),
+                                        Severity::Hint => BLUE(),
+                                    };
+                                    theme::card().show(ui, |ui| {
+                                        if ui
+                                            .add(egui::Button::new(
+                                                RichText::new(format!(
+                                                    "{}  {}:{}",
+                                                    d.code,
+                                                    Path::new(&d.file)
+                                                        .file_name()
+                                                        .unwrap_or_default()
+                                                        .to_string_lossy(),
+                                                    d.span.line
+                                                ))
+                                                .size(12.0)
+                                                .color(color),
                                             ))
-                                            .size(12.0)
-                                            .color(color),
-                                        ))
-                                        .clicked()
-                                    {
-                                        self.jump_to_file(&d.file, d.span.line, d.span.column);
-                                    }
-                                    ui.label(RichText::new(&d.message).size(12.0));
-                                    if let Some(note) = &d.note {
-                                        ui.label(theme::muted(note));
-                                    }
+                                            .clicked()
+                                        {
+                                            self.jump_to_file(&d.file, d.span.line, d.span.column);
+                                        }
+                                        ui.label(RichText::new(&d.message).size(12.0));
+                                        if let Some(note) = &d.note {
+                                            ui.label(theme::muted(note));
+                                        }
+                                    });
                                 });
-                            });
-                        }
-                    });
-            });
+                            }
+                        });
+                });
+        }
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(BG))
+            .frame(theme::panel().fill(BG()))
             .show(ctx, |ui| {
                 let path = self.active_file.clone();
                 let relative = path
@@ -90,7 +92,7 @@ impl WorldeditApp {
                     if pending_path != path {
                         self.page_heading(ui, &relative, "输入法草稿仍待处理");
                         ui.colored_label(
-                            theme::GOLD,
+                            theme::GOLD(),
                             "另一份源码仍有未提交的输入法草稿。请返回该文件并处理草稿后再继续。",
                         );
                         if ui.button("返回未提交源码").clicked() {

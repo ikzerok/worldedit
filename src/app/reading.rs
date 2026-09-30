@@ -1,5 +1,6 @@
 //! 完整对象的聚合资料页，只消费核心快照和来源导航。
 mod content;
+mod dock;
 use super::catalog::kind_label;
 use super::WorldeditApp;
 use crate::theme;
@@ -118,8 +119,8 @@ impl WorldeditApp {
                                 if ui
                                     .link(
                                         RichText::new(&part.text)
-                                            .size(16.0)
-                                            .color(theme::ACCENT)
+                                            .size(self.personal.settings.body_size)
+                                            .color(theme::ACCENT())
                                             .underline(),
                                     )
                                     .on_hover_text("阅读关联对象")
@@ -128,7 +129,7 @@ impl WorldeditApp {
                                     self.open_reading(target);
                                 }
                             } else {
-                                self.wiki_inline(ui, &part.text, 16.0);
+                                self.wiki_inline(ui, &part.text, self.personal.settings.body_size);
                             }
                         });
                     }
@@ -157,7 +158,9 @@ impl WorldeditApp {
 
     pub(super) fn reading_window(&mut self, ctx: &egui::Context) {
         self.transient_reading_window(ctx);
-        self.pinned_reading_windows(ctx);
+        if self.personal.settings.references_visible && !self.personal.settings.dock_references {
+            self.pinned_reading_windows(ctx);
+        }
     }
 
     fn transient_reading_window(&mut self, ctx: &egui::Context) {
@@ -191,6 +194,7 @@ impl WorldeditApp {
                     .clicked()
                 {
                     self.selected_reading_panel = self.reading_panels.pin(target.clone());
+                    self.personal.settings.references_visible = true;
                     self.close_transient_reading();
                 }
                 if self.reading_return.is_some()

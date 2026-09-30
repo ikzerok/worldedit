@@ -10,6 +10,7 @@ pub(super) fn choice_cards(
     draft: &mut EventDraft,
     graph: Option<&RelationGraph>,
     catalog: Option<&worldline_core::catalog::Catalog>,
+    symbols: Option<&worldline_core::Symbols>,
 ) -> Result<(), String> {
     let cache_key = ui.id().with(("choice-forms", &draft.id));
     let choices = ui
@@ -71,26 +72,62 @@ pub(super) fn choice_cards(
                         .unwrap_or_else(|| id.into()),
                 };
                 ui.label(theme::muted("分支末尾去向"));
-                egui::ComboBox::from_id_salt("target")
-                    .selected_text(caption)
-                    .width(ui.available_width() - 20.0)
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut choice.target, None, "继续执行选择组之后的内容");
-                        ui.selectable_value(&mut choice.target, Some("END".into()), "结束故事");
-                        if let Some(graph) = graph {
-                            for node in &graph.nodes {
-                                ui.selectable_value(
-                                    &mut choice.target,
-                                    Some(node.name.clone()),
-                                    format!(
-                                        "{} · {}",
-                                        node.summary.as_deref().unwrap_or(&node.name),
-                                        node.name
-                                    ),
-                                );
-                            }
+                if let Some(catalog) = catalog {
+                    ui.horizontal_wrapped(|ui| {
+                        if ui
+                            .selectable_label(choice.target.is_none(), "继续执行后文")
+                            .clicked()
+                        {
+                            choice.target = None;
+                        }
+                        if ui
+                            .selectable_label(choice.target.as_deref() == Some("END"), "结束故事")
+                            .clicked()
+                        {
+                            choice.target = Some("END".into());
                         }
                     });
+                    let mut target = choice
+                        .target
+                        .as_deref()
+                        .filter(|id| *id != "END")
+                        .map(|id| resolved_choice_target(id, &draft.id, symbols));
+                    if super::object_picker::object_picker(
+                        ui,
+                        "choice-destination",
+                        &caption,
+                        &mut target,
+                        catalog,
+                        &["event", "scene"],
+                    ) {
+                        choice.target = target.map(|target| target.id);
+                    }
+                } else {
+                    egui::ComboBox::from_id_salt("target")
+                        .selected_text(caption)
+                        .width(ui.available_width() - 20.0)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut choice.target,
+                                None,
+                                "继续执行选择组之后的内容",
+                            );
+                            ui.selectable_value(&mut choice.target, Some("END".into()), "结束故事");
+                            if let Some(graph) = graph {
+                                for node in &graph.nodes {
+                                    ui.selectable_value(
+                                        &mut choice.target,
+                                        Some(node.name.clone()),
+                                        format!(
+                                            "{} · {}",
+                                            node.summary.as_deref().unwrap_or(&node.name),
+                                            node.name
+                                        ),
+                                    );
+                                }
+                            }
+                        });
+                }
                 if choice.target != previous_target {
                     choice.drift = choice
                         .target
@@ -168,4 +205,46 @@ pub(super) fn choice_cards(
         "同组选择只执行选中的一项；无可用选项时继续组后内容。复杂分支仍可在完整正文中编辑。",
     ));
     Ok(())
+}
+
+fn resolved_choice_target(
+    raw: &str,
+    event: &str,
+    symbols: Option<&worldline_core::Symbols>,
+) -> worldline_core::TargetRef {
+    symbols
+        .and_then(|symbols| {
+            let path = symbols.resolve_target(raw, Some(event))?;
+            let event_name = symbols.event_order.get(path.event)?;
+            Some(worldline_core::TargetRef::new(
+                if path.scenes.is_empty() {
+                    "event"
+                } else {
+                    "scene"
+                },
+                &path.full_name(event_name),
+            ))
+        })
+        .unwrap_or_else(|| worldline_core::TargetRef::new("event", raw))
+}
+#[cfg(test)]
+mod target_tests {
+    #[test]
+    fn v080_short_scene_target_uses_core_resolution_without_rewriting_author_text() {
+        let result = worldline_core::compile_source(
+            "test.wl",
+            "event start\n  scene inner\n    内部。\n    -> END\n  scene other\n    -> inner\n",
+        );
+        assert!(!result.has_errors());
+        let target =
+            super::resolved_choice_target("inner", "start", Some(&result.analysis.symbols));
+        assert_eq!(
+            target,
+            worldline_core::TargetRef::new("scene", "start.inner")
+        );
+        assert_eq!(
+            super::resolved_choice_target("start.inner", "start", Some(&result.analysis.symbols)),
+            target
+        );
+    }
 }

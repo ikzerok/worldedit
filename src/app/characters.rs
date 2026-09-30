@@ -10,12 +10,16 @@ use worldline_core::authoring::CharacterDraft;
 
 impl WorldeditApp {
     pub(super) fn select_character(&mut self, id: &str) {
+        if self.prevent_replacing_draft("人物资料") {
+            return;
+        }
         let info = self
             .snapshot
             .as_ref()
             .and_then(|s| s.result.analysis.symbols.characters.get(id))
             .cloned();
         if let Some(info) = info {
+            self.catalog_target = Some(worldline_core::TargetRef::new("character", id));
             self.character_editor = Some(CharacterEditor {
                 path: PathBuf::from(info.decl_file),
                 original: Some(id.into()),
@@ -32,7 +36,10 @@ impl WorldeditApp {
             });
         }
     }
-    fn new_character(&mut self) {
+    pub(super) fn new_character(&mut self) {
+        if self.prevent_replacing_draft("人物资料") {
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -59,6 +66,7 @@ impl WorldeditApp {
                 ..Default::default()
             },
         });
+        self.reset_new_draft_baseline("人物资料");
     }
     pub(super) fn characters_tab(&mut self, ctx: &egui::Context) {
         self.character_inspector(ctx);
@@ -68,7 +76,7 @@ impl WorldeditApp {
         let symbols = snapshot.result.analysis.symbols.clone();
         let ids = &symbols.character_order;
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(BG))
+            .frame(theme::panel().fill(BG()))
             .show(ctx, |ui| {
                 theme::page_heading(
                     ui,
@@ -133,12 +141,12 @@ impl WorldeditApp {
                         );
                         let (canvas, _) = ui.allocate_exact_size(total, Sense::click());
                         let painter = ui.painter_at(canvas);
-                        painter.rect_filled(canvas, 12, PANEL);
+                        painter.rect_filled(canvas, 12, PANEL());
                         let center = Pos2::new(total.x * 0.5, total.y * 0.5);
                         painter.circle_stroke(
                             canvas.min + center.to_vec2(),
                             radius,
-                            Stroke::new(1.0_f32, BORDER),
+                            Stroke::new(1.0_f32, BORDER()),
                         );
                         let rects: HashMap<String, Rect> = ids
                             .iter()
@@ -176,15 +184,15 @@ impl WorldeditApp {
                                 let end = to.center() - direction * 86.0;
                                 painter.line_segment(
                                     [start, end],
-                                    Stroke::new(1.5_f32, ACCENT.gamma_multiply(0.65)),
+                                    Stroke::new(1.5_f32, ACCENT().gamma_multiply(0.65)),
                                 );
-                                draw_arrow(&painter, start, end, ACCENT);
+                                draw_arrow(&painter, start, end, ACCENT());
                                 painter.text(
                                     start.lerp(end, 0.5) + Vec2::new(0.0, -12.0),
                                     egui::Align2::CENTER_BOTTOM,
                                     truncated(&relation.label, 18),
                                     egui::FontId::proportional(12.0),
-                                    ACCENT,
+                                    ACCENT(),
                                 );
                             }
                         }
@@ -193,13 +201,13 @@ impl WorldeditApp {
                                 .character_editor
                                 .as_ref()
                                 .is_some_and(|c| c.draft.id == *id);
-                            painter.rect_filled(*rect, 12, CARD);
+                            painter.rect_filled(*rect, 12, CARD());
                             painter.rect_stroke(
                                 *rect,
                                 12,
                                 Stroke::new(
                                     if selected { 2.0_f32 } else { 1.0_f32 },
-                                    if selected { ACCENT } else { BORDER },
+                                    if selected { ACCENT() } else { BORDER() },
                                 ),
                                 egui::StrokeKind::Inside,
                             );
@@ -209,14 +217,14 @@ impl WorldeditApp {
                                 egui::Align2::CENTER_CENTER,
                                 truncated(&info.display, 12),
                                 egui::FontId::proportional(16.0),
-                                TEXT,
+                                TEXT(),
                             );
                             painter.text(
                                 rect.center() + Vec2::new(0.0, 14.0),
                                 egui::Align2::CENTER_CENTER,
                                 truncated(id, 20),
                                 egui::FontId::monospace(11.0),
-                                MUTED,
+                                MUTED(),
                             );
                             let response = ui.interact(
                                 *rect,
@@ -242,7 +250,7 @@ impl WorldeditApp {
                             }
                             let port =
                                 Rect::from_center_size(rect.right_center(), Vec2::splat(20.0));
-                            painter.circle_filled(port.center(), 4.5, ACCENT);
+                            painter.circle_filled(port.center(), 4.5, ACCENT());
                             let response = ui.interact(
                                 port,
                                 egui::Id::new(("person-port", id)),
@@ -258,7 +266,7 @@ impl WorldeditApp {
                             {
                                 painter.line_segment(
                                     [rect.right_center(), pointer],
-                                    Stroke::new(1.5_f32, ACCENT),
+                                    Stroke::new(1.5_f32, ACCENT()),
                                 );
                                 if ui.input(|i| i.pointer.any_released()) {
                                     if let Some((to, _)) = rects
@@ -276,7 +284,7 @@ impl WorldeditApp {
                                 egui::Align2::CENTER_CENTER,
                                 "创建人物后,在这里连接他们的关系",
                                 egui::FontId::proportional(17.0),
-                                MUTED,
+                                MUTED(),
                             );
                         }
                     });
@@ -299,6 +307,7 @@ impl WorldeditApp {
     }
 
     fn character_inspector(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         let template_index = self
             .snapshot
             .as_ref()

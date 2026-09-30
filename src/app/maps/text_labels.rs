@@ -113,7 +113,7 @@ impl super::super::WorldeditApp {
         );
         if !valid {
             ui.colored_label(
-                crate::theme::GOLD,
+                crate::theme::GOLD(),
                 "请输入非空文字；仅支持普通换行，不支持制表符",
             );
         }

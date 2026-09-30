@@ -4,6 +4,7 @@ use std::path::Path;
 impl WorldeditApp {
     pub(super) fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
         if self.has_open_authoring_form() {
+            self.draft_action = Some(action);
             self.message = Some(
                 "仍有未提交的创作输入，请先应用、完成或恢复后，再切换或关闭工程。输入已保留。"
                     .into(),
@@ -84,6 +85,9 @@ impl WorldeditApp {
             .unwrap_or_else(|| self.active_file.clone())
     }
     pub(super) fn new_event(&mut self, lane: Option<&str>) {
+        if self.prevent_replacing_draft("事件正文与分支") {
+            return;
+        }
         let mut index = 1;
         while self.snapshot.as_ref().is_some_and(|s| {
             s.result
@@ -121,8 +125,12 @@ impl WorldeditApp {
                 ..Default::default()
             },
         });
+        self.reset_new_draft_baseline("事件正文与分支");
     }
     pub(super) fn select_event(&mut self, id: &str) {
+        if self.prevent_replacing_draft("事件正文与分支") {
+            return;
+        }
         let before = self.project.clone();
         match self.project.migrate_permissions() {
             Ok(count) if count > 0 => {

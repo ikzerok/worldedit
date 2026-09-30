@@ -13,9 +13,11 @@ mod checkpoint_history;
 mod choices;
 mod chrome;
 mod collaboration_ui;
+mod commands;
 #[cfg(not(target_arch = "wasm32"))]
 mod conflicts;
 mod deletion;
+mod draft_lifecycle;
 mod entities;
 #[cfg(not(target_arch = "wasm32"))]
 mod frame_profile;
@@ -28,9 +30,11 @@ mod maps;
 mod markdown_import_ui;
 mod network;
 mod network_state;
+mod object_picker;
 mod overview;
 #[cfg(not(target_arch = "wasm32"))]
 mod package;
+mod personal;
 mod play;
 mod presets;
 mod reader_publish;
@@ -39,6 +43,8 @@ mod reading_state;
 mod refactor_ui;
 mod relation_editor;
 mod search;
+#[cfg(not(target_arch = "wasm32"))]
+mod startup;
 mod states;
 mod tags;
 mod template_manager;
@@ -49,6 +55,7 @@ mod update;
 mod views;
 mod wiki;
 mod workspace;
+mod writing_workspace;
 
 use egui::{Pos2, Vec2};
 use std::collections::HashMap;
@@ -66,7 +73,7 @@ pub(super) fn workspace_source_path(project: &Project, path: &Path) -> PathBuf {
     workspace::workspace_source_path(project, path)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 enum Tab {
     Overview,
     Timeline,
@@ -219,6 +226,12 @@ struct DirectoryDialog {
 
 pub struct WorldeditApp {
     project: Project,
+    personal: personal::PersonalState,
+    command_palette: commands::CommandPalette,
+    draft_action: Option<Pending>,
+    new_draft_baselines: HashMap<&'static str, String>,
+    frame_dirty_drafts: Vec<&'static str>,
+    event_draft_cache: std::cell::RefCell<Option<(u64, String, EventDraft)>>,
     #[cfg(not(target_arch = "wasm32"))]
     last_refresh: std::time::Instant,
     #[cfg(not(target_arch = "wasm32"))]

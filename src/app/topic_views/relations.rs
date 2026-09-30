@@ -26,13 +26,13 @@ pub(super) fn relation_projection(
     ));
     if result.relations.cycle_hint {
         ui.colored_label(
-            GOLD,
+            GOLD(),
             "当前页存在关系环；不推造祖先、后代或传递关系。此提示只覆盖当前页。",
         );
     }
     if result.relations.truncated {
         ui.colored_label(
-            GOLD,
+            GOLD(),
             "关系页已截断；继续读取会使用 core continuation，不会丢弃原始关系。",
         );
     }
@@ -161,14 +161,14 @@ fn relation_diagram(
         else {
             continue;
         };
-        painter.line_segment([*from, *to], Stroke::new(1.2_f32, MUTED));
+        painter.line_segment([*from, *to], Stroke::new(1.2_f32, MUTED()));
         let offset = (index % 5) as f32 * 11.0 - 22.0;
         painter.text(
             from.lerp(*to, 0.5) + Vec2::new(0.0, offset),
             egui::Align2::CENTER_CENTER,
             &edge.role,
             egui::FontId::proportional(11.0),
-            TEXT,
+            TEXT(),
         );
     }
     for node in nodes {
@@ -176,7 +176,7 @@ fn relation_diagram(
             continue;
         };
         let node_rect = egui::Rect::from_center_size(*center, Vec2::new(164.0, 44.0));
-        painter.rect_filled(node_rect, 6.0, CARD);
+        painter.rect_filled(node_rect, 6.0, CARD());
         if ui
             .interact(
                 node_rect,
@@ -191,7 +191,7 @@ fn relation_diagram(
         painter.rect_stroke(
             node_rect,
             6.0,
-            Stroke::new(1.2_f32, BLUE),
+            Stroke::new(1.2_f32, BLUE()),
             egui::StrokeKind::Inside,
         );
         painter.text(
@@ -199,7 +199,7 @@ fn relation_diagram(
             egui::Align2::CENTER_CENTER,
             target_label(catalog, &node.target),
             egui::FontId::proportional(11.0),
-            TEXT,
+            TEXT(),
         );
     }
 }

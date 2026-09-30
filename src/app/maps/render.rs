@@ -87,7 +87,7 @@ impl MapCanvas {
                         painter.rect_stroke(
                             Rect::from_min_size(origin, galley.size()).expand(4.0),
                             2.0,
-                            Stroke::new(1.0_f32, crate::theme::GOLD),
+                            Stroke::new(1.0_f32, crate::theme::GOLD()),
                             StrokeKind::Outside,
                         );
                     }

@@ -256,6 +256,14 @@ def verify_assets(root, pair):
     return manifest
 
 
+def release_body(tag):
+    require(BRANCH.fullmatch("release/" + tag), "发行说明版本必须是规范tag")
+    path = Path(__file__).resolve().parent.parent / "docs" / "releases" / (tag + ".md")
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+    return "Windows/Web 与双仓源码。完整配对提交及 CI 见 release-pair.json；下载后核对 SHA256SUMS.txt。"
+
+
 def publish(root):
     pair = gate()
     verify_assets(root, pair)
@@ -268,7 +276,7 @@ def publish(root):
     api(f"repos/{EDITOR}/git/refs", "POST", {"ref": "refs/tags/" + tag, "sha": sha})
     release = api(f"repos/{EDITOR}/releases", "POST", {
         "tag_name": tag, "target_commitish": sha, "name": f"worldedit {tag}", "draft": True,
-        "prerelease": False, "body": "Windows/Web 与双仓源码。完整配对提交及 CI 见 release-pair.json；下载后核对 SHA256SUMS.txt。"})
+        "prerelease": False, "body": release_body(tag)})
     release_id = release["id"]
     require(release.get("draft") is True, "创建结果不是 draft，停止")
     release_set(tag, release_id, sha)

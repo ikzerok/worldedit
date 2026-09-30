@@ -22,7 +22,7 @@ impl WorldeditApp {
             .map(|(_, entries)| entries.clone())
             .unwrap_or_default();
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(BG))
+            .frame(theme::panel().fill(BG()))
             .show(ctx, |ui| {
                 theme::page_heading(
                     ui,

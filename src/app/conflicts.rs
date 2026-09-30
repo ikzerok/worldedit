@@ -61,7 +61,7 @@ impl ConflictView {
                     ui.label(theme::muted(capture_label(captured_at)));
                 }
                 if let Some(error) = &self.error {
-                    ui.colored_label(ERROR, format!("无法读取冲突快照：{error}"));
+                    ui.colored_label(ERROR(), format!("无法读取冲突快照：{error}"));
                     return;
                 }
                 if self.snapshots.is_empty() {
@@ -148,7 +148,7 @@ fn show_side(ui: &mut egui::Ui, title: &str, subtitle: &str, bytes: Option<&[u8]
     ui.add_space(4.0);
     match bytes {
         None => {
-            ui.colored_label(GOLD, "缺失：此方没有文件（删除或尚不存在）");
+            ui.colored_label(GOLD(), "缺失：此方没有文件（删除或尚不存在）");
         }
         Some(bytes) => match std::str::from_utf8(bytes) {
             Ok(text) => {
@@ -168,7 +168,7 @@ fn show_side(ui: &mut egui::Ui, title: &str, subtitle: &str, bytes: Option<&[u8]
             }
             Err(_) => {
                 ui.colored_label(
-                    ERROR,
+                    ERROR(),
                     format!("非 UTF-8：无法按 UTF-8 解码（{} 字节）", bytes.len()),
                 );
                 ui.label(theme::muted(format!(

@@ -45,7 +45,7 @@ pub(super) fn header(
             app.new_period_dialog();
         }
         if let Some(from) = app.link_from.clone() {
-            ui.colored_label(ACCENT, format!("从 {from} 连线 · 点击目标事件"));
+            ui.colored_label(ACCENT(), format!("从 {from} 连线 · 点击目标事件"));
             ui.label(theme::muted("选择文案"));
             ui.add(
                 egui::TextEdit::singleline(&mut app.link_label)
@@ -74,9 +74,9 @@ pub(super) fn footer(
     height: f32,
 ) {
     ui.horizontal(|ui| {
-        ui.colored_label(ACCENT, "— 选择");
-        ui.colored_label(GOLD, "— 跃迁");
-        ui.colored_label(BLUE, "— 跨线漂流");
+        ui.colored_label(ACCENT(), "— 选择");
+        ui.colored_label(GOLD(), "— 跃迁");
+        ui.colored_label(BLUE(), "— 跨线漂流");
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.small_button("＋").clicked() {
                 app.zoom = (app.zoom + 0.1).min(1.6);

@@ -58,28 +58,44 @@ const KEYWORDS: &[&str] = &[
 ];
 
 fn c_default() -> Color32 {
-    Color32::from_rgb(220, 220, 220)
+    crate::theme::TEXT()
 }
 fn c_keyword() -> Color32 {
-    Color32::from_rgb(120, 170, 255)
+    crate::theme::ACCENT()
 }
 fn c_symbol() -> Color32 {
-    Color32::from_rgb(240, 200, 100)
+    crate::theme::GOLD()
 }
 fn c_string() -> Color32 {
-    Color32::from_rgb(150, 220, 150)
+    if crate::theme::is_light() {
+        Color32::from_rgb(34, 106, 49)
+    } else {
+        Color32::from_rgb(150, 220, 150)
+    }
 }
 fn c_comment() -> Color32 {
-    Color32::from_rgb(120, 130, 120)
+    crate::theme::MUTED()
 }
 fn c_divert() -> Color32 {
-    Color32::from_rgb(255, 150, 90)
+    if crate::theme::is_light() {
+        Color32::from_rgb(146, 62, 19)
+    } else {
+        Color32::from_rgb(255, 150, 90)
+    }
 }
 fn c_tag() -> Color32 {
-    Color32::from_rgb(200, 160, 255)
+    if crate::theme::is_light() {
+        Color32::from_rgb(106, 49, 155)
+    } else {
+        Color32::from_rgb(200, 160, 255)
+    }
 }
 fn c_interp() -> Color32 {
-    Color32::from_rgb(110, 220, 210)
+    if crate::theme::is_light() {
+        Color32::from_rgb(0, 106, 103)
+    } else {
+        Color32::from_rgb(110, 220, 210)
+    }
 }
 
 /// 生成整段源码的 LayoutJob(逐行状态机,支持跨行块注释)。
@@ -245,7 +261,12 @@ fn classify(
     }
     let word = &code[i..j];
     let after_word_boundary = j >= bytes.len() || bytes[j] == b' ' || bytes[j] == b'"';
-    let keyword = KEYWORDS.contains(&word)
+    let keyword = (language_version.supports_language_111()
+        && matches!(
+            word,
+            "rule" | "fragment" | "local" | "call" | "return" | "say"
+        ))
+        || KEYWORDS.contains(&word)
         || (i == 0
             && ((language_version.supports_entities() && word == "entity")
                 || (language_version.supports_relations()

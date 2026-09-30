@@ -716,5 +716,16 @@ class TrunkInstallTests(unittest.TestCase):
         self.assertEqual(self.path_file.read_text(encoding="utf-8"), previous)
 
 
+class ReleaseNotesTests(unittest.TestCase):
+    def test_version_notes_disclose_compatibility_and_do_not_read_arbitrary_paths(self):
+        body = release.release_body("v0.8.0")
+        self.assertIn("负数rnd旧错误行为例外", body)
+        self.assertIn("有效非负固定seed", body)
+        self.assertIn("Windows/macOS原生交互", body)
+        self.assertIn("SHA256SUMS.txt", release.release_body("v99.0.0"))
+        with self.assertRaises(RuntimeError):
+            release.release_body("../../private")
+
+
 if __name__ == "__main__":
     unittest.main()

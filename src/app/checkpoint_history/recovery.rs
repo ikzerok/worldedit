@@ -16,7 +16,10 @@ pub(super) fn draw_plan_summary(
         "core 公开 API 提供逐文件操作、对象影响与三方文本投影；base 是检查点创建时捕获的保存基线，不代表共同祖先或自动合并方案。",
     ));
     if project.is_dirty() {
-        ui.colored_label(theme::ERROR, "当前有未保存草稿；确认后会被检查点内容替换。");
+        ui.colored_label(
+            theme::ERROR(),
+            "当前有未保存草稿；确认后会被检查点内容替换。",
+        );
     }
     ScrollArea::vertical()
         .id_salt("checkpoint-change-list")
@@ -53,7 +56,7 @@ pub(super) fn draw_plan_summary(
                     }
                     if !change.objects_complete {
                         ui.colored_label(
-                            theme::ERROR,
+                            theme::ERROR(),
                             "对象影响分析不完整；恢复不会因此自动删除或改写对象引用。",
                         );
                     }
@@ -68,7 +71,7 @@ pub(super) fn draw_plan_summary(
         ));
         if plan.text_differences_truncated {
             ui.colored_label(
-                theme::ERROR,
+                theme::ERROR(),
                 "源码文件超过 core 投影上限；其余文本差异未显示。",
             );
         }
@@ -101,21 +104,24 @@ fn draw_text_difference(ui: &mut egui::Ui, difference: &CheckpointTextDiff) {
             )));
             if !difference.base_available {
                 ui.colored_label(
-                    theme::ERROR,
+                    theme::ERROR(),
                     "没有可靠的已保存基线；只展示 current/checkpoint 原文，不推断三方差异。",
                 );
             }
             if difference.alignment_uncertain {
-                ui.colored_label(theme::ERROR, "段落无法可靠对齐；下方内容是有界原文片段。");
+                ui.colored_label(theme::ERROR(), "段落无法可靠对齐；下方内容是有界原文片段。");
             }
             if difference.undecodable {
                 ui.colored_label(
-                    theme::ERROR,
+                    theme::ERROR(),
                     "存在无效 UTF-8；下方以十六进制字节显示，未生成范围。",
                 );
             }
             if difference.truncated {
-                ui.colored_label(theme::ERROR, "文本投影达到大小或段落上限，显示内容已截断。");
+                ui.colored_label(
+                    theme::ERROR(),
+                    "文本投影达到大小或段落上限，显示内容已截断。",
+                );
             }
 
             if difference.alignment_uncertain || difference.undecodable {
@@ -202,7 +208,7 @@ pub(super) fn draw_restore_confirmation(
         ));
         if !baseline_current {
             ui.colored_label(
-                theme::ERROR,
+                theme::ERROR(),
                 "此预览已过期：工程缓冲发生变化。请取消并重新预览。",
             );
         }

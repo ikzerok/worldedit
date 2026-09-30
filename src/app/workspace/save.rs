@@ -64,6 +64,7 @@ impl WorldeditApp {
         });
     }
     pub(in crate::app) fn dialogs(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         if let Some((mut id, mut display, mut parent)) = self.new_period.take() {
             let mut save = false;
             let mut cancel = false;

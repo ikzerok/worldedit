@@ -85,7 +85,7 @@ impl MapCanvas {
             });
         }
         if let Some(error) = self.validation_error() {
-            ui.colored_label(crate::theme::ERROR, error);
+            ui.colored_label(crate::theme::ERROR(), error);
         }
     }
 

@@ -31,11 +31,11 @@ pub(in crate::app) fn draw_node(
         .contains(&search.to_lowercase());
     let opacity = if matches { 1.0 } else { 0.35 };
     let color = if selected {
-        ACCENT
+        ACCENT()
     } else if entry {
-        BLUE
+        BLUE()
     } else {
-        BORDER
+        BORDER()
     };
     painter.rect_filled(
         rect.translate(Vec2::new(0.0, 4.0)),
@@ -45,7 +45,7 @@ pub(in crate::app) fn draw_node(
     painter.rect_filled(
         rect,
         10,
-        (if hovered { lighten(CARD) } else { CARD }).gamma_multiply(opacity),
+        (if hovered { lighten(CARD()) } else { CARD() }).gamma_multiply(opacity),
     );
     painter.rect_stroke(
         rect,
@@ -76,21 +76,21 @@ pub(in crate::app) fn draw_node(
             )
         },
         egui::FontId::proportional(10.0 * zoom),
-        if entry { BLUE } else { MUTED },
+        if entry { BLUE() } else { MUTED() },
     );
     painter.text(
         origin + Vec2::new(0.0, 23.0) * zoom,
         egui::Align2::LEFT_TOP,
         truncated(node.summary.as_deref().unwrap_or(&node.name), 17),
         egui::FontId::proportional(15.0 * zoom),
-        TEXT.gamma_multiply(opacity),
+        TEXT().gamma_multiply(opacity),
     );
     painter.text(
         origin + Vec2::new(0.0, 47.0) * zoom,
         egui::Align2::LEFT_TOP,
         truncated(&node.name, 28),
         egui::FontId::monospace(11.0 * zoom),
-        MUTED.gamma_multiply(opacity),
+        MUTED().gamma_multiply(opacity),
     );
     let file = std::path::Path::new(&node.file)
         .file_name()
@@ -101,6 +101,6 @@ pub(in crate::app) fn draw_node(
         egui::Align2::LEFT_TOP,
         format!("{} · {} 人物", truncated(&file, 20), node.characters.len()),
         egui::FontId::proportional(10.0 * zoom),
-        MUTED.gamma_multiply(opacity),
+        MUTED().gamma_multiply(opacity),
     );
 }

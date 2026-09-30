@@ -1,13 +1,16 @@
 //! 注册书稿工作台：结构和统计来自 core，正文始终读取原有源码。
 mod editing;
+mod outline;
 mod preview;
+mod transactions;
 mod workbench;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use worldline_core::catalog::{CatalogObject, TargetRef};
 use worldline_core::manuscript::{
     ManuscriptDraft, ManuscriptEntryDraft, ManuscriptEntryKind, ManuscriptReferenceStatus,
+    WritingBuffer,
 };
 use worldline_core::presentation_commands::Revision;
 
@@ -21,18 +24,12 @@ enum Layout {
 
 struct LocalBook {
     draft: ManuscriptDraft,
+    original: ManuscriptDraft,
     baseline: String,
     revision: Revision,
     selected_entry: Option<String>,
     changed: bool,
-}
-
-struct BodyDraft {
-    path: PathBuf,
-    original: String,
-    text: String,
-    baseline: String,
-    open: bool,
+    collapsed: HashSet<String>,
 }
 
 struct ReaderPart {
@@ -44,7 +41,15 @@ pub(super) struct WorkbenchState {
     selected_book: Option<String>,
     creating_new: bool,
     books: BTreeMap<String, LocalBook>,
-    body_drafts: HashMap<(String, String), BodyDraft>,
+    writing_buffers: HashMap<PathBuf, WritingBuffer>,
+    chapter_sources: HashMap<(String, String), (TargetRef, PathBuf)>,
+    writing_view: super::writing_workspace::ViewState,
+    status_filter: String,
+    pov_filter: String,
+    pending_remove: Option<String>,
+    pending_session: Option<ManuscriptSession>,
+    scroll_y: f32,
+    pending_scroll: Option<f32>,
     layout: Layout,
     reader_open: bool,
     new_id: String,
@@ -58,7 +63,15 @@ impl Default for WorkbenchState {
             selected_book: None,
             creating_new: false,
             books: BTreeMap::new(),
-            body_drafts: HashMap::new(),
+            writing_buffers: HashMap::new(),
+            chapter_sources: HashMap::new(),
+            writing_view: Default::default(),
+            status_filter: String::new(),
+            pov_filter: String::new(),
+            pending_remove: None,
+            pending_session: None,
+            scroll_y: 0.0,
+            pending_scroll: None,
             layout: Layout::Tree,
             reader_open: true,
             new_id: String::new(),
@@ -70,12 +83,9 @@ impl Default for WorkbenchState {
 
 impl WorkbenchState {
     pub(super) fn has_unsubmitted_work(&self) -> bool {
-        self.create_touched
+        (self.create_touched && (!self.new_id.is_empty() || !self.new_title.is_empty()))
             || self.books.values().any(|book| book.changed)
-            || self
-                .body_drafts
-                .values()
-                .any(|draft| draft.text != draft.original)
+            || self.writing_buffers.values().any(WritingBuffer::is_changed)
     }
 
     pub(super) fn rebase_clean(&mut self, project: &worldline_core::project::Project) {
@@ -90,15 +100,25 @@ impl WorkbenchState {
                 continue;
             };
             local.draft = ManuscriptDraft::from_index(index);
+            local.original = local.draft.clone();
             local.baseline = project.content_baseline();
             local.selected_entry = local
-                .draft
-                .entries
-                .iter()
-                .find(|entry| entry.kind == ManuscriptEntryKind::Chapter)
-                .or_else(|| local.draft.entries.first())
-                .map(|entry| entry.id.clone());
+                .selected_entry
+                .take()
+                .filter(|id| local.draft.entries.iter().any(|entry| &entry.id == id))
+                .or_else(|| {
+                    local
+                        .draft
+                        .entries
+                        .iter()
+                        .find(|entry| entry.kind == ManuscriptEntryKind::Chapter)
+                        .or_else(|| local.draft.entries.first())
+                        .map(|entry| entry.id.clone())
+                });
         }
+        self.writing_buffers.retain(|_, buffer| buffer.is_changed());
+        self.chapter_sources
+            .retain(|_, (_, path)| self.writing_buffers.contains_key(path));
     }
 }
 
@@ -135,22 +155,6 @@ fn unique_id(entries: &[ManuscriptEntryDraft], base: &str) -> String {
         .unwrap_or_else(|| base.into())
 }
 
-fn entry_depth(entries: &[ManuscriptEntryDraft], entry: &ManuscriptEntryDraft) -> usize {
-    let mut depth = 0;
-    let mut parent = entry.parent_id.as_deref();
-    while let Some(id) = parent {
-        depth += 1;
-        parent = entries
-            .iter()
-            .find(|candidate| candidate.id == id)
-            .and_then(|candidate| candidate.parent_id.as_deref());
-        if depth > entries.len() {
-            break;
-        }
-    }
-    depth
-}
-
 fn move_entry(entries: &mut [ManuscriptEntryDraft], id: &str, delta: isize) -> bool {
     let Some(index) = entries.iter().position(|entry| entry.id == id) else {
         return false;
@@ -185,5 +189,52 @@ fn source_status_text(status: ManuscriptReferenceStatus) -> &'static str {
         ManuscriptReferenceStatus::Missing => "来源缺失，可在此修复引用",
         ManuscriptReferenceStatus::Unresolved => "编译错误或语言版本限制使来源暂不可确认",
         ManuscriptReferenceStatus::Invalid => "引用类型无效",
+    }
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub(in crate::app) struct ManuscriptSession {
+    pub manuscript_id: Option<String>,
+    pub selected_id: Option<String>,
+    pub scroll_y: f32,
+    pub cursor: Option<super::writing_workspace::WritingCursor>,
+    pub mode: super::writing_workspace::Mode,
+}
+
+impl super::WorldeditApp {
+    pub(in crate::app) fn manuscript_session(&self) -> ManuscriptSession {
+        ManuscriptSession {
+            manuscript_id: self.manuscript.selected_book.clone(),
+            mode: self.manuscript.writing_view.session_mode(),
+            scroll_y: self.manuscript.scroll_y,
+            cursor: self
+                .manuscript
+                .writing_view
+                .session_cursor()
+                .filter(|cursor| {
+                    self.manuscript
+                        .selected_book
+                        .as_ref()
+                        .and_then(|id| self.manuscript.books.get(id))
+                        .and_then(|book| {
+                            book.selected_entry.as_ref().and_then(|id| {
+                                book.draft.entries.iter().find(|entry| &entry.id == id)
+                            })
+                        })
+                        .and_then(|entry| entry.target_ref.as_ref())
+                        == Some(&cursor.target)
+                }),
+            selected_id: self
+                .manuscript
+                .selected_book
+                .as_ref()
+                .and_then(|id| self.manuscript.books.get(id))
+                .and_then(|book| book.selected_entry.clone()),
+        }
+    }
+
+    pub(in crate::app) fn restore_manuscript_session(&mut self, session: ManuscriptSession) {
+        self.manuscript.pending_session = Some(session);
     }
 }

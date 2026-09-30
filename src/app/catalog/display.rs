@@ -15,76 +15,45 @@ impl WorldeditApp {
             return;
         };
         let catalog = snapshot.result.analysis.catalog.clone();
-        egui::SidePanel::right("catalog-index")
-            .default_width(270.0)
-            .width_range(230.0..=380.0)
-            .frame(theme::panel())
-            .show(ctx, |ui| {
-                ui.label(RichText::new("世界资料索引").strong().size(17.0));
-                ui.horizontal_wrapped(|ui| {
-                    for (id, name) in [
-                        ("entity", "通用资料"),
-                        ("relation", "独立关系"),
-                        ("tag", "标签"),
-                        ("state", "状态"),
-                        ("anchor", "锚点"),
-                        ("asset", "素材"),
-                        ("", "全部"),
-                    ] {
-                        ui.selectable_value(&mut self.catalog_filter, id.into(), name);
+        let compact_index = ctx.available_rect().width() < 742.0;
+        if !compact_index {
+            egui::SidePanel::right("catalog-index")
+                .default_width(270.0)
+                .width_range(230.0..=(ctx.available_rect().width() - 512.0).min(380.0))
+                .frame(theme::panel())
+                .show(ctx, |ui| {
+                    self.catalog_index_ui(ui, &catalog);
+                });
+            self.personal.catalog_drawer_open = false;
+        }
+        if compact_index && self.personal.catalog_drawer_open {
+            let mut open = true;
+            egui::Window::new("资料索引")
+                .id(egui::Id::new("catalog-index-drawer"))
+                .open(&mut open)
+                .collapsible(false)
+                .default_width(300.0)
+                .max_height((ctx.screen_rect().height() - 120.0).max(160.0))
+                .show(ctx, |ui| {
+                    if ui.button("收起索引").clicked() || self.catalog_index_ui(ui, &catalog) {
+                        self.personal.catalog_drawer_open = false;
                     }
                 });
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.catalog_query)
-                        .hint_text("名称、ID 或别名")
-                        .desired_width(f32::INFINITY),
-                );
-                ui.add_space(8.0);
-                egui::ScrollArea::vertical()
-                    .id_salt("catalog-items")
-                    .show(ui, |ui| {
-                        for object in &catalog.search_objects(&self.catalog_query) {
-                            if !self.catalog_filter.is_empty()
-                                && object.target.kind != self.catalog_filter
-                            {
-                                continue;
-                            }
-                            let selected = self.catalog_target.as_ref() == Some(&object.target);
-                            if ui
-                                .add_sized(
-                                    [ui.available_width(), 48.0],
-                                    egui::Button::selectable(
-                                        selected,
-                                        format!(
-                                            "{}\n{} · {}",
-                                            object.display,
-                                            kind_label(&object.target.kind),
-                                            object.target.id
-                                        ),
-                                    ),
-                                )
-                                .on_hover_text(format!(
-                                    "{} · {}",
-                                    kind_label(&object.target.kind),
-                                    object.target.id
-                                ))
-                                .clicked()
-                            {
-                                self.catalog_target = Some(object.target.clone());
-                                self.tag_editor = None;
-                                self.state_editor = None;
-                                self.anchor_editor = None;
-                            }
-                        }
-                    });
-            });
-        egui::CentralPanel::default().frame(theme::panel().fill(BG)).show(ctx, |ui| {
+            if !open {
+                self.personal.catalog_drawer_open = false;
+            }
+        }
+        egui::CentralPanel::default().frame(theme::panel().fill(BG())).show(ctx, |ui| {
             theme::page_heading(ui, "资料与状态", &format!("{} 个标签 · {} 个状态 · {} 份素材", catalog.tags.len(), catalog.states.len(), catalog.assets.len()));
             theme::toolbar(ui, |ui| {
+                if compact_index && ui.button("资料索引（窄窗）").clicked() {
+                    self.personal.catalog_drawer_open = !self.personal.catalog_drawer_open;
+                }
+
                 if ui.button("组合查询与待办").clicked() {
                     self.catalog_workbench.open = true;
                 }
-                if ui.button("全部标签").clicked() {
+                if ui.button("全部标签").clicked() && !self.prevent_catalog_switch() {
                     self.catalog_filter = "tag".into(); self.catalog_query.clear(); self.catalog_target = None;
                     self.tag_editor = None; self.state_editor = None; self.anchor_editor = None;
                 }
@@ -103,9 +72,10 @@ impl WorldeditApp {
                     let target = self.catalog_target.clone().or_else(|| catalog.objects.first().map(|o| o.target.clone()));
                     if let Some(target) = target { self.new_state(target); }
                 }
-                if ui.add(theme::primary("＋ 新建标签")).clicked() {
+                if ui.add(theme::primary("＋ 新建标签")).clicked() && !self.prevent_catalog_switch() {
                     let mut i = 1; while catalog.tags.contains_key(&format!("tag_{i}")) { i += 1; }
                     self.tag_editor = Some((None, WorldDraft { id: format!("tag_{i}"), display: "新的标签".into(), ..Default::default() }));
+                    self.reset_new_draft_baseline("标签");
                     self.catalog_target = None;
                     self.state_editor = None;
                 self.anchor_editor = None;
@@ -119,6 +89,7 @@ impl WorldeditApp {
                     }
                 }
             }
+            self.capture_new_draft_baselines();
             let mut editor = self.tag_editor.take();
             egui::ScrollArea::vertical().id_salt("catalog-detail").show(ui, |ui| {
                 if self.catalog_filter == "tag" && self.catalog_target.is_none() && editor.is_none() {
@@ -151,7 +122,7 @@ impl WorldeditApp {
                     if let Some(object) = catalog.object(&target) {
                         if target.kind != "tag" { ui.heading(&object.display); ui.label(theme::muted(format!("{} · {}", kind_label(&target.kind), target.id))); }
                         if let Some(asset) = catalog.assets.get(&target.id).filter(|_| target.kind == "asset") {
-                            ui.label(RichText::new(if asset.available { "文件可用" } else { "文件缺失或格式不可用" }).color(if asset.available { ACCENT } else { GOLD }));
+                            ui.label(RichText::new(if asset.available { "文件可用" } else { "文件缺失或格式不可用" }).color(if asset.available { ACCENT() } else { GOLD() }));
                             ui.label(theme::muted("引用路径")); ui.label(&asset.path);
                             ui.label(theme::muted("本机文件")); ui.label(&asset.resolved_path);
                             ui.horizontal_wrapped(|ui| {

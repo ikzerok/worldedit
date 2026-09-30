@@ -248,7 +248,10 @@ impl WorldeditApp {
                 }
             }
             self.wiki_occurrences(ui, &target);
-            if target.kind == "event" || target.kind == "scene" {
+            if matches!(
+                target.kind.as_str(),
+                "event" | "scene" | "rule" | "fragment"
+            ) {
                 ui.separator();
                 ui.label(RichText::new("正文与条件 · 不执行分支").strong());
                 if let Ok(source) = self.project.object_source(&object.file, object.line) {
@@ -307,13 +310,18 @@ impl WorldeditApp {
                             self.reading_link(
                                 ui,
                                 &catalog,
-                                &TargetRef::new("event", &change.event),
+                                &change
+                                    .source
+                                    .clone()
+                                    .unwrap_or_else(|| TargetRef::new("event", &change.event)),
                             );
                             ui.label(format!(
                                 "{} · {}：{}",
                                 change.timing,
                                 change.kind.label(),
-                                if change.tags.is_empty() {
+                                if let Some(expression) = &change.tags_expression {
+                                    format!("集合表达式 {expression}（未执行）")
+                                } else if change.tags.is_empty() {
                                     "空集合".into()
                                 } else {
                                     change.tags.join("、")
@@ -337,6 +345,26 @@ impl WorldeditApp {
                 });
             }
             ui.separator();
+            for change in catalog
+                .dynamic_state_changes
+                .iter()
+                .filter(|change| change.source.as_ref() == Some(&target))
+            {
+                ui.label(RichText::new("动态状态动作 · 作者表达式，未执行").strong());
+                ui.label(format!(
+                    "目标：{}；{} 集合：{}",
+                    change.state_expression.as_deref().unwrap_or("未知"),
+                    change.kind.label(),
+                    change.tags_expression.as_deref().unwrap_or("未知")
+                ));
+                if ui
+                    .small_button(format!("动作出处 {}:{}", change.file, change.line))
+                    .clicked()
+                {
+                    self.jump_to_file(&change.file, change.line, 1);
+                    self.close_transient_reading();
+                }
+            }
             ui.label(RichText::new("独立叙事锚点").strong());
             for anchor in catalog.anchors_for(&target) {
                 self.reading_link(ui, &catalog, &TargetRef::new("anchor", &anchor.id));

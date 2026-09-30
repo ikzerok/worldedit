@@ -39,3 +39,5 @@ mod workspace_refresh;
 mod keyboard;
 
 mod visual_layout;
+
+mod workspace_personal;

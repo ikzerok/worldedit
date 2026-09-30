@@ -22,10 +22,10 @@ fn display<'a>(catalog: &'a worldline_core::Catalog, target: &'a TargetRef) -> &
 
 fn node_color(kind: &str) -> Color32 {
     match kind {
-        "entity" => BLUE,
-        "character" => GOLD,
-        "event" | "scene" => ACCENT,
-        _ => MUTED,
+        "entity" => BLUE(),
+        "character" => GOLD(),
+        "event" | "scene" => ACCENT(),
+        _ => MUTED(),
     }
 }
 impl WorldeditApp {
@@ -331,7 +331,7 @@ impl WorldeditApp {
                 egui::Align2::CENTER_CENTER,
                 "从资料页选择“查看关联”，或从右侧搜索选择中心对象。",
                 egui::FontId::proportional(16.0),
-                MUTED,
+                MUTED(),
             );
             return;
         };
@@ -353,13 +353,13 @@ impl WorldeditApp {
             let b = self.network_state.camera.world_to_canvas(*to, size);
             let a = rect.min + Vec2::new(a[0] as f32, a[1] as f32);
             let b = rect.min + Vec2::new(b[0] as f32, b[1] as f32);
-            painter.line_segment([a, b], Stroke::new(1.4_f32, MUTED));
+            painter.line_segment([a, b], Stroke::new(1.4_f32, MUTED()));
             painter.text(
                 a.lerp(b, 0.5),
                 egui::Align2::CENTER_CENTER,
                 &edge.label,
                 egui::FontId::proportional(12.0),
-                TEXT,
+                TEXT(),
             );
         }
 
@@ -398,7 +398,7 @@ impl WorldeditApp {
             if node_response.double_clicked() {
                 self.network_state.enter(node.target.clone());
             }
-            painter.rect_filled(node_rect, 7.0, CARD);
+            painter.rect_filled(node_rect, 7.0, CARD());
             painter.rect_stroke(
                 node_rect,
                 7.0,
@@ -410,14 +410,14 @@ impl WorldeditApp {
                 egui::Align2::CENTER_CENTER,
                 display(&catalog, &node.target),
                 egui::FontId::proportional(14.0),
-                TEXT,
+                TEXT(),
             );
             painter.text(
                 node_rect.center() + Vec2::new(0.0, 10.0),
                 egui::Align2::CENTER_CENTER,
                 format!("{} · {}", kind_label(&node.target.kind), node.target.id),
                 egui::FontId::proportional(10.5),
-                MUTED,
+                MUTED(),
             );
         }
 
@@ -427,7 +427,7 @@ impl WorldeditApp {
                 egui::Align2::LEFT_BOTTOM,
                 "当前页已达上限，可用“下一页”继续读取；原关系未被删除。",
                 egui::FontId::proportional(12.0),
-                GOLD,
+                GOLD(),
             );
         }
     }
@@ -475,7 +475,7 @@ impl WorldeditApp {
                 }
             });
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(BG))
+            .frame(theme::panel().fill(BG()))
             .show(ctx, |ui| {
                 if !self.topic_views(ui) {
                     self.network_toolbar(ui);

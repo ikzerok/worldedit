@@ -146,7 +146,7 @@ impl WorkbenchState {
             }
         });
         if let Some(error) = &self.error {
-            ui.colored_label(crate::theme::ERROR, error);
+            ui.colored_label(crate::theme::ERROR(), error);
         }
         self.render_results(app, ui, action);
         self.render_saved_queries(app, ui, action);
@@ -250,13 +250,13 @@ impl WorkbenchState {
             format!("共享查询定义 · {} 项", saved.queries.len()),
             |ui| {
                 for diagnostic in &saved.diagnostics {
-                    ui.colored_label(crate::theme::GOLD, &diagnostic.message);
+                    ui.colored_label(crate::theme::GOLD(), &diagnostic.message);
                 }
                 for (id, document) in &saved.queries {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(format!("{} · {}", document.draft.name, id));
                         if document.read_only {
-                            ui.label(RichText::new("只读").color(crate::theme::GOLD));
+                            ui.label(RichText::new("只读").color(crate::theme::GOLD()));
                         }
                         if ui.button("载入").clicked() {
                             *action = Action::Load(document.draft.clone());
@@ -313,7 +313,7 @@ impl WorkbenchState {
             return;
         };
         if projection.snapshot != app.project.content_baseline() {
-            ui.colored_label(crate::theme::GOLD, "待办来源已变化，刷新后重新读取。");
+            ui.colored_label(crate::theme::GOLD(), "待办来源已变化，刷新后重新读取。");
             return;
         }
         if !projection.diagnostics.is_empty() {
@@ -323,9 +323,9 @@ impl WorkbenchState {
                     for diagnostic in &projection.diagnostics {
                         ui.colored_label(
                             if diagnostic.severity == worldline_core::Severity::Error {
-                                crate::theme::ERROR
+                                crate::theme::ERROR()
                             } else {
-                                crate::theme::GOLD
+                                crate::theme::GOLD()
                             },
                             format!(
                                 "{}:{} · {}",

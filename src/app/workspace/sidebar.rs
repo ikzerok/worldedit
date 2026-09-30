@@ -88,9 +88,9 @@ fn nav_icon(painter: &egui::Painter, center: egui::Pos2, tab: Tab, color: egui::
 }
 impl WorldeditApp {
     pub(in crate::app) fn sidebar(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("project")
+        let panel = egui::SidePanel::left("project")
             .resizable(true)
-            .default_width(212.0)
+            .default_width(self.personal.settings.navigation_width)
             .width_range(190.0..=320.0)
             .frame(theme::panel())
             .show(ctx, |ui| {
@@ -112,53 +112,62 @@ impl WorldeditApp {
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing.y = 3.0;
-                        for tab in [
-                            Tab::Timeline,
-                            Tab::Graph,
-                            Tab::Overview,
-                            Tab::Manuscript,
-                            Tab::Map,
-                            Tab::Network,
-                            Tab::Characters,
-                            Tab::World,
-                            Tab::Catalog,
-                            Tab::Wiki,
-                            Tab::Review,
-                            Tab::Templates,
-                            Tab::CheckpointHistory,
-                            Tab::Edit,
+                        for (group, tabs, open) in [
+                            (
+                                "写作与阅读",
+                                &[Tab::Manuscript, Tab::Overview, Tab::Edit][..],
+                                true,
+                            ),
+                            (
+                                "世界资料",
+                                &[
+                                    Tab::World,
+                                    Tab::Characters,
+                                    Tab::Catalog,
+                                    Tab::Wiki,
+                                    Tab::Map,
+                                    Tab::Network,
+                                ][..],
+                                true,
+                            ),
+                            (
+                                "结构与审阅",
+                                &[Tab::Timeline, Tab::Graph, Tab::Review][..],
+                                false,
+                            ),
+                            (
+                                "工程工具",
+                                &[Tab::Templates, Tab::Localization, Tab::CheckpointHistory][..],
+                                false,
+                            ),
                         ] {
-                            let section = match tab {
-                                Tab::Timeline => Some("故事创作"),
-                                Tab::Map => Some("世界资料"),
-                                Tab::Review => Some("工程工具"),
-                                _ => None,
-                            };
-                            if let Some(section) = section {
-                                ui.add_space(6.0);
-                                ui.label(theme::muted(section));
-                            }
-                            let selected = self.tab == tab;
-                            let response = ui.add_sized(
-                                [ui.available_width(), 32.0],
-                                egui::Button::selectable(
-                                    selected,
-                                    RichText::new(tab.title()).color(if selected {
-                                        ACCENT
-                                    } else {
-                                        TEXT
-                                    }),
-                                ),
-                            );
-                            nav_icon(
-                                ui.painter(),
-                                response.rect.left_center() + egui::vec2(20.0, 0.0),
-                                tab,
-                                if selected { ACCENT } else { MUTED },
-                            );
-                            if response.clicked() {
-                                self.tab = tab;
-                            }
+                            egui::CollapsingHeader::new(group)
+                                .default_open(open)
+                                .show(ui, |ui| {
+                                    for &tab in tabs {
+                                        let selected = self.tab == tab;
+                                        let response = ui.add_sized(
+                                            [ui.available_width(), 32.0],
+                                            egui::Button::selectable(
+                                                selected,
+                                                RichText::new(tab.title()).color(if selected {
+                                                    ACCENT()
+                                                } else {
+                                                    TEXT()
+                                                }),
+                                            ),
+                                        );
+                                        nav_icon(
+                                            ui.painter(),
+                                            response.rect.left_center() + egui::vec2(14.0, 0.0),
+                                            tab,
+                                            if selected { ACCENT() } else { MUTED() },
+                                        );
+                                        if response.clicked() {
+                                            self.switch_tab(tab);
+                                        }
+                                    }
+                                });
                         }
                     });
                 ui.add_space(10.0);
@@ -171,6 +180,7 @@ impl WorldeditApp {
                         .clicked()
                     {
                         self.new_file = Some("events/chapter.wl".into());
+                        self.reset_new_draft_baseline("文件名称");
                     }
                     if ui
                         .small_button("引用")
@@ -273,6 +283,7 @@ impl WorldeditApp {
                                         .clicked()
                                     {
                                         if self.project.documents.contains_key(path) {
+                                            self.remember_author_position();
                                             self.active_file = path.clone();
                                             self.tab = Tab::Edit;
                                         } else if let Err(error) =
@@ -297,12 +308,13 @@ impl WorldeditApp {
                     ui.label(
                         RichText::new("共享 ID · 分文件创作")
                             .size(12.0)
-                            .color(ACCENT),
+                            .color(ACCENT()),
                     );
                     ui.label(theme::muted(
                         "工作区及子目录递归索引。其他资料随完整目录导出。",
                     ));
                 });
             });
+        self.personal.settings.navigation_width = panel.response.rect.width();
     }
 }

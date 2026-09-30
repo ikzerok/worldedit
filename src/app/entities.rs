@@ -26,6 +26,9 @@ pub(super) const ENTITY_KINDS: &[(&str, &str)] = &[
 ];
 impl WorldeditApp {
     pub(super) fn edit_entity(&mut self, id: Option<&str>) {
+        if self.prevent_replacing_draft("实体资料") {
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -42,11 +45,18 @@ impl WorldeditApp {
             id,
             path,
         ) {
-            Ok(form) => self.entity_editor = Some(form),
+            Ok(form) => {
+                if let Some(id) = id {
+                    self.catalog_target = Some(worldline_core::TargetRef::new("entity", id));
+                }
+                self.entity_editor = Some(form);
+            }
             Err(error) => self.io_error = Some(error),
         }
+        self.reset_new_draft_baseline("实体资料");
     }
     pub(super) fn entity_editor_window(&mut self, ctx: &egui::Context) {
+        self.capture_new_draft_baselines();
         let Some(mut form) = self.entity_editor.take() else {
             return;
         };
@@ -159,16 +169,16 @@ impl WorldeditApp {
                 );
             });
             let current = form.guard.is_current(&self.project, self.version);
-            let capable = self.project.language_version() == "1.10";
+            let capable = self.project.language_version_kind().supports_entities();
             if !current {
                 ui.colored_label(
-                    theme::GOLD,
+                    theme::GOLD(),
                     "工程已变化。输入已保留；请复制所需内容并重新打开表单后合并。",
                 );
             }
             if !capable {
                 ui.colored_label(
-                    theme::GOLD,
+                    theme::GOLD(),
                     "此工程使用语言 1.9。通用实体需要显式启用 1.10；不会自动迁移旧作品。",
                 );
             }
