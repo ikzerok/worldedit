@@ -23,8 +23,8 @@ impl MapCanvas {
     }
 
     pub(in crate::app) fn toolbar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.label("地图展示");
+        ui.horizontal_wrapped(|ui| {
+            ui.label(crate::theme::muted("模式"));
             if ui
                 .selectable_label(self.mode == CanvasMode::Browse, "浏览")
                 .clicked()
@@ -37,6 +37,9 @@ impl MapCanvas {
             {
                 self.set_mode(CanvasMode::Edit);
             }
+        });
+        ui.horizontal_wrapped(|ui| {
+            ui.label(crate::theme::muted("镜头"));
             if ui.small_button("适配全图").clicked() && self.viewport.is_positive() {
                 self.camera.fit(self.viewport);
             }
@@ -49,7 +52,7 @@ impl MapCanvas {
         });
         if self.mode == CanvasMode::Edit {
             ui.horizontal_wrapped(|ui| {
-                ui.label(crate::theme::muted("编辑展示，仅修改地图标记和图层"));
+                ui.label(crate::theme::muted("绘制"));
                 let previous_tool = self.tool;
                 ui.selectable_value(&mut self.tool, CanvasTool::Select, "选择")
                     .on_hover_text("选择标记并拖动控制点，释放后提交一个展示命令");
@@ -59,13 +62,22 @@ impl MapCanvas {
                     .on_hover_text("连续点按添加线段，双击完成，Esc 取消");
                 ui.selectable_value(&mut self.tool, CanvasTool::Polygon, "面")
                     .on_hover_text("连续点按添加面边界，双击完成，Esc 取消");
-                ui.label(crate::theme::muted("线/面双击完成，Esc 取消"));
+
                 if self.tool != previous_tool {
                     self.draft = None;
                     self.drag = None;
                     self.last_error = None;
                 }
-                if ui.small_button("放弃未提交修改").clicked() {
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.label(crate::theme::muted("线/面双击完成，Esc 取消"));
+                if ui
+                    .add_enabled(
+                        self.has_uncommitted_work(),
+                        egui::Button::new("放弃未提交修改").small(),
+                    )
+                    .clicked()
+                {
                     self.reset_local_preview();
                 }
             });

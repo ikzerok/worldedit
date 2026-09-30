@@ -165,32 +165,83 @@ impl super::super::WorldeditApp {
                 })
             })
         });
+        // 画布选择改变时将详情带回视野，不能只把它放在长滚动列表的逻辑顶部。
+        let selected_identity = selected_placement
+            .as_ref()
+            .map(|placement| (selected_map_id.clone(), placement.id.clone()));
+        let selection_changed = ctx.data_mut(|data| {
+            let id = egui::Id::new("map-inspector-selection");
+            let previous = data.get_temp::<Option<(Option<String>, String)>>(id);
+            data.insert_temp(id, selected_identity.clone());
+            previous.as_ref() != Some(&selected_identity)
+        });
         let mut back_requested = false;
         let mut enter_requested = None;
-        egui::SidePanel::right("map-inspector")
-            .resizable(true)
-            .default_width(310.0)
-            .width_range(260.0..=420.0)
+        // 窄工作区默认让出画布；进行中的表单始终保留提交和取消入口。
+        let compact = ctx.available_rect().width() < 900.0;
+        let inspector_id = egui::Id::new(("map-inspector-visible", compact));
+        let needs_inspector = self.map_creation.open
+            || self.map_canvas.svg_import.open
+            || self.map_form.has_uncommitted_work();
+        let mut inspector_visible = ctx
+            .data(|data| data.get_temp::<bool>(inspector_id))
+            .unwrap_or(!compact || selected_placement.is_some() || !has_document);
+        if needs_inspector {
+            inspector_visible = true;
+        }
+        egui::TopBottomPanel::top("map-layout-controls")
             .frame(crate::theme::panel())
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("map-inspector-scroll")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        self.map_overview_panel(ui, &map_summaries, &mut back_requested);
+                ui.horizontal_wrapped(|ui| {
+                    ui.strong("地图画布");
+                    if !self.map_canvas.map_title().is_empty() {
+                        ui.label(self.map_canvas.map_title());
+                    }
+                    let label = if inspector_visible {
+                        "收起地图面板"
+                    } else {
+                        "显示地图面板"
+                    };
+                    if ui
+                        .add_enabled(!needs_inspector, egui::Button::new(label))
+                        .on_disabled_hover_text("请先完成或取消当前表单")
+                        .clicked()
+                    {
+                        inspector_visible = !inspector_visible;
+                        ctx.data_mut(|data| data.insert_temp(inspector_id, inspector_visible));
+                    }
+                });
+            });
+        if inspector_visible {
+            egui::SidePanel::right("map-inspector")
+                .resizable(true)
+                .default_width(310.0)
+                .width_range(260.0..=420.0)
+                .frame(crate::theme::panel())
+                .show(ctx, |ui| {
+                    let mut scroll = egui::ScrollArea::vertical()
+                        .id_salt("map-inspector-scroll")
+                        .auto_shrink([false, false]);
+                    if selection_changed {
+                        scroll = scroll.vertical_scroll_offset(0.0);
+                    }
+                    scroll.show(ui, |ui| {
                         if has_document {
-                            self.map_layers_panel(ui, &selected_map_id);
-                            self.svg_import_panel(ui);
-
-                            self.map_search_panel(ui);
-
-                            self.map_markers_panel(
+                            self.map_selected_marker_panel(
                                 ui,
-                                selected_map_id,
-                                selected_placement,
+                                selected_map_id.clone(),
+                                selected_placement.clone(),
                                 selected_label,
                                 &mut enter_requested,
                             );
+                        }
+                        self.map_overview_panel(ui, &map_summaries, &mut back_requested);
+                        if has_document {
+                            // 打开的导入表单不能被折叠或藏在其他长表单之后。
+                            self.svg_import_panel(ui);
+                            self.map_markers_panel(ui, selected_map_id.clone(), selected_placement);
+                            self.map_layers_panel(ui, &selected_map_id);
+                            self.map_search_panel(ui);
                         } else if self.map_form.has_uncommitted_work() {
                             ui.separator();
                             ui.label(egui::RichText::new("保留的标记表单").strong());
@@ -240,8 +291,8 @@ impl super::super::WorldeditApp {
                                 });
                         }
                     });
-            });
-
+                });
+        }
         if back_requested {
             self.back_from_map_navigation();
         }
@@ -254,11 +305,17 @@ impl super::super::WorldeditApp {
         egui::CentralPanel::default()
             .frame(crate::theme::panel().fill(crate::theme::BG))
             .show(ctx, |ui| {
-                self.page_heading(ui, "地图画布", "查看和编辑注册地图、图层和标记。");
-                if !self.map_canvas.map_title().is_empty() {
-                    ui.label(egui::RichText::new(self.map_canvas.map_title()).strong());
+                if has_document || self.map_canvas.has_uncommitted_work() {
+                    self.map_canvas.toolbar(ui);
+                } else {
+                    ui.heading("开始绘制你的世界");
+                    ui.label("先创建空白地图，再添加图层、地点或导入矢量图形。");
+                    if ui.add(crate::theme::primary("创建第一张地图")).clicked() {
+                        self.map_canvas.set_mode(CanvasMode::Edit);
+                        self.map_creation
+                            .open_with_defaults(self.map_revision, self.map_manifest_baseline());
+                    }
                 }
-                self.map_canvas.toolbar(ui);
                 if self.map_failed_command.is_some() {
                     ui.separator();
                     ui.colored_label(

@@ -21,9 +21,14 @@ impl super::super::WorldeditApp {
             return;
         }
         ui.separator();
-        ui.strong("矢量绘图 / SVG");
+        ui.strong("添加矢量内容");
         if !self.map_canvas.svg_import.open {
-            if ui.button("绘制矩形、椭圆 / 导入 SVG").clicked() {
+            let open = egui::CollapsingHeader::new("图形与导入")
+                .id_salt("map-add-vector-content")
+                .show(ui, |ui| ui.button("绘制矩形、椭圆 / 导入 SVG").clicked())
+                .body_returned
+                .unwrap_or(false);
+            if open {
                 if self.map_canvas.has_uncommitted_work() {
                     self.message = Some("请先完成或取消当前绘图".into());
                     return;
@@ -102,7 +107,7 @@ impl super::super::WorldeditApp {
             form.preview = None;
             form.error = None;
         }
-        ui.label(crate::theme::muted("支持基础图形及 M/L/H/V/Z 路径；曲线、变换、CSS、文字、外链不支持，将明确拒绝。图形按 viewBox 映射到整张地图。"));
+        ui.label(crate::theme::muted("支持基础图形和 M/L/H/V/Z、C/Q 路径（含相对指令与重复参数）；曲线转换为可编辑折线。支持平移、旋转、缩放；带描边的非均匀缩放、matrix/skew、圆弧、CSS、文字和外链将明确拒绝。图形按 viewBox 映射到整张地图。"));
         if ui.button("检查并预览 SVG").clicked() {
             form.check();
         }

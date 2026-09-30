@@ -5,8 +5,6 @@ impl super::super::WorldeditApp {
         ui: &mut egui::Ui,
         selected_map_id: Option<String>,
         selected_placement: Option<MapPlacement>,
-        selected_label: Option<String>,
-        enter_requested: &mut Option<navigation::MapNavigationDto>,
     ) {
         if self.map_form.pending_place.is_some() && !self.map_canvas.is_edit_mode() {
             ui.separator();
@@ -189,7 +187,15 @@ impl super::super::WorldeditApp {
                 }
             }
         }
-
+    }
+    pub(super) fn map_selected_marker_panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        selected_map_id: Option<String>,
+        selected_placement: Option<MapPlacement>,
+        selected_label: Option<String>,
+        enter_requested: &mut Option<navigation::MapNavigationDto>,
+    ) {
         ui.separator();
         ui.label(egui::RichText::new("标记信息").strong());
         if let Some(placement) = selected_placement.as_ref() {
