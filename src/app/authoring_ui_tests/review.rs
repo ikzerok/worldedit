@@ -404,3 +404,94 @@ fn conflicting_zero_write_preview_is_explicit_and_close_preserves_drafts_and_sta
         worldline_core::collaboration::ProposalStatus::Open
     );
 }
+
+#[test]
+fn keyboard_review_can_reach_select_copy_three_way_text_and_open_source_without_writes() {
+    let (ctx, mut app) = app();
+    let entry = app.project.entry.clone();
+    app.project
+        .set_text(&entry, "entity a kind place as \"Base\"\n".into())
+        .unwrap();
+    app.project.save().unwrap();
+    app.project
+        .set_text(&entry, "entity a kind place as \"Proposed\"\n".into())
+        .unwrap();
+    app.recompile();
+    app.review.author = "Keyboard reviewer".into();
+    app.review.reason = "Three-way keyboard selection".into();
+    app.review.proposal_id = "keyboard-review".into();
+    keyboard::tab_to(&ctx, &mut app, 7, "保存修改提案", false);
+    keyboard::key(&ctx, &mut app, 7, egui::Key::Enter, false);
+    assert!(app.review.selected_proposal.is_some());
+    app.project
+        .set_text(&entry, "entity a kind place as \"Current\"\n".into())
+        .unwrap();
+    app.recompile();
+    app.tab = Tab::Review;
+    let baseline = app.project.content_baseline();
+    let history_len = app.history.len();
+    let source_before = std::fs::read(&entry).unwrap();
+    keyboard::tab_to(&ctx, &mut app, 38, "重新比较提案", false);
+    keyboard::key(&ctx, &mut app, 38, egui::Key::Enter, false);
+    let proposal =
+        &app.snapshot.as_ref().unwrap().proposal_index.proposals["keyboard-review"].draft;
+    let preview = worldline_core::collaboration::preview_proposal(&app.project, proposal).unwrap();
+    let difference = preview.files[0].differences[0].clone();
+    for (side, heading, expected) in [
+        (0, "基底", difference.base.unwrap()),
+        (1, "当前", difference.current.unwrap()),
+        (2, "提议", difference.proposed.unwrap()),
+    ] {
+        keyboard::tab_to(&ctx, &mut app, 38, heading, false);
+        keyboard::key(&ctx, &mut app, 38, egui::Key::Enter, false);
+        assert_eq!(app.review.preview_side, side);
+        keyboard::tab_to(&ctx, &mut app, 38, &expected, false);
+        let _ = frame(
+            &ctx,
+            &mut app,
+            vec![Event::Key {
+                key: egui::Key::A,
+                physical_key: Some(egui::Key::A),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::COMMAND,
+            }],
+            38,
+        );
+        // egui-winit 将原生 Ctrl+C 翻译为 Event::Copy，验证实际剪贴板输出。
+        let output = frame(&ctx, &mut app, vec![Event::Copy], 38);
+        assert!(
+            output.platform_output.commands.iter().any(|command| {
+                matches!(command, egui::OutputCommand::CopyText(text) if text == &expected)
+            }),
+            "{heading} 必须可用键盘全选并逐字复制：{expected:?}"
+        );
+        let output = frame(
+            &ctx,
+            &mut app,
+            vec![Event::Text("MUST_NOT_EDIT".into())],
+            38,
+        );
+        let mut rendered = String::new();
+        for shape in &output.shapes {
+            collect_text(&shape.shape, &mut rendered);
+        }
+        assert!(
+            rendered.contains(&expected),
+            "只读显示源必须保持该侧原文：{rendered}"
+        );
+        assert!(
+            !rendered.contains("MUST_NOT_EDIT"),
+            "只读框不能显示假编辑：{rendered}"
+        );
+        assert_eq!(app.project.content_baseline(), baseline);
+    }
+    keyboard::tab_to(&ctx, &mut app, 38, "打开当前原文", true);
+    keyboard::key(&ctx, &mut app, 38, egui::Key::Enter, false);
+    assert_eq!(app.tab, Tab::Edit);
+    assert_eq!(app.active_file, entry);
+    assert_eq!(app.jump, Some((1, 1)));
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(std::fs::read(&entry).unwrap(), source_before);
+    assert_eq!(app.history.len(), history_len);
+}

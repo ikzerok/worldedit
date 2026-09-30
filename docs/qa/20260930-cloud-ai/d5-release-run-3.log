@@ -1,7 +1,0 @@
-Independent release process 3; exact original ignored D5 test
-
-running 1 test
-D5 query profile: entities=1000, relations=3000, long_text_chars=16000, cold_us=48140, warm_samples=20, warm_p95_us=52756, results=1000
-test filters::d5_profile_1000_objects_3000_relations_and_long_text ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 1.06s

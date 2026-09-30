@@ -1,8 +1,0 @@
-{
-  "source": "5236c04c770721362fd9031e36905273779d7521",
-  "binary_sha256": "949f5d6e8ec6f482d746879b836fe88d2c1cd536c7af34d36bcb23093398c982",
-  "undo_matches_after_return_saved": true,
-  "redo_matches_applied": true,
-  "background_at_same_not_written": true,
-  "return_xy_retained": true
-}

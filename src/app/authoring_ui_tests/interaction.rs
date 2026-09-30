@@ -15,7 +15,9 @@ pub(super) fn frame(
         RawInput {
             screen_rect: Some(Rect::from_min_size(
                 pos2(0.0, 0.0),
-                if window == 34 || window == 36 {
+                if window == 37 {
+                    vec2(760.0, 720.0)
+                } else if window == 34 || window == 36 || window == 38 {
                     vec2(1188.0, 848.0)
                 } else if window == 35 {
                     vec2(800.0, 600.0)
@@ -48,7 +50,7 @@ pub(super) fn frame(
             0 => app.entity_editor_window(ctx),
             1 => app.relation_editor_window(ctx),
             2 => app.relation_type_editor_window(ctx),
-            4 => app.network_tab(ctx),
+            4 | 37 => app.network_tab(ctx),
             5 => app.target_rename_window(ctx),
             6 => app.preset_editor_window(ctx),
             7 => app.review_tab(ctx),
@@ -70,6 +72,12 @@ pub(super) fn frame(
                 });
             }
             14 => app.catalog_tab(ctx),
+            38 => {
+                app.top_bar(ctx);
+                app.status_bar(ctx);
+                app.sidebar(ctx);
+                app.review_tab(ctx);
+            }
             36 => {
                 app.top_bar(ctx);
                 app.status_bar(ctx);

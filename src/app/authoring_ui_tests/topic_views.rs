@@ -338,3 +338,49 @@ fn topic_relation_pages_continue_with_the_explicit_role_mapping() {
     assert!(!next_page.contains("阅读关系 edge_000"));
     assert_eq!(editor.project.content_baseline(), baseline);
 }
+
+#[test]
+fn keyboard_narrow_topic_relation_list_can_open_relation_without_writing() {
+    let (ctx, mut app) = app();
+    install_topic_fixture(&mut app);
+    app.open_network(TargetRef::new("character", "lin"));
+    let baseline = app.project.content_baseline();
+    keyboard::tab_to(&ctx, &mut app, 37, "家族关系", false);
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Enter, false);
+    keyboard::tab_to(&ctx, &mut app, 37, "角色标签 · biological_parent", false);
+    let _ = frame(&ctx, &mut app, vec![Event::Text("生亲".into())], 37);
+    keyboard::tab_to(&ctx, &mut app, 37, "阅读关系 birth_edge", false);
+    let text = rendered_text_in_window(&ctx, &mut app, 37, "窄屏使用下方可访问关系列表");
+    assert!(text.contains("窄屏使用下方可访问关系列表"), "{text}");
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Tab, false);
+    keyboard::tab_to(&ctx, &mut app, 37, "阅读关系 birth_edge", true);
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Enter, false);
+    assert_eq!(
+        app.reading_target,
+        Some(TargetRef::new("relation", "birth_edge"))
+    );
+    keyboard::tab_to(&ctx, &mut app, 37, "人物 / 地点历史", false);
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Enter, false);
+    let undated = app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .result
+        .analysis
+        .catalog
+        .object(&TargetRef::new("event", "undated"))
+        .unwrap()
+        .display
+        .clone();
+    keyboard::tab_to(
+        &ctx,
+        &mut app,
+        37,
+        &format!("阅读 事件 · {undated} · undated"),
+        false,
+    );
+    keyboard::key(&ctx, &mut app, 37, egui::Key::Enter, false);
+    assert_eq!(app.reading_target, Some(TargetRef::new("event", "undated")));
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+}

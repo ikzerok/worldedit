@@ -33,3 +33,5 @@ mod source_gutter;
 mod source_focus;
 
 mod workspace_refresh;
+
+mod keyboard;

@@ -386,3 +386,52 @@ fn scroll_import_details_to(ctx: &egui::Context, app: &mut WorldeditApp, needle:
         needle,
     )
 }
+
+#[test]
+fn keyboard_narrow_markdown_wizard_previews_and_completes_import() {
+    let (ctx, mut app) = app();
+    let (source, target) = markdown_import_fixture(b"# Keyboard page\n\nPlain body.\n");
+    keyboard::tab_to(&ctx, &mut app, 33, "工程", false);
+    keyboard::key(&ctx, &mut app, 33, egui::Key::Enter, false);
+    keyboard::tab_to(&ctx, &mut app, 33, "导入 Markdown…", false);
+    keyboard::key(&ctx, &mut app, 33, egui::Key::Enter, false);
+    assert!(app.markdown_import_wizard.is_some());
+    keyboard::tab_to(&ctx, &mut app, 33, "选择 Markdown 来源目录…", false);
+    let _ = frame(
+        &ctx,
+        &mut app,
+        vec![Event::Text(source.display().to_string())],
+        33,
+    );
+    keyboard::tab_to(&ctx, &mut app, 33, "选择空工程目录…", false);
+    let _ = frame(
+        &ctx,
+        &mut app,
+        vec![Event::Text(target.display().to_string())],
+        33,
+    );
+    keyboard::tab_to(&ctx, &mut app, 33, "预检导入", false);
+    keyboard::key(&ctx, &mut app, 33, egui::Key::Enter, false);
+    let text = rendered_text_in_window(&ctx, &mut app, 33, "预检完成");
+    assert!(text.contains("0 个阻塞冲突"), "{text}");
+    assert!(std::fs::read_dir(&target).unwrap().next().is_none());
+    keyboard::tab_to(
+        &ctx,
+        &mut app,
+        33,
+        "我已检查目标语言版本升级及其影响",
+        false,
+    );
+    keyboard::key(&ctx, &mut app, 33, egui::Key::Space, false);
+    keyboard::tab_to(&ctx, &mut app, 33, "应用导入", false);
+    keyboard::key(&ctx, &mut app, 33, egui::Key::Enter, false);
+    assert!(app.markdown_import_wizard.is_none(), "{:?}", app.io_error);
+    assert_eq!(app.project.root, Project::open(&target).unwrap().root);
+    assert!(!app.project.is_dirty());
+    assert!(app
+        .project
+        .export_files()
+        .unwrap()
+        .values()
+        .any(|bytes| bytes == b"# Keyboard page\n\nPlain body.\n"));
+}

@@ -323,6 +323,20 @@ impl WorldeditApp {
                     }
                     None => {}
                 }
+                // Tab/Shift+Tab 能聚焦屏外链接；让专题区域跟随自己的新焦点滚动，
+                // 否则窄屏列表虽然收到键盘输入，用户却看不见当前操作目标。
+                if let Some(response) = ui
+                    .ctx()
+                    .memory(|memory| memory.focused())
+                    .and_then(|id| ui.ctx().read_response(id))
+                {
+                    if response.gained_focus()
+                        && response.layer_id == ui.layer_id()
+                        && ui.min_rect().contains_rect(response.rect)
+                    {
+                        response.scroll_to_me(None);
+                    }
+                }
             });
         match page_change {
             Some(PageChange::Relations(offset)) => state.relation_offset = offset,

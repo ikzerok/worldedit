@@ -352,7 +352,11 @@ impl WorldeditApp {
                                             };
                                             ui.label(format!("{} · {} · {status}", file.domain, file.path));
                                             if ui.small_button("打开当前原文").clicked() {
-                                                self.jump_to_file(&file.path, 1, 1);
+                                                let path = super::super::workspace_source_path(
+                                                    &self.project,
+                                                    std::path::Path::new(&file.path),
+                                                );
+                                                self.jump_to_file(&path.to_string_lossy(), 1, 1);
                                             }
                                             for difference in &file.differences {
                                                 ui.label(format!(
@@ -383,12 +387,10 @@ impl WorldeditApp {
                                                             columns.iter_mut().zip(sides)
                                                         {
                                                             column.strong(heading);
-                                                            column.add(
-                                                                egui::Label::new(
-                                                                    value.as_deref().unwrap_or("∅"),
-                                                                )
-                                                                .selectable(true)
-                                                                .wrap(),
+                                                            read_only_review_text(
+                                                                column,
+                                                                egui::Id::new(("review-difference", &id, &file.path, &difference.path, heading)),
+                                                                value.as_deref().unwrap_or("∅"),
                                                             );
                                                         }
                                                     });
@@ -407,12 +409,10 @@ impl WorldeditApp {
                                                     let (heading, value) = sides
                                                         [self.review.preview_side.min(sides.len() - 1)];
                                                     ui.strong(heading);
-                                                    ui.add(
-                                                        egui::Label::new(
-                                                            value.as_deref().unwrap_or("∅"),
-                                                        )
-                                                        .selectable(true)
-                                                        .wrap(),
+                                                    read_only_review_text(
+                                                        ui,
+                                                        egui::Id::new(("review-difference", &id, &file.path, &difference.path, heading)),
+                                                        value.as_deref().unwrap_or("∅"),
                                                     );
                                                 }
                                             }
@@ -429,12 +429,10 @@ impl WorldeditApp {
                                                     ("提议", &file.raw.proposed),
                                                 ] {
                                                     ui.strong(heading);
-                                                    ui.add(
-                                                        egui::Label::new(
-                                                            value.as_deref().unwrap_or("∅"),
-                                                        )
-                                                        .selectable(true)
-                                                        .wrap(),
+                                                    read_only_review_text(
+                                                        ui,
+                                                        egui::Id::new(("review-raw", &id, &file.path, heading)),
+                                                        value.as_deref().unwrap_or("∅"),
                                                     );
                                                 }
                                             });
@@ -499,7 +497,31 @@ impl WorldeditApp {
                                 }
                             }
                         }
+                        if let Some(response) = ui
+                            .ctx()
+                            .memory(|memory| memory.focused())
+                            .and_then(|id| ui.ctx().read_response(id))
+                        {
+                            if response.gained_focus()
+                                && response.layer_id == ui.layer_id()
+                                && ui.min_rect().contains_rect(response.rect)
+                            {
+                                response.scroll_to_me(None);
+                            }
+                        }
                     });
             });
     }
+}
+
+fn read_only_review_text(ui: &mut egui::Ui, id: egui::Id, mut text: &str) {
+    // &str 实现不可变 TextBuffer：可用键盘选择与复制，但输入、剪切不会改写原文。
+    ui.add(
+        egui::TextEdit::multiline(&mut text)
+            .id(id)
+            .font(egui::TextStyle::Body)
+            .desired_width(f32::INFINITY)
+            .desired_rows(1)
+            .frame(false),
+    );
 }

@@ -34,7 +34,17 @@ class PairTests(unittest.TestCase):
         windows = Path(__file__).with_name("check-pair.ps1").read_text()
         import re
         self.assertEqual([name for name, _ in steps], re.findall(r"Invoke-Recorded '([^']+)'", windows))
+        invocations = {name: arguments for name, program, arguments in re.findall(
+            r"Invoke-Recorded '([^']+)' '([^']+)' @\(([^\n]+)\)", windows) if program == "cargo"}
+        manifests = {"editorManifest": str(Path("/tmp/a path/worldedit/Cargo.toml")),
+                     "languageManifest": str(Path("/tmp/a path/worldline/Cargo.toml"))}
         for name, command in steps:
+            if name in invocations:
+                tokens = re.findall(r"'([^']*)'|\$(editorManifest|languageManifest)", invocations[name])
+                self.assertEqual(command[1:], [literal if not variable else manifests[variable] for literal, variable in tokens])
+            if "prototype" in name:
+                self.assertIn("--features", command)
+                self.assertIn("eds11_prototype", command)
             if any(name.endswith(suffix) for suffix in ["-test", "-clippy", "-build"]):
                 self.assertIn("--locked", command)
             if name.endswith("-clippy"):
@@ -125,7 +135,7 @@ class PairTests(unittest.TestCase):
         code, summary, environment, invoked = self.exercise_run()
         self.assertEqual(code, 0)
         self.assertEqual(summary["status"], "passed")
-        self.assertEqual(len(invoked), 14)
+        self.assertEqual(len(invoked), 19)
         self.assertIn("not performed", environment["gui_acceptance"])
         self.assertEqual(environment["worldedit_working_tree"], " M example.rs")
 

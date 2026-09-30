@@ -1,8 +1,0 @@
-{
-  "source_unchanged": true,
-  "source_sha256": "70f97e7c8b10b74acf72fc6859d46c1674c3b88c13aadb4b178d4d93c5b90979",
-  "manifest_required_features": [
-    "content.entities.v1",
-    "vendor.future.v2"
-  ]
-}

@@ -1,6 +1,0 @@
-{
-  "exact_external_version_restored": true,
-  "source_sha256": "fb112364ee52c423227d4a24a8f99b0a37431d4351b230a7c463df27fbc66b1c",
-  "proposal_status": "open",
-  "source": "entity a kind place as \"currentplace\"\n  property memo = \"KEEP_INSTANCE\"\nentity b kind place as \"SecondPlace\"\nevent start\n  Discover LostCity then return to [[entity:a|KnownPlace]].\n  -> END\n\n// external while preview closed\n"
-}

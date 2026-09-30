@@ -3,6 +3,8 @@
 mod app;
 mod archive;
 mod chrome;
+#[cfg(feature = "eds11_prototype")]
+mod eds11_prototype;
 mod fonts;
 mod highlight;
 mod media;
@@ -18,6 +20,14 @@ use std::path::PathBuf;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
+    #[cfg(feature = "eds11_prototype")]
+    if eds11_prototype::requested_native(std::env::args().skip(1)) {
+        return eframe::run_native(
+            "worldedit EDS-11 prototype",
+            eds11_prototype::native_options(),
+            Box::new(|cc| Ok(Box::new(eds11_prototype::Prototype::new(cc)))),
+        );
+    }
     let initial: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from).or_else(|| {
         rfd::FileDialog::new()
             .set_title("选择工作区目录，空目录将创建示例工程")

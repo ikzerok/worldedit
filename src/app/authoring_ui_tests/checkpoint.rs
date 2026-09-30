@@ -398,3 +398,45 @@ fn wide_checkpoint_long_details_can_scroll_to_cancel_and_confirm_restore() {
     assert_eq!(app.project.document(&source).unwrap(), draft);
     assert!(app.project.is_dirty());
 }
+
+#[test]
+fn keyboard_checkpoint_preview_compare_and_cancel_keep_draft() {
+    let (ctx, mut app) = app();
+    app.project.save().unwrap();
+    let source = app.active_file.clone();
+    let original = app.project.document(&source).unwrap().to_owned();
+    let checkpoint = app
+        .project
+        .create_checkpoint(
+            Some("键盘比较".into()),
+            worldline_core::project::CheckpointLimits::default(),
+        )
+        .unwrap();
+    app.checkpoint_history.selected_id = Some(checkpoint.id);
+    let draft = format!("{original}\n// keyboard draft\n");
+    app.project.set_text(&source, draft.clone()).unwrap();
+    app.recompile();
+    let baseline = app.project.content_baseline();
+    keyboard::tab_to(&ctx, &mut app, 23, "预览恢复…", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Enter, false);
+    assert!(app.checkpoint_history.preview.is_some());
+    keyboard::tab_to(&ctx, &mut app, 23, "文本差异：world.wl", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Enter, false);
+    let text = rendered_text_in_window(&ctx, &mut app, 23, "keyboard draft");
+    for label in ["base", "current", "checkpoint", "keyboard draft"] {
+        assert!(text.contains(label), "{text}");
+    }
+    keyboard::tab_to(&ctx, &mut app, 23, "打开恢复确认…", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Enter, false);
+    assert!(app.checkpoint_history.restore_confirmation);
+    keyboard::tab_to(&ctx, &mut app, 23, "取消恢复", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Tab, true);
+    keyboard::tab_to(&ctx, &mut app, 23, "取消恢复", false);
+    keyboard::key(&ctx, &mut app, 23, egui::Key::Escape, false);
+    assert!(!app.checkpoint_history.restore_confirmation);
+    assert!(app.checkpoint_history.preview.is_none());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.project.document(&source).unwrap(), draft);
+    assert_eq!(std::fs::read_to_string(source).unwrap(), original);
+    assert!(app.history.is_empty());
+}

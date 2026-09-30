@@ -43,7 +43,7 @@ CI 无论成功失败均上传 `paired-check-<编辑器SHA>` artifact，保留 9
 python3 scripts/check-pair.py
 ```
 
-跨平台入口与 Windows 脚本保留相同的 14 个检查步骤及失败即停语义，不自动安装依赖、不切换分支、不更新锁文件。原生构建仍需要对应平台的系统开发库。脚本先校验兼容仓库名、完整 SHA 和实际 worldline HEAD，然后记录两仓提交、未提交变更、锁文件摘要及平台信息；硬件或 GUI 信息未测时明确记为未测。
+跨平台入口与 Windows 脚本保留相同的 19 个检查步骤（包含 5 项显式开启 eds11_prototype 的测试、native/WASM 严格 Clippy 与构建）及失败即停语义，不自动安装依赖、不切换分支、不更新锁文件。原生构建仍需要对应平台的系统开发库。脚本先校验兼容仓库名、完整 SHA 和实际 worldline HEAD，然后记录两仓提交、未提交变更、锁文件摘要及平台信息；硬件或 GUI 信息未测时明确记为未测。
 
 证据保存在 `target/paired-check/<UTC>/`：`environment.json`、`compatibility.json`、`locks.json`、逐步骤日志和 `summary.json`。汇总区分 `passed`、`failed`、`not_run`，工具缺失或失败后的步骤不会被计为通过。脏工作区的结果仅为开发检查，不作为干净提交的正式配对证据。此入口不证明 Windows、GUI、物理 IME 或真人作者验收；Windows CI 保留现有 PowerShell 入口。
 
@@ -63,3 +63,5 @@ python3 scripts/check-pair.py
 升级时先选择已经提交的 worldline SHA，再在 worldedit 修改兼容记录；如果 Rust 或依赖有变化，同时提交相应工具链/锁文件和验收文档。运行配对检查，记录新的编辑器提交及 worldline SHA，并保存 CI artifact 后才将该组合视为已验证。
 
 回滚时在独立目录检出先前通过验收的编辑器提交，并按其兼容记录检出 worldline；若需在主分支回退，则一并回退编辑器适配代码、兼容记录、工具链与锁文件，重跑配对检查。只改 worldline ref 不构成已验证回滚。
+
+默认与 prototype feature 开启的测试结果分别统计；feature 结果包含基础测试，不把两次执行相加当成唯一用例数。两入口每轮建立独立临时根，保留诊断数据；PowerShell 在退出时恢复调用者原有 TMPDIR/TMP/TEMP。

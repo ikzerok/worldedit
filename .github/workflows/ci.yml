@@ -27,6 +27,17 @@ jobs:
           repository: ${{ steps.pair.outputs.repository }}
           ref: ${{ steps.pair.outputs.sha }}
           path: worldline
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 配对脚本离线测试
+        run: |
+          python -m unittest discover -s scripts -p 'test_check_pair.py' -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: 发行门禁离线测试
+        run: |
+          python scripts/release-test.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: 安装仓库工具链
         run: |
           rustup show active-toolchain

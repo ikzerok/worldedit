@@ -60,6 +60,15 @@ def checks(editor, language):
         ("worldedit-wasm-clippy", ["cargo", "clippy", *manifest, *target, "--", "-D", "warnings"]),
         ("worldedit-wasm-build", ["cargo", "build", *manifest, *target]),
     ])
+    feature = ["--features", "eds11_prototype", "--locked"]
+    feature_target = ["--target", "wasm32-unknown-unknown", *feature]
+    steps.extend([
+        ("worldedit-prototype-test", ["cargo", "test", *manifest, *feature]),
+        ("worldedit-prototype-clippy", ["cargo", "clippy", *manifest, "--all-targets", *feature, "--", "-D", "warnings"]),
+        ("worldedit-prototype-build", ["cargo", "build", *manifest, *feature]),
+        ("worldedit-prototype-wasm-clippy", ["cargo", "clippy", *manifest, *feature_target, "--", "-D", "warnings"]),
+        ("worldedit-prototype-wasm-build", ["cargo", "build", *manifest, *feature_target]),
+    ])
     return steps
 
 
