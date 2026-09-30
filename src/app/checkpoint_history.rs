@@ -49,13 +49,12 @@ impl WorldeditApp {
             }
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("检查点历史");
-            ui.label(theme::muted(format!(
+        egui::CentralPanel::default().frame(theme::panel().fill(theme::BG)).show(ctx, |ui| {
+            theme::page_heading(ui, "检查点历史", &format!(
                 "{} 条记录 · {} · 恢复会写入工程目录",
                 records.len(),
                 format_bytes(records.iter().map(|record| record.payload_bytes).sum())
-            )));
+            ));
             #[cfg(not(target_arch = "wasm32"))]
             ui.label(theme::muted(
                 "桌面端记录保存在工程的 .world/.checkpoints/v1；不进入工程导出包。",
@@ -69,7 +68,7 @@ impl WorldeditApp {
             ));
 
             ui.separator();
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label("新检查点标签");
                 ui.add(
                     egui::TextEdit::singleline(&mut self.checkpoint_history.label)
@@ -79,7 +78,7 @@ impl WorldeditApp {
                     action = Some(Action::Create(self.checkpoint_history.label.clone()));
                 }
             });
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label("筛选");
                 ui.add(
                     egui::TextEdit::singleline(&mut self.checkpoint_history.query)

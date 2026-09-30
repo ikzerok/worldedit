@@ -21,9 +21,16 @@ impl WorldeditApp {
                             .color(TEXT),
                     );
                     ui.add_space(12.0);
-                    crate::chrome::subtitle(ui, "世界创作工作台");
+                    if ui.available_width() > 950.0 {
+                        crate::chrome::subtitle(ui, "世界创作工作台");
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.menu_button("工程", |ui| {
+                            if ui.button("导出工程  ↗").clicked() {
+                                self.directory_dialog(true);
+                                ui.close();
+                            }
+                            ui.separator();
                             if ui.button("管理工程模板").clicked() {
                                 self.tab = Tab::Templates;
                                 ui.close();
@@ -82,10 +89,11 @@ impl WorldeditApp {
                         {
                             self.export_browser_recovery_copy();
                         }
-                        if ui.add(theme::primary("导出工程  ↗")).clicked() {
-                            self.directory_dialog(true);
-                        }
-                        if ui.button("保存全部").clicked() {
+                        if ui
+                            .add(theme::primary("保存全部"))
+                            .on_hover_text("Ctrl+S · 保存工程中的全部修改")
+                            .clicked()
+                        {
                             self.save();
                         }
                         if ui
@@ -189,8 +197,6 @@ impl WorldeditApp {
             });
     }
     pub(super) fn page_heading(&self, ui: &mut egui::Ui, title: &str, subtitle: &str) {
-        ui.heading(title);
-        ui.label(theme::muted(subtitle));
-        ui.add_space(12.0);
+        theme::page_heading(ui, title, subtitle);
     }
 }

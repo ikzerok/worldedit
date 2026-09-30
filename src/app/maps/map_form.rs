@@ -3,6 +3,10 @@ use worldline_core::authoring::EntityDraft;
 use worldline_core::authoring_intents::{AuthoringIntent, IntentTarget, PlacementRequest};
 impl super::super::WorldeditApp {
     pub(in crate::app) fn map_navigation_blocked(&mut self) -> bool {
+        if self.map_canvas.svg_import.open {
+            self.message = Some("请先确认或取消 SVG 绘图预览".into());
+            return true;
+        }
         if self.map_canvas.has_uncommitted_work()
             || self.map_failed_command.is_some()
             || self.map_form.has_uncommitted_work()

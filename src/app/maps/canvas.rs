@@ -4,6 +4,7 @@ use std::path::Path;
 impl MapCanvas {
     pub(in crate::app) fn new(snapshot: MapRenderSnapshot) -> Self {
         Self {
+            svg_import: Default::default(),
             camera: Camera2D::new(snapshot.extent),
             fit_pending: true,
             core_snapshot: snapshot.clone(),
@@ -29,6 +30,7 @@ impl MapCanvas {
     }
 
     pub(in crate::app) fn clear(&mut self) {
+        self.svg_import = Default::default();
         let empty = MapRenderSnapshot::empty(Vec2::new(1.0, 1.0));
         self.core_snapshot = empty.clone();
         self.snapshot = empty;
@@ -363,7 +365,8 @@ impl MapCanvas {
     }
 
     pub(in crate::app) fn has_uncommitted_work(&self) -> bool {
-        self.drag.is_some()
+        self.svg_import.open
+            || self.drag.is_some()
             || self.draft.is_some()
             || !self.edit_intents.is_empty()
             || self.intent_baselines.iter().any(Option::is_some)

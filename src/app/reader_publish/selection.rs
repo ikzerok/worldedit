@@ -39,11 +39,13 @@ impl ReaderPublishState {
                 })
                 .collect(),
             attachments: self.attachments.iter().cloned().collect(),
+            maps: self.maps.values().cloned().collect(),
         }
     }
 
     pub(super) fn has_selection(&self) -> bool {
-        !self.objects.is_empty()
+        !self.maps.is_empty()
+            || !self.objects.is_empty()
             || self.chapters.values().any(|chapters| !chapters.is_empty())
             || !self.attachments.is_empty()
     }
@@ -53,6 +55,7 @@ impl ReaderPublishState {
         project: &Project,
         snapshot: Option<&super::super::Snapshot>,
     ) {
+        self.refresh_map_choices(project);
         let object_choices = snapshot
             .map(|snapshot| {
                 snapshot

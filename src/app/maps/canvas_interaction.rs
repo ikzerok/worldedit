@@ -8,6 +8,7 @@ impl MapCanvas {
         self.mode = mode;
         self.last_error = None;
         if mode == CanvasMode::Browse {
+            self.svg_import = Default::default();
             self.draft = None;
             self.drag = None;
         }
@@ -130,6 +131,9 @@ impl MapCanvas {
     }
 
     pub(super) fn handle_input(&mut self, response: &egui::Response, ui: &egui::Ui) {
+        if self.svg_import.open {
+            return;
+        }
         if self.mode == CanvasMode::Edit && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
             self.draft = None;
             self.drag = None;

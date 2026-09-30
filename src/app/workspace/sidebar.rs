@@ -90,7 +90,7 @@ impl WorldeditApp {
     pub(in crate::app) fn sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("project")
             .resizable(true)
-            .default_width(228.0)
+            .default_width(212.0)
             .width_range(190.0..=320.0)
             .frame(theme::panel())
             .show(ctx, |ui| {
@@ -105,29 +105,42 @@ impl WorldeditApp {
                     "{} 个源码文件 · 一个世界",
                     self.project.documents.len()
                 )));
-                ui.add_space(22.0);
+                ui.add_space(12.0);
                 egui::ScrollArea::vertical()
                     .id_salt("sidebar-tabs")
+                    .max_height((ui.available_height() - 140.0).max(180.0))
+                    .auto_shrink([false, true])
                     .show(ui, |ui| {
+                        ui.spacing_mut().item_spacing.y = 3.0;
                         for tab in [
                             Tab::Timeline,
                             Tab::Graph,
-                            Tab::Network,
-                            Tab::Review,
+                            Tab::Overview,
+                            Tab::Manuscript,
                             Tab::Map,
+                            Tab::Network,
                             Tab::Characters,
                             Tab::World,
                             Tab::Catalog,
                             Tab::Wiki,
-                            Tab::Overview,
-                            Tab::Manuscript,
+                            Tab::Review,
                             Tab::Templates,
                             Tab::CheckpointHistory,
                             Tab::Edit,
                         ] {
+                            let section = match tab {
+                                Tab::Timeline => Some("故事创作"),
+                                Tab::Map => Some("世界资料"),
+                                Tab::Review => Some("工程工具"),
+                                _ => None,
+                            };
+                            if let Some(section) = section {
+                                ui.add_space(6.0);
+                                ui.label(theme::muted(section));
+                            }
                             let selected = self.tab == tab;
                             let response = ui.add_sized(
-                                [ui.available_width(), 38.0],
+                                [ui.available_width(), 32.0],
                                 egui::Button::selectable(
                                     selected,
                                     RichText::new(tab.title()).color(if selected {
@@ -148,7 +161,7 @@ impl WorldeditApp {
                             }
                         }
                     });
-                ui.add_space(20.0);
+                ui.add_space(10.0);
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(theme::muted("工程文件"));

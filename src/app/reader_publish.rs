@@ -1,6 +1,7 @@
 //! 显式选择并交付静态读者包；分析、过滤和 HTML 渲染都由 worldline-core 完成。
 
 mod delivery;
+mod maps;
 mod preview;
 mod selection;
 mod window;
@@ -18,6 +19,8 @@ pub(super) struct ReaderPublishState {
     manuscript_choices: Vec<ManuscriptChoice>,
     attachment_choices: Vec<AttachmentChoice>,
     objects: BTreeSet<TargetRef>,
+    map_choices: Vec<MapChoice>,
+    maps: BTreeMap<String, worldline_core::reader_export::ReaderMapSelection>,
     chapters: BTreeMap<String, BTreeSet<String>>,
     attachments: BTreeSet<String>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -77,4 +80,12 @@ enum PublishAction {
     Publish,
     #[cfg(not(target_arch = "wasm32"))]
     Browse,
+}
+
+#[derive(Clone)]
+struct MapChoice {
+    id: String,
+    title: String,
+    placements: Vec<(String, String)>,
+    rasters: Vec<(String, String)>,
 }

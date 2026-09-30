@@ -24,11 +24,12 @@ impl WorldeditApp {
         egui::CentralPanel::default()
             .frame(theme::panel().fill(BG))
             .show(ctx, |ui| {
-                ui.heading("正文概览");
-                ui.label(theme::muted(
+                theme::page_heading(
+                    ui,
+                    "正文概览",
                     "跨文件阅读同一世界的完整事件。这里的排列仅供阅读，不表示发生顺序。",
-                ));
-                ui.horizontal(|ui| {
+                );
+                theme::toolbar(ui, |ui| {
                     egui::ComboBox::from_id_salt("overview-storyline")
                         .selected_text(if self.overview_storyline.is_empty() {
                             "全部故事线"
@@ -52,7 +53,7 @@ impl WorldeditApp {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.overview_query)
                             .hint_text("查找事件、人物或正文")
-                            .desired_width(280.0),
+                            .desired_width(ui.available_width().clamp(140.0, 280.0)),
                     );
                 });
                 ui.add_space(12.0);

@@ -278,11 +278,10 @@ impl WorldeditApp {
                     });
             });
         egui::CentralPanel::default().frame(theme::panel().fill(BG)).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("Wiki");
+            theme::page_heading(ui, "Wiki", "为关键词写下释义。在正文、资料和试玩中点击关键词，即可查看注释与出现位置。");
+            theme::toolbar(ui, |ui| {
                 if ui.add(theme::primary("＋ 新建词条")).clicked() { self.edit_wiki_entry(None); }
             });
-            ui.label(theme::muted("为关键词写下释义。在正文、资料和试玩中点击关键词，即可查看注释与出现位置。"));
             ui.separator();
             egui::ScrollArea::vertical().id_salt(("wiki-detail", &self.wiki_target)).show(ui, |ui| {
                 if let Some(target) = self.wiki_target.clone().filter(|t| catalog.object(t).is_some()) {
