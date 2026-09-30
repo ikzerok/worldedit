@@ -48,6 +48,7 @@ impl ReaderPublishState {
             return false;
         }
         ui.heading("地图公开范围");
+        ui.label("地图校准与临时尺子不会公开到读者站；完整工程导出保留已保存校准。");
         ui.label("标记、底图层逐项选择；底图素材还需在附件中勾选。底图内文字也会公开。");
         let mut changed = false;
         for map in &self.map_choices {

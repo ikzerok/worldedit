@@ -153,6 +153,8 @@ fn edit_canvas_hit_test_uses_screen_pixel_tolerance_for_non_square_extent() {
         map_id: String::new(),
         title: String::new(),
         extent: vec2(1000.0, 100.0),
+        canvas: core_canvas(1000.0 as u32, 100.0 as u32),
+        measurement: None,
         raster_layers: Vec::new(),
         layers: vec![MapLayer {
             id: "places".into(),
@@ -237,6 +239,8 @@ fn edit_drag_keeps_preview_until_release_and_emits_one_intent() {
         map_id: String::new(),
         title: String::new(),
         extent: vec2(400.0, 400.0),
+        canvas: core_canvas(400.0 as u32, 400.0 as u32),
+        measurement: None,
         raster_layers: Vec::new(),
         layers: vec![MapLayer {
             id: "places".into(),
@@ -339,6 +343,8 @@ fn locked_layer_allows_selection_but_rejects_drag_intent() {
         map_id: "map".into(),
         title: "测试地图".into(),
         extent: vec2(400.0, 400.0),
+        canvas: core_canvas(400.0 as u32, 400.0 as u32),
+        measurement: None,
         raster_layers: Vec::new(),
         layers: vec![MapLayer {
             id: "places".into(),
@@ -414,6 +420,8 @@ fn dragging_a_control_point_outside_the_map_is_rejected() {
         map_id: "map".into(),
         title: "测试地图".into(),
         extent: vec2(400.0, 400.0),
+        canvas: core_canvas(400.0 as u32, 400.0 as u32),
+        measurement: None,
         raster_layers: Vec::new(),
         layers: vec![MapLayer {
             id: "places".into(),

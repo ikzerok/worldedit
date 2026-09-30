@@ -14,6 +14,8 @@ impl MapCanvas {
             viewport: Rect::NOTHING,
             mode: CanvasMode::Browse,
             form_blocked: false,
+            measurement_blocked: false,
+            measurement: Default::default(),
             tool: CanvasTool::Select,
             draft: None,
             selected: None,
@@ -33,6 +35,7 @@ impl MapCanvas {
 
     pub(in crate::app) fn clear(&mut self) {
         self.svg_import = Default::default();
+        self.measurement = Default::default();
         self.text_sizes.clear();
         let empty = MapRenderSnapshot::empty(Vec2::new(1.0, 1.0));
         self.core_snapshot = empty.clone();
@@ -70,7 +73,7 @@ impl MapCanvas {
         snapshot: MapRenderSnapshot,
     ) -> bool {
         let same_map = self.snapshot.map_id == snapshot.map_id
-            && self.snapshot.extent == snapshot.extent
+            && self.snapshot.canvas == snapshot.canvas
             && !snapshot.map_id.is_empty();
         if !same_map && self.has_uncommitted_work() {
             return false;
@@ -90,6 +93,7 @@ impl MapCanvas {
             None
         };
         if !same_map {
+            self.measurement = Default::default();
             self.camera = Camera2D::new(snapshot.extent);
             self.fit_pending = true;
             self.selected = None;
@@ -359,6 +363,7 @@ impl MapCanvas {
         if self.has_uncommitted_work() {
             return false;
         }
+        self.measurement = Default::default();
         self.camera = Camera2D::new(self.snapshot.extent);
         self.fit_pending = true;
         self.selected = None;
@@ -369,6 +374,7 @@ impl MapCanvas {
 
     pub(in crate::app) fn has_uncommitted_work(&self) -> bool {
         self.svg_import.open
+            || self.measurement.calibration.is_some()
             || self.drag.is_some()
             || self.draft.is_some()
             || !self.edit_intents.is_empty()
@@ -401,6 +407,7 @@ impl MapCanvas {
 
     pub(in crate::app) fn restore_failed_preview(&mut self, intent: &EditIntent) {
         match intent {
+            EditIntent::SetMeasurement(value) => self.restore_calibration(value),
             EditIntent::Create(geometry) => {
                 self.draft = Some(geometry.clone());
             }
@@ -425,6 +432,7 @@ impl MapCanvas {
     }
 
     pub(in crate::app) fn reset_local_preview(&mut self) {
+        self.measurement.calibration = None;
         self.snapshot = self.core_snapshot.clone();
         for layer in &mut self.snapshot.layers {
             if let Some(visible) = self.session_layer_visibility.get(&layer.id) {

@@ -1,7 +1,10 @@
 use super::*;
 impl super::super::WorldeditApp {
     pub(in crate::app) fn map_tab(&mut self, ctx: &egui::Context) {
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape))
+            && !self.map_canvas.measurement_active()
+            && self.map_canvas.measurement.calibration.is_none()
+        {
             self.map_form.text_draft = None;
         }
         let (map_summaries, map_ids, map_diagnostics) = self
@@ -232,6 +235,9 @@ impl super::super::WorldeditApp {
                         scroll = scroll.vertical_scroll_offset(0.0);
                     }
                     scroll.show(ui, |ui| {
+                        if self.map_canvas.calibration_active() {
+                            ui.disable();
+                        }
                         let text_active = has_document
                             && self.map_text_panel(
                                 ui,
@@ -324,6 +330,9 @@ impl super::super::WorldeditApp {
             .frame(crate::theme::panel().fill(crate::theme::BG))
             .show(ctx, |ui| {
                 if has_document || self.map_canvas.has_uncommitted_work() {
+                    self.map_canvas.measurement_blocked = self.map_form.has_uncommitted_work()
+                        || self.map_failed_command.is_some()
+                        || self.map_creation.open;
                     self.map_canvas.toolbar(ui);
                 } else {
                     ui.heading("开始绘制你的世界");
@@ -358,6 +367,14 @@ impl super::super::WorldeditApp {
                 self.map_canvas.show(ui);
             });
 
+        if self.map_canvas.measurement.calibration.is_none()
+            && self
+                .map_failed_command
+                .as_ref()
+                .is_some_and(|pending| matches!(pending.intent, EditIntent::SetMeasurement(_)))
+        {
+            self.map_failed_command = None;
+        }
         if retry_failed {
             self.retry_failed_map_command();
         } else if cancel_failed {

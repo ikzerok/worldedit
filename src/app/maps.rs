@@ -12,6 +12,8 @@ mod map_navigation;
 mod map_overview;
 mod map_search;
 mod map_ui;
+mod measurement;
+mod measurement_ui;
 pub(super) mod navigation;
 mod raster;
 mod render;
@@ -102,6 +104,8 @@ pub(super) struct MapRenderSnapshot {
     pub(super) map_id: String,
     pub(super) title: String,
     pub(super) extent: Vec2,
+    pub(super) canvas: worldline_core::presentation::MapCanvas,
+    pub(super) measurement: Option<worldline_core::presentation::MapMeasurement>,
     pub(super) raster_layers: Vec<RasterPlacement>,
     pub(super) layers: Vec<MapLayer>,
 }
@@ -112,6 +116,13 @@ impl MapRenderSnapshot {
             map_id: String::new(),
             title: String::new(),
             extent,
+            canvas: worldline_core::presentation::MapCanvas {
+                width: extent.x.max(1.0) as u32,
+                height: extent.y.max(1.0) as u32,
+                unit: "normalized".into(),
+                extra: Default::default(),
+            },
+            measurement: None,
             raster_layers: Vec::new(),
             layers: Vec::new(),
         }
@@ -157,6 +168,9 @@ pub(super) fn render_snapshot(document: &MapDocument) -> MapRenderSnapshot {
         map_id: document.id.clone(),
         title: document.title.clone(),
         extent: Vec2::new(document.canvas.width as f32, document.canvas.height as f32),
+        // 距离计算保留 core 原始尺寸，不能从渲染用 f32 extent 反向恢复。
+        canvas: document.canvas.clone(),
+        measurement: document.measurement.clone(),
         raster_layers: document
             .raster_layers
             .iter()
@@ -359,6 +373,8 @@ pub(super) struct MapCanvas {
     viewport: Rect,
     mode: CanvasMode,
     form_blocked: bool,
+    measurement_blocked: bool,
+    measurement: measurement::MeasurementState,
     tool: CanvasTool,
     draft: Option<MapGeometry>,
     selected: Option<(String, GeometryHit)>,
@@ -375,6 +391,7 @@ pub(super) struct MapCanvas {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum EditIntent {
+    SetMeasurement(worldline_core::presentation::MapMeasurement),
     Create(MapGeometry),
     Move {
         placement: String,
@@ -427,3 +444,11 @@ mod tests_layout;
 #[cfg(test)]
 #[path = "maps/tests/text_labels.rs"]
 mod tests_text_labels;
+
+#[cfg(test)]
+#[path = "maps/tests/measurement.rs"]
+mod tests_measurement;
+
+#[cfg(test)]
+#[path = "maps/tests/measurement_app.rs"]
+mod tests_measurement_app;
