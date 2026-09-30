@@ -24,7 +24,7 @@ impl super::super::WorldeditApp {
         self.apply_map_command_with_baseline(map_id, command, label, None)
     }
 
-    fn apply_map_command_with_baseline(
+    pub(super) fn apply_map_command_with_baseline(
         &mut self,
         map_id: &str,
         command: worldline_core::presentation_commands::Command,
@@ -200,6 +200,33 @@ impl super::super::WorldeditApp {
                         self.remember_failed_map_command(&map_id, pending);
                         break;
                     };
+                    if let MapGeometry::Text {
+                        position,
+                        text,
+                        font_size,
+                        color,
+                    } = &geometry
+                    {
+                        if self.map_form.has_uncommitted_work() {
+                            self.io_error = Some("请先保存或取消当前表单，再放置文字".into());
+                            self.map_canvas.reset_local_preview();
+                            break;
+                        }
+                        self.map_form.text_draft = Some(text_labels::TextDraft {
+                            map_id: map_id.clone(),
+                            layer_id,
+                            placement_id: None,
+                            position: *position,
+                            text: text.clone(),
+                            font_size: *font_size,
+                            color: color.clone(),
+                            baseline: baseline.clone(),
+                        });
+                        self.map_canvas.reset_local_preview();
+                        self.map_canvas.set_tool(CanvasTool::Select);
+                        self.message = Some("文字落点已保留；填写文字后保存".into());
+                        break;
+                    }
                     if self.map_form.create_place_on_next_point {
                         if !matches!(geometry, MapGeometry::Point(_)) {
                             self.io_error = Some("新建地点入口需要地图上的点落位".into());
@@ -293,7 +320,7 @@ impl super::super::WorldeditApp {
         }
     }
 
-    fn next_map_placement_id(&self, map_id: &str) -> String {
+    pub(super) fn next_map_placement_id(&self, map_id: &str) -> String {
         let mut index = 1;
         let existing = self
             .snapshot

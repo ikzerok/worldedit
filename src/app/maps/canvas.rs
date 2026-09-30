@@ -5,6 +5,7 @@ impl MapCanvas {
     pub(in crate::app) fn new(snapshot: MapRenderSnapshot) -> Self {
         Self {
             svg_import: Default::default(),
+            text_sizes: HashMap::new(),
             camera: Camera2D::new(snapshot.extent),
             fit_pending: true,
             core_snapshot: snapshot.clone(),
@@ -12,6 +13,7 @@ impl MapCanvas {
             source_version: 0,
             viewport: Rect::NOTHING,
             mode: CanvasMode::Browse,
+            form_blocked: false,
             tool: CanvasTool::Select,
             draft: None,
             selected: None,
@@ -31,6 +33,7 @@ impl MapCanvas {
 
     pub(in crate::app) fn clear(&mut self) {
         self.svg_import = Default::default();
+        self.text_sizes.clear();
         let empty = MapRenderSnapshot::empty(Vec2::new(1.0, 1.0));
         self.core_snapshot = empty.clone();
         self.snapshot = empty;

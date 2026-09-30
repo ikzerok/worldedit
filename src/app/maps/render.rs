@@ -47,6 +47,14 @@ impl MapCanvas {
                 continue;
             }
             for placement in &layer.placements {
+                if self
+                    .drag
+                    .as_ref()
+                    .is_some_and(|drag| drag.active && drag.placement == placement.id)
+                    && matches!(placement.geometry, MapGeometry::Text { .. })
+                {
+                    continue;
+                }
                 draw_geometry(
                     painter,
                     &placement.geometry,
@@ -59,6 +67,30 @@ impl MapCanvas {
                     .as_ref()
                     .is_some_and(|(id, _)| id == &placement.id)
                 {
+                    if let MapGeometry::Text {
+                        position,
+                        text,
+                        font_size,
+                        color,
+                    } = &placement.geometry
+                    {
+                        let galley = text_labels::text_layout(
+                            painter,
+                            &self.camera,
+                            text,
+                            *font_size,
+                            color,
+                        );
+                        let origin = self
+                            .camera
+                            .normalized_to_screen(position.as_pos2(), viewport);
+                        painter.rect_stroke(
+                            Rect::from_min_size(origin, galley.size()).expand(4.0),
+                            2.0,
+                            Stroke::new(1.0_f32, crate::theme::GOLD),
+                            StrokeKind::Outside,
+                        );
+                    }
                     draw_control_points(painter, &placement.geometry, &self.camera, viewport);
                 }
             }
@@ -153,7 +185,10 @@ pub(super) fn geometry_vertex_mut(
     index: usize,
 ) -> Option<&mut NormalizedPoint> {
     match geometry {
-        MapGeometry::Point(point) if index == 0 => Some(point),
+        MapGeometry::Point(point)
+        | MapGeometry::Text {
+            position: point, ..
+        } if index == 0 => Some(point),
         MapGeometry::Polyline(points) | MapGeometry::Polygon(points) => points.get_mut(index),
         _ => None,
     }
@@ -161,7 +196,10 @@ pub(super) fn geometry_vertex_mut(
 
 pub(super) fn geometry_vertex(geometry: &MapGeometry, index: usize) -> Option<NormalizedPoint> {
     match geometry {
-        MapGeometry::Point(point) if index == 0 => Some(*point),
+        MapGeometry::Point(point)
+        | MapGeometry::Text {
+            position: point, ..
+        } if index == 0 => Some(*point),
         MapGeometry::Polyline(points) | MapGeometry::Polygon(points) => points.get(index).copied(),
         _ => None,
     }
@@ -179,6 +217,16 @@ pub(super) fn draw_geometry(
             let screen = camera.normalized_to_screen(point.as_pos2(), viewport);
             painter.circle_filled(screen, 5.0, style.stroke);
             painter.circle_stroke(screen, 7.0, Stroke::new(style.width, style.stroke));
+        }
+        MapGeometry::Text {
+            position,
+            text,
+            font_size,
+            color,
+        } => {
+            super::text_labels::paint_text(
+                painter, camera, viewport, *position, text, *font_size, color,
+            );
         }
         MapGeometry::Polyline(points) => {
             let screen_points = points
@@ -229,7 +277,10 @@ pub(super) fn draw_control_points(
         );
     };
     match geometry {
-        MapGeometry::Point(point) => draw(painter, point),
+        MapGeometry::Point(point)
+        | MapGeometry::Text {
+            position: point, ..
+        } => draw(painter, point),
         MapGeometry::Polyline(points) | MapGeometry::Polygon(points) => {
             for point in points {
                 draw(painter, point);

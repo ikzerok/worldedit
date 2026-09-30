@@ -21,6 +21,12 @@ impl NormalizedPoint {
 #[derive(Clone, Debug, PartialEq)]
 pub enum MapGeometry {
     Point(NormalizedPoint),
+    Text {
+        position: NormalizedPoint,
+        text: String,
+        font_size: f32,
+        color: String,
+    },
     Polyline(Vec<NormalizedPoint>),
     Polygon(Vec<NormalizedPoint>),
 }
@@ -44,7 +50,10 @@ pub enum GeometryHit {
 
 pub(super) fn validate_geometry(geometry: &MapGeometry) -> Result<(), GeometryError> {
     match geometry {
-        MapGeometry::Point(point) => validate_point(*point),
+        MapGeometry::Point(point)
+        | MapGeometry::Text {
+            position: point, ..
+        } => validate_point(*point),
         MapGeometry::Polyline(points) => {
             validate_points(points, 2)?;
             if points.windows(2).any(|pair| pair[0] == pair[1]) {
@@ -235,11 +244,12 @@ pub(super) fn hit_test(
     let tolerance = tolerance_pixels.max(0.0);
     let point_screen = to_screen(point, screen_scale);
     match geometry {
-        MapGeometry::Point(vertex) => {
-            (distance_squared_screen(to_screen(*vertex, screen_scale), point_screen)
-                <= tolerance * tolerance)
-                .then_some(GeometryHit::Vertex(0))
-        }
+        MapGeometry::Point(vertex)
+        | MapGeometry::Text {
+            position: vertex, ..
+        } => (distance_squared_screen(to_screen(*vertex, screen_scale), point_screen)
+            <= tolerance * tolerance)
+            .then_some(GeometryHit::Vertex(0)),
         MapGeometry::Polyline(points) => hit_path(points, point, screen_scale, tolerance, false),
         MapGeometry::Polygon(points) => hit_path(points, point, screen_scale, tolerance, true)
             .or_else(|| point_in_polygon(point, points).then_some(GeometryHit::Body)),

@@ -4045,7 +4045,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "worldedit"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "eframe",
  "egui",
@@ -4064,7 +4064,7 @@ dependencies = [
 
 [[package]]
 name = "worldline-core"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "quick-xml",
  "same-file",
@@ -4075,7 +4075,7 @@ dependencies = [
 
 [[package]]
 name = "worldline-runtime"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "serde",
  "serde_json",
