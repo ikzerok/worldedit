@@ -96,6 +96,7 @@ impl WorkbenchState {
                 }
             }
             Action::Jump(file, line, column) => app.jump_to_file(&file, line, column),
+            Action::ReviewComments => app.open_unresolved_comments(),
         }
     }
 
@@ -307,6 +308,23 @@ impl WorkbenchState {
 
     fn todo_view(&self, app: &WorldeditApp, ui: &mut Ui, action: &mut Action) {
         ui.heading("当前缓冲中的待办");
+        let unresolved = app
+            .snapshot
+            .as_ref()
+            .map(|snapshot| {
+                snapshot
+                    .comment_index
+                    .review_projection(&Default::default())
+                    .unresolved
+            })
+            .unwrap_or(0);
+        if ui
+            .button(format!("全部未解决批注 · {unresolved} 条（包括正常锚定）"))
+            .clicked()
+        {
+            *action = Action::ReviewComments;
+        }
+        ui.label("批注修订清单单独显示解决/锚定状态；下方保留断链、失锚与提案的原待办分类。");
         ui.label("读取 core 投影；定位、筛选和查看不修改内容。修复必须显式编辑对应来源。");
         let Some(projection) = &self.todo_cache else {
             ui.label("正在读取待办…");
@@ -336,7 +354,9 @@ impl WorkbenchState {
                 });
         }
         if projection.items.is_empty() {
-            ui.label(RichText::new("没有待处理事项。").strong());
+            ui.label(
+                RichText::new("没有断链、失锚或待审提案；未解决批注请查看上方入口。").strong(),
+            );
             return;
         }
         ui.label(format!("{} 项 · 按类别和来源分组", projection.items.len()));

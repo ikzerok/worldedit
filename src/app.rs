@@ -135,6 +135,9 @@ struct PlayState {
     error: Option<String>,
     version: u64,
     paused: bool,
+    stopped: bool,
+    interruption: Option<worldline_runtime::ContinuationOutcome>,
+    entry_diagnostics: Vec<Diagnostic>,
 }
 struct SavedReplayPath {
     name: String,
@@ -176,6 +179,8 @@ struct ReplayDebugger {
     explanations: Option<Vec<ChoiceExplanation>>,
     max_steps: u64,
     time_budget_ms: u64,
+    live_max_steps: u64,
+    live_time_budget_ms: u64,
     pane: PlayPane,
     notice: Option<String>,
 }
@@ -195,6 +200,8 @@ impl Default for ReplayDebugger {
             explanations: None,
             max_steps: 100_000,
             time_budget_ms: 30_000,
+            live_max_steps: 100_000,
+            live_time_budget_ms: 250,
             pane: PlayPane::Story,
             notice: None,
         }

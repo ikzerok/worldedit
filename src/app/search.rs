@@ -5,7 +5,8 @@ mod transactions;
 mod window;
 use super::WorldeditApp;
 pub(crate) use selection::{
-    record_editor_selection, restore_editor_selection, scroll_editor_selection,
+    editor_selection, record_editor_selection, request_selection, restore_editor_selection,
+    scroll_editor_selection,
 };
 use std::{collections::BTreeSet, path::PathBuf};
 use worldline_core::{manuscript::WritingBuffer, search_replace::*};

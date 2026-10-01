@@ -411,7 +411,8 @@ fn pause_stop_and_checkpoint_import_controls_keep_debug_state_out_of_project() {
     click(&ctx, &mut app, 20, "▶ 继续");
     assert!(!app.play.as_ref().unwrap().paused);
     click(&ctx, &mut app, 20, "■ 停止");
-    assert!(app.play.as_ref().unwrap().ended);
+    assert!(app.play.as_ref().unwrap().stopped);
+    assert!(!app.play.as_ref().unwrap().ended);
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(app.history.is_empty());
 }

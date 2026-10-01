@@ -32,6 +32,18 @@ pub(super) fn candidates<'a>(
         })
         .collect()
 }
+/// 命令面板与资料选择器显示同一完整身份，不以同名合并候选。
+pub(super) fn candidate_label(object: &CatalogObject) -> String {
+    format!(
+        "{} · {}:{}\n{}:{}",
+        object.display,
+        super::catalog::kind_label(&object.target.kind),
+        object.target.id,
+        object.file,
+        object.line
+    )
+}
+
 pub(super) fn object_picker(
     ui: &mut Ui,
     salt: impl std::hash::Hash,
@@ -91,14 +103,7 @@ pub(super) fn object_picker(
                 .max_height(260.0)
                 .show(ui, |ui| {
                     for object in candidates.iter().take(1000) {
-                        let text = format!(
-                            "{} · {}:{}\n{}:{}",
-                            object.display,
-                            super::catalog::kind_label(&object.target.kind),
-                            object.target.id,
-                            object.file,
-                            object.line
-                        );
+                        let text = candidate_label(object);
                         if ui
                             .add(
                                 egui::Button::selectable(

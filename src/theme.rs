@@ -159,20 +159,29 @@ pub fn install(ctx: &egui::Context) {
     }
     style.visuals.widgets.inactive.bg_fill = CARD();
     style.visuals.widgets.inactive.weak_bg_fill = CARD();
-    style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+    // 未选checkbox与卡片同色时仍须有轮廓；不改变整个工作台的边框色。
+    let control_outline = if light {
+        Color32::from_rgb(105, 117, 136)
+    } else {
+        Color32::from_rgb(128, 136, 153)
+    };
+    style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, control_outline);
+    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, control_outline);
+    style.visuals.disabled_alpha = 0.65;
     style.visuals.widgets.hovered.bg_fill = if light {
         Color32::from_rgb(226, 233, 244)
     } else {
         Color32::from_rgb(49, 52, 61)
     };
     style.visuals.widgets.hovered.weak_bg_fill = style.visuals.widgets.hovered.bg_fill;
+    style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.5_f32, ACCENT());
     style.visuals.widgets.active.bg_fill = if light {
         Color32::from_rgb(208, 222, 245)
     } else {
         Color32::from_rgb(51, 64, 84)
     };
     style.visuals.widgets.active.weak_bg_fill = style.visuals.widgets.active.bg_fill;
-    style.visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, ACCENT());
+    style.visuals.widgets.active.bg_stroke = Stroke::new(2.0_f32, ACCENT());
     style.visuals.hyperlink_color = ACCENT();
     style.animation_time = 0.12;
     style.spacing.item_spacing = Vec2::new(8.0, 8.0);
@@ -231,3 +240,6 @@ pub fn toolbar<R>(ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) 
     ui.add_space(8.0);
     result
 }
+
+#[cfg(test)]
+mod tests;

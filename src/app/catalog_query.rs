@@ -127,6 +127,7 @@ enum Action {
     #[cfg(not(target_arch = "wasm32"))]
     Cancel,
     Navigate(TargetRef),
+    ReviewComments,
     Jump(String, u32, u32),
 }
 

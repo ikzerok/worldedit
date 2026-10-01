@@ -3,67 +3,11 @@ use super::{
     change_marker, proposal_conflicts_resolved, show_conflict_resolution, update_resolution_context,
 };
 use crate::theme::{self, *};
-use worldline_core::collaboration::{self, AnchorStatus, CommentAnchor, ProposalStatus};
+use worldline_core::collaboration::ProposalStatus;
 
 impl WorldeditApp {
-    fn render_comment_anchor(ui: &mut egui::Ui, anchor: &mut CommentAnchor) {
-        match anchor {
-            CommentAnchor::Object { target } => {
-                ui.label(theme::muted("对象 / 关系锚点"));
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut target.kind);
-                    ui.text_edit_singleline(&mut target.id);
-                });
-            }
-            CommentAnchor::MapPlacement {
-                map_id,
-                placement_id,
-            } => {
-                ui.label(theme::muted("地图标记锚点"));
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(map_id);
-                    ui.text_edit_singleline(placement_id);
-                });
-            }
-            CommentAnchor::TextRange {
-                path,
-                start_line,
-                end_line,
-                quote,
-                ..
-            } => {
-                ui.label(theme::muted(format!(
-                    "正文范围 · {path}:{start_line}-{end_line}"
-                )));
-                ui.label(theme::muted(format!(
-                    "原引用：{}",
-                    quote.replace('\n', " / ")
-                )));
-            }
-        }
-    }
-
     pub(in crate::app) fn review_tab(&mut self, ctx: &egui::Context) {
         self.capture_new_draft_baselines();
-        let comments = self
-            .snapshot
-            .as_ref()
-            .map(|snapshot| {
-                snapshot
-                    .comment_index
-                    .comments
-                    .values()
-                    .map(|comment| {
-                        (
-                            comment.draft.id.clone(),
-                            comment.draft.author.clone(),
-                            comment.draft.body.clone(),
-                            comment.anchor_status,
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
         let proposals = self
             .snapshot
             .as_ref()
@@ -84,53 +28,7 @@ impl WorldeditApp {
             })
             .unwrap_or_default();
 
-        egui::SidePanel::right("collaboration-index")
-            .default_width(300.0)
-            .width_range(240.0..=420.0)
-            .frame(theme::panel())
-            .show(ctx, |ui| {
-                ui.heading("批注与提案");
-                ui.label(theme::muted(format!(
-                    "{} 条批注 · {} 个提案",
-                    comments.len(),
-                    proposals.len()
-                )));
-                ui.separator();
-                ui.label(egui::RichText::new("批注").strong());
-                for (id, author, body, status) in &comments {
-                    let marker = if *status == AnchorStatus::Attached {
-                        "已锚定"
-                    } else {
-                        "失锚"
-                    };
-                    if ui.button(format!("{marker} · {author} · {body}")).clicked() {
-                        self.edit_comment(id);
-                    }
-                }
-                if comments.is_empty() {
-                    ui.label(theme::muted("尚无批注"));
-                }
-                ui.separator();
-                ui.label(egui::RichText::new("提案").strong());
-                for (id, author, reason, status) in &proposals {
-                    let status = match status {
-                        ProposalStatus::Open => "待审阅",
-                        ProposalStatus::Accepted => "已采纳",
-                    };
-                    if ui
-                        .selectable_label(
-                            self.review.selected_proposal.as_deref() == Some(id),
-                            format!("{status} · {author} · {reason}"),
-                        )
-                        .clicked()
-                    {
-                        self.review.selected_proposal = Some(id.clone());
-                    }
-                }
-                if proposals.is_empty() {
-                    ui.label(theme::muted("尚无提案"));
-                }
-            });
+        self.review_sidebar(ctx, &proposals);
 
         egui::CentralPanel::default()
             .frame(theme::panel().fill(BG()))
@@ -156,93 +54,7 @@ impl WorldeditApp {
                             }
                         });
 
-                        let mut editor = self.review.comment_editor.take();
-                        let mut comment_saved = false;
-                        if let Some(comment) = editor.as_mut() {
-                            ui.add_space(12.0);
-                            theme::card().show(ui, |ui| {
-                                ui.label(egui::RichText::new("批注编辑").strong());
-                                let status = comment
-                                    .original
-                                    .as_ref()
-                                    .and_then(|id| {
-                                        self.snapshot.as_ref()?.comment_index.comments.get(id)
-                                    })
-                                    .map(|comment| comment.anchor_status)
-                                    .unwrap_or(AnchorStatus::Attached);
-                                if status == AnchorStatus::Detached {
-                                    ui.colored_label(
-                                        GOLD(),
-                                        "原锚点已失效；不会自动绑定到相邻对象或段落。",
-                                    );
-                                }
-                                ui.label("作者");
-                                ui.text_edit_singleline(&mut comment.draft.author);
-                                ui.label("正文");
-                                ui.add(
-                                    egui::TextEdit::multiline(&mut comment.draft.body)
-                                        .desired_rows(5)
-                                        .desired_width(f32::INFINITY),
-                                );
-                                Self::render_comment_anchor(ui, &mut comment.draft.anchor);
-                                ui.checkbox(&mut comment.draft.resolved, "已解决");
-                                if matches!(comment.draft.anchor, CommentAnchor::TextRange { .. })
-                                    && status == AnchorStatus::Detached
-                                {
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.text_edit_singleline(&mut self.review.text_path);
-                                        ui.text_edit_singleline(&mut self.review.text_start);
-                                        ui.text_edit_singleline(&mut self.review.text_end);
-                                        if ui.button("重新指定正文范围").clicked() {
-                                            let parsed = self
-                                                .review
-                                                .text_start
-                                                .parse::<u32>()
-                                                .ok()
-                                                .zip(self.review.text_end.parse::<u32>().ok());
-                                            if let Some((start, end)) = parsed {
-                                                let path =
-                                                    self.project.root.join(&self.review.text_path);
-                                                match collaboration::capture_text_anchor(
-                                                    &self.project,
-                                                    &path,
-                                                    start,
-                                                    end,
-                                                ) {
-                                                    Ok(anchor) => comment.draft.anchor = anchor,
-                                                    Err(error) => self.io_error = Some(error),
-                                                }
-                                            } else {
-                                                self.io_error =
-                                                    Some("重新锚定行号必须是正整数".into());
-                                            }
-                                        }
-                                    });
-                                }
-                                let current = comment.version == self.version
-                                    && comment.baseline == self.project.content_baseline();
-                                if !current {
-                                    ui.colored_label(
-                                        GOLD(),
-                                        "工程已变化；旧批注表单不能覆盖当前稿。",
-                                    );
-                                }
-                                if ui
-                                    .add_enabled(
-                                        current
-                                            && !comment.draft.author.trim().is_empty()
-                                            && !comment.draft.body.trim().is_empty(),
-                                        theme::primary("保存批注"),
-                                    )
-                                    .clicked()
-                                {
-                                    comment_saved = self.save_comment_editor(comment);
-                                }
-                            });
-                        }
-                        if !comment_saved {
-                            self.review.comment_editor = editor;
-                        }
+                        self.draw_comment_editor(ui);
 
                         ui.separator();
                         ui.label(egui::RichText::new("把当前未保存修改存为提案").strong());

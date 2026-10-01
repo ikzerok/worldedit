@@ -25,11 +25,15 @@ impl ViewState {
             .clone()
             .filter(|cursor| cursor.mode == self.mode.key())
     }
+    pub(in crate::app) fn selection_is_current_mode(&self) -> bool {
+        self.selection_mode == Some(self.mode)
+    }
     pub(in crate::app) fn session_mode(&self) -> Mode {
         self.mode
     }
     pub(in crate::app) fn restore_mode(&mut self, mode: Mode) {
         self.mode = mode;
+        self.selection_mode = None;
         self.cursor = None;
         self.pending_cursor = None;
     }
@@ -98,6 +102,7 @@ impl ViewState {
             return;
         }
         if let Some(range) = output.cursor_range {
+            self.selection_mode = Some(self.mode);
             super::super::search::record_editor_selection(
                 ui.ctx(),
                 output.response.id,
