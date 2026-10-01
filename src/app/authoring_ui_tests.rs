@@ -30,6 +30,7 @@ mod manuscript;
 mod network;
 mod reader_publish;
 mod reading;
+mod replay_locations;
 mod review;
 mod templates;
 mod topic_views;

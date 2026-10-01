@@ -9,6 +9,9 @@ use worldline_core::ast::PropertyValue;
 use worldline_core::authoring::{EffectDraft, WorldDraft};
 use worldline_core::catalog::Catalog;
 mod properties;
+mod temporal_constraints;
+#[cfg(test)]
+mod temporal_tests;
 #[cfg(test)]
 use properties::properties;
 pub(super) use properties::properties_with_references;
@@ -107,6 +110,8 @@ impl WorldeditApp {
                     }
                     return;
                 };
+                let options = temporal_constraints::options(&self.project, &mut editor);
+                let temporal_ready = temporal_constraints::can_apply(&options) && !self.stale_form;
                 let mut close = false;
                 let mut apply = false;
                 let mut delete = false;
@@ -120,12 +125,18 @@ impl WorldeditApp {
                         .strong()
                         .size(17.0),
                     );
-                    if ui.add(theme::primary("应用更改")).clicked() { apply = true; }
-                    if ui.small_button("×").clicked() {
+                    if ui.add_enabled(temporal_ready, theme::primary("应用更改")).clicked() { apply = true; }
+                    if ui.small_button("取消编辑").clicked() {
                         close = true;
                     }
                 });
-                ui.label(theme::muted("应用更改后同步到源文件与全部视图"));
+                ui.add(egui::Label::new(format!("当前事件：{}", editor.draft.id)).truncate())
+                    .on_hover_text(&editor.draft.id);
+                ui.label(theme::muted("应用进入工程缓冲；保存后写入磁盘"));
+                temporal_constraints::application_status(ui, &options);
+                if self.stale_form {
+                    ui.colored_label(ERROR(), "外部内容已改变，输入已保留；请重开表单合并后应用。");
+                }
                 ui.separator();
                 egui::ScrollArea::vertical()
                     .id_salt("event-form")
@@ -137,6 +148,7 @@ impl WorldeditApp {
                                 .desired_width(f32::INFINITY),
                         );
                         field(ui, "事件名称 / 简述", &mut editor.draft.summary);
+                        temporal_constraints::show(ui, &self.project, &mut editor, self.snapshot.as_ref().map(|snapshot| snapshot.result.analysis.timeline.periods.as_slice()).unwrap_or_default(), self.stale_form);
                         if let Err(error) = super::choices::choice_cards(ui, &mut editor.draft, self.snapshot.as_ref().map(|s| &s.result.analysis.graph), self.snapshot.as_ref().map(|s| &s.result.analysis.catalog), self.snapshot.as_ref().map(|s| &s.result.analysis.symbols), self.project.language_version_kind().supports_language_112()) {
                             self.io_error = Some(error);
                         }
@@ -172,30 +184,6 @@ impl WorldeditApp {
                             "故事线 ID（可创建新故事线）",
                             &mut editor.draft.storyline,
                         );
-                        ui.label(theme::muted("所属时段"));
-                        let previous_period = editor.draft.period.clone();
-                        egui::ComboBox::from_id_salt("event-period").selected_text(editor.draft.period.as_deref().unwrap_or("未分配时段")).show_ui(ui, |ui| {
-                            ui.selectable_value(&mut editor.draft.period, None, "未分配时段");
-                            if let Some(snapshot) = &self.snapshot {
-                                for period in &snapshot.result.analysis.timeline.periods {
-                                    ui.selectable_value(&mut editor.draft.period, Some(period.id.clone()), &period.display);
-                                }
-                            }
-                        });
-                        if editor.draft.period != previous_period { editor.draft.predecessors.clear(); }
-                        if let Some(period) = &editor.draft.period {
-                            ui.label(theme::muted("明确晚于以下事件（可不选）"));
-                            if let Some(snapshot) = &self.snapshot {
-                                for event in snapshot.result.program.events.iter().filter(|e| e.period.as_ref() == Some(period) && e.name != editor.draft.id) {
-                                    let mut selected = editor.draft.predecessors.contains(&event.name);
-                                    if ui.checkbox(&mut selected, event.summary.as_deref().unwrap_or(&event.name)).changed() {
-                                        if selected { editor.draft.predecessors.push(event.name.clone()); }
-                                        else { editor.draft.predecessors.retain(|id| id != &event.name); }
-                                    }
-                                }
-                            }
-                            ui.label(theme::muted("未连接的事件可无序发生,也可与有序事件链并列。"));
-                        }
                         ui.horizontal(|ui| {
                             ui.label(theme::muted("编排序号"));
                             let mut order = editor.draft.order.unwrap_or(0);
@@ -296,8 +284,8 @@ impl WorldeditApp {
                             });
                         });
                         apply |= ui
-                            .add_sized(
-                                [ui.available_width(), 36.0],
+                            .add_enabled(
+                                temporal_ready,
                                 theme::primary(if editor.original.is_some() {
                                     "应用更改"
                                 } else {
@@ -341,9 +329,10 @@ impl WorldeditApp {
                     let original = editor.original.clone();
                     let path = editor.path.clone();
                     if self.commit("事件已更新", |p| {
-                        p.write_event(&path, original.as_deref(), &draft)
+                        p.write_event_at_baseline(&path, original.as_deref(), &draft, &editor.baseline)
                     }) {
                         editor.original = Some(draft.id);
+                        editor.baseline = self.project.content_baseline();
                     }
                 }
                 if delete {

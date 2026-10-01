@@ -374,6 +374,9 @@ impl WorldeditApp {
                             // 恢复读取 core 草稿，不调用可能迁移旧权限的 select_event。
                             if let Ok((path, draft)) = self.project.event_draft(&target.id) {
                                 self.event_editor = Some(super::EventEditor {
+                                    baseline: self.project.content_baseline(),
+                                    predecessor_query: String::new(),
+                                    temporal_cache: None,
                                     path,
                                     original: Some(target.id),
                                     draft,

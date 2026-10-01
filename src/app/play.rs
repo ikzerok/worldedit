@@ -3,6 +3,7 @@ mod bounded;
 mod debugger;
 mod evidence;
 mod replay;
+mod replay_location;
 mod story;
 
 use super::WorldeditApp;

@@ -1,8 +1,8 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台，用于人物资料、世界设定、正文书稿、多文件分支故事、关系图、时间偏序、状态和叙事锚点创作。语言解释与结构修改统一由worldline-core完成。工具0.11.0提供就地批注与完整修订清单、普通试玩预算暂停与安全续行，并修复键盘选择越屏不可见和正文关键字教学。默认语言仍为1.9，最高1.13，本版不新增DSL。
+worldline 的 Rust / egui 作者工作台，用于人物资料、世界设定、正文书稿、多文件分支故事、关系图、时间偏序、状态和叙事锚点创作。语言解释与结构修改统一由worldline-core完成。工具0.12.0让事件前驱表单与同根时间偏序一致，改时段不静默清除已有关系，并修正片段源码定位变化导致的重放分歧。默认语言仍为1.9，最高1.13，本版不新增DSL。
 
-普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
+从[时间约束与可信重放](docs/replay-timeline-workflow.md)和配对[栖雪山站示例](../worldline/examples/snowline-seeds/README.md)完成双路线改稿。普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
 ## 安装与启动
 
 下载发行包并解压，运行 worldedit.exe，选择作品目录。空目录自动建立雾港示例；已有作品需要根目录 world.wl。也可以传目录：

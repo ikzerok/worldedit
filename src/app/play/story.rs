@@ -44,7 +44,7 @@ impl WorldeditApp {
         let mut restart = false;
         let mut reading_request = None;
         let mut replay_request = false;
-        let mut failure_jump = None;
+        let mut failure_jump = false;
         let cur_version = self.version;
         let narrow = ctx.screen_rect().width() < 900.0;
         let can_replay = self
@@ -335,22 +335,8 @@ impl WorldeditApp {
         if replay_request {
             self.begin_replay(ctx);
         }
-        if let Some((node, line)) = failure_jump {
-            let file = self
-                .snapshot
-                .as_ref()
-                .and_then(|snapshot| {
-                    snapshot
-                        .result
-                        .analysis
-                        .graph
-                        .nodes
-                        .iter()
-                        .find(|candidate| candidate.name == node)
-                        .map(|candidate| std::path::PathBuf::from(candidate.file.clone()))
-                })
-                .unwrap_or_else(|| self.active_file.clone());
-            self.jump_to_file(&file.to_string_lossy(), line, 1);
+        if failure_jump {
+            self.jump_to_replay_failure();
         }
         egui::CentralPanel::default().show(ctx, |ui| {
             let Some(play) = &mut self.play else { return };

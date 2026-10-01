@@ -107,6 +107,9 @@ impl WorldeditApp {
             })
             .unwrap_or_else(|| "main".into());
         self.event_editor = Some(EventEditor {
+            baseline: self.project.content_baseline(),
+            predecessor_query: String::new(),
+            temporal_cache: None,
             path: self.default_event_file(),
             original: None,
             draft: EventDraft {
@@ -148,6 +151,9 @@ impl WorldeditApp {
             Ok((path, draft)) => {
                 self.focus_event = Some(id.into());
                 self.event_editor = Some(EventEditor {
+                    baseline: self.project.content_baseline(),
+                    predecessor_query: String::new(),
+                    temporal_cache: None,
                     path,
                     original: Some(id.into()),
                     draft,
