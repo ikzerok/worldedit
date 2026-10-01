@@ -72,9 +72,9 @@
 
 - editor `3e02fa7` 接入路径录制/重放、状态差异、条件解释与覆盖。Edge 153 的双选择轨迹与 CLI trace、RPC 重放 DTO 对齐；解释条件不推进，Stop 保持工程已保存，证据 `../qa-cap06b-evidence-20260927/`。`e6e616d` 折行长状态差异，`d4e3a61` 移除 Web 固定画布最小尺寸并让 800×600 正文/调试入口始终可达。后续 `8a5572b` 已改为 Web 协作式重放：`ReplaySession::advance` 每帧以 512 步或 4ms 为协作预算（单步与状态恢复不可中断）后让回事件循环，具备处理取消输入的代码路径；这不是实际浏览器取消验收结果。当前仍需用长路径实际点击取消复验，原生/实际作者未验收，票开放。
 
-## 研究交付
+## 设计契约交付
 
-- worldedit#32 / EDS-01：[官方交互观察与证据边界](design/editor-system/20260926/eds01-evidence.md)。四主样本各四条 DOC 观察卡及失败/恢复路径，五补充样本、12 模式反例和替代方案。GUI/RUN/USER 缺口明确保留，研究票已按文档交付关闭。
+- worldedit#32 / EDS-01：保留历史工单身份；原研究材料不纳入仓库，不作为产品实现或作者验收证据。
 - worldedit#33 / EDS-02：[任务、对象与入口草案](design/editor-system/20260926/eds02-tasks-and-objects.md)。四条任务旅程、对象生命周期、五类结构和旧 12 页面映射；频率与角色标为假设，不冒充用户访谈。后台研究连接中断后由主任务依据已核查代码补齐，仍待作者验证。
 - worldedit#34 / EDS-03：[编辑器状态、身份与事件路由契约](design/editor-system/20260926/eds03-state-contract.md)。定义六种“当前”、类型化身份、状态所属域、事务转换及 owner/IME/冲突负例；这是设计契约和验收清单，不宣称生产 UI 已全面实现。
 - worldedit#35 / EDS-04：[六区域显隐与 A/B/C 比较](design/editor-system/20260926/eds04-layout-comparison.md)。三种结构用同一组任务与示例数据比较，B 暂列下一轮验证首选，完整自由 dock 暂不采用；抛弃式交互原型单独保存在 `codex/eds04-prototype` 的 `5e44564`，尚待实际作者评估。

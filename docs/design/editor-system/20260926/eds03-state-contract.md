@@ -1,6 +1,6 @@
 # EDS-03：编辑器状态、身份与事件路由契约
 
-关联 worldedit#34。本文是供原型与实现审查的设计契约，不宣称现有 UI 已全部采用。依据[系统指南 §4](guide.md)、[EDS-01 证据](eds01-evidence.md)、[EDS-02 任务与对象](eds02-tasks-and-objects.md)；用户已排除游戏引擎适配器。
+关联 worldedit#34。本文是供原型与实现审查的设计契约，不宣称现有 UI 已全部采用。依据[系统指南 §4](guide.md)、[EDS-02 任务与对象](eds02-tasks-and-objects.md)；用户已排除游戏引擎适配器。
 
 ## 身份与六种“当前”
 
