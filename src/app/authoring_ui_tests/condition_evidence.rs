@@ -48,7 +48,7 @@ fn condition_inspector_clears_between_groups_restart_and_workspace_reset() {
     let shown = app.replay_debugger.explanations.as_ref().unwrap();
     assert_eq!(shown.len(), 1);
     assert_eq!(shown[0].choice.node, "next");
-    click(&ctx, &mut app, 20, "↻ 重新开始(应用最新改动)");
+    click(&ctx, &mut app, 20, "↻ 重新开始（已应用稿）");
     assert!(app.replay_debugger.explanations.is_none());
     click(&ctx, &mut app, 20, "解释当前条件（只读）");
     assert_eq!(
@@ -144,7 +144,7 @@ fn condition_inspector_is_read_only_and_labels_old_run_after_source_edit() {
         collect_text(&shape.shape, &mut rendered);
     }
     assert!(rendered.contains("旧运行"), "{rendered}");
-    click(&ctx, &mut app, 20, "↻ 重新开始(应用最新改动)");
+    click(&ctx, &mut app, 20, "↻ 重新开始（已应用稿）");
     assert!(app.replay_debugger.explanations.is_none());
 }
 
@@ -161,7 +161,7 @@ fn failure_inspector_distinguishes_error_and_unexecuted_then_restart_clears_it()
     assert!(rendered.contains("求值错误"), "{rendered}");
     assert!(rendered.contains("未求值"), "{rendered}");
     assert!(app.play.as_ref().unwrap().paused);
-    click(&ctx, &mut app, 20, "↻ 重新开始(应用最新改动)");
+    click(&ctx, &mut app, 20, "↻ 重新开始（已应用稿）");
     assert!(app.replay_debugger.explanations.is_none());
 }
 

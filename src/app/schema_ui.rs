@@ -18,6 +18,13 @@ pub(super) struct SchemaUiState {
 }
 
 impl SchemaUiState {
+    pub(in crate::app) fn play_draft_signature(&self) -> String {
+        format!(
+            "{:?}",
+            (&self.path, &self.source, &self.original, &self.baseline)
+        )
+    }
+
     pub(super) fn draft_path(&self) -> Option<&std::path::Path> {
         self.path.as_deref()
     }

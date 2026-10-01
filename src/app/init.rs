@@ -38,6 +38,7 @@ impl WorldeditApp {
             #[cfg(not(target_arch = "wasm32"))]
             conflict_view: conflicts::ConflictView::default(),
             markdown_import_wizard: None,
+            capability_ui: None,
             #[cfg(not(target_arch = "wasm32"))]
             frame_profile: frame_profile::FrameProfiler::from_env(),
             stale_form: false,
@@ -45,6 +46,7 @@ impl WorldeditApp {
             tab: Tab::Timeline,
             jump: None,
             play: None,
+            play_confirmation: None,
             replay_debugger: ReplayDebugger::default(),
             play_scroll_bottom: false,
             event_editor: None,
@@ -272,6 +274,8 @@ impl WorldeditApp {
             self.conflict_view = conflicts::ConflictView::default();
         }
         self.markdown_import_wizard = None;
+        self.capability_ui = None;
+        self.play_confirmation = None;
         self.stale_form = false;
         self.reading_target = None;
         self.reading_history.clear();

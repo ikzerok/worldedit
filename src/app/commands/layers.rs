@@ -25,6 +25,8 @@ impl WorldeditApp {
             ("reader", self.reader_publish.open),
             ("schema", self.schema_ui.open),
             ("guard-export", self.export_confirmation.is_some()),
+            ("guard-play", self.play_confirmation.is_some()),
+            ("guard-capabilities", self.capability_ui.is_some()),
             ("guard-draft-exit", self.draft_action.is_some()),
             ("guard-pending", self.pending.is_some()),
             ("guard-directory", self.directory.is_some()),

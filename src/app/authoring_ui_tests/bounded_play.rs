@@ -82,7 +82,7 @@ fn stop_is_distinct_from_story_end_and_restart_uses_current_source() {
     app.recompile();
     assert_eq!(app.play.as_ref().unwrap().version, old_version);
     app.replay_debugger.live_max_steps = 100;
-    click(&ctx, &mut app, 20, "↻ 重新开始(应用最新改动)");
+    click(&ctx, &mut app, 20, "↻ 重新开始（已应用稿）");
     assert_eq!(app.play.as_ref().unwrap().transcript, "新稿");
     assert!(app.play.as_ref().unwrap().ended);
     assert!(!app.play.as_ref().unwrap().stopped);

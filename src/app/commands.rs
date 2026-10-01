@@ -28,6 +28,7 @@ enum Action {
     References,
     Back,
     Settings,
+    Capabilities,
 }
 fn commands() -> Vec<(&'static str, Action)> {
     vec![
@@ -45,6 +46,7 @@ fn commands() -> Vec<(&'static str, Action)> {
         ("审阅 · 协作审阅", Action::Tab(Tab::Review)),
         ("语言 · 本地化", Action::Tab(Tab::Localization)),
         ("演练 · 试玩", Action::Tab(Tab::Play)),
+        ("工程 · 显式启用语言与资料能力", Action::Capabilities),
         ("工程 · 工程模板", Action::Tab(Tab::Templates)),
         ("工程 · 检查点历史", Action::Tab(Tab::CheckpointHistory)),
         ("保存已应用的工程修改", Action::Save),
@@ -257,6 +259,7 @@ impl WorldeditApp {
                 }
                 Action::Back => self.author_back(ctx),
                 Action::Settings => self.personal.preferences_open = true,
+                Action::Capabilities => self.open_capabilities(),
             }
         }
     }

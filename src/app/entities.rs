@@ -29,6 +29,12 @@ impl WorldeditApp {
         if self.prevent_replacing_draft("实体资料") {
             return;
         }
+        if id.is_none() && !self.project.language_version_kind().supports_entities() {
+            self.open_capabilities();
+            self.message =
+                Some("先显式启用实体资料能力，再新建地点、组织或物品；当前作品未变化。".into());
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -197,8 +203,11 @@ impl WorldeditApp {
             if !capable {
                 ui.colored_label(
                     theme::GOLD(),
-                    "此工程使用语言 1.9。通用实体需要显式启用 1.10；不会自动迁移旧作品。",
+                    "通用实体需要显式启用语言 1.10 与 content.entities.v1；不会自动迁移旧作品。",
                 );
+            }
+            if !capable && ui.button("查看语言与资料能力…").clicked() {
+                self.open_capabilities();
             }
             let apply_clicked = ui
                 .add_enabled(

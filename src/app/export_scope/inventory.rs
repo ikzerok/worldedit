@@ -27,7 +27,7 @@ impl WorldeditApp {
         format!("{kind}:{id} · {path}")
     }
 
-    pub(super) fn unapplied_export_inputs(&self) -> Vec<UnappliedInput> {
+    pub(in crate::app) fn unapplied_export_inputs(&self) -> Vec<UnappliedInput> {
         let mut result = Vec::new();
         let mut add = |kind, source| result.push(UnappliedInput { kind, source });
         for kind in self.dirty_draft_names() {

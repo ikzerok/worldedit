@@ -75,8 +75,17 @@ impl WorldeditApp {
     }
 
     pub(super) fn go_search_position(&mut self, ctx: &egui::Context, hit: &SearchMatch) {
+        let _ = self.go_author_source_position(ctx, hit, false);
+    }
+
+    pub(in crate::app) fn go_author_source_position(
+        &mut self,
+        ctx: &egui::Context,
+        hit: &SearchMatch,
+        prefer_writing: bool,
+    ) -> Result<(), String> {
         if self.ime_composing || self.command_palette.ime || self.command_palette.ime_frame {
-            return;
+            return Err("输入法组合尚未完成，未离开当前位置".into());
         }
         let drafts = self.manuscript.writing_buffers();
         let source = drafts
@@ -84,17 +93,17 @@ impl WorldeditApp {
             .find(|buffer| buffer.path() == hit.path && buffer.is_changed())
             .map(|buffer| buffer.source().to_owned())
             .or_else(|| self.project.document(&hit.path).ok().map(str::to_owned));
-        let Some(source) = source else { return };
+        let source = source.ok_or("作者来源文件不存在，当前位置与草稿已保留")?;
         let position: Location = self.author_location(Some(ctx));
-        if hit.draft || self.tab == Tab::Manuscript {
+        if prefer_writing || hit.draft || self.tab == Tab::Manuscript {
             if let Some(plan) =
                 self.manuscript
                     .plan_writing_match(&hit.path, &hit.range, &self.project)
             {
                 let reason = plan.reason.clone();
                 if let Err(error) = self.manuscript.apply_writing_match(plan, &self.project) {
-                    self.search_state.error = Some(error);
-                    return;
+                    self.search_state.error = Some(error.clone());
+                    return Err(error);
                 }
                 let generation = self
                     .manuscript
@@ -120,11 +129,11 @@ impl WorldeditApp {
                         hits.iter().position(|current| current == hit).unwrap_or(0);
                 }
                 self.search_state.located = Some(hit.clone());
-                return;
+                return Ok(());
             }
             if hit.draft {
                 self.search_state.error = Some("此命中来自未应用草稿，但关联章节无法确认；保留当前入口与完整草稿，未切换到旧工程内容".into());
-                return;
+                return Err(self.search_state.error.clone().unwrap());
             }
             self.message =
                 Some("此文件没有可确认的书稿章节，已在工程源码定位；可用返回恢复原作者位置".into());
@@ -141,6 +150,7 @@ impl WorldeditApp {
                 hits.iter().position(|current| current == hit).unwrap_or(0);
         }
         self.search_state.located = Some(hit.clone());
+        Ok(())
     }
 
     pub(in crate::app) fn navigate_search(&mut self, ctx: &egui::Context, previous: bool) {

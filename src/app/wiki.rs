@@ -15,6 +15,19 @@ pub(super) struct WikiEditor {
 }
 
 impl WikiEditor {
+    pub(in crate::app) fn play_draft_signature(&self) -> String {
+        serde_json::json!([
+            self.original,
+            self.draft.id,
+            self.draft.display,
+            self.draft.description,
+            self.draft.properties,
+            self.aliases,
+            self.version
+        ])
+        .to_string()
+    }
+
     pub(super) fn draft_target(&self) -> TargetRef {
         TargetRef::new("tag", self.original.as_deref().unwrap_or(&self.draft.id))
     }

@@ -66,6 +66,20 @@ impl WorldeditApp {
             self.replay_debugger.notice = Some("编辑稿已变化，请重新重放后定位".into());
             return;
         }
+        if self
+            .replay_debugger
+            .result_scope
+            .as_ref()
+            .is_none_or(|scope| !scope.matches_project(&self.project, self.version))
+        {
+            self.replay_debugger.notice = Some("重放实际来源基线已变化，请重新重放后定位".into());
+            return;
+        }
+        if !self.unapplied_play_inputs().is_empty() {
+            self.replay_debugger.notice =
+                Some("存在未应用执行草稿，请先处理后再定位；草稿已保留".into());
+            return;
+        }
         let location = self
             .replay_debugger
             .result
@@ -97,6 +111,11 @@ impl WorldeditApp {
             self.replay_debugger.notice = Some("当前停止位置的源码文件或行号不可用".into());
             return;
         };
+        let source = self.project.document(&file).unwrap_or_default();
+        if let Err(reason) = self.project.verify_source_navigation(&file, source) {
+            self.replay_debugger.notice = Some(reason);
+            return;
+        }
         self.jump_to_file(&file.to_string_lossy(), location.line, 1);
     }
 }

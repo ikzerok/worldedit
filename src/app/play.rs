@@ -2,8 +2,10 @@
 mod bounded;
 mod debugger;
 mod evidence;
+mod evidence_navigation;
 mod replay;
 mod replay_location;
+pub(in crate::app) mod scope;
 mod story;
 
 use super::WorldeditApp;
@@ -14,6 +16,6 @@ impl WorldeditApp {
     }
 
     pub(super) fn start_play(&mut self) {
-        self.start_play_inner();
+        self.request_play();
     }
 }
