@@ -1,312 +1,194 @@
-use super::super::WorldeditApp;
 use super::*;
 use crate::theme;
-use std::path::Path;
-use worldline_core::ast::{Stmt, TextPart};
-use worldline_core::manuscript::ManuscriptIndex;
+use worldline_core::manuscript::{reading_projection, ManuscriptIndex, ReadingProjection};
+
+#[derive(Default)]
+pub(super) struct PreviewCache {
+    key: String,
+    current: HashMap<TargetRef, ReadingProjection>,
+    last_valid: HashMap<TargetRef, ReadingProjection>,
+    error: Option<String>,
+}
+
+impl PreviewCache {
+    fn refresh(
+        &mut self,
+        project: &worldline_core::project::Project,
+        buffers: &[WritingBuffer],
+        targets: &[TargetRef],
+    ) {
+        let mut drafts: Vec<_> = buffers
+            .iter()
+            .filter(|buffer| buffer.is_changed())
+            .collect();
+        drafts.sort_by_key(|buffer| buffer.path());
+        let key = format!(
+            "{}|{:?}|{:?}",
+            project.content_baseline(),
+            targets,
+            drafts
+                .iter()
+                .map(|buffer| (
+                    buffer.path(),
+                    buffer.baseline(),
+                    buffer.generation(),
+                    buffer.source()
+                ))
+                .collect::<Vec<_>>()
+        );
+        if self.key == key {
+            return;
+        }
+        self.key = key;
+        self.current.clear();
+        self.error = None;
+        match project.compile_writing_drafts(buffers) {
+            Ok(result) => {
+                for target in targets {
+                    match reading_projection(&result, target) {
+                        Ok(projection) => {
+                            self.last_valid.insert(target.clone(), projection.clone());
+                            self.current.insert(target.clone(), projection);
+                        }
+                        Err(error) => self.error = Some(error),
+                    }
+                }
+            }
+            Err(error) => self.error = Some(error),
+        }
+    }
+}
+
 pub(super) fn draw_reader_preview(
-    app: &mut WorldeditApp,
+    app: &mut super::super::WorldeditApp,
     ui: &mut egui::Ui,
     index: &ManuscriptIndex,
-    repair_chapter: &mut Option<String>,
+    selected: Option<&ManuscriptEntryDraft>,
 ) {
-    let mut offset = 0;
-    let section_names: HashMap<_, _> = index
-        .entries
+    ui.horizontal_wrapped(|ui| {
+        ui.heading("阅读预览");
+        ui.selectable_value(&mut app.manuscript.reader_whole_book, false, "当前章节");
+        ui.selectable_value(&mut app.manuscript.reader_whole_book, true, "整书");
+    });
+    let entries: Vec<(String, String, Option<TargetRef>)> = if app.manuscript.reader_whole_book {
+        let mut chapters = Vec::new();
+        let mut offset = 0;
+        loop {
+            let page = index.page(offset, 100);
+            chapters.extend(
+                page.chapters
+                    .into_iter()
+                    .map(|entry| (entry.id, entry.title, entry.target_ref)),
+            );
+            let Some(next) = page.next_offset else {
+                break;
+            };
+            offset = next;
+        }
+        chapters
+    } else {
+        selected
+            .filter(|entry| entry.kind == ManuscriptEntryKind::Chapter)
+            .map(|entry| {
+                vec![(
+                    entry.id.clone(),
+                    entry.title.clone(),
+                    entry.target_ref.clone(),
+                )]
+            })
+            .unwrap_or_default()
+    };
+    let targets: Vec<_> = entries
         .iter()
-        .filter(|entry| entry.kind == ManuscriptEntryKind::Section)
-        .map(|entry| (entry.id.as_str(), entry.title.as_str()))
+        .filter_map(|(_, _, target)| target.clone())
         .collect();
-    loop {
-        let page = index.page(offset, 100);
-        for chapter in page.chapters {
-            ui.push_id((&chapter.id, "reader"), |ui| {
-                ui.separator();
-                let section = if chapter.section_path.is_empty() {
-                    String::new()
-                } else {
-                    format!(
-                        "{} / ",
-                        chapter
-                            .section_path
-                            .iter()
-                            .map(|id| {
-                                section_names
-                                    .get(id.as_str())
-                                    .copied()
-                                    .unwrap_or(id.as_str())
-                            })
-                            .collect::<Vec<_>>()
-                            .join(" / ")
-                    )
-                };
-                ui.heading(format!("{}{}", section, chapter.title));
-                if let Some(summary) = &chapter.summary {
-                    ui.label(theme::muted(summary));
-                }
-                if let Some(target) = &chapter.perspective {
-                    let display = app
-                        .snapshot
-                        .as_ref()
-                        .and_then(|snapshot| snapshot.result.analysis.catalog.object(target))
-                        .map(|object| object.display.as_str())
-                        .unwrap_or(&target.id);
-                    ui.label(theme::muted(format!(
-                        "视角：{} · {}:{}",
-                        display, target.kind, target.id
-                    )));
-                }
-                if let Some(status) = &chapter.status {
-                    ui.label(theme::muted(format!("状态：{status}")));
-                }
-                if let Some(goal) = &chapter.goal {
-                    ui.label(theme::muted(format!("目标：{goal}")));
-                }
-                let Some(target) = &chapter.target_ref else {
-                    ui.colored_label(theme::ERROR(), "章节尚未选择正文来源。");
-                    return;
-                };
-                let Some(source) = &chapter.source else {
-                    ui.colored_label(
-                        theme::ERROR(),
-                        format!("来源不可用：{}:{}", target.kind, target.id),
-                    );
-                    return;
-                };
-                if source.status != ManuscriptReferenceStatus::Resolved {
-                    ui.colored_label(theme::ERROR(), source_status_text(source.status));
-                }
-                if let Some(location) = &source.location {
-                    ui.label(theme::muted(format!(
-                        "{}:{} · {}:{}",
-                        target.kind, target.id, location.file, location.line
-                    )));
-                }
-                match target.kind.as_str() {
-                    "event" => {
-                        let event_parts = app.snapshot.as_ref().and_then(|snapshot| {
-                            snapshot
-                                .result
-                                .program
-                                .events
-                                .iter()
-                                .zip(&snapshot.result.program.event_files)
-                                .find(|(event, file)| {
-                                    event.name == target.id
-                                        && source.location.as_ref().is_some_and(|location| {
-                                            Path::new(file.as_str()) == Path::new(&location.file)
-                                        })
-                                })
-                                .map(|(event, _)| reader_parts(&event.body))
-                        });
-                        if let Some(parts) = event_parts {
-                            render_static_body(ui, app, &parts);
-                        } else {
-                            ui.colored_label(
-                                theme::ERROR(),
-                                "事件来源无法在当前 core 快照中定位。",
-                            );
-                        }
-                    }
-                    "scene" => {
-                        let scene_parts = source.location.as_ref().and_then(|location| {
-                            let snapshot = app.snapshot.as_ref()?;
-                            snapshot
-                                .result
-                                .program
-                                .events
-                                .iter()
-                                .zip(&snapshot.result.program.event_files)
-                                .filter(|(_, file)| {
-                                    Path::new(file.as_str()) == Path::new(&location.file)
-                                })
-                                .find_map(|(event, _)| find_scene_body(&event.body, location.line))
-                                .map(reader_parts)
-                        });
-                        if let Some(parts) = scene_parts {
-                            render_static_body(ui, app, &parts);
-                        } else {
-                            ui.colored_label(
-                                theme::ERROR(),
-                                "场景来源无法在当前 core 快照中定位。",
-                            );
-                        }
-                    }
-                    "fragment" => {
-                        let parts = app
-                            .snapshot
-                            .as_ref()
-                            .and_then(|snapshot| {
-                                snapshot
-                                    .result
-                                    .program
-                                    .fragments
-                                    .iter()
-                                    .find(|fragment| fragment.name == target.id)
-                            })
-                            .map(|fragment| reader_parts(&fragment.body));
-                        if let Some(parts) = parts {
-                            render_static_body(ui, app, &parts);
-                        }
-                    }
-                    "entity" => {
-                        let description = app
-                            .snapshot
-                            .as_ref()
-                            .and_then(|snapshot| {
-                                snapshot.result.analysis.catalog.entities.get(&target.id)
-                            })
-                            .map(|entity| entity.description.clone());
-                        match description {
-                            Some(description) if !description.trim().is_empty() => {
-                                ui.label(description);
-                            }
-                            Some(_) => {
-                                ui.label(theme::muted("该实体尚无 description 正文。"));
-                            }
-                            None => {
-                                ui.colored_label(theme::ERROR(), "实体正文来源不可用。");
-                            }
-                        }
-                    }
-                    _ => {
+    let buffers = app.manuscript.writing_buffers();
+    app.manuscript
+        .preview_cache
+        .refresh(&app.project, &buffers, &targets);
+    let error = app.manuscript.preview_cache.error.clone();
+    if let Some(error) = error {
+        ui.colored_label(theme::ERROR(), format!("预览过期 · {error}"));
+        ui.label(theme::muted(
+            "以下仅显示同一章节的上次有效预览；全部当前输入仍保留。",
+        ));
+    } else {
+        ui.label(theme::muted(
+            if buffers.iter().any(WritingBuffer::is_changed) {
+                "当前稿 · 包含未应用输入；只读静态预览"
+            } else {
+                "当前工程稿 · 只读静态预览"
+            },
+        ));
+    }
+    egui::CollapsingHeader::new("预览范围说明").show(ui, |ui| {
+        ui.label("分支按源码顺序展示；动态内容保留标记，调用不展开。不会执行、应用或保存。整书按书稿编排顺序读取。");
+    });
+    let cache = &app.manuscript.preview_cache;
+    let lines: Vec<_> = entries
+        .into_iter()
+        .map(|(id, title, target)| {
+            let projection = target
+                .as_ref()
+                .and_then(|target| {
+                    cache
+                        .current
+                        .get(target)
+                        .or_else(|| cache.last_valid.get(target))
+                })
+                .cloned();
+            (id, title, target, projection)
+        })
+        .collect();
+    let mut open_target = None;
+    let size = app.personal.settings.body_size;
+    let spacing = app.personal.settings.line_spacing;
+    egui::ScrollArea::vertical()
+        .id_salt((
+            "manuscript-preview-scroll",
+            &index.id,
+            app.manuscript.reader_whole_book,
+        ))
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            for (id, title, target, projection) in lines {
+                ui.push_id((id, "reader"), |ui| {
+                    ui.separator();
+                    ui.label(egui::RichText::new(title).strong());
+                    let Some(projection) = projection else {
                         ui.colored_label(
                             theme::ERROR(),
-                            format!("不支持的章节来源：{}", target.kind),
+                            if target.is_none() {
+                                "章节尚未选择正文来源。"
+                            } else {
+                                "当前章节没有可用预览；请保留草稿并修复来源。"
+                            },
                         );
+                        return;
+                    };
+                    for line in &projection.lines {
+                        ui.horizontal_wrapped(|ui| {
+                            for part in line {
+                                let text = egui::RichText::new(&part.text)
+                                    .size(size)
+                                    .line_height(Some(size * spacing));
+                                if let Some(target) = &part.target {
+                                    if ui.link(text).clicked() {
+                                        open_target = Some(target.clone());
+                                    }
+                                } else {
+                                    ui.label(text);
+                                }
+                            }
+                        });
                     }
-                }
-                if source.location.is_none() && ui.button("选择来源修复章节").clicked() {
-                    *repair_chapter = Some(chapter.id.clone());
-                }
-            });
-        }
-        let Some(next) = page.next_offset else {
-            break;
-        };
-        offset = next;
-    }
-    if index.page(0, 1).total == 0 {
-        ui.label(theme::muted("书稿还没有章节。"));
-    }
-}
-
-fn find_scene_body(stmts: &[Stmt], line: u32) -> Option<&[Stmt]> {
-    for stmt in stmts {
-        match stmt {
-            Stmt::Scene(scene) if scene.loc.line == line => return Some(&scene.body),
-            Stmt::Scene(scene) => {
-                if let Some(body) = find_scene_body(&scene.body, line) {
-                    return Some(body);
-                }
+                });
             }
-            Stmt::Choice(choice) => {
-                if let Some(body) = find_scene_body(&choice.body, line) {
-                    return Some(body);
-                }
-            }
-            Stmt::If(branches) => {
-                for (_, branch) in &branches.branches {
-                    if let Some(body) = find_scene_body(branch, line) {
-                        return Some(body);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-fn reader_parts(stmts: &[Stmt]) -> Vec<Vec<ReaderPart>> {
-    let mut lines = Vec::new();
-    collect_reader_parts(stmts, &mut lines);
-    lines
-}
-
-fn collect_reader_parts(stmts: &[Stmt], lines: &mut Vec<Vec<ReaderPart>>) {
-    for stmt in stmts {
-        match stmt {
-            Stmt::Text(text) => lines.push(reader_parts_from_text(&text.parts, None)),
-            Stmt::Say(say) => {
-                lines.push(vec![ReaderPart {
-                    text: format!("{}：", say.speaker),
-                    target: Some(TargetRef {
-                        kind: "character".into(),
-                        id: say.speaker.clone(),
-                    }),
-                }]);
-                lines.push(reader_parts_from_text(&say.text.parts, None));
-            }
-            Stmt::Call(call) => lines.push(vec![ReaderPart {
-                text: format!("[调用片段 {}，静态预览不展开]", call.name),
-                target: Some(TargetRef {
-                    kind: "fragment".into(),
-                    id: call.name.clone(),
-                }),
-            }]),
-            Stmt::Choice(choice) => {
-                lines.push(reader_parts_from_text(&choice.label, Some("选项：")));
-                collect_reader_parts(&choice.body, lines);
-            }
-            Stmt::If(branches) => {
-                for (_, branch) in &branches.branches {
-                    collect_reader_parts(branch, lines);
-                }
-            }
-            Stmt::Scene(scene) => collect_reader_parts(&scene.body, lines),
-            Stmt::Local(_)
-            | Stmt::Return(_)
-            | Stmt::DynamicChange(_)
-            | Stmt::Divert(_)
-            | Stmt::Let(_)
-            | Stmt::Set(_)
-            | Stmt::Change(_)
-            | Stmt::Anchor(_)
-            | Stmt::Effect(_) => {}
-        }
-    }
-}
-
-fn reader_parts_from_text(parts: &[TextPart], prefix: Option<&str>) -> Vec<ReaderPart> {
-    let mut result = Vec::new();
-    if let Some(prefix) = prefix {
-        result.push(ReaderPart {
-            text: prefix.into(),
-            target: None,
-        });
-    }
-    for part in parts {
-        match part {
-            TextPart::Str(text) => result.push(ReaderPart {
-                text: text.clone(),
-                target: None,
-            }),
-            TextPart::Link(link) => result.push(ReaderPart {
-                text: link.label.clone(),
-                target: Some(link.target.clone()),
-            }),
-            TextPart::Expr(_) => result.push(ReaderPart {
-                text: "〔动态内容〕".into(),
-                target: None,
-            }),
-        }
-    }
-    result
-}
-
-fn render_static_body(ui: &mut egui::Ui, app: &mut WorldeditApp, lines: &[Vec<ReaderPart>]) {
-    for line in lines {
-        ui.horizontal_wrapped(|ui| {
-            for part in line {
-                if let Some(target) = &part.target {
-                    if ui.link(&part.text).clicked() {
-                        app.open_reading(target.clone());
-                    }
-                } else {
-                    ui.label(&part.text);
-                }
+            if targets.is_empty() {
+                ui.label(theme::muted("请选择带正文来源的章节。"));
             }
         });
+    if let Some(target) = open_target {
+        app.open_reading(target);
     }
 }

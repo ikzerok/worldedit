@@ -1,5 +1,6 @@
 //! 注册书稿工作台：结构和统计来自 core，正文始终读取原有源码。
 mod editing;
+mod layout;
 mod outline;
 mod preview;
 mod transactions;
@@ -32,11 +33,6 @@ struct LocalBook {
     collapsed: HashSet<String>,
 }
 
-struct ReaderPart {
-    text: String,
-    target: Option<TargetRef>,
-}
-
 pub(super) struct WorkbenchState {
     selected_book: Option<String>,
     creating_new: bool,
@@ -52,6 +48,10 @@ pub(super) struct WorkbenchState {
     pending_scroll: Option<f32>,
     layout: Layout,
     reader_open: bool,
+    reader_whole_book: bool,
+    narrow_preview: bool,
+    focus_management: bool,
+    preview_cache: preview::PreviewCache,
     new_id: String,
     new_title: String,
     create_touched: bool,
@@ -74,6 +74,10 @@ impl Default for WorkbenchState {
             pending_scroll: None,
             layout: Layout::Tree,
             reader_open: true,
+            reader_whole_book: false,
+            narrow_preview: false,
+            focus_management: false,
+            preview_cache: Default::default(),
             new_id: String::new(),
             new_title: String::new(),
             create_touched: false,
@@ -82,6 +86,95 @@ impl Default for WorkbenchState {
 }
 
 impl WorkbenchState {
+    pub(in crate::app) fn writing_buffers(&self) -> Vec<WritingBuffer> {
+        self.writing_buffers.values().cloned().collect()
+    }
+
+    pub(in crate::app) fn writing_buffer_mut(
+        &mut self,
+        path: &std::path::Path,
+    ) -> Option<&mut WritingBuffer> {
+        self.writing_buffers.get_mut(path)
+    }
+
+    pub(in crate::app) fn active_writing_target(&self) -> Option<(TargetRef, PathBuf)> {
+        let book = self.selected_book.as_ref()?;
+        let local = self.books.get(book)?;
+        let chapter = local.selected_entry.as_ref()?;
+        self.chapter_sources
+            .get(&(book.clone(), chapter.clone()))
+            .cloned()
+    }
+
+    pub(in crate::app) fn focus_writing_match(
+        &mut self,
+        path: &std::path::Path,
+        byte_offset: usize,
+        project: &worldline_core::project::Project,
+    ) -> bool {
+        let Some(buffer) = self.writing_buffers.get(path) else {
+            return false;
+        };
+        let mut fallback = None;
+        let mut selected = None;
+        for (book, local) in &self.books {
+            for chapter in &local.draft.entries {
+                let Some(target) = &chapter.target_ref else {
+                    continue;
+                };
+                let same_file = self
+                    .chapter_sources
+                    .get(&(book.clone(), chapter.id.clone()))
+                    .is_some_and(|(_, source)| source == path)
+                    || project
+                        .open_writing_buffer(target)
+                        .is_ok_and(|source| source.path() == path);
+                if !same_file {
+                    continue;
+                }
+                let candidate = (book.clone(), chapter.id.clone(), target.clone());
+                if fallback.is_none() {
+                    fallback = Some(candidate.clone());
+                }
+                if let Ok(projection) = project.project_writing_buffer(buffer, target) {
+                    if projection.range.contains(&byte_offset) {
+                        selected = Some(candidate);
+                        break;
+                    }
+                }
+            }
+            if selected.is_some() {
+                break;
+            }
+        }
+        let Some((book, chapter, target)) = selected.or(fallback) else {
+            return false;
+        };
+        self.selected_book = Some(book.clone());
+        if let Some(local) = self.books.get_mut(&book) {
+            local.selected_entry = Some(chapter.clone());
+        }
+        self.chapter_sources
+            .insert((book, chapter), (target, path.to_owned()));
+        self.narrow_preview = false;
+        self.writing_view
+            .restore_mode(super::writing_workspace::Mode::Source);
+        true
+    }
+
+    pub(in crate::app) fn restore_writing_buffers(&mut self, buffers: &[WritingBuffer]) {
+        for buffer in buffers {
+            self.writing_buffers
+                .insert(buffer.path().to_owned(), buffer.clone());
+        }
+    }
+
+    pub(in crate::app) fn clear_applied_writing_buffers(&mut self, paths: &[PathBuf]) {
+        self.writing_buffers.retain(|path, _| !paths.contains(path));
+        self.chapter_sources
+            .retain(|_, (_, path)| !paths.contains(path));
+    }
+
     pub(super) fn has_unsubmitted_work(&self) -> bool {
         (self.create_touched && (!self.new_id.is_empty() || !self.new_title.is_empty()))
             || self.books.values().any(|book| book.changed)
@@ -198,6 +291,9 @@ pub(in crate::app) struct ManuscriptSession {
     pub manuscript_id: Option<String>,
     pub selected_id: Option<String>,
     pub scroll_y: f32,
+    pub preview_open: Option<bool>,
+    pub preview_whole_book: Option<bool>,
+    pub preview_tab: Option<bool>,
     pub cursor: Option<super::writing_workspace::WritingCursor>,
     pub mode: super::writing_workspace::Mode,
 }
@@ -208,6 +304,9 @@ impl super::WorldeditApp {
             manuscript_id: self.manuscript.selected_book.clone(),
             mode: self.manuscript.writing_view.session_mode(),
             scroll_y: self.manuscript.scroll_y,
+            preview_open: Some(self.manuscript.reader_open),
+            preview_whole_book: Some(self.manuscript.reader_whole_book),
+            preview_tab: Some(self.manuscript.narrow_preview),
             cursor: self
                 .manuscript
                 .writing_view

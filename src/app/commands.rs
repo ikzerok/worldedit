@@ -1,4 +1,5 @@
 //! 固定作者命令与完整对象快速切换，不执行用户脚本。
+mod edit;
 use super::{Tab, WorldeditApp};
 use worldline_core::TargetRef;
 #[derive(Default)]
@@ -11,6 +12,9 @@ pub(super) struct CommandPalette {
     previous_focus: Option<egui::Id>,
     pub ime: bool,
     pub ime_frame: bool,
+    pub edit_focus: Option<egui::Id>,
+    pub frame_focus: Option<egui::Id>,
+    pub focus_stack: Vec<(&'static str, Option<egui::Id>)>,
 }
 #[derive(Clone)]
 enum Action {
@@ -82,6 +86,7 @@ impl WorldeditApp {
         if self.ime_composing || self.command_palette.ime || self.command_palette.ime_frame {
             return;
         }
+        self.edit_shortcuts(ctx);
         if ctx.input_mut(|i| {
             i.consume_key(
                 egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
@@ -200,13 +205,6 @@ impl WorldeditApp {
                 action = entries.get(palette.selected).map(|(_, a)| a.clone());
             }
         });
-        if !palette.ime
-            && !palette.ime_frame
-            && !self.ime_composing
-            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
-        {
-            open = false;
-        }
         palette.open = open && action.is_none();
         if !palette.open {
             if let Some(id) = palette.previous_focus {

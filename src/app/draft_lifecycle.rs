@@ -231,6 +231,9 @@ impl WorldeditApp {
         {
             names.push("地图草稿");
         }
+        if self.schema_ui.has_unsubmitted_work() {
+            names.push("持续资料约束草稿");
+        }
         if self.manuscript.has_unsubmitted_work() {
             names.push("书稿 / 正文草稿");
         }
@@ -285,6 +288,7 @@ impl WorldeditApp {
         self.map_canvas.reset_local_preview();
         self.map_failed_command = None;
         self.manuscript = manuscript::WorkbenchState::default();
+        self.schema_ui = schema_ui::SchemaUiState::default();
         self.localization_ui = localization_ui::LocalizationUiState::default();
         self.stale_form = false;
     }

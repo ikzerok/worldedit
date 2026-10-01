@@ -1,7 +1,9 @@
 //! 正文、结构与源码共用 core 按文件唯一的 WritingBuffer。
 mod session;
+mod text_undo;
 use crate::theme;
 pub(super) use session::WritingCursor;
+pub(in crate::app) use text_undo::{prepare_text_undo, remember_text_undo};
 use worldline_core::catalog::TargetRef;
 use worldline_core::manuscript::{WritingBlockKind, WritingBuffer};
 use worldline_core::project::Project;
@@ -44,6 +46,7 @@ pub(super) struct Action {
 
 #[derive(Clone, Copy)]
 pub(super) struct Typography {
+    pub compact: bool,
     pub size: f32,
     pub spacing: f32,
     pub width: f32,
@@ -85,12 +88,19 @@ pub(super) fn draw(
             view.discard_confirm = Some(buffer.path().to_owned());
         }
     });
-    ui.label(theme::muted(format!(
-        "{}:{} · {}",
-        target.kind,
-        target.id,
-        buffer.path().display()
-    )));
+    if !typography.compact {
+        ui.label(theme::muted(format!(
+            "{}:{} · {}",
+            target.kind,
+            target.id,
+            buffer.path().display()
+        )));
+    }
+    ui.label(theme::muted(if buffer.is_changed() {
+        "未应用草稿 · 尚未保存"
+    } else {
+        "正文与当前工程一致"
+    }));
     if view.discard_confirm.as_deref() == Some(buffer.path()) {
         ui.colored_label(
             theme::ERROR(),
@@ -113,12 +123,14 @@ pub(super) fn draw(
         );
     }
     if view.mode == Mode::Source {
-        ui.label(theme::muted(
-            "完整源码；与写作和结构视图共用一个文件草稿。无效输入不会丢失。",
-        ));
+        if !typography.compact {
+            ui.label(theme::muted(
+                "完整源码；与写作和结构视图共用一个文件草稿。无效输入不会丢失。",
+            ));
+        }
         let mut source = buffer.source().to_owned();
         let id = egui::Id::new(("writing-source", buffer.path(), &target.kind, &target.id));
-        view.restore_editor(ui, id, 0, &source);
+        view.restore_editor(ui, id, buffer, 0, &source);
         let output = egui::TextEdit::multiline(&mut source)
             .id(id)
             .code_editor()
@@ -126,9 +138,9 @@ pub(super) fn draw(
             .desired_rows(18)
             .show(ui);
         if output.response.changed() {
-            buffer.replace_source(source);
+            buffer.replace_source(source.clone());
         }
-        view.record_cursor(&output, buffer, target, 0);
+        view.record_cursor(ui, &output, buffer, target, 0, &source);
         view.pending_cursor = None;
         return action;
     }
@@ -144,13 +156,15 @@ pub(super) fn draw(
         }
     };
     if view.mode == Mode::Structure {
-        ui.label(theme::muted(
-            "仅当前目标声明体；保留缩进、注释与所有复杂控制语句。",
-        ));
+        if !typography.compact {
+            ui.label(theme::muted(
+                "仅当前目标声明体；保留缩进、注释与所有复杂控制语句。",
+            ));
+        }
         let mut source = projection.source.clone();
         let offset = projection.range.start;
         let id = egui::Id::new(("writing-structure", buffer.path(), &target.kind, &target.id));
-        view.restore_editor(ui, id, offset, &source);
+        view.restore_editor(ui, id, buffer, offset, &source);
         let output = egui::TextEdit::multiline(&mut source)
             .id(id)
             .code_editor()
@@ -167,13 +181,15 @@ pub(super) fn draw(
                 )
                 .err();
         }
-        view.record_cursor(&output, buffer, target, offset);
+        view.record_cursor(ui, &output, buffer, target, offset, &source);
         view.pending_cursor = None;
         return action;
     }
-    ui.label(theme::muted(
-        "正文块可直接修改；内插、链接、转义和行标记保留为源文。结构不执行，可切换结构视图。",
-    ));
+    if !typography.compact {
+        ui.label(theme::muted(
+            "正文块可直接修改；内插、链接、转义和行标记保留为源文。结构不执行，可切换结构视图。",
+        ));
+    }
     ui.set_max_width(typography.width.min(ui.available_width()).max(120.0));
     if projection.blocks.is_empty() {
         ui.label("此来源还没有正文，请在结构视图开始写作。");
@@ -202,7 +218,7 @@ pub(super) fn draw(
                     &target.id,
                     block.range.start,
                 ));
-                view.restore_editor(ui, id, block.range.start, &text);
+                view.restore_editor(ui, id, buffer, block.range.start, &text);
                 let output = egui::TextEdit::multiline(&mut text)
                     .id(id)
                     .font(font.clone())
@@ -215,7 +231,7 @@ pub(super) fn draw(
                         .replace_prose(projection.generation, block, &text)
                         .err();
                 }
-                view.record_cursor(&output, buffer, target, block.range.start);
+                view.record_cursor(ui, &output, buffer, target, block.range.start, &text);
                 if output.response.changed() {
                     break;
                 }

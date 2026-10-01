@@ -11,6 +11,7 @@ pub(super) fn choice_cards(
     graph: Option<&RelationGraph>,
     catalog: Option<&worldline_core::catalog::Catalog>,
     symbols: Option<&worldline_core::Symbols>,
+    locked_choices: bool,
 ) -> Result<(), String> {
     let cache_key = ui.id().with(("choice-forms", &draft.id));
     let choices = ui
@@ -60,6 +61,20 @@ pub(super) fn choice_cards(
                 if let Some(catalog) = catalog {
                     super::tags::condition(ui, catalog, &mut choice.condition);
                 }
+                egui::CollapsingHeader::new("可见但禁用（语言 1.12）")
+                    .default_open(!choice.enable_condition.is_empty())
+                    .show(ui, |ui| {
+                        if !locked_choices { ui.label(theme::muted("需显式语言 1.12；旧工程不会自动升级。")); }
+                        ui.add_enabled_ui(locked_choices, |ui| {
+                            ui.label("可选条件（空值不锁定）");
+                            ui.add(egui::TextEdit::singleline(&mut choice.enable_condition)
+                                .hint_text("例如 has(inventory, silver_key)").desired_width(f32::INFINITY));
+                            ui.label("禁用说明（读者可见的静态文字）");
+                            ui.add(egui::TextEdit::singleline(&mut choice.disabled_reason)
+                                .hint_text("例如：还需要银钥匙").desired_width(f32::INFINITY));
+                            ui.label(theme::muted("显示条件仍决定隐藏；可选条件只决定是否可点。说明不求值、不泄露调试变量。"));
+                        });
+                    });
                 let previous_target = choice.target.clone();
                 let caption = match choice.target.as_deref() {
                     None => "继续执行选择组之后的内容".into(),

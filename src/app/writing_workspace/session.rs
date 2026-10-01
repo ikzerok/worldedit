@@ -49,11 +49,24 @@ impl ViewState {
     }
     pub(super) fn restore_editor(
         &mut self,
-        ui: &egui::Ui,
+        ui: &mut egui::Ui,
         id: egui::Id,
+        buffer: &WritingBuffer,
         block_offset: usize,
         text: &str,
     ) {
+        super::prepare_text_undo(ui.ctx(), id, text);
+        if super::super::search::restore_editor_selection(
+            ui,
+            id,
+            buffer.path(),
+            buffer.source(),
+            block_offset,
+            text,
+        ) {
+            self.pending_cursor = None;
+            return;
+        }
         if !self.pending_cursor.as_ref().is_some_and(|cursor| {
             cursor.block_offset == block_offset && cursor.mode == self.mode.key()
         }) {
@@ -69,17 +82,32 @@ impl ViewState {
         state.store(ui.ctx(), id);
         ui.memory_mut(|memory| memory.request_focus(id));
     }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn record_cursor(
         &mut self,
+        ui: &mut egui::Ui,
         output: &egui::text_edit::TextEditOutput,
         buffer: &WritingBuffer,
         target: &TargetRef,
         block_offset: usize,
+        text: &str,
     ) {
+        super::remember_text_undo(ui.ctx(), output.response.id, text);
+        super::super::search::scroll_editor_selection(ui, output);
         if !output.response.has_focus() {
             return;
         }
         if let Some(range) = output.cursor_range {
+            super::super::search::record_editor_selection(
+                ui.ctx(),
+                output.response.id,
+                buffer.path(),
+                Some(target),
+                buffer.source(),
+                block_offset,
+                &output.galley.job.text,
+                range,
+            );
             self.cursor = Some(WritingCursor {
                 target: target.clone(),
                 source_baseline: fingerprint(buffer.source()),

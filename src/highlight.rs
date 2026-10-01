@@ -266,6 +266,8 @@ fn classify(
             word,
             "rule" | "fragment" | "local" | "call" | "return" | "say"
         ))
+        || (language_version.supports_language_112()
+            && matches!(word, "schema" | "bind" | "field"))
         || KEYWORDS.contains(&word)
         || (i == 0
             && ((language_version.supports_entities() && word == "entity")
@@ -365,6 +367,30 @@ fn inline(job: &mut LayoutJob, code: &str, from: usize, base: usize, size: f32) 
                 });
             }
             job.sections.splice(index..=index, replacement);
+        }
+    }
+}
+
+#[cfg(test)]
+mod version_112_tests {
+    use super::*;
+    #[test]
+    fn schema_highlighting_is_explicit_version_gated() {
+        for source in [
+            "schema city for entity",
+            "bind entity town to city",
+            "  field population_id population number required",
+        ] {
+            let current = layout_job(source, 14.0, LanguageVersion::V1_12);
+            let old = layout_job(source, 14.0, LanguageVersion::V1_11);
+            assert!(current
+                .sections
+                .iter()
+                .any(|section| section.format.color == c_keyword()));
+            assert!(!old
+                .sections
+                .iter()
+                .any(|section| section.format.color == c_keyword()));
         }
     }
 }

@@ -87,6 +87,7 @@ impl WorldeditApp {
             search_open: false,
             search_focus: false,
             project_query: String::new(),
+            search_state: Default::default(),
             focus_event: None,
             zoom: 1.0,
             graph_positions: HashMap::new(),
@@ -126,6 +127,7 @@ impl WorldeditApp {
             manuscript: manuscript::WorkbenchState::default(),
             localization_ui: localization_ui::LocalizationUiState::default(),
             template_manager: template_manager::ManagerState::default(),
+            schema_ui: schema_ui::SchemaUiState::default(),
             checkpoint_history: checkpoint_history::HistoryState::default(),
             reader_publish: reader_publish::ReaderPublishState::default(),
         };
@@ -330,6 +332,7 @@ impl WorldeditApp {
         self.pending_preset_layers = None;
         self.review = collaboration_ui::ReviewState::default();
         self.manuscript = manuscript::WorkbenchState::default();
+        self.schema_ui = schema_ui::SchemaUiState::default();
         self.checkpoint_history = checkpoint_history::HistoryState::default();
         self.localization_ui = localization_ui::LocalizationUiState::default();
         self.reader_publish = reader_publish::ReaderPublishState::default();

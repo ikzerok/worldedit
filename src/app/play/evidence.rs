@@ -23,6 +23,10 @@ pub(super) fn render(
     for choice in choices {
         let status = if choice.condition.as_ref().is_some_and(|c| c.error.is_some())
             || choice
+                .enable_condition
+                .as_ref()
+                .is_some_and(|c| c.error.is_some())
+            || choice
                 .unavailable_reason
                 .as_deref()
                 .is_some_and(|reason| reason.starts_with("选择标签求值失败"))
@@ -54,67 +58,80 @@ pub(super) fn render(
                     "{} · 第 {} 行",
                     choice.choice.node, choice.choice.line
                 )));
-                let Some(condition) = &choice.condition else {
+                if choice.condition.is_none() && choice.enable_condition.is_none() {
                     ui.label("无条件限制");
                     return;
-                };
-                if let Some(evidence) = &condition.evidence {
-                    ui.add(
-                        egui::Label::new(RichText::new(&evidence.display_expression).monospace())
-                            .wrap(),
-                    );
-                    let mut depths = Vec::with_capacity(evidence.nodes.len());
-                    for node in &evidence.nodes {
-                        let depth = node.parent.and_then(|p| depths.get(p)).map_or(0, |d| d + 1);
-                        depths.push(depth);
-                        let (value, color) = match &node.outcome {
-                            EvidenceOutcome::Evaluated {
-                                value: Value::Bool(value),
-                            } => (
-                                if *value {
-                                    "已满足 · true"
-                                } else {
-                                    "未满足 · false"
-                                }
-                                .into(),
-                                ui.visuals().text_color(),
-                            ),
-                            EvidenceOutcome::Evaluated { value } => (
-                                format!("{} · {}", value.kind_label(), value.display()),
-                                ui.visuals().text_color(),
-                            ),
-                            EvidenceOutcome::Error { message } => {
-                                (format!("求值错误 · {message}"), Color32::LIGHT_RED)
-                            }
-                            EvidenceOutcome::NotEvaluated => (
-                                "未求值 · 前序求值已出错".into(),
-                                ui.visuals().weak_text_color(),
-                            ),
-                            EvidenceOutcome::Omitted => (
-                                "证据已省略 · 不影响真实求值".into(),
-                                ui.visuals().weak_text_color(),
-                            ),
-                        };
-                        ui.horizontal_top(|ui| {
-                            ui.add_space((depth as f32 * 10.0).min(80.0));
-                            ui.add(
-                                egui::Label::new(
-                                    RichText::new(format!("{} → {value}", node.label)).color(color),
-                                )
-                                .wrap(),
-                            );
-                        });
-                    }
-                    if evidence.omitted {
-                        ui.label(crate::theme::muted(
-                            "部分证据已省略（记录边界）；真实求值仍按原顺序完成或返回原错误。",
-                        ));
-                    }
-                } else {
-                    ui.label("没有本次实际求值证据");
                 }
-                if let Some(error) = &condition.error {
-                    ui.colored_label(Color32::LIGHT_RED, error);
+                for (caption, condition) in [
+                    ("显示条件", &choice.condition),
+                    ("可选条件", &choice.enable_condition),
+                ] {
+                    let Some(condition) = condition else {
+                        continue;
+                    };
+                    ui.label(egui::RichText::new(caption).strong());
+                    if let Some(evidence) = &condition.evidence {
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(&evidence.display_expression).monospace(),
+                            )
+                            .wrap(),
+                        );
+                        let mut depths = Vec::with_capacity(evidence.nodes.len());
+                        for node in &evidence.nodes {
+                            let depth =
+                                node.parent.and_then(|p| depths.get(p)).map_or(0, |d| d + 1);
+                            depths.push(depth);
+                            let (value, color) = match &node.outcome {
+                                EvidenceOutcome::Evaluated {
+                                    value: Value::Bool(value),
+                                } => (
+                                    if *value {
+                                        "已满足 · true"
+                                    } else {
+                                        "未满足 · false"
+                                    }
+                                    .into(),
+                                    ui.visuals().text_color(),
+                                ),
+                                EvidenceOutcome::Evaluated { value } => (
+                                    format!("{} · {}", value.kind_label(), value.display()),
+                                    ui.visuals().text_color(),
+                                ),
+                                EvidenceOutcome::Error { message } => {
+                                    (format!("求值错误 · {message}"), Color32::LIGHT_RED)
+                                }
+                                EvidenceOutcome::NotEvaluated => (
+                                    "未求值 · 前序求值已出错".into(),
+                                    ui.visuals().weak_text_color(),
+                                ),
+                                EvidenceOutcome::Omitted => (
+                                    "证据已省略 · 不影响真实求值".into(),
+                                    ui.visuals().weak_text_color(),
+                                ),
+                            };
+                            ui.horizontal_top(|ui| {
+                                ui.add_space((depth as f32 * 10.0).min(80.0));
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(format!("{} → {value}", node.label))
+                                            .color(color),
+                                    )
+                                    .wrap(),
+                                );
+                            });
+                        }
+                        if evidence.omitted {
+                            ui.label(crate::theme::muted(
+                                "部分证据已省略（记录边界）；真实求值仍按原顺序完成或返回原错误。",
+                            ));
+                        }
+                    } else {
+                        ui.label("没有本次实际求值证据");
+                    }
+                    if let Some(error) = &condition.error {
+                        ui.colored_label(Color32::LIGHT_RED, error);
+                    }
                 }
             });
     }

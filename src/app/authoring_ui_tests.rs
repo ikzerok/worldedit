@@ -19,6 +19,7 @@ mod catalog;
 mod catalog_sort;
 mod checkpoint;
 mod condition_evidence;
+mod current_draft_preview;
 mod debugger;
 mod import;
 mod localization;

@@ -155,28 +155,6 @@ impl eframe::App for WorldeditApp {
         {
             self.open_dialog(ctx, false);
         }
-        if !self.ime_composing
-            && !self.command_palette.ime
-            && !self.command_palette.ime_frame
-            && ctx.input_mut(|i| {
-                i.consume_key(
-                    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
-                    egui::Key::F,
-                )
-            })
-        {
-            self.search_open = true;
-            self.search_focus = true;
-        }
-        if !self.ime_composing
-            && !self.command_palette.ime
-            && !self.command_palette.ime_frame
-            && ctx.input(|i| i.key_pressed(egui::Key::Escape))
-        {
-            self.personal.catalog_drawer_open = false;
-            self.link_from = None;
-            self.character_link = None;
-        }
         self.top_bar(ctx);
         self.status_bar(ctx);
         if self.personal.settings.navigation
@@ -236,6 +214,8 @@ impl eframe::App for WorldeditApp {
         self.markdown_import_window(ctx);
         self.reader_publish_window(ctx);
         self.preset_editor_window(ctx);
+        self.schema_editor_window(ctx);
+        self.capture_edit_focus(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.conflict_view.show(ctx);
         #[cfg(not(target_arch = "wasm32"))]

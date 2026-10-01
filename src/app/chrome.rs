@@ -25,6 +25,7 @@ impl WorldeditApp {
                         crate::chrome::subtitle(ui, "世界创作工作台");
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        self.edit_menu(ui);
                         self.workspace_view_menu(ui);
                         self.compact_navigation_menu(ui);
                         if ui
@@ -110,8 +111,7 @@ impl WorldeditApp {
                             .on_hover_text("搜索所有文件 · Ctrl+Shift+F")
                             .clicked()
                         {
-                            self.search_open = true;
-                            self.search_focus = true;
+                            self.open_search(ctx, true, false);
                         }
                         if ui.button("▶ 试玩").clicked() {
                             self.tab = Tab::Play;
@@ -190,19 +190,22 @@ impl WorldeditApp {
                             self.project.language_version()
                         )));
                         if ui
-                            .add_enabled(!self.redo.is_empty(), egui::Button::new("重做").small())
+                            .add_enabled(
+                                !self.redo.is_empty() || !self.search_state.redo.is_empty(),
+                                egui::Button::new("重做").small(),
+                            )
                             .clicked()
                         {
-                            self.undo(true);
+                            self.edit_undo(true);
                         }
                         if ui
                             .add_enabled(
-                                !self.history.is_empty(),
+                                !self.history.is_empty() || !self.search_state.undo.is_empty(),
                                 egui::Button::new("撤销").small(),
                             )
                             .clicked()
                         {
-                            self.undo(false);
+                            self.edit_undo(false);
                         }
                     });
                 });

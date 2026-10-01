@@ -42,6 +42,7 @@ impl WorldeditApp {
             }
         }
         let id = egui::Id::new(("source", &path));
+        crate::app::writing_workspace::prepare_text_undo(ctx, id, &text);
         let target = self.jump.take();
         let mut changed = false;
         let source_focused = ctx.memory(|memory| memory.has_focus(id));
@@ -207,6 +208,7 @@ impl WorldeditApp {
                             }
                         }
                     }
+                    crate::app::search::restore_editor_selection(ui, id, &path, &text, 0, &text);
                     let mut output = egui::TextEdit::multiline(&mut text)
                         .id(id)
                         .code_editor()
@@ -217,6 +219,15 @@ impl WorldeditApp {
                         .layouter(&mut layouter)
                         .show(ui);
                     super::gutter::paint(ui, gutter, &output.galley, output.galley_pos);
+                    crate::app::writing_workspace::remember_text_undo(ctx, id, &text);
+                    crate::app::search::scroll_editor_selection(ui, &output);
+                    if output.response.has_focus() {
+                        if let Some(range) = output.cursor_range {
+                            crate::app::search::record_editor_selection(
+                                ctx, id, &path, None, &text, 0, &text, range,
+                            );
+                        }
+                    }
                     changed = output.response.changed();
                     if output.response.clicked() {
                         if let (Some(pointer), Some(snapshot)) = (
