@@ -41,6 +41,10 @@ impl WorldeditApp {
                                 ui.close();
                             }
                             ui.separator();
+                            if ui.button("语言与资料能力…").clicked() {
+                                self.open_capabilities();
+                                ui.close();
+                            }
                             if ui.button("管理工程模板").clicked() {
                                 self.tab = Tab::Templates;
                                 ui.close();

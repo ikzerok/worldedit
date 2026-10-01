@@ -217,6 +217,8 @@ impl eframe::App for WorldeditApp {
         self.preset_editor_window(ctx);
         self.schema_editor_window(ctx);
         self.export_scope_dialog(ctx);
+        self.play_scope_dialog(ctx);
+        self.capability_window(ctx);
         self.capture_edit_focus(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.conflict_view.show(ctx);

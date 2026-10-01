@@ -16,6 +16,45 @@ fn contrast(a: Color32, b: Color32) -> f32 {
     let (a, b) = (luminance(a), luminance(b));
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
+
+#[test]
+fn semantic_text_tokens_are_readable_on_their_play_surfaces_in_every_theme() {
+    for (mode, system) in [
+        (ThemeMode::Dark, None),
+        (ThemeMode::Light, None),
+        (ThemeMode::System, Some(egui::Theme::Dark)),
+        (ThemeMode::System, Some(egui::Theme::Light)),
+        (ThemeMode::System, None),
+    ] {
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                system_theme: system,
+                ..Default::default()
+            },
+            |ctx| {
+                configure(ctx, mode);
+                assert_eq!(
+                    is_light(),
+                    mode == ThemeMode::Light
+                        || (mode == ThemeMode::System && system == Some(egui::Theme::Light))
+                );
+                for foreground in [TEXT(), MUTED(), WARNING(), ERROR(), SUCCESS(), ANCHOR()] {
+                    for background in [BG(), PANEL(), CARD()] {
+                        assert!(
+                            contrast(foreground, background) >= 4.5,
+                            "{mode:?}/{system:?}: {foreground:?} on {background:?}"
+                        );
+                    }
+                }
+                assert!(contrast(ERROR(), error_background()) >= 4.5);
+                assert_eq!(ctx.style().visuals.panel_fill, PANEL());
+                assert_eq!(ctx.style().visuals.window_fill, PANEL());
+            },
+        );
+    }
+}
+
 fn draw(
     ctx: &egui::Context,
     checked: &mut bool,

@@ -226,6 +226,17 @@ fn search_local_draft_replace_undo_redo_and_subsequent_input_are_safe() {
 #[test]
 fn search_escape_closes_popup_without_closing_underlying_search_or_draft_form() {
     let (ctx, mut app) = app();
+    // 此测试保留“已支持能力中的表单”上下层取消语义；1.9创建入口另测显式能力引导。
+    let plan = app
+        .project
+        .plan_capability_enable(&worldline_core::capabilities::CapabilityEnableRequest {
+            target_language: worldline_core::LanguageVersion::V1_10,
+            enable_features: Vec::new(),
+            expected_baseline: app.project.content_baseline(),
+        })
+        .unwrap();
+    app.project.apply_capability_enable(&plan).unwrap();
+    app.recompile();
     app.open_search(&ctx, true, false);
     let popup = egui::Id::new("search-test-object-picker");
     let draw = |ctx: &egui::Context, app: &mut WorldeditApp, events: Vec<egui::Event>| {

@@ -74,6 +74,26 @@ impl Default for Wizard {
 }
 
 impl Wizard {
+    pub(in crate::app) fn play_draft_signature(&self) -> String {
+        #[cfg(not(target_arch = "wasm32"))]
+        let target_root = self.target_root.as_str();
+        #[cfg(target_arch = "wasm32")]
+        let target_root = "";
+        serde_json::json!([
+            self.source_root,
+            format!("{:?}", self.target_mode),
+            self.namespace,
+            self.id_overrides,
+            format!("{:?}", self.source_files),
+            self.plan,
+            self.accept_losses,
+            self.allow_language_upgrade,
+            self.preview_generation,
+            target_root
+        ])
+        .to_string()
+    }
+
     pub(super) fn unapplied_source(&self) -> Option<String> {
         (!self.source_root.is_empty() || self.source_files.is_some() || !self.namespace.is_empty())
             .then(|| {

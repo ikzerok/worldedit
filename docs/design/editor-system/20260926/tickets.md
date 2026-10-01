@@ -2,7 +2,7 @@
 
 总览：[EDS-MAP · #31](https://github.com/ikzerok/worldedit/issues/31)
 
-- [ ] [EDS-01 · #32](https://github.com/ikzerok/worldedit/issues/32) — 编辑范式证据库与四个主样本任务研究；依赖：无
+- [ ] [EDS-01 · #32](https://github.com/ikzerok/worldedit/issues/32) — 历史研究票身份与依赖；调研材料不纳入仓库；依赖：无
 - [ ] [EDS-02 · #33](https://github.com/ikzerok/worldedit/issues/33) — 作者任务、对象模型与既有能力入口重建；依赖：无
 - [ ] [EDS-03 · #34](https://github.com/ikzerok/worldedit/issues/34) — 选择、焦点、检查器与编辑会话状态契约；依赖：EDS-01, EDS-02
 - [ ] [EDS-04 · #35](https://github.com/ikzerok/worldedit/issues/35) — 六区域显隐策略与A/B/C工作台低保真比较；依赖：EDS-03

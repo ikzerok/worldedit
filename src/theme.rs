@@ -92,6 +92,32 @@ pub fn ERROR() -> Color32 {
     }
 }
 
+/// 警告与运行范围说明；必须同时保留具体文字原因。
+#[allow(non_snake_case)]
+pub fn WARNING() -> Color32 {
+    GOLD()
+}
+
+/// 已正常结束等成功结果；不能仅用颜色表示完成。
+#[allow(non_snake_case)]
+pub fn SUCCESS() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(30, 109, 48)
+    } else {
+        Color32::from_rgb(130, 220, 130)
+    }
+}
+
+/// 运行锚点记录，保留 ◆、记录种类与名称作为非颜色标识。
+#[allow(non_snake_case)]
+pub fn ANCHOR() -> Color32 {
+    if LIGHT.get() {
+        Color32::from_rgb(14, 105, 81)
+    } else {
+        Color32::from_rgb(120, 220, 190)
+    }
+}
+
 /// 错误文字与关闭悬停共用的可读背景；亮色不沿用深红底。
 pub fn error_background() -> Color32 {
     if LIGHT.get() {

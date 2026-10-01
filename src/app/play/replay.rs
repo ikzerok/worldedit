@@ -4,6 +4,19 @@ use worldline_runtime::ReplayTrace;
 use worldline_runtime::{ReplayBudget, ReplayCancellation};
 impl WorldeditApp {
     pub(super) fn begin_replay(&mut self, ctx: &egui::Context) {
+        self.request_replay(ctx);
+    }
+
+    pub(super) fn begin_replay_applied(
+        &mut self,
+        ctx: &egui::Context,
+        scope: super::scope::AppliedPlayScope,
+    ) {
+        if !scope.matches_project(&self.project, self.version) {
+            self.replay_debugger.notice =
+                Some("已应用源码与编译快照不一致，请重新编译后重放".into());
+            return;
+        }
         if self.replay_debugger.job.is_some() {
             return;
         }
@@ -26,7 +39,7 @@ impl WorldeditApp {
             return;
         };
         if snapshot.result.has_errors() {
-            self.replay_debugger.notice = Some("当前稿件有编译错误，无法重放".into());
+            self.replay_debugger.notice = Some("已应用工程稿有编译错误，无法重放".into());
             return;
         }
         let program = snapshot.result.program.clone();
@@ -42,7 +55,8 @@ impl WorldeditApp {
         let path_name = self.replay_debugger.saved_paths[index].name.clone();
         self.replay_debugger.result = None;
         self.replay_debugger.result_path_name = Some(path_name);
-        self.replay_debugger.result_version = Some(self.version);
+        self.replay_debugger.result_version = Some(scope.version);
+        self.replay_debugger.result_scope = Some(scope);
         self.replay_debugger.notice = None;
         self.replay_debugger.explanations = None;
         #[cfg(not(target_arch = "wasm32"))]

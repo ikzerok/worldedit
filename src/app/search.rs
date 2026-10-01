@@ -52,6 +52,19 @@ struct ProjectEdit {
     paths: Vec<PathBuf>,
 }
 impl WorldeditApp {
+    pub(in crate::app) fn play_search_signature(&self) -> String {
+        let state = &self.search_state;
+        format!(
+            "{:?}",
+            (
+                &state.plan,
+                &state.options,
+                &state.replacement,
+                &state.files
+            )
+        )
+    }
+
     pub(in crate::app) fn unapplied_search_sources(&self) -> Vec<String> {
         self.search_state
             .plan

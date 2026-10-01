@@ -6,6 +6,7 @@ mod authoring_forms;
 mod authoring_ui_tests;
 #[cfg(target_arch = "wasm32")]
 mod browser;
+mod capability_ui;
 mod catalog;
 mod catalog_query;
 mod characters;
@@ -37,6 +38,8 @@ mod overview;
 mod package;
 mod personal;
 mod play;
+#[cfg(test)]
+mod play_semantic_tests;
 mod presets;
 mod reader_publish;
 mod reading;
@@ -134,6 +137,9 @@ struct PlayState {
     ended: bool,
     error: Option<String>,
     version: u64,
+    scope: play::scope::AppliedPlayScope,
+    source_catalog: worldline_core::catalog::Catalog,
+    source_wiki: worldline_core::wiki::KeywordIndex,
     paused: bool,
     stopped: bool,
     interruption: Option<worldline_runtime::ContinuationOutcome>,
@@ -175,6 +181,7 @@ struct ReplayDebugger {
     result: Option<ReplayResult>,
     result_path_name: Option<String>,
     result_version: Option<u64>,
+    result_scope: Option<play::scope::AppliedPlayScope>,
     job: Option<ReplayJob>,
     explanations: Option<Vec<ChoiceExplanation>>,
     max_steps: u64,
@@ -196,6 +203,7 @@ impl Default for ReplayDebugger {
             result: None,
             result_path_name: None,
             result_version: None,
+            result_scope: None,
             job: None,
             explanations: None,
             max_steps: 100_000,
@@ -273,6 +281,7 @@ pub struct WorldeditApp {
     #[cfg(not(target_arch = "wasm32"))]
     conflict_view: conflicts::ConflictView,
     markdown_import_wizard: Option<markdown_import_ui::Wizard>,
+    capability_ui: Option<capability_ui::CapabilityState>,
     #[cfg(not(target_arch = "wasm32"))]
     frame_profile: Option<frame_profile::FrameProfiler>,
     stale_form: bool,
@@ -280,6 +289,7 @@ pub struct WorldeditApp {
     tab: Tab,
     jump: Option<(u32, u32)>,
     play: Option<PlayState>,
+    play_confirmation: Option<play::scope::PlayConfirmation>,
     replay_debugger: ReplayDebugger,
     play_scroll_bottom: bool,
     event_editor: Option<EventEditor>,

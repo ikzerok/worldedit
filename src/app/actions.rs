@@ -52,6 +52,7 @@ impl WorldeditApp {
                 self.reset_views();
                 self.recompile();
                 self.tab = Tab::Timeline;
+                self.open_capabilities();
             }
             Pending::Close => {
                 #[cfg(target_arch = "wasm32")]
@@ -171,6 +172,7 @@ impl WorldeditApp {
         if let Some(previous) = previous {
             let current = self.project.clone();
             let source_before = self.project.sources();
+            let options_before = self.project.compile_options();
             if !self.project.restore(previous.clone()) {
                 if forward {
                     self.redo.push(previous);
@@ -198,7 +200,9 @@ impl WorldeditApp {
             self.rename_form = None;
             self.map_failed_command = None;
             self.map_canvas.reset_local_preview();
-            if source_before == self.project.sources() {
+            if source_before == self.project.sources()
+                && options_before == self.project.compile_options()
+            {
                 self.map_revision = self.map_revision.next_presentation();
                 self.refresh_presentation_after_map_command();
             } else {

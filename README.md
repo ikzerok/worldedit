@@ -1,6 +1,6 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台，用于人物资料、世界设定、正文书稿、多文件分支故事、关系图、时间偏序、状态和叙事锚点创作。语言解释与结构修改统一由worldline-core完成。工具0.13.0让实体/关系的稳定ID重构只改真实身份token，逐处审阅前后语境；正文查找保留可表示的写作模式，必要源码定位可安全返回原作者位置。默认语言仍为1.9，最高1.13，本版不新增DSL。
+worldline 的 Rust / egui 作者工作台，用于人物资料、世界设定、正文书稿、多文件分支故事、关系图、时间偏序、状态和叙事锚点创作。工具0.14.0明确试玩与严格重放使用的已应用稿件范围，条件证据可安全返回作者来源，试玩语义色适配明暗/系统主题，并提供已有语言与资料能力的显式启用入口。默认语言仍为1.9，最高1.13，本版不新增DSL。[作者使用与兼容边界](docs/explicit-authoring-0.14.md)。
 
 从[时间约束与可信重放](docs/replay-timeline-workflow.md)和配对[栖雪山站示例](../worldline/examples/snowline-seeds/README.md)完成双路线改稿。普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
 [稳定ID重构与存档边界](docs/safe-id-refactor.md)说明逐处预览、原子提交和state所属实体的安全拒绝；[查找与作者位置](docs/search-author-context.md)说明模式保持、源码回退与返回保护。

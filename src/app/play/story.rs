@@ -1,12 +1,13 @@
 //! 试玩及运行状态。
 use super::super::{PlayPane, PlayState, WorldeditApp};
 use super::debugger;
-use egui::Color32;
+use crate::theme;
 use worldline_core::{Analysis, Program};
 use worldline_runtime::{ContinuationOutcome, Output, ReplayBudget, ReplayCancellation, Story};
 impl WorldeditApp {
     pub(super) fn play_tab_inner(&mut self, ctx: &egui::Context) {
         self.poll_replay(ctx);
+        let current_inputs = self.unapplied_play_inputs();
         // 无故事 / 编译有错误时的引导
         let has_story = self.play.is_some();
         let errors = self
@@ -20,10 +21,14 @@ impl WorldeditApp {
                     ui.vertical_centered(|ui| {
                         if errors {
                             ui.colored_label(
-                                Color32::from_rgb(240, 110, 110),
+                                theme::ERROR(),
                                 "故事存在错误,修复后才能试玩(见编辑视图诊断面板)",
                             );
                             return;
+                        }
+                        ui.label("将运行已应用工程稿；已应用但尚未保存的修改也会参与。");
+                        if let Some(notice) = &self.replay_debugger.notice {
+                            ui.colored_label(theme::WARNING(), notice);
                         }
                         ui.horizontal(|ui| {
                             ui.label("重放种子");
@@ -45,6 +50,8 @@ impl WorldeditApp {
         let mut reading_request = None;
         let mut replay_request = false;
         let mut failure_jump = false;
+        let evidence_access = self.evidence_navigation_access();
+        let mut evidence_jump = None;
         let cur_version = self.version;
         let narrow = ctx.screen_rect().width() < 900.0;
         let can_replay = self
@@ -80,7 +87,7 @@ impl WorldeditApp {
                             play.interruption = Some(ContinuationOutcome::Cancelled);
                         }
                     });
-                    if ui.button("↻ 重新开始(应用最新改动)").clicked() {
+                    if ui.button("↻ 重新开始（已应用稿）").clicked() {
                         restart = true;
                     }
                 }
@@ -150,12 +157,12 @@ impl WorldeditApp {
                                 let mut choose = false;
                                 ui.push_id(i, |ui| {
                                     ui.group(|ui| {
-                                        if let Some(snapshot) = &self.snapshot {
+                                        {
                                             if let Some(target) = super::super::wiki::keyword_text(
                                                 ui,
                                                 label,
-                                                &snapshot.wiki,
-                                                &snapshot.result.analysis.catalog,
+                                                &play.source_wiki,
+                                                &play.source_catalog,
                                                 links,
                                                 15.0,
                                             ) {
@@ -189,13 +196,13 @@ impl WorldeditApp {
                         }
                         if play.version != cur_version {
                             ui.colored_label(
-                                Color32::from_rgb(240, 200, 100),
-                                "故事已修改,当前试玩仍是旧版本;点上方按钮应用改动。",
+                                theme::WARNING(),
+                                "已应用工程稿已变化，当前结果仍属于旧快照；重新开始可运行新的已应用稿。",
                             );
                         }
                         if let Some(err) = &play.error {
                             ui.colored_label(
-                                Color32::from_rgb(240, 110, 110),
+                                theme::ERROR(),
                                 format!("运行错误:{err}"),
                             );
                         }
@@ -206,8 +213,8 @@ impl WorldeditApp {
                             play,
                             cur_version,
                             can_replay,
-                            &mut replay_request,
-                            &mut failure_jump,
+                            debugger::DebuggerRequests { replay: &mut replay_request, failure: &mut failure_jump, evidence: &mut evidence_jump },
+                            &evidence_access,
                         );
                         ui.separator();
                         ui.heading("状态");
@@ -280,7 +287,7 @@ impl WorldeditApp {
                                                     record.turn
                                                 ))
                                                 .small()
-                                                .color(Color32::GRAY),
+                                                .color(theme::MUTED()),
                                             );
                                             if let Some(note) = &record.note {
                                                 ui.label(note);
@@ -296,7 +303,7 @@ impl WorldeditApp {
                             story.anchors().to_vec();
                         if anchors.is_empty() {
                             ui.colored_label(
-                                Color32::GRAY,
+                                theme::MUTED(),
                                 "(暂无;记录由 anchor 语句与漂流、叙事身份、人物变动产生)",
                             );
                         }
@@ -308,10 +315,10 @@ impl WorldeditApp {
                                     if let Some(d) = &a.detail {
                                         line.push_str(&format!(" → {d}"));
                                     }
-                                    ui.colored_label(Color32::from_rgb(120, 220, 190), line);
+                                    ui.colored_label(theme::ANCHOR(), line);
                                     if let Some(n) = &a.note {
                                         ui.indent("anchor-note", |ui| {
-                                            ui.colored_label(Color32::GRAY, format!("↳ {n}"));
+                                            ui.colored_label(theme::MUTED(), format!("↳ {n}"));
                                         });
                                     }
                                     ui.label(
@@ -322,7 +329,7 @@ impl WorldeditApp {
                                             a.turn
                                         ))
                                         .size(10.0)
-                                        .color(Color32::from_rgb(120, 130, 150)),
+                                        .color(theme::MUTED()),
                                     );
                                 }
                             });
@@ -338,14 +345,38 @@ impl WorldeditApp {
         if failure_jump {
             self.jump_to_replay_failure();
         }
+        if let Some(source) = evidence_jump {
+            self.jump_to_evidence_source(ctx, &source);
+        }
+        let awaiting_scope = self.play_confirmation.is_some();
         egui::CentralPanel::default().show(ctx, |ui| {
             let Some(play) = &mut self.play else { return };
+            if !narrow || self.replay_debugger.pane == PlayPane::Story {
+                super::scope::render_scope(ui, &play.scope);
+                if current_inputs != play.scope.excluded_inputs && !current_inputs.is_empty() {
+                    ui.colored_label(
+                        theme::WARNING(),
+                        "当前另有未应用输入；不会改变此次运行的快照。",
+                    );
+                    egui::CollapsingHeader::new("查看当前未应用输入")
+                        .id_salt("current-unapplied-play-inputs")
+                        .show(ui, |ui| {
+                            egui::ScrollArea::vertical()
+                                .max_height(120.0)
+                                .show(ui, |ui| {
+                                    for input in &current_inputs {
+                                        ui.label(format!("{} · {}", input.kind, input.source));
+                                    }
+                                });
+                        });
+                }
+            }
             if narrow && self.replay_debugger.pane == PlayPane::Debugger {
                 debugger::render_debugger_compact(ui, &self.replay_debugger);
             } else if let Some(story) = &mut play.story {
                 if play.paused {
                     ui.colored_label(
-                        Color32::GRAY,
+                        theme::MUTED(),
                         if play.stopped {
                             "试玩已停止；可重新开始。"
                         } else {
@@ -353,7 +384,12 @@ impl WorldeditApp {
                         },
                     );
                 }
-                if !play.paused && !play.ended && !play.stopped && play.error.is_none() {
+                if !awaiting_scope
+                    && !play.paused
+                    && !play.ended
+                    && !play.stopped
+                    && play.error.is_none()
+                {
                     let budget = ReplayBudget::new(
                         self.replay_debugger.live_max_steps,
                         self.replay_debugger.live_time_budget_ms,
@@ -382,16 +418,9 @@ impl WorldeditApp {
                                             play.transcript.push('\n');
                                         }
                                         if let Some(speaker) = speaker {
-                                            let name = self
-                                                .snapshot
-                                                .as_ref()
-                                                .and_then(|snapshot| {
-                                                    snapshot
-                                                        .result
-                                                        .analysis
-                                                        .catalog
-                                                        .object(&speaker)
-                                                })
+                                            let name = play
+                                                .source_catalog
+                                                .object(&speaker)
                                                 .map(|object| object.display.clone())
                                                 .unwrap_or_else(|| speaker.id.clone());
                                             let start = play.transcript.len();
@@ -429,31 +458,29 @@ impl WorldeditApp {
                 }
             }
             if !narrow || self.replay_debugger.pane == PlayPane::Story {
+                let transcript_height =
+                    (ui.available_height() - if play.ended { 44.0 } else { 0.0 }).max(0.0);
                 egui::ScrollArea::vertical()
+                    .max_height(transcript_height)
                     .auto_shrink([false, false])
                     .stick_to_bottom(self.play_scroll_bottom)
                     .show(ui, |ui| {
-                        if let Some(snapshot) = &self.snapshot {
-                            if let Some(target) = super::super::wiki::keyword_text(
-                                ui,
-                                &play.transcript,
-                                &snapshot.wiki,
-                                &snapshot.result.analysis.catalog,
-                                &play.transcript_links,
-                                16.0,
-                            ) {
-                                reading_request = Some(target);
-                            }
+                        if let Some(target) = super::super::wiki::keyword_text(
+                            ui,
+                            &play.transcript,
+                            &play.source_wiki,
+                            &play.source_catalog,
+                            &play.transcript_links,
+                            16.0,
+                        ) {
+                            reading_request = Some(target);
                         }
                     });
                 self.play_scroll_bottom = false;
                 if play.ended {
                     ui.separator();
                     ui.centered_and_justified(|ui| {
-                        ui.colored_label(
-                            Color32::from_rgb(130, 220, 130),
-                            "—— 世界线收束,故事结束 ——",
-                        );
+                        ui.colored_label(theme::SUCCESS(), "—— 世界线收束,故事结束 ——");
                     });
                 }
             }
@@ -463,12 +490,19 @@ impl WorldeditApp {
         }
     }
 
-    pub(super) fn start_play_inner(&mut self) {
+    pub(super) fn start_play_inner(&mut self, scope: super::scope::AppliedPlayScope) {
+        if !scope.matches_project(&self.project, self.version) {
+            self.replay_debugger.notice =
+                Some("已应用源码与编译快照不一致，请重新编译后运行".into());
+            return;
+        }
         let Some(snap) = &self.snapshot else { return };
         if snap.result.has_errors() {
             return;
         }
         self.replay_debugger.explanations = None;
+        let source_catalog = snap.result.analysis.catalog.clone();
+        let source_wiki = worldline_core::wiki::KeywordIndex::new(&snap.result);
         let entry_diagnostics = worldline_core::analysis::execution_diagnostics(
             &snap.result.program,
             &snap.result.analysis,
@@ -486,7 +520,10 @@ impl WorldeditApp {
                     transcript_links: Vec::new(),
                     ended: false,
                     error: None,
-                    version: self.version,
+                    version: scope.version,
+                    scope,
+                    source_catalog,
+                    source_wiki,
                     paused: false,
                     stopped: false,
                     interruption: None,
@@ -501,7 +538,10 @@ impl WorldeditApp {
                     transcript_links: Vec::new(),
                     ended: true,
                     error: Some(e.to_string()),
-                    version: self.version,
+                    version: scope.version,
+                    scope,
+                    source_catalog,
+                    source_wiki,
                     paused: true,
                     stopped: false,
                     interruption: None,

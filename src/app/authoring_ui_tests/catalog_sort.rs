@@ -22,6 +22,23 @@ fn prepare_sort_app(count: usize) -> (egui::Context, WorldeditApp) {
     (ctx, app)
 }
 
+// 排序表头先于异步查询结果更新；等待真实结果行，不能把表头出现当作查询完成。
+fn sorted_rows(ctx: &egui::Context, app: &mut WorldeditApp, header: &str) -> String {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        let text = rendered_text_in_window(ctx, app, 14, header);
+        if text.contains("4 个命中") && text.contains("资料001") && text.contains("资料004")
+        {
+            return text;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "排序结果未完成：{text}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 #[test]
 fn catalog_sort_headers_toggle_and_navigation_follows_object_identity_without_writes() {
     let (ctx, mut app) = prepare_sort_app(4);
@@ -30,13 +47,13 @@ fn catalog_sort_headers_toggle_and_navigation_follows_object_identity_without_wr
     click(&ctx, &mut app, 14, "运行查询");
     let _ = rendered_text_in_window(&ctx, &mut app, 14, "4 个命中");
     click(&ctx, &mut app, 14, "名称");
-    let ascending = rendered_text_in_window(&ctx, &mut app, 14, "名称 ↑");
+    let ascending = sorted_rows(&ctx, &mut app, "名称 ↑");
     assert!(ascending.find("资料001").unwrap() < ascending.find("资料004").unwrap());
     click(&ctx, &mut app, 14, "资料001");
     assert_eq!(app.entity_editor.as_ref().unwrap().draft.id, "e003");
     app.entity_editor = None;
     click(&ctx, &mut app, 14, "名称 ↑");
-    let descending = rendered_text_in_window(&ctx, &mut app, 14, "名称 ↓");
+    let descending = sorted_rows(&ctx, &mut app, "名称 ↓");
     assert!(descending.find("资料004").unwrap() < descending.find("资料001").unwrap());
     click(&ctx, &mut app, 14, "资料001");
     assert_eq!(app.entity_editor.as_ref().unwrap().draft.id, "e003");

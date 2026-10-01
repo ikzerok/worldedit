@@ -1,25 +1,38 @@
 use super::super::{PlayState, ReplayDebugger, SavedReplayPath};
+use super::evidence_navigation::{EvidenceNavigationAccess, EvidenceNavigationRequest};
 use super::replay_location::failure_location;
-use egui::Color32;
+use crate::theme;
 use worldline_runtime::{ReplayOrigin, ReplayStatus, ReplayTrace, REPLAY_SCHEMA_VERSION};
 
 const MAX_IMPORTED_TRACE_BYTES: usize = 1024 * 1024;
 const MAX_IMPORTED_TRACE_STEPS: usize = 20_000;
 const MAX_IMPORTED_TRACE_STRING_BYTES: usize = 256 * 1024;
 const MAX_SAVED_REPLAY_PATHS: usize = 64;
+pub(super) struct DebuggerRequests<'a> {
+    pub replay: &'a mut bool,
+    pub failure: &'a mut bool,
+    pub evidence: &'a mut Option<EvidenceNavigationRequest>,
+}
+
 pub(super) fn render_debugger_controls(
     ui: &mut egui::Ui,
     debugger: &mut ReplayDebugger,
     play: &mut PlayState,
     current_version: u64,
     can_replay: bool,
-    replay_request: &mut bool,
-    failure_jump: &mut bool,
+    requests: DebuggerRequests<'_>,
+    evidence_access: &EvidenceNavigationAccess,
 ) {
+    let DebuggerRequests {
+        replay: replay_request,
+        failure: failure_jump,
+        evidence: evidence_jump,
+    } = requests;
     ui.heading("叙事调试器");
     ui.horizontal(|ui| {
         ui.label("种子");
         ui.add(egui::DragValue::new(&mut debugger.seed));
+        ui.label(format!("重放已应用稿 #{current_version}"));
     });
     if let Some(story) = &play.story {
         let trace = story.replay_trace();
@@ -59,7 +72,7 @@ pub(super) fn render_debugger_controls(
             }
         }
     } else {
-        ui.colored_label(Color32::GRAY, "开始试玩后可录制实际选择路径。");
+        ui.colored_label(theme::MUTED(), "开始试玩后可录制实际选择路径。");
     }
     let actual_evidence = play
         .story
@@ -82,7 +95,14 @@ pub(super) fn render_debugger_controls(
         debugger.explanations = actual_evidence.map(<[_]>::to_vec);
     }
     if let Some(explanations) = &debugger.explanations {
-        super::evidence::render(ui, explanations, play.version, current_version);
+        super::evidence::render(
+            ui,
+            explanations,
+            play.version,
+            current_version,
+            evidence_access,
+            evidence_jump,
+        );
     }
 
     let selected_text = debugger
@@ -195,7 +215,7 @@ pub(super) fn render_debugger_controls(
         .show(ui, |ui| {
             if debugger.import_json.len() > MAX_IMPORTED_TRACE_BYTES {
                 ui.colored_label(
-                    Color32::LIGHT_RED,
+                    theme::ERROR(),
                     "轨迹 JSON 超过 1 MiB 边界；内容已拒绝导入。",
                 );
                 if ui.button("清除超限输入").clicked() {
@@ -253,6 +273,9 @@ pub(super) fn render_debugger_controls(
         }
     }
     if let Some(result) = &debugger.result {
+        if let Some(scope) = &debugger.result_scope {
+            super::scope::render_scope(ui, scope);
+        }
         ui.separator();
         ui.heading(format!(
             "重放结果 · {}",
@@ -263,7 +286,7 @@ pub(super) fn render_debugger_controls(
             ui.label(format!("本结果使用编辑版本 #{version}"));
             if version != current_version {
                 ui.colored_label(
-                    Color32::from_rgb(240, 200, 100),
+                    theme::WARNING(),
                     "当前编辑稿已再次变化；此结果属于旧编译快照。请显式重新重放。",
                 );
             }
@@ -317,7 +340,7 @@ pub(super) fn render_debugger_controls(
         }
     }
     if let Some(notice) = &debugger.notice {
-        ui.colored_label(Color32::from_rgb(240, 200, 100), notice);
+        ui.colored_label(theme::WARNING(), notice);
     }
     if play.version != current_version {
         ui.label("当前运行快照已过期；重放按钮使用最新编译快照。正文结果不会自动替换。");
@@ -341,6 +364,9 @@ pub(super) fn render_debugger_compact(ui: &mut egui::Ui, debugger: &ReplayDebugg
         ui.label("重放正在后台运行；可在右侧调试器中取消。");
     }
     if let Some(result) = &debugger.result {
+        if let Some(scope) = &debugger.result_scope {
+            super::scope::render_scope(ui, scope);
+        }
         ui.heading(replay_status_text(&result.status));
         ui.label(format!(
             "当前节点：{}",
@@ -355,7 +381,7 @@ pub(super) fn render_debugger_compact(ui: &mut egui::Ui, debugger: &ReplayDebugg
         }
     }
     if let Some(notice) = &debugger.notice {
-        ui.colored_label(Color32::from_rgb(240, 200, 100), notice);
+        ui.colored_label(theme::WARNING(), notice);
     }
 }
 

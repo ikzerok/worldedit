@@ -28,10 +28,10 @@ impl ExportDestination {
 pub(super) struct ExportConfirmation {
     destination: ExportDestination,
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct UnappliedInput {
-    kind: &'static str,
-    source: String,
+    pub(in crate::app) kind: &'static str,
+    pub(in crate::app) source: String,
 }
 
 impl WorldeditApp {
@@ -77,8 +77,7 @@ impl WorldeditApp {
         }
     }
 
-    fn return_to_export_input(&mut self, kind: &str) {
-        self.export_confirmation = None;
+    pub(in crate::app) fn return_to_export_input(&mut self, kind: &str) {
         self.tab = match kind {
             "事件正文与分支" | "时段资料" => Tab::Timeline,
             "人物资料" => Tab::Characters,

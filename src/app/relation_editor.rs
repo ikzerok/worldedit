@@ -80,6 +80,12 @@ impl WorldeditApp {
         if self.prevent_replacing_draft("语义关系") {
             return;
         }
+        if id.is_none() && !self.project.language_version_kind().supports_relations() {
+            self.open_capabilities();
+            self.message =
+                Some("先显式启用语言与关系资料能力，再新建关系；当前作品未变化。".into());
+            return;
+        }
         let Some(snapshot) = &self.snapshot else {
             return;
         };
@@ -97,6 +103,12 @@ impl WorldeditApp {
     }
     pub(super) fn edit_relation_type(&mut self, id: Option<&str>) {
         if self.prevent_replacing_draft("关系类型") {
+            return;
+        }
+        if id.is_none() && !self.project.language_version_kind().supports_relations() {
+            self.open_capabilities();
+            self.message =
+                Some("先显式启用语言与关系资料能力，再新建关系；当前作品未变化。".into());
             return;
         }
         let Some(snapshot) = &self.snapshot else {
@@ -298,6 +310,7 @@ impl WorldeditApp {
                 let current = form.guard.is_current(&self.project, self.version);
                 if !current { ui.colored_label(theme::GOLD(), "工程已变化，请保留输入并重新打开后合并。"); }
                 if !self.project.language_version_kind().supports_relations() { ui.colored_label(theme::GOLD(), "关系类型需要显式启用语言 1.10 与 content.relations.v1，不会自动升级旧项目。"); }
+                if !self.project.language_version_kind().supports_relations() && ui.button("查看语言与资料能力…").clicked() { self.open_capabilities(); }
                 if ui.add_enabled(current && self.project.language_version_kind().supports_relations() && !form.draft.display.trim().is_empty(), theme::primary("应用关系类型")).clicked() {
                     let before = self.project.clone();
                     let result = form.apply(&mut self.project, self.version);

@@ -114,8 +114,8 @@ fn object_entry(h: &Harness, index: usize) -> (String, TargetRef) {
 }
 
 #[test]
-fn all_22_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
-    assert_eq!(commands().len(), 22);
+fn all_23_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
+    assert_eq!(commands().len(), 23);
     for theme in [
         crate::theme::ThemeMode::Dark,
         crate::theme::ThemeMode::Light,
@@ -137,7 +137,7 @@ fn all_22_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
                     "{theme:?} {size:?}: command {index} hidden"
                 );
             }
-            h.press(Key::ArrowUp, 10);
+            h.press(Key::ArrowUp, commands().len() - 1 - 11);
             let output = h.settle();
             assert_eq!(h.app.command_palette.selected, 11);
             assert!(visible(&output, commands()[11].0, size).is_some());
