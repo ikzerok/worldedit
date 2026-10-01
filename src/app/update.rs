@@ -167,6 +167,7 @@ impl eframe::App for WorldeditApp {
         if self.tab != Tab::Play {
             self.poll_replay(ctx);
         }
+        self.review_navigation_guard(ctx);
         match self.tab {
             Tab::Timeline | Tab::Graph => {
                 self.event_inspector(ctx);

@@ -1,4 +1,5 @@
 //! 试玩与重放集成。
+mod bounded;
 mod debugger;
 mod evidence;
 mod replay;

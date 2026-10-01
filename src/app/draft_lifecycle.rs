@@ -214,12 +214,7 @@ impl WorldeditApp {
         if self.new_period.is_some() {
             names.push("时段资料");
         }
-        if self.review.comment_editor.as_ref().is_some_and(|form| {
-            form.original
-                .as_deref()
-                .and_then(|id| self.snapshot.as_ref()?.comment_index.comments.get(id))
-                .is_none_or(|document| form.draft != document.draft)
-        }) {
+        if self.comment_draft_dirty() {
             names.push("审阅批注");
         }
         if self.map_creation.open {
@@ -283,6 +278,7 @@ impl WorldeditApp {
         self.new_file = None;
         self.new_period = None;
         self.review.comment_editor = None;
+        self.review.pending_comment_action = None;
         self.map_creation = map_creation::MapCreationForm::default();
         self.map_form = maps::PlacementForm::default();
         self.map_canvas.reset_local_preview();
@@ -293,6 +289,7 @@ impl WorldeditApp {
         self.stale_form = false;
     }
     pub(super) fn draft_exit_dialog(&mut self, ctx: &egui::Context) {
+        self.review_draft_dialog(ctx);
         if self.draft_action.is_none() {
             return;
         }
@@ -340,6 +337,7 @@ impl WorldeditApp {
                 "事件正文与分支" => Tab::Timeline,
                 "书稿 / 正文草稿" => Tab::Manuscript,
                 "本地化草稿" => Tab::Localization,
+                "审阅批注" => Tab::Review,
                 "地图草稿" | "新建地图" => Tab::Map,
                 "时段资料" => Tab::Timeline,
                 "文件名称" => Tab::Edit,

@@ -495,3 +495,9 @@ fn keyboard_review_can_reach_select_copy_three_way_text_and_open_source_without_
     assert_eq!(std::fs::read(&entry).unwrap(), source_before);
     assert_eq!(app.history.len(), history_len);
 }
+
+#[path = "review_current.rs"]
+mod current;
+
+#[path = "review_navigation.rs"]
+mod review_navigation;

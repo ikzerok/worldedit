@@ -33,12 +33,14 @@ pub(super) struct ViewState {
     mode: Mode,
     discard_confirm: Option<std::path::PathBuf>,
     cursor: Option<WritingCursor>,
+    selection_mode: Option<Mode>,
     pending_cursor: Option<WritingCursor>,
 }
 
 #[derive(Default)]
 pub(super) struct Action {
     pub apply: bool,
+    pub comment: bool,
     pub source_mode: bool,
     pub discard: bool,
     pub error: Option<String>,
@@ -62,6 +64,7 @@ pub(super) fn draw(
 ) -> Action {
     view.prepare_restore(buffer, target);
     let mut action = Action::default();
+    let previous_mode = view.mode;
     ui.horizontal_wrapped(|ui| {
         ui.heading("正文");
         ui.selectable_value(&mut view.mode, Mode::Prose, "写作");
@@ -88,6 +91,9 @@ pub(super) fn draw(
             view.discard_confirm = Some(buffer.path().to_owned());
         }
     });
+    if previous_mode != view.mode {
+        view.selection_mode = None;
+    }
     if !typography.compact {
         let source_label = format!(
             "{}:{} · {}",
@@ -98,11 +104,20 @@ pub(super) fn draw(
         ui.add(egui::Label::new(theme::muted(&source_label)).truncate())
             .on_hover_text(source_label);
     }
-    ui.label(theme::muted(if buffer.is_changed() {
-        "未应用草稿 · 尚未保存"
-    } else {
-        "正文与当前工程一致"
-    }));
+    ui.horizontal_wrapped(|ui| {
+        ui.label(theme::muted(if buffer.is_changed() {
+            "未应用草稿 · 尚未保存"
+        } else {
+            "正文与当前工程一致"
+        }));
+        if ui
+            .small_button("批注选区")
+            .on_hover_text("为当前选区添加批注：先预览完整源码行，不自动应用或保存")
+            .clicked()
+        {
+            action.comment = true;
+        }
+    });
     if view.discard_confirm.as_deref() == Some(buffer.path()) {
         ui.colored_label(
             theme::ERROR(),

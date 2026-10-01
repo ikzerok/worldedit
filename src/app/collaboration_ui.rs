@@ -1,6 +1,10 @@
 //! 协作审阅 UI：只编排 core 的批注/提案事务，不实现第二套合并逻辑。
+mod comment_editor;
+pub(in crate::app) mod comment_lifecycle;
 mod proposal_resolution;
+mod review_list;
 mod review_tab;
+mod selection;
 use super::{Tab, WorldeditApp};
 use proposal_resolution::{
     proposal_conflicts_resolved, proposal_resolutions, show_conflict_resolution,
@@ -34,6 +38,7 @@ pub(super) struct ProposalPreviewState {
 pub(super) struct CommentEditor {
     pub original: Option<String>,
     pub draft: CommentDraft,
+    pub initial: CommentDraft,
     pub baseline: String,
     pub version: u64,
 }
@@ -60,6 +65,13 @@ pub(super) struct ReviewState {
     pub text_path: String,
     pub text_start: String,
     pub text_end: String,
+    pub filter: collaboration::CommentReviewFilter,
+    pub selected_comment: Option<String>,
+    pub scroll_selection: bool,
+    pub pending_comment_action: Option<comment_lifecycle::ReviewAction>,
+    pub last_tab: Option<Tab>,
+    pub composition_frame: bool,
+    pub pending_source_selection: Option<(std::path::PathBuf, String, std::ops::Range<usize>)>,
 }
 
 impl Default for ReviewState {
@@ -77,6 +89,13 @@ impl Default for ReviewState {
             text_path: "world.wl".into(),
             text_start: "1".into(),
             text_end: "1".into(),
+            filter: Default::default(),
+            selected_comment: None,
+            scroll_selection: false,
+            pending_comment_action: None,
+            last_tab: None,
+            composition_frame: false,
+            pending_source_selection: None,
         }
     }
 }
@@ -124,42 +143,11 @@ impl WorldeditApp {
     }
 
     pub(super) fn new_comment_for_anchor(&mut self, anchor: CommentAnchor) {
-        if self.prevent_replacing_draft("审阅批注") {
-            return;
-        }
-        let id = self.next_comment_id();
-        self.review.comment_editor = Some(CommentEditor {
-            original: None,
-            draft: CommentDraft {
-                id,
-                author: self.review.author.clone(),
-                body: String::new(),
-                anchor,
-                resolved: false,
-            },
-            baseline: self.project.content_baseline(),
-            version: self.version,
-        });
-        self.reset_new_draft_baseline("审阅批注");
-        self.tab = Tab::Review;
+        self.request_review_action(comment_lifecycle::ReviewAction::New(anchor));
     }
 
     pub(super) fn edit_comment(&mut self, id: &str) {
-        let Some(comment) = self
-            .snapshot
-            .as_ref()
-            .and_then(|snapshot| snapshot.comment_index.comments.get(id))
-        else {
-            self.io_error = Some("批注已不存在，请刷新后重试".into());
-            return;
-        };
-        self.review.comment_editor = Some(CommentEditor {
-            original: Some(id.into()),
-            draft: comment.draft.clone(),
-            baseline: self.project.content_baseline(),
-            version: self.version,
-        });
-        self.tab = Tab::Review;
+        self.request_review_action(comment_lifecycle::ReviewAction::Edit(id.into()));
     }
 
     fn save_comment_editor(&mut self, editor: &CommentEditor) -> bool {
@@ -199,7 +187,7 @@ impl WorldeditApp {
             return;
         };
         let path = self.project.root.join(&self.review.text_path);
-        match collaboration::capture_text_anchor(&self.project, &path, start_line, end_line) {
+        match self.review_text_anchor(&path, start_line, end_line) {
             Ok(anchor) => self.new_comment_for_anchor(anchor),
             Err(error) => self.io_error = Some(error),
         }

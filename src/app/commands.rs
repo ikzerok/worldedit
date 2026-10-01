@@ -10,6 +10,7 @@ pub(super) struct CommandPalette {
     pub query: String,
     pub focus: bool,
     selected: usize,
+    scroll_selected: bool,
     previous_focus: Option<egui::Id>,
     pub ime: bool,
     pub ime_frame: bool,
@@ -64,6 +65,7 @@ impl WorldeditApp {
         self.command_palette.commands_only = commands_only;
         self.command_palette.query.clear();
         self.command_palette.selected = 0;
+        self.command_palette.scroll_selected = true;
         self.command_palette.focus = true;
     }
     pub(super) fn author_shortcuts(&mut self, ctx: &egui::Context) {
@@ -135,6 +137,7 @@ impl WorldeditApp {
             }
             if response.changed() {
                 palette.selected = 0;
+                palette.scroll_selected = true;
             }
             let query = palette.query.trim().to_lowercase();
             let mut entries: Vec<(String, Action)> = Vec::new();
@@ -156,46 +159,53 @@ impl WorldeditApp {
                     .take(1000)
                     .map(|object| {
                         (
-                            format!(
-                                "{} · {}:{}\n{}:{}",
-                                object.display,
-                                super::catalog::kind_label(&object.target.kind),
-                                object.target.id,
-                                object.file,
-                                object.line
-                            ),
+                            super::object_picker::candidate_label(object),
                             Action::Object(object.target.clone()),
                         )
                     }),
                 );
             }
+            let previous_selection = palette.selected;
             if top && !self.ime_composing && !palette.ime && !palette.ime_frame {
-                if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)) {
-                    palette.selected = palette.selected.saturating_add(1);
-                }
-                if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp)) {
-                    palette.selected = palette.selected.saturating_sub(1);
-                }
+                let (down, up) = ui.input_mut(|i| {
+                    (
+                        i.count_and_consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                        i.count_and_consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                    )
+                });
+                palette.selected = palette.selected.saturating_add(down).saturating_sub(up);
             }
             palette.selected = palette.selected.min(entries.len().saturating_sub(1));
+            let scroll_selected = palette.scroll_selected || palette.selected != previous_selection;
+            let mut selected_visible = false;
             egui::ScrollArea::vertical()
+                .id_salt(("author-command-results", palette.commands_only))
                 .max_height(420.0)
                 .show(ui, |ui| {
                     for (index, (label, candidate)) in entries.iter().enumerate() {
-                        let row = ui.selectable_label(index == palette.selected, label);
+                        let selected = index == palette.selected;
+                        let row = ui.selectable_label(selected, label);
                         if row.clicked() {
                             action = Some(candidate.clone());
                         }
-                        if index == palette.selected
-                            && ui.input(|i| {
-                                i.key_pressed(egui::Key::ArrowDown)
-                                    || i.key_pressed(egui::Key::ArrowUp)
-                            })
-                        {
-                            row.scroll_to_me(None);
+                        if selected {
+                            selected_visible = ui.clip_rect().contains_rect(row.rect);
+                            ui.painter().rect_stroke(
+                                row.rect.shrink(0.5),
+                                4,
+                                egui::Stroke::new(1.5_f32, crate::theme::ACCENT()),
+                                egui::StrokeKind::Inside,
+                            );
+                            if scroll_selected {
+                                row.scroll_to_me(None);
+                            }
                         }
                     }
                 });
+            palette.scroll_selected = false;
+            if !entries.is_empty() && !selected_visible {
+                ui.label("选中项在视野外；用↑↓定位或点击可见项");
+            }
             if entries.is_empty() {
                 ui.label("没有匹配项；不会自动改选同名对象");
             }
@@ -207,6 +217,7 @@ impl WorldeditApp {
                 && !palette.ime_frame
                 && !self.ime_composing
                 && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+                && selected_visible
             {
                 action = entries.get(palette.selected).map(|(_, a)| a.clone());
             }
@@ -253,3 +264,5 @@ impl WorldeditApp {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod cancel_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod navigation_tests;

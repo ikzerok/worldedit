@@ -3,7 +3,7 @@ use super::super::{PlayPane, PlayState, WorldeditApp};
 use super::debugger;
 use egui::Color32;
 use worldline_core::{Analysis, Program};
-use worldline_runtime::{Output, Story};
+use worldline_runtime::{ContinuationOutcome, Output, ReplayBudget, ReplayCancellation, Story};
 impl WorldeditApp {
     pub(super) fn play_tab_inner(&mut self, ctx: &egui::Context) {
         self.poll_replay(ctx);
@@ -29,6 +29,7 @@ impl WorldeditApp {
                             ui.label("重放种子");
                             ui.add(egui::DragValue::new(&mut self.replay_debugger.seed));
                         });
+                        super::bounded::render_live_budget(ui, &mut self.replay_debugger);
                         if ui
                             .button(egui::RichText::new("▶ 开始试玩").size(20.0))
                             .clicked()
@@ -58,21 +59,34 @@ impl WorldeditApp {
                     ui.horizontal(|ui| {
                         if play.error.is_some() {
                             ui.label("错误已暂停；重新开始可重试。 ");
+                        } else if play.stopped {
+                            ui.label("试玩已停止；可重新开始。");
+                        } else if play.ended {
+                            ui.label("故事已正常结束");
                         } else if play.paused {
                             if ui.button("▶ 继续").clicked() {
                                 play.paused = false;
+                                play.interruption = None;
                             }
                         } else if ui.button("Ⅱ 暂停").clicked() {
                             play.paused = true;
                         }
-                        if ui.button("■ 停止").clicked() {
+                        if ui
+                            .add_enabled(!play.ended && !play.stopped, egui::Button::new("■ 停止"))
+                            .clicked()
+                        {
                             play.paused = true;
-                            play.ended = true;
+                            play.stopped = true;
+                            play.interruption = Some(ContinuationOutcome::Cancelled);
                         }
                     });
                     if ui.button("↻ 重新开始(应用最新改动)").clicked() {
                         restart = true;
                     }
+                }
+                super::bounded::render_live_budget(ui, &mut self.replay_debugger);
+                if let Some(outcome) = self.play.as_ref().and_then(|play| play.interruption) {
+                    ui.label(super::bounded::interruption_text(outcome));
                 }
                 if narrow && self.play.is_some() {
                     ui.separator();
@@ -96,7 +110,16 @@ impl WorldeditApp {
                             ui.separator();
                         }
                         let Some(play) = &mut self.play else { return };
-                        if play.error.is_none() && !play.ended {
+                        for diagnostic in &play.entry_diagnostics {
+                            ui.label(format!(
+                                "{} · {}:{} · {}",
+                                diagnostic.code,
+                                diagnostic.file,
+                                diagnostic.span.line,
+                                diagnostic.message
+                            ));
+                        }
+                        if play.error.is_none() && !play.ended && !play.stopped {
                             let choices: Vec<_> = play
                                 .story
                                 .as_ref()
@@ -115,7 +138,11 @@ impl WorldeditApp {
                                 })
                                 .unwrap_or_default();
                             if choices.is_empty() {
-                                ui.label("(推进中…)");
+                                ui.label(if play.paused {
+                                    "当前没有可选项；继续可推进剩余原稿。"
+                                } else {
+                                    "(推进中…)"
+                                });
                             } else {
                                 ui.label(crate::theme::muted("点击关键词看注释；点击“选择”推进。"));
                             }
@@ -331,12 +358,32 @@ impl WorldeditApp {
                 debugger::render_debugger_compact(ui, &self.replay_debugger);
             } else if let Some(story) = &mut play.story {
                 if play.paused {
-                    ui.colored_label(Color32::GRAY, "试玩已暂停；调试重放不会推进当前正文。");
+                    ui.colored_label(
+                        Color32::GRAY,
+                        if play.stopped {
+                            "试玩已停止；可重新开始。"
+                        } else {
+                            "试玩已暂停；调试重放不会推进当前正文。"
+                        },
+                    );
                 }
-                if !play.paused && !play.ended && play.error.is_none() {
-                    match story.continue_story() {
-                        Ok(outputs) => {
-                            for o in outputs {
+                if !play.paused && !play.ended && !play.stopped && play.error.is_none() {
+                    let budget = ReplayBudget::new(
+                        self.replay_debugger.live_max_steps,
+                        self.replay_debugger.live_time_budget_ms,
+                    );
+                    match story.continue_story_bounded(budget, &ReplayCancellation::new()) {
+                        Ok(continuation) => {
+                            match continuation.outcome {
+                                ContinuationOutcome::Choice | ContinuationOutcome::Ended => {
+                                    play.interruption = None
+                                }
+                                outcome => {
+                                    play.interruption = Some(outcome);
+                                    play.paused = true;
+                                }
+                            }
+                            for o in continuation.outputs {
                                 match o {
                                     Output::Text {
                                         content,
@@ -436,6 +483,10 @@ impl WorldeditApp {
             return;
         }
         self.replay_debugger.explanations = None;
+        let entry_diagnostics = worldline_core::analysis::execution_diagnostics(
+            &snap.result.program,
+            &snap.result.analysis,
+        );
         // 泄漏快照换取 'static 生命周期(点击级频率;见 PlayState 注释)
         let leaked: &'static (Program, Analysis) = Box::leak(Box::new((
             snap.result.program.clone(),
@@ -451,6 +502,9 @@ impl WorldeditApp {
                     error: None,
                     version: self.version,
                     paused: false,
+                    stopped: false,
+                    interruption: None,
+                    entry_diagnostics,
                 });
                 self.play_scroll_bottom = true;
             }
@@ -463,6 +517,9 @@ impl WorldeditApp {
                     error: Some(e.to_string()),
                     version: self.version,
                     paused: true,
+                    stopped: false,
+                    interruption: None,
+                    entry_diagnostics,
                 });
             }
         }

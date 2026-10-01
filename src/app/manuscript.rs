@@ -97,6 +97,10 @@ impl WorkbenchState {
         self.writing_buffers.get_mut(path)
     }
 
+    pub(in crate::app) fn comment_selection_is_current_mode(&self) -> bool {
+        self.writing_view.selection_is_current_mode()
+    }
+
     pub(in crate::app) fn active_writing_target(&self) -> Option<(TargetRef, PathBuf)> {
         let book = self.selected_book.as_ref()?;
         let local = self.books.get(book)?;

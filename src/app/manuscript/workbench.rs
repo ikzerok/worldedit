@@ -243,6 +243,9 @@ impl super::super::WorldeditApp {
         local.changed = local.draft != local.original;
         self.manuscript.books.insert(book_id.clone(), local);
         if let Some((path, action)) = body_action {
+            if action.comment {
+                self.comment_current_selection(ctx);
+            }
             if let Some(error) = action.error {
                 self.io_error = Some(error);
             }
