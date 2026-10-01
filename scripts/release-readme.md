@@ -4,7 +4,7 @@
 
 此流程合并到 main 后，由维护者在**当前已验收且 CI 成功的 main 完整 SHA**创建普通分支 `release/vX.Y.Z` 触发 GitHub `create` 事件。它不是 tag，也不使用 push、PR 或 dispatch 触发。版本必须与 editor 的 Cargo.toml 完全一致；core 保持真实版本，不为配对强制升级。
 
-建议本轮修复版为 editor `0.3.1`。先合并产品修复、版本与本流程，等待两仓最终 main 的 `ci.yml` push CI 成功并关闭已验收工单，再创建发行分支。普通分支的 create 事件会跳过全部 job。
+产品版本按 `0.x.y` 递增；当前发行版本必须读取已验收的 Cargo.toml，不使用历史建议值。先合并产品修复、版本与本流程，等待两仓最终 main 的 `ci.yml` push CI 成功并关闭已验收工单，再创建发行分支。普通分支的 create 事件会跳过全部 job。
 
 流程仅使用官方 GitHub Actions、GitHub CLI 与临时 GITHUB_TOKEN。全局/build 为 contents:read；gate 增加 actions:read/issues:read；只有最终 publish job 有 contents:write，另保留门禁必需的只读权限。所有 checkout 禁止持久化凭据。不新增 PAT、OAuth、密钥、环境 secret、id-token、packages 或 actions 写权限。
 

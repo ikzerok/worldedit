@@ -23,7 +23,20 @@ impl super::super::WorldeditApp {
             self.manuscript.rebase_clean(&self.project);
         }
         let indices = self.project.manuscript_indices();
-        let session = self.manuscript.pending_session.take();
+        let mut session = self.manuscript.pending_session.take();
+        if let Some(saved) = session.as_mut() {
+            match self.manuscript.validate_session(&self.project, saved) {
+                Err(error) => {
+                    self.message = Some(error);
+                    session = None;
+                }
+                Ok(false) => {
+                    saved.cursor = None;
+                    saved.restore_offsets = Some(false);
+                }
+                Ok(true) => {}
+            }
+        }
         if let Some(session) = &session {
             if session
                 .manuscript_id
@@ -83,11 +96,14 @@ impl super::super::WorldeditApp {
                     .filter(|id| local.draft.entries.iter().any(|entry| &entry.id == id))
                 {
                     local.selected_entry = Some(id);
-                    self.manuscript.pending_scroll = Some(if session.scroll_y.is_finite() {
-                        session.scroll_y.clamp(0.0, 1_000_000.0)
-                    } else {
-                        0.0
-                    });
+                    self.manuscript.pending_scroll = Some(
+                        if session.restore_offsets.unwrap_or(false) && session.scroll_y.is_finite()
+                        {
+                            session.scroll_y.clamp(0.0, 1_000_000.0)
+                        } else {
+                            0.0
+                        },
+                    );
                     self.manuscript.reader_open = session.preview_open.unwrap_or(true);
                     self.manuscript.reader_whole_book = session.preview_whole_book.unwrap_or(false);
                     self.manuscript.narrow_preview = session.preview_tab.unwrap_or(false);

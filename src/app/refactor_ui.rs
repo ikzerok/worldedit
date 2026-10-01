@@ -2,6 +2,7 @@
 use super::authoring_forms::RenameForm;
 use super::WorldeditApp;
 use crate::theme;
+use worldline_core::refactor::RenamePlan;
 use worldline_core::TargetRef;
 
 impl WorldeditApp {
@@ -15,16 +16,34 @@ impl WorldeditApp {
         };
         let mut open = true;
         let mut applied = false;
-        egui::Window::new("跨视图更改稳定 ID")
+        let mut edit_display = None;
+        let title = egui::RichText::new("跨视图更改稳定 ID").heading();
+        let style = ctx.style();
+        let frame = egui::Frame::window(&style);
+        let title_height = ctx
+            .fonts(|fonts| title.font_height(fonts, &style))
+            .max(style.spacing.interact_size.y)
+            + frame.inner_margin.sum().y;
+        let chrome_height = title_height + frame.stroke.width + frame.total_margin().sum().y;
+        egui::Window::new(title)
             .id(egui::Id::new("target-rename"))
             .open(&mut open)
+            .frame(frame)
+            .constrain_to(ctx.available_rect())
             .default_width(680.0)
+            .default_height(620.0)
+            .max_height((ctx.available_rect().height() - chrome_height - 8.0).max(120.0))
             .resizable(true)
             .vscroll(true)
             .show(ctx, |ui| {
                 ui.heading(format!("{}:{}", form.target.kind, form.target.id));
                 ui.label("显示名修改不会断链；这里改变的是稳定 ID，会同时更新明确的源码、地图和共享网络引用。");
-                ui.label(theme::muted("首版只对 entity / relation 开放；失败时所有文件保持原样。"));
+                ui.label(theme::muted("完整计划整批应用；普通文字保持不变，失败时所有文件保持原样。"));
+                if form.target.kind == "entity"
+                    && ui.button("改显示名（保留 ID）").clicked()
+                {
+                    edit_display = Some(form.target.id.clone());
+                }
                 ui.label("新的稳定 ID");
                 if ui
                     .add(
@@ -34,6 +53,7 @@ impl WorldeditApp {
                     .changed()
                 {
                     form.plan = None;
+                    self.io_error = None;
                 }
                 let current = form.guard.is_current(&self.project, self.version);
                 if !current {
@@ -55,22 +75,11 @@ impl WorldeditApp {
                 if let Some(plan) = &form.plan {
                     ui.separator();
                     ui.label(format!(
-                        "确认到 {} 个明确替换点，涉及 {} 个文件：",
+                        "确认到 {} 个明确身份引用，涉及 {} 个文件：",
                         plan.explicit_references,
                         plan.changes.len()
                     ));
-                    for change in &plan.changes {
-                        ui.label(format!(
-                            "{} · {} 处 · {}",
-                            change.kind,
-                            change.reference_count,
-                            change
-                                .path
-                                .strip_prefix(&self.project.root)
-                                .unwrap_or(&change.path)
-                                .display()
-                        ));
-                    }
+                    rename_preview(ui, plan, &self.project.root);
                     ui.colored_label(
                         theme::GOLD(),
                         "这不是改显示名。应用后旧 ID 将不存在；可用应用级撤销恢复。",
@@ -100,6 +109,85 @@ impl WorldeditApp {
             });
         if open && !applied {
             self.rename_form = Some(form);
+        }
+        if let Some(id) = edit_display {
+            if !self.prevent_replacing_draft("实体资料") {
+                self.edit_entity(Some(&id));
+                if self
+                    .entity_editor
+                    .as_ref()
+                    .is_some_and(|form| form.draft.id == id)
+                {
+                    self.rename_form = None;
+                    self.io_error = None;
+                }
+            }
+        }
+    }
+}
+
+fn rename_preview(ui: &mut egui::Ui, plan: &RenamePlan, root: &std::path::Path) {
+    ui.label(format!("内容基线：{}", plan.content_baseline));
+    let fingerprint = if plan.runtime_fingerprint_before == plan.runtime_fingerprint_after {
+        format!("运行指纹保持不变：{:016x}", plan.runtime_fingerprint_before)
+    } else {
+        format!(
+            "运行指纹变化：{:016x} → {:016x}；旧存档与检查点不匹配，入口重放须重新验证",
+            plan.runtime_fingerprint_before, plan.runtime_fingerprint_after
+        )
+    };
+    ui.label(fingerprint);
+    ui.label(theme::muted(
+        "以下是同一计划的真实前后内容；所有明确引用一起提交，不能单独取消某一处。",
+    ));
+    // 使用窗口唯一滚动区，避免小视口的内外滚动区截住滚轮，使末尾确认动作不可达。
+    for change in &plan.changes {
+        ui.separator();
+        ui.label(
+            egui::RichText::new(format!(
+                "{} · {} 处 · {}",
+                change
+                    .path
+                    .strip_prefix(root)
+                    .unwrap_or(&change.path)
+                    .display(),
+                change.reference_count,
+                if change.kind == "source" {
+                    "源码"
+                } else {
+                    "展示文档"
+                }
+            ))
+            .strong(),
+        );
+        for (index, occurrence) in change.occurrences.iter().enumerate() {
+            ui.push_id((change.path.clone(), index), |ui| {
+                if occurrence.field.as_deref() == Some("source.syntax") {
+                    ui.label(format!(
+                        "第 {} 行 · 语法行整体改写（可包含多个身份引用）",
+                        occurrence.line
+                    ));
+                } else {
+                    ui.label(format!(
+                        "第 {} 行 · {} · {} → {}",
+                        occurrence.line,
+                        occurrence.field.as_deref().unwrap_or("身份引用"),
+                        occurrence.before_token,
+                        occurrence.after_token
+                    ));
+                }
+                ui.label(theme::muted(format!(
+                    "UTF-8 字节 {}..{} → {}..{}",
+                    occurrence.before_range.start,
+                    occurrence.before_range.end,
+                    occurrence.after_range.start,
+                    occurrence.after_range.end
+                )));
+                ui.label("修改前");
+                ui.add(egui::Label::new(&occurrence.before_context).wrap());
+                ui.label("修改后");
+                ui.add(egui::Label::new(&occurrence.after_context).wrap());
+            });
         }
     }
 }

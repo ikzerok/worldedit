@@ -1,12 +1,14 @@
 //! 当前稿感知查找、受控替换及字节位置到编辑选区的统一入口。
+mod navigation;
 mod objects;
 mod selection;
 mod transactions;
 mod window;
 use super::WorldeditApp;
 pub(crate) use selection::{
-    editor_selection, record_editor_selection, request_selection, restore_editor_selection,
-    scroll_editor_selection,
+    clear_pending_selection, editor_selection, record_editor_selection, record_navigation_focus,
+    request_selection, restore_editor_selection, restore_writing_selection,
+    scroll_editor_selection, selection_is_representable,
 };
 use std::{collections::BTreeSet, path::PathBuf};
 use worldline_core::{manuscript::WritingBuffer, search_replace::*};
@@ -26,8 +28,11 @@ pub(super) struct SearchState {
     replacement: String,
     files: BTreeSet<PathBuf>,
     current: Option<selection::EditorSelection>,
+    current_version: Option<(String, u64)>,
     previous_focus: Option<egui::Id>,
     selected: usize,
+    located: Option<SearchMatch>,
+    navigation_basis: Option<navigation::NavigationBasis>,
     plan: Option<ReplacePlan>,
     error: Option<String>,
     replace: bool,
@@ -72,11 +77,14 @@ impl WorldeditApp {
         }
         self.search_state.current = selection::editor_selection(ctx).filter(|selection| {
             if self.tab == super::Tab::Manuscript {
-                self.manuscript
-                    .active_writing_target()
-                    .is_some_and(|(target, path)| {
-                        path == selection.path && selection.target.as_ref() == Some(&target)
-                    })
+                self.manuscript.comment_selection_is_current_mode()
+                    && self.manuscript_session().cursor.is_some()
+                    && self
+                        .manuscript
+                        .active_writing_target()
+                        .is_some_and(|(target, path)| {
+                            path == selection.path && selection.target.as_ref() == Some(&target)
+                        })
             } else {
                 selection.path == self.active_file && selection.target.is_none()
             }
@@ -114,6 +122,14 @@ impl WorldeditApp {
                 });
             }
         }
+        self.search_state.current_version =
+            self.search_state.current.as_ref().and_then(|current| {
+                self.manuscript
+                    .writing_buffers()
+                    .iter()
+                    .find(|buffer| buffer.path() == current.path)
+                    .map(|buffer| (buffer.baseline().to_owned(), buffer.generation()))
+            });
         if self.search_state.previous_focus.is_none() {
             self.search_state.previous_focus = self
                 .search_state
@@ -143,6 +159,8 @@ impl WorldeditApp {
         self.search_state.plan = None;
         self.search_state.error = None;
         self.search_state.selected = 0;
+        self.search_state.located = None;
+        self.search_state.navigation_basis = None;
         self.search_open = true;
         self.search_focus = true;
     }
@@ -160,6 +178,16 @@ impl WorldeditApp {
         } else {
             let current = state.current.as_ref().ok_or("请先打开正文或源码文稿")?;
             let range = if state.scope == Scope::Selection {
+                if let Some((baseline, generation)) = &state.current_version {
+                    let valid = self.manuscript.writing_buffers().iter().any(|buffer| {
+                        buffer.path() == current.path
+                            && buffer.baseline() == baseline
+                            && buffer.generation() == *generation
+                    });
+                    if !valid {
+                        return Err("选区对应草稿版本已变化，请重新选择".into());
+                    }
+                }
                 let source = self
                     .manuscript
                     .writing_buffers()
@@ -210,42 +238,6 @@ impl WorldeditApp {
     pub(in crate::app) fn current_search_hits(&self) -> Result<Vec<SearchMatch>, String> {
         self.project
             .search_drafts(&self.search_request()?, &self.manuscript.writing_buffers())
-    }
-    pub(in crate::app) fn go_search_hit(&mut self, ctx: &egui::Context, hit: &SearchMatch) {
-        let drafts = self.manuscript.writing_buffers();
-        let source = drafts
-            .iter()
-            .find(|b| b.path() == hit.path && b.is_changed())
-            .map(|b| b.source().to_owned())
-            .or_else(|| self.project.document(&hit.path).ok().map(str::to_owned));
-        if let Some(source) = source {
-            selection::request_selection(ctx, hit.path.clone(), source, hit.range.clone());
-            if (hit.draft || self.tab == super::Tab::Manuscript)
-                && self
-                    .manuscript
-                    .focus_writing_match(&hit.path, hit.range.start, &self.project)
-            {
-                self.tab = super::Tab::Manuscript;
-            } else if hit.draft {
-                self.search_state.error = Some(
-                    "此命中来自未应用草稿，请打开其关联书稿章节后定位；未切换到旧工程内容".into(),
-                );
-            } else {
-                self.jump_to_file(&hit.path.to_string_lossy(), hit.line, hit.column);
-            }
-        }
-    }
-    pub(in crate::app) fn navigate_search(&mut self, ctx: &egui::Context, previous: bool) {
-        if let Ok(hits) = self.current_search_hits() {
-            if !hits.is_empty() {
-                self.search_state.selected = if previous {
-                    (self.search_state.selected + hits.len() - 1) % hits.len()
-                } else {
-                    (self.search_state.selected + 1) % hits.len()
-                };
-                self.go_search_hit(ctx, &hits[self.search_state.selected]);
-            }
-        }
     }
     pub(in crate::app) fn refresh_search_return_focus(&mut self, ctx: &egui::Context) {
         if let Some(id) = selection::take_restored_focus(ctx) {

@@ -379,7 +379,7 @@ fn search_cross_tab_current_scope_and_clean_hit_use_visible_source() {
     assert_eq!(app.active_file, hit.path);
 }
 #[test]
-fn search_prose_navigation_then_escape_keeps_actual_source_focus_and_match_selection() {
+fn search_prose_navigation_then_escape_keeps_prose_focus_and_match_selection() {
     let (ctx, mut app) = app();
     let root = app.project.root.clone();
     let path = app.active_file.clone();
@@ -418,7 +418,11 @@ fn search_prose_navigation_then_escape_keeps_actual_source_focus_and_match_selec
         vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
     );
     frame(&ctx, &mut app, vec![]);
-    let source_id = egui::Id::new(("writing-source", &path, &target.kind, &target.id));
+    let source_id = prose_id;
+    assert_eq!(
+        app.manuscript_session().mode,
+        crate::app::writing_workspace::Mode::Prose
+    );
     assert!(egui::TextEdit::load_state(&ctx, source_id).is_some());
     frame(
         &ctx,
@@ -438,8 +442,11 @@ fn search_prose_navigation_then_escape_keeps_actual_source_focus_and_match_selec
         .find(|b| b.path() == path)
         .unwrap();
     assert_eq!(
-        buffer
-            .source()
+        app.project
+            .project_writing_buffer(&buffer, &target)
+            .unwrap()
+            .blocks[0]
+            .text
             .chars()
             .skip(start)
             .take(end - start)
@@ -472,3 +479,6 @@ fn search_linux_replacement_shortcut_opens_replacement_ui() {
         assert!(app.search_state.replace);
     }
 }
+
+#[path = "author_context_tests.rs"]
+mod author_context_tests;
