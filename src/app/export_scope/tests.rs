@@ -412,9 +412,8 @@ fn inventory_includes_hidden_schema_templates_multiple_sources_and_other_authori
     assert!(inputs
         .iter()
         .any(|i| i.kind == "持续资料约束草稿" && i.source.ends_with("world.wl")));
-    assert!(inputs
-        .iter()
-        .any(|i| i.kind == "正在输入的源码 / 输入法" && i.source.ends_with("notes/second.wl")));
+    assert!(inputs.iter().any(|i| i.kind == "正在输入的源码 / 输入法"
+        && i.source.replace('\\', "/").ends_with("notes/second.wl")));
     assert_eq!(app.project.content_baseline(), baseline);
     let _ = fs::remove_dir_all(app.project.root);
 }
@@ -451,7 +450,8 @@ fn changing_only_new_form_source_path_is_an_unapplied_input() {
     assert!(app
         .unapplied_export_inputs()
         .iter()
-        .any(|i| i.kind == "事件正文与分支" && i.source.contains("notes/second.wl")));
+        .any(|i| i.kind == "事件正文与分支"
+            && i.source.replace('\\', "/").contains("notes/second.wl")));
     app.new_character();
     assert!(!app
         .unapplied_export_inputs()
@@ -461,7 +461,7 @@ fn changing_only_new_form_source_path_is_an_unapplied_input() {
     assert!(app
         .unapplied_export_inputs()
         .iter()
-        .any(|i| i.kind == "人物资料" && i.source.contains("notes/second.wl")));
+        .any(|i| i.kind == "人物资料" && i.source.replace('\\', "/").contains("notes/second.wl")));
     let _ = fs::remove_dir_all(app.project.root);
 }
 

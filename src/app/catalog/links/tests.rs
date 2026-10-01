@@ -115,7 +115,11 @@ fn template_only_character_backlink_uses_cached_index_and_matches_delete_impact(
         collect(&shape.shape, &mut text);
     }
     assert!(text.contains("模板默认值引用"), "{text}");
-    assert!(text.contains(".world/templates/ship.json"), "{text}");
+    assert!(
+        text.replace('\\', "/")
+            .contains(".world/templates/ship.json"),
+        "{text}"
+    );
     assert!(!text.contains("尚无直接引用"), "{text}");
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(app.history.is_empty());
