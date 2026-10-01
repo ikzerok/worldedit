@@ -89,12 +89,14 @@ pub(super) fn draw(
         }
     });
     if !typography.compact {
-        ui.label(theme::muted(format!(
+        let source_label = format!(
             "{}:{} · {}",
             target.kind,
             target.id,
             buffer.path().display()
-        )));
+        );
+        ui.add(egui::Label::new(theme::muted(&source_label)).truncate())
+            .on_hover_text(source_label);
     }
     ui.label(theme::muted(if buffer.is_changed() {
         "未应用草稿 · 尚未保存"
