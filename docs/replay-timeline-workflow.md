@@ -1,6 +1,6 @@
 # 时间约束与可信重放
 
-产品 0.12 让事件表单与已有世界偏序语义一致，并避免片段源码位置变化制造重放分歧。默认语言仍为 1.9，最高支持 1.13，不自动升级旧作品。配对 worldline 的[栖雪山站示例](../../worldline/examples/snowline-seeds/README.md)可用于下面的操作；发行包内也可从 worldline/examples 找到它。
+产品 0.12 让事件表单与已有世界偏序语义一致，并避免片段源码位置变化制造重放分歧。默认语言仍为 1.9，最高支持 1.13，不自动升级旧作品。配对 worldline 的[栖雪山站示例（在线，需联网）](https://github.com/ikzerok/worldline/blob/d41034dff247f590070a4aaf18c14f943ef7620b/examples/snowline-seeds/README.md)可用于下面的操作；离线 Windows 发行包内的说明位于 `windows/worldline/examples/snowline-seeds/README.md`；配对源码中位于 `worldline/examples/snowline-seeds/README.md`。
 
 ## 改时段前先看已选关系
 
@@ -34,4 +34,4 @@
 
 遇到基线过期或磁盘冲突，保留输入并查看差异，在最新原文上合并后重试。不要为消除提示自动应用、清空或重置基线。完整导出会列出未应用输入；若选择仅导出已应用版，那些输入不会进入副本。详见[工作区说明](workspace.md)。
 
-稳定 ID、显示名、别名与正文文字分开。当前统一身份重命名支持 entity/relation，以及显式 1.11 起的 rule/fragment/character/tag/state；event/scene/file 尚不在同一安全改名范围。手动改引用或移动文件不是一键原子重构，人物等运行身份改名仍可能使旧存档不兼容。更完整的作者路线见[从资料到可信重放](../../worldline/docs/author-route.md)。
+稳定 ID、显示名、别名与正文文字分开。当前统一身份重命名支持 entity/relation，以及显式 1.11 起的 rule/fragment/character/tag/state；event/scene/file 尚不在同一安全改名范围。手动改引用或移动文件不是一键原子重构，人物等运行身份改名仍可能使旧存档不兼容。离线 Windows 包内的完整路线位于 `windows/worldline/docs/author-route.md`；也可在线阅读[从资料到可信重放（在线，需联网）](https://github.com/ikzerok/worldline/blob/d41034dff247f590070a4aaf18c14f943ef7620b/docs/author-route.md)。
