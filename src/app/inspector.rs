@@ -204,7 +204,7 @@ impl WorldeditApp {
                                 .desired_width(f32::INFINITY),
                         );
                         field(ui, "事件名称 / 简述", &mut editor.draft.summary);
-                        if let Err(error) = super::choices::choice_cards(ui, &mut editor.draft, self.snapshot.as_ref().map(|s| &s.result.analysis.graph), self.snapshot.as_ref().map(|s| &s.result.analysis.catalog), self.snapshot.as_ref().map(|s| &s.result.analysis.symbols)) {
+                        if let Err(error) = super::choices::choice_cards(ui, &mut editor.draft, self.snapshot.as_ref().map(|s| &s.result.analysis.graph), self.snapshot.as_ref().map(|s| &s.result.analysis.catalog), self.snapshot.as_ref().map(|s| &s.result.analysis.symbols), self.project.language_version() == "1.12") {
                             self.io_error = Some(error);
                         }
                         ui.add_space(12.0);

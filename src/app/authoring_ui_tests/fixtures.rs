@@ -4,11 +4,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 pub(super) static NEXT_TEST_ROOT: AtomicUsize = AtomicUsize::new(0);
 
 pub(super) fn app() -> (egui::Context, WorldeditApp) {
+    app_in_directory(&std::env::temp_dir())
+}
+
+fn app_in_directory(directory: &std::path::Path) -> (egui::Context, WorldeditApp) {
     let ctx = egui::Context::default();
     ctx.style_mut(|style| style.animation_time = 0.0);
     let creation = eframe::CreationContext::_new_kittest(ctx.clone());
     let mut app = WorldeditApp::new(&creation, None);
-    let root = std::env::temp_dir().join(format!(
+    let root = directory.join(format!(
         "worldedit-form-ui-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
@@ -64,7 +68,13 @@ pub(super) fn register_project_template(app: &mut WorldeditApp, document: &str) 
     app.recompile();
 }
 pub(super) fn manuscript_app() -> (egui::Context, WorldeditApp) {
-    let (ctx, mut app) = app();
+    manuscript_app_in_directory(&std::env::temp_dir())
+}
+
+pub(super) fn manuscript_app_in_directory(
+    directory: &std::path::Path,
+) -> (egui::Context, WorldeditApp) {
+    let (ctx, mut app) = app_in_directory(directory);
     app.project
         .set_text(
             &app.active_file.clone(),

@@ -101,9 +101,16 @@ impl WorldeditApp {
                                 .story
                                 .as_ref()
                                 .map(|s| {
-                                    s.choices()
+                                    s.choice_presentations()
                                         .iter()
-                                        .map(|c| (c.label.clone(), c.links.clone()))
+                                        .map(|c| {
+                                            (
+                                                c.label.clone(),
+                                                c.links.clone(),
+                                                c.enabled,
+                                                c.disabled_reason.clone(),
+                                            )
+                                        })
                                         .collect()
                                 })
                                 .unwrap_or_default();
@@ -112,7 +119,7 @@ impl WorldeditApp {
                             } else {
                                 ui.label(crate::theme::muted("点击关键词看注释；点击“选择”推进。"));
                             }
-                            for (i, (label, links)) in choices.iter().enumerate() {
+                            for (i, (label, links, enabled, reason)) in choices.iter().enumerate() {
                                 let mut choose = false;
                                 ui.push_id(i, |ui| {
                                     ui.group(|ui| {
@@ -128,14 +135,24 @@ impl WorldeditApp {
                                                 reading_request = Some(target);
                                             }
                                         }
-                                        choose = ui.button(format!("选择：{label}")).clicked();
+                                        choose = ui
+                                            .add_enabled(
+                                                *enabled && !play.paused,
+                                                egui::Button::new(format!("选择：{label}")),
+                                            )
+                                            .clicked();
+                                        if let Some(reason) = reason {
+                                            ui.label(crate::theme::muted(format!(
+                                                "暂不可选：{reason}"
+                                            )));
+                                        }
                                     });
                                 });
                                 if choose
                                     && play
                                         .story
                                         .as_mut()
-                                        .map(|s| s.choose(i))
+                                        .map(|s| s.choose_presentation(i))
                                         .is_some_and(|r| r.is_ok())
                                 {
                                     self.replay_debugger.explanations = None;

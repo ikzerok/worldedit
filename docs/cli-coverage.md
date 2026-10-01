@@ -33,3 +33,9 @@ AI 创作的可用流程是：读取作品 → CLI 检查与反查 → 改写工
 ## 验证依据
 
 静态核对 worldedit/src/main.rs 的参数入口、app.rs 的 UI 操作、worldline/cli/src/lib.rs 的子命令分发和 worldline/agent/src/lib.rs 的 RPC 方法分发；CLI 与协议测试覆盖分析及会话。实体接口以配对 worldline/spec/agent-protocol.md 的参数和验收为准。此表不把“共享 Rust API”计作现成 CLI 能力。
+
+## 0.9 约束与当前稿边界
+
+持续schema诊断随check/workspace check/发布前检查生效；schema-index、schema-preview、schema-apply及RPC同名语义可独立使用。锁定choice通过CLI `--choice-presentation`与RPC session capability协商，旧choices索引不变。
+
+编辑器尚未应用的WritingBuffer属于当前桌面会话；独立CLI不能读取其窗口内草稿。Find/Replace、焦点、专注布局与当前稿预览由编辑器调用同一core API，不宣称外部CLI遥控全部UI。本地化只交换显式白名单，runtime不自动切语言。

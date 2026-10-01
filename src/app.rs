@@ -42,6 +42,7 @@ mod reading;
 mod reading_state;
 mod refactor_ui;
 mod relation_editor;
+mod schema_ui;
 mod search;
 #[cfg(not(target_arch = "wasm32"))]
 mod startup;
@@ -295,6 +296,7 @@ pub struct WorldeditApp {
     search_open: bool,
     search_focus: bool,
     project_query: String,
+    search_state: search::SearchState,
     focus_event: Option<String>,
     zoom: f32,
     graph_positions: HashMap<String, Pos2>,
@@ -332,6 +334,7 @@ pub struct WorldeditApp {
     manuscript: manuscript::WorkbenchState,
     localization_ui: localization_ui::LocalizationUiState,
     template_manager: template_manager::ManagerState,
+    schema_ui: schema_ui::SchemaUiState,
     checkpoint_history: checkpoint_history::HistoryState,
     reader_publish: reader_publish::ReaderPublishState,
 }

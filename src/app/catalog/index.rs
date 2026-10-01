@@ -5,6 +5,9 @@ use worldline_core::catalog::Catalog;
 impl WorldeditApp {
     pub(super) fn catalog_index_ui(&mut self, ui: &mut egui::Ui, catalog: &Catalog) -> bool {
         let mut selected_object = false;
+        if ui.button("持续资料约束").clicked() {
+            self.open_schema_editor(ui.ctx());
+        }
         ui.label(RichText::new("世界资料索引").strong().size(17.0));
         ui.horizontal_wrapped(|ui| {
             for (id, name) in [

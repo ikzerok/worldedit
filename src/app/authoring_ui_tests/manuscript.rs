@@ -274,7 +274,10 @@ fn manuscript_status_filter_is_personal_and_clear_restores_outline() {
 
 #[test]
 fn narrow_manuscript_keeps_body_and_metadata_reachable() {
-    let (ctx, mut app) = manuscript_app();
+    // Windows runner profiles and real deep workspaces must not push prose below the viewport.
+    let directory = std::env::temp_dir()
+        .join("worldedit-long-source-path-layout-regression/Users/runneradmin/AppData/Local/Temp");
+    let (ctx, mut app) = manuscript_app_in_directory(&directory);
     let output = frame(&ctx, &mut app, Vec::new(), 32);
     assert!(visible_text_position(&output, "甲乙").is_some());
     assert!(visible_text_position(&output, "编排与来源").is_some());
