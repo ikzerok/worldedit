@@ -10,9 +10,15 @@ pub(in crate::app) struct WritingCursor {
     pub mode: String,
     pub block_offset: usize,
     pub cursor: usize,
+    #[serde(default)]
+    pub secondary: Option<usize>,
+    #[serde(default)]
+    pub generation: Option<u64>,
+    #[serde(default)]
+    pub buffer_baseline: Option<String>,
 }
 
-pub(super) fn fingerprint(source: &str) -> String {
+pub(in crate::app) fn fingerprint(source: &str) -> String {
     let hash = source.bytes().fold(0xcbf29ce484222325u64, |hash, byte| {
         (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
     });
@@ -25,6 +31,21 @@ impl ViewState {
             .clone()
             .filter(|cursor| cursor.mode == self.mode.key())
     }
+    pub(in crate::app) fn cursor_for_buffer(
+        &self,
+        buffer: &WritingBuffer,
+        target: &TargetRef,
+    ) -> Option<WritingCursor> {
+        if !self.selection_is_current_mode() {
+            return None;
+        }
+        self.session_cursor().filter(|cursor| {
+            cursor.target == *target
+                && cursor.source_baseline == fingerprint(buffer.source())
+                && cursor.generation == Some(buffer.generation())
+                && cursor.buffer_baseline.as_deref() == Some(buffer.baseline())
+        })
+    }
     pub(in crate::app) fn selection_is_current_mode(&self) -> bool {
         self.selection_mode == Some(self.mode)
     }
@@ -36,6 +57,7 @@ impl ViewState {
         self.selection_mode = None;
         self.cursor = None;
         self.pending_cursor = None;
+        self.pending_focus = true;
     }
     pub(in crate::app) fn restore_cursor(&mut self, cursor: Option<WritingCursor>) {
         self.pending_cursor = cursor.filter(|cursor| cursor.mode == self.mode.key());
@@ -47,6 +69,13 @@ impl ViewState {
         if saved.target != *target
             || saved.source_baseline != fingerprint(buffer.source())
             || saved.mode != self.mode.key()
+            || saved
+                .generation
+                .is_some_and(|generation| generation != buffer.generation())
+            || saved
+                .buffer_baseline
+                .as_deref()
+                .is_some_and(|baseline| baseline != buffer.baseline())
         {
             self.pending_cursor = None;
         }
@@ -59,17 +88,36 @@ impl ViewState {
         block_offset: usize,
         text: &str,
     ) {
+        let position_key = id.with("writing-position-version");
+        let version = format!(
+            "{}:{}:{}",
+            buffer.baseline(),
+            buffer.generation(),
+            fingerprint(buffer.source())
+        );
+        if ui
+            .ctx()
+            .data(|data| data.get_temp::<String>(position_key))
+            .is_some_and(|previous| previous != version)
+        {
+            let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+            state
+                .cursor
+                .set_char_range(Some(egui::text::CCursorRange::one(
+                    egui::text::CCursor::new(0),
+                )));
+            state.store(ui.ctx(), id);
+        }
         super::prepare_text_undo(ui.ctx(), id, text);
-        if super::super::search::restore_editor_selection(
-            ui,
-            id,
-            buffer.path(),
-            buffer.source(),
-            block_offset,
-            text,
-        ) {
+        if super::super::search::restore_writing_selection(ui, id, buffer, block_offset, text) {
             self.pending_cursor = None;
+            self.pending_focus = false;
             return;
+        }
+        if self.pending_cursor.is_none() && self.pending_focus {
+            ui.memory_mut(|memory| memory.request_focus(id));
+            super::super::search::record_navigation_focus(ui.ctx(), id);
+            self.pending_focus = false;
         }
         if !self.pending_cursor.as_ref().is_some_and(|cursor| {
             cursor.block_offset == block_offset && cursor.mode == self.mode.key()
@@ -78,13 +126,20 @@ impl ViewState {
         }
         let saved = self.pending_cursor.take().unwrap();
         let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
-        state
-            .cursor
-            .set_char_range(Some(egui::text::CCursorRange::one(
-                egui::text::CCursor::new(saved.cursor.min(text.chars().count())),
-            )));
+        state.cursor.set_char_range(Some(egui::text::CCursorRange {
+            primary: egui::text::CCursor::new(saved.cursor.min(text.chars().count())),
+            secondary: egui::text::CCursor::new(
+                saved
+                    .secondary
+                    .unwrap_or(saved.cursor)
+                    .min(text.chars().count()),
+            ),
+            h_pos: None,
+        }));
         state.store(ui.ctx(), id);
         ui.memory_mut(|memory| memory.request_focus(id));
+        super::super::search::record_navigation_focus(ui.ctx(), id);
+        self.pending_focus = false;
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn record_cursor(
@@ -97,6 +152,17 @@ impl ViewState {
         text: &str,
     ) {
         super::remember_text_undo(ui.ctx(), output.response.id, text);
+        ui.ctx().data_mut(|data| {
+            data.insert_temp(
+                output.response.id.with("writing-position-version"),
+                format!(
+                    "{}:{}:{}",
+                    buffer.baseline(),
+                    buffer.generation(),
+                    fingerprint(buffer.source())
+                ),
+            )
+        });
         super::super::search::scroll_editor_selection(ui, output);
         if !output.response.has_focus() {
             return;
@@ -119,6 +185,9 @@ impl ViewState {
                 mode: self.mode.key().into(),
                 block_offset,
                 cursor: range.primary.index,
+                secondary: Some(range.secondary.index),
+                generation: Some(buffer.generation()),
+                buffer_baseline: Some(buffer.baseline().into()),
             });
         }
     }
@@ -143,6 +212,9 @@ mod tests {
             mode: "prose".into(),
             block_offset: 12,
             cursor: 2,
+            secondary: None,
+            generation: None,
+            buffer_baseline: None,
         };
         let mut view = ViewState::default();
         view.restore_cursor(Some(cursor.clone()));
@@ -168,6 +240,9 @@ mod mode_tests {
             mode: "source".into(),
             block_offset: 0,
             cursor: 3,
+            secondary: None,
+            generation: None,
+            buffer_baseline: None,
         };
         let mut view = ViewState {
             cursor: Some(cursor.clone()),

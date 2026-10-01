@@ -62,6 +62,8 @@ pub(super) struct Location {
     pub file: PathBuf,
     pub cursor: Option<usize>,
     pub source_scroll: [f32; 2],
+    pub source_baseline: Option<String>,
+    pub source_secondary: Option<usize>,
     pub target: Option<TargetRef>,
     pub editor: Option<TargetRef>,
     pub event: Option<String>,
@@ -226,6 +228,17 @@ impl WorldeditApp {
             file: self.active_file.clone(),
             cursor,
             source_scroll: self.personal.source_scroll,
+            source_baseline: self
+                .project
+                .document(&self.active_file)
+                .ok()
+                .map(super::writing_workspace::fingerprint),
+            source_secondary: ctx
+                .and_then(|ctx| {
+                    egui::TextEdit::load_state(ctx, egui::Id::new(("source", &self.active_file)))
+                })
+                .and_then(|state| state.cursor.char_range())
+                .map(|range| range.secondary.index),
             target: self
                 .open_object_identity()
                 .or_else(|| self.catalog_target.clone()),
@@ -235,7 +248,9 @@ impl WorldeditApp {
         }
     }
     pub(super) fn remember_author_position(&mut self) {
-        let position = self.author_location(None);
+        self.remember_author_location(self.author_location(None));
+    }
+    pub(super) fn remember_author_location(&mut self, position: Location) {
         if self.personal.history.last() != Some(&position) {
             self.personal.history.push(position);
             if self.personal.history.len() > 64 {
@@ -311,38 +326,102 @@ impl WorldeditApp {
             }
         }
     }
-    fn restore_author_location(&mut self, location: Location, ctx: &egui::Context) {
-        let known = self.project.documents.contains_key(&location.file)
+    fn restore_author_location(&mut self, mut location: Location, ctx: &egui::Context) {
+        if location.tab == Some(Tab::Manuscript) {
+            if let Ok(mut session) = serde_json::from_value::<super::manuscript::ManuscriptSession>(
+                location.manuscript.clone(),
+            ) {
+                match self.manuscript.validate_session(&self.project, &session) {
+                    Err(error) => {
+                        self.message = Some(error);
+                        return;
+                    }
+                    Ok(false) => {
+                        session.cursor = None;
+                        session.restore_offsets = Some(false);
+                        self.message = Some("已返回章节与模式；来源或草稿版本已变化，未恢复旧选区和滚动，当前稿完整保留".into());
+                    }
+                    Ok(true) => {}
+                }
+                location.manuscript = serde_json::to_value(session).unwrap_or_default();
+            }
+        }
+        super::search::clear_pending_selection(ctx);
+        self.jump = None;
+        let known = self
+            .project
+            .documents
+            .get(&location.file)
+            .is_some_and(|document| !document.is_deleted())
             || self
                 .project
                 .authoring_document(&location.file)
                 .is_ok_and(|d| !d.is_deleted());
         if known {
+            let returning_to_current_file = self.active_file == location.file;
             self.active_file = location.file;
-            self.personal.source_scroll =
-                location
-                    .source_scroll
-                    .map(|v| if v.is_finite() { v.max(0.0) } else { 0.0 });
-            self.personal.restore_source = true;
-            if let Some(cursor) = location.cursor {
-                let length = self
-                    .project
+            let source_current = location.source_baseline.as_ref().is_some_and(|baseline| {
+                self.project
                     .document(&self.active_file)
-                    .map(|text| text.chars().count())
-                    .unwrap_or(0);
-                let cursor = cursor.min(length);
-                self.personal.source_cursor = Some((self.active_file.clone(), cursor));
-                let id = egui::Id::new(("source", &self.active_file));
-                let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
-                state
-                    .cursor
-                    .set_char_range(Some(egui::text::CCursorRange::one(
-                        egui::text::CCursor::new(cursor),
-                    )));
-                egui::TextEdit::store_state(ctx, id, state);
+                    .is_ok_and(|source| super::writing_workspace::fingerprint(source) == *baseline)
+            });
+            if location.tab == Some(Tab::Edit) && source_current {
+                self.personal.source_scroll =
+                    location
+                        .source_scroll
+                        .map(|v| if v.is_finite() { v.max(0.0) } else { 0.0 });
+                self.personal.restore_source = true;
+                if let Some(cursor) = location.cursor {
+                    let length = self
+                        .project
+                        .document(&self.active_file)
+                        .map(|text| text.chars().count())
+                        .unwrap_or(0);
+                    let cursor = cursor.min(length);
+                    self.personal.source_cursor = Some((self.active_file.clone(), cursor));
+                    let id = egui::Id::new(("source", &self.active_file));
+                    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+                    state.cursor.set_char_range(Some(egui::text::CCursorRange {
+                        primary: egui::text::CCursor::new(cursor),
+                        secondary: egui::text::CCursor::new(
+                            location.source_secondary.unwrap_or(cursor).min(length),
+                        ),
+                        h_pos: None,
+                    }));
+                    egui::TextEdit::store_state(ctx, id, state);
+                    ctx.memory_mut(|memory| memory.request_focus(id));
+                    super::search::record_navigation_focus(ctx, id);
+                }
+            } else if location.tab == Some(Tab::Edit) {
+                let current_selection = returning_to_current_file
+                    && super::search::editor_selection(ctx).is_some_and(|selection| {
+                        selection.path == self.active_file
+                            && selection.target.is_none()
+                            && self.project.document(&self.active_file).ok()
+                                == Some(selection.source.as_str())
+                    });
+                self.personal.restore_source = !current_selection;
+                if !current_selection {
+                    self.personal.source_scroll = [0.0, 0.0];
+                    let id = egui::Id::new(("source", &self.active_file));
+                    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+                    state
+                        .cursor
+                        .set_char_range(Some(egui::text::CCursorRange::one(
+                            egui::text::CCursor::new(0),
+                        )));
+                    state.store(ctx, id);
+                }
+                self.personal.source_cursor = None;
+                self.message = Some(
+                    "已返回源文件；来源版本已变化，未恢复旧选区和滚动，当前内容完整保留".into(),
+                );
             }
         } else {
             self.message = Some("上次的来源文件已不存在，保留当前入口".into());
+            if location.tab == Some(Tab::Edit) {
+                return;
+            }
         }
         if let Some(tab) = location.tab {
             self.tab = tab;

@@ -3,6 +3,8 @@ mod editing;
 mod layout;
 mod outline;
 mod preview;
+mod search_navigation;
+mod session;
 mod transactions;
 mod workbench;
 
@@ -108,62 +110,6 @@ impl WorkbenchState {
         self.chapter_sources
             .get(&(book.clone(), chapter.clone()))
             .cloned()
-    }
-
-    pub(in crate::app) fn focus_writing_match(
-        &mut self,
-        path: &std::path::Path,
-        byte_offset: usize,
-        project: &worldline_core::project::Project,
-    ) -> bool {
-        let Some(buffer) = self.writing_buffers.get(path) else {
-            return false;
-        };
-        let mut fallback = None;
-        let mut selected = None;
-        for (book, local) in &self.books {
-            for chapter in &local.draft.entries {
-                let Some(target) = &chapter.target_ref else {
-                    continue;
-                };
-                let same_file = self
-                    .chapter_sources
-                    .get(&(book.clone(), chapter.id.clone()))
-                    .is_some_and(|(_, source)| source == path)
-                    || project
-                        .open_writing_buffer(target)
-                        .is_ok_and(|source| source.path() == path);
-                if !same_file {
-                    continue;
-                }
-                let candidate = (book.clone(), chapter.id.clone(), target.clone());
-                if fallback.is_none() {
-                    fallback = Some(candidate.clone());
-                }
-                if let Ok(projection) = project.project_writing_buffer(buffer, target) {
-                    if projection.range.contains(&byte_offset) {
-                        selected = Some(candidate);
-                        break;
-                    }
-                }
-            }
-            if selected.is_some() {
-                break;
-            }
-        }
-        let Some((book, chapter, target)) = selected.or(fallback) else {
-            return false;
-        };
-        self.selected_book = Some(book.clone());
-        if let Some(local) = self.books.get_mut(&book) {
-            local.selected_entry = Some(chapter.clone());
-        }
-        self.chapter_sources
-            .insert((book, chapter), (target, path.to_owned()));
-        self.narrow_preview = false;
-        self.writing_view
-            .restore_mode(super::writing_workspace::Mode::Source);
-        true
     }
 
     pub(in crate::app) fn restore_writing_buffers(&mut self, buffers: &[WritingBuffer]) {
@@ -309,55 +255,4 @@ fn source_status_text(status: ManuscriptReferenceStatus) -> &'static str {
     }
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
-#[serde(default)]
-pub(in crate::app) struct ManuscriptSession {
-    pub manuscript_id: Option<String>,
-    pub selected_id: Option<String>,
-    pub scroll_y: f32,
-    pub preview_open: Option<bool>,
-    pub preview_whole_book: Option<bool>,
-    pub preview_tab: Option<bool>,
-    pub cursor: Option<super::writing_workspace::WritingCursor>,
-    pub mode: super::writing_workspace::Mode,
-}
-
-impl super::WorldeditApp {
-    pub(in crate::app) fn manuscript_session(&self) -> ManuscriptSession {
-        ManuscriptSession {
-            manuscript_id: self.manuscript.selected_book.clone(),
-            mode: self.manuscript.writing_view.session_mode(),
-            scroll_y: self.manuscript.scroll_y,
-            preview_open: Some(self.manuscript.reader_open),
-            preview_whole_book: Some(self.manuscript.reader_whole_book),
-            preview_tab: Some(self.manuscript.narrow_preview),
-            cursor: self
-                .manuscript
-                .writing_view
-                .session_cursor()
-                .filter(|cursor| {
-                    self.manuscript
-                        .selected_book
-                        .as_ref()
-                        .and_then(|id| self.manuscript.books.get(id))
-                        .and_then(|book| {
-                            book.selected_entry.as_ref().and_then(|id| {
-                                book.draft.entries.iter().find(|entry| &entry.id == id)
-                            })
-                        })
-                        .and_then(|entry| entry.target_ref.as_ref())
-                        == Some(&cursor.target)
-                }),
-            selected_id: self
-                .manuscript
-                .selected_book
-                .as_ref()
-                .and_then(|id| self.manuscript.books.get(id))
-                .and_then(|book| book.selected_entry.clone()),
-        }
-    }
-
-    pub(in crate::app) fn restore_manuscript_session(&mut self, session: ManuscriptSession) {
-        self.manuscript.pending_session = Some(session);
-    }
-}
+pub(in crate::app) use session::ManuscriptSession;

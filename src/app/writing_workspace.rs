@@ -2,6 +2,7 @@
 mod session;
 mod text_undo;
 use crate::theme;
+pub(in crate::app) use session::fingerprint;
 pub(super) use session::WritingCursor;
 pub(in crate::app) use text_undo::{prepare_text_undo, remember_text_undo};
 use worldline_core::catalog::TargetRef;
@@ -35,6 +36,7 @@ pub(super) struct ViewState {
     cursor: Option<WritingCursor>,
     selection_mode: Option<Mode>,
     pending_cursor: Option<WritingCursor>,
+    pending_focus: bool,
 }
 
 #[derive(Default)]

@@ -87,14 +87,21 @@ impl WorldeditApp {
         let language_version = self.project.language_version_kind();
         let body_size = self.personal.settings.body_size;
         let line_height = body_size * self.personal.settings.line_spacing;
+        let scroll_salt = egui::Id::new(("source-scroll", &path));
         let mut scroll = egui::ScrollArea::both();
-        if self.personal.restore_source {
-            scroll = scroll.scroll_offset(egui::vec2(
+        let restoring_scroll = self.personal.restore_source && target.is_none();
+        if restoring_scroll {
+            let offset = egui::vec2(
                 self.personal.source_scroll[0],
                 self.personal.source_scroll[1],
-            ));
-            self.personal.restore_source = false;
+            );
+            // 完整返回位置优先于上一命中的动画和惯性。
+            let mut state = egui::scroll_area::State::default();
+            state.offset = offset;
+            state.store(ctx, ui.make_persistent_id(scroll_salt));
+            scroll = scroll.scroll_offset(offset).animated(false);
         }
+        self.personal.restore_source = false;
         let scroll_output = scroll
             .id_salt(("source-scroll", &path))
             .auto_shrink([false, false])
@@ -370,6 +377,9 @@ impl WorldeditApp {
                         ui.scroll_to_rect(rect, Some(egui::Align::Center));
                     }
                 });
+                if restoring_scroll {
+                    ui.scroll_to_rect(ui.clip_rect(), None);
+                }
             });
         self.personal.source_scroll = [scroll_output.state.offset.x, scroll_output.state.offset.y];
         if let (Some((at_char, query, candidates, selected_index)), Some(anchor)) =

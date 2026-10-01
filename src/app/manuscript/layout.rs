@@ -77,11 +77,18 @@ impl super::super::WorldeditApp {
         selected: Option<&ManuscriptEntryDraft>,
     ) -> BodyAction {
         let mut action = None;
+        let scroll_salt = egui::Id::new(("manuscript-main", book, &local.selected_entry));
         let mut scroll = egui::ScrollArea::vertical()
             .id_salt(("manuscript-main", book, &local.selected_entry))
             .auto_shrink([false, false]);
-        if let Some(offset) = self.manuscript.pending_scroll.take() {
-            scroll = scroll.vertical_scroll_offset(offset);
+        let restored_scroll = self.manuscript.pending_scroll.take();
+        if let Some(offset) = restored_scroll {
+            // 返回的视口是完整位置：旧搜索遗留的动画目标和惯性不能覆盖它。
+            // egui 的 vertical_scroll_offset 仅改 offset，不清理这些内部状态。
+            let mut state = egui::scroll_area::State::default();
+            state.offset.y = offset;
+            state.store(ui.ctx(), ui.make_persistent_id(scroll_salt));
+            scroll = scroll.vertical_scroll_offset(offset).animated(false);
         }
         let output = scroll.show(ui, |ui| {
             if !self.personal.settings.focus || self.manuscript.focus_management {
@@ -116,6 +123,11 @@ impl super::super::WorldeditApp {
                 } else {
                     ui.label("此章节尚未选择来源；请展开“编排与来源”明确选择。");
                 }
+            }
+            if restored_scroll.is_some() {
+                // 此帧明确恢复视口，保留选区方向但不强制把光标重新滚到屏幕中央。
+                // 用当前可见区替换 TextEdit 的自动滚动请求，下一帧恢复普通滚动行为。
+                ui.scroll_to_rect(ui.clip_rect(), None);
             }
         });
         self.manuscript.scroll_y = output.state.offset.y;

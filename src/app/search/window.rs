@@ -114,8 +114,7 @@ impl WorldeditApp {
                         Vec::new()
                     }
                 };
-                self.search_state.selected =
-                    self.search_state.selected.min(hits.len().saturating_sub(1));
+                self.refresh_search_navigation(&hits);
                 let ime = !self.edit_layer_is_top("search")
                     || self.ime_composing
                     || self.command_palette.ime
@@ -126,20 +125,30 @@ impl WorldeditApp {
                             && ui.input_mut(|i| {
                                 i.consume_key(egui::Modifiers::SHIFT, egui::Key::Enter)
                             }));
-                    let next = ui.button("下一个 · Enter").clicked()
+                    let next = ui
+                        .button(if self.search_state.located.is_some() {
+                            "下一个 · Enter"
+                        } else {
+                            "定位选中项 · Enter"
+                        })
+                        .clicked()
                         || (!ime
                             && ui.input_mut(|i| {
                                 i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
                             }));
                     if !hits.is_empty() && (previous || next) {
-                        self.search_state.selected = if previous {
-                            (self.search_state.selected + hits.len() - 1) % hits.len()
-                        } else {
-                            (self.search_state.selected + 1) % hits.len()
-                        };
+                        self.search_state.selected = self.next_search_index(hits.len(), previous);
                         navigate = hits.get(self.search_state.selected).cloned();
                     }
-                    ui.label(format!("{} 处命中", hits.len()));
+                    ui.label(format!(
+                        "{} 处命中 · {}",
+                        hits.len(),
+                        if self.search_state.located.is_some() {
+                            "已定位"
+                        } else {
+                            "未定位"
+                        }
+                    ));
                 });
                 egui::ScrollArea::vertical()
                     .id_salt("search-results")

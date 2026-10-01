@@ -37,6 +37,18 @@ impl WorldeditApp {
             self.open_reading(object.target.clone());
             return;
         }
+        let current = self
+            .project
+            .compile_writing_drafts(&self.manuscript.writing_buffers());
+        let valid = current
+            .as_ref()
+            .ok()
+            .and_then(|result| result.analysis.catalog.object(&object.target))
+            .is_some_and(|current| current.file == object.file && current.line == object.line);
+        if !valid {
+            self.search_state.error = Some("对象定位依据已变化，请重新查找；当前稿已保留".into());
+            return;
+        }
         let path = PathBuf::from(&object.file);
         let path = if path.is_absolute() {
             path
@@ -55,7 +67,7 @@ impl WorldeditApp {
                 .take(object.line.saturating_sub(1) as usize)
                 .map(str::len)
                 .sum();
-            self.go_search_hit(
+            self.go_search_position(
                 ctx,
                 &SearchMatch {
                     path,

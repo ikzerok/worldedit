@@ -16,6 +16,7 @@ struct Pending {
     path: PathBuf,
     source: String,
     range: Range<usize>,
+    generation: Option<u64>,
 }
 fn selection_id() -> egui::Id {
     egui::Id::new("search-editor-selection")
@@ -32,6 +33,9 @@ pub(super) fn take_restored_focus(ctx: &egui::Context) -> Option<egui::Id> {
         data.remove::<egui::Id>(restored_focus_id());
         id
     })
+}
+pub(crate) fn record_navigation_focus(ctx: &egui::Context, id: egui::Id) {
+    ctx.data_mut(|data| data.insert_temp(restored_focus_id(), id));
 }
 fn pending_id() -> egui::Id {
     egui::Id::new("search-editor-pending")
@@ -92,6 +96,19 @@ fn mapping(full: &str, offset: usize, display: &str) -> Option<Vec<usize>> {
     }
     Some(result)
 }
+pub(crate) fn selection_is_representable(
+    full: &str,
+    offset: usize,
+    display: &str,
+    range: &Range<usize>,
+) -> bool {
+    mapping(full, offset, display)
+        .is_some_and(|map| map.contains(&range.start) && map.contains(&range.end))
+}
+pub(crate) fn clear_pending_selection(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.remove::<Pending>(pending_id()));
+    clear_restored_focus(ctx);
+}
 // 显式携带原文、显示文与目标身份，避免跨视图复用失效选区。
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn record_editor_selection(
@@ -128,6 +145,7 @@ pub(crate) fn record_editor_selection(
 pub(crate) fn editor_selection(ctx: &egui::Context) -> Option<EditorSelection> {
     ctx.data(|d| d.get_temp(selection_id()))
 }
+/// 源内容绑定的即时定位；草稿搜索必须另用携带真实代次的 request_writing_selection。
 pub(crate) fn request_selection(
     ctx: &egui::Context,
     path: PathBuf,
@@ -141,6 +159,26 @@ pub(crate) fn request_selection(
                 path,
                 source,
                 range,
+                generation: None,
+            },
+        )
+    });
+}
+pub(crate) fn request_writing_selection(
+    ctx: &egui::Context,
+    path: PathBuf,
+    source: String,
+    range: Range<usize>,
+    generation: u64,
+) {
+    ctx.data_mut(|data| {
+        data.insert_temp(
+            pending_id(),
+            Pending {
+                path,
+                source,
+                range,
+                generation: Some(generation),
             },
         )
     });
@@ -153,10 +191,47 @@ pub(crate) fn restore_editor_selection(
     block_offset: usize,
     display_text: &str,
 ) -> bool {
+    restore_selection(ui, id, path, full_source, block_offset, display_text, None)
+}
+pub(crate) fn restore_writing_selection(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    buffer: &worldline_core::manuscript::WritingBuffer,
+    block_offset: usize,
+    display_text: &str,
+) -> bool {
+    restore_selection(
+        ui,
+        id,
+        buffer.path(),
+        buffer.source(),
+        block_offset,
+        display_text,
+        Some(buffer.generation()),
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn restore_selection(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    path: &Path,
+    full_source: &str,
+    block_offset: usize,
+    display_text: &str,
+    generation: Option<u64>,
+) -> bool {
     let Some(pending) = ui.ctx().data(|d| d.get_temp::<Pending>(pending_id())) else {
         return false;
     };
-    if pending.path != path || pending.source != full_source {
+    if pending.path != path {
+        return false;
+    }
+    if pending.source != full_source
+        || pending
+            .generation
+            .is_some_and(|expected| generation != Some(expected))
+    {
+        clear_pending_selection(ui.ctx());
         return false;
     }
     let Some(map) = mapping(full_source, block_offset, display_text) else {
@@ -213,5 +288,42 @@ mod tests {
         let map = mapping(full, offset, "中文\n次行").unwrap();
         assert_eq!(&full[map[3]..map[5]], "次行");
         assert!(mapping(full, offset, "已变\n次行").is_none());
+    }
+}
+
+#[cfg(test)]
+mod generation_tests {
+    use super::*;
+    #[test]
+    fn content_position_api_remains_compatible_and_explicit_draft_generation_is_strict() {
+        let root = std::env::temp_dir().join("search-position-version-no-files");
+        let mut project = worldline_core::project::Project::new(&root);
+        let path = project.entry.clone();
+        project
+            .set_text(&path, "event start\n  中文needle\n".into())
+            .unwrap();
+        let buffer = project.open_source_writing_buffer(&path).unwrap();
+        let source = buffer.source().to_owned();
+        let start = source.find("needle").unwrap();
+        let ctx = egui::Context::default();
+        let id = egui::Id::new("compatible-source-position");
+        request_writing_selection(
+            &ctx,
+            path.clone(),
+            source.clone(),
+            start..start + 6,
+            buffer.generation() + 1,
+        );
+        let _ = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                assert!(!restore_writing_selection(ui, id, &buffer, 0, &source));
+            });
+        });
+        request_selection(&ctx, path, source.clone(), start..start + 6);
+        let _ = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                assert!(restore_writing_selection(ui, id, &buffer, 0, &source));
+            });
+        });
     }
 }

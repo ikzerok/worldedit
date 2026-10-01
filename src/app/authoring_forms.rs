@@ -244,6 +244,7 @@ impl RenameForm {
         }
     }
     pub fn preview(&mut self, project: &Project, version: u64) -> Result<(), String> {
+        self.plan = None;
         self.guard.check(project, version)?;
         self.plan = Some(project.plan_rename_target(&self.target, self.new_id.trim())?);
         Ok(())
@@ -251,6 +252,9 @@ impl RenameForm {
     pub fn apply(&self, project: &mut Project, version: u64) -> Result<(), String> {
         self.guard.check(project, version)?;
         let plan = self.plan.as_ref().ok_or("请先预览跨视图影响")?;
+        if plan.target != self.target || plan.new_id != self.new_id.trim() {
+            return Err("重命名输入已变化，请重新预览".into());
+        }
         project.apply_rename_plan(plan)
     }
 }
