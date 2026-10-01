@@ -19,6 +19,7 @@ mod conflicts;
 mod deletion;
 mod draft_lifecycle;
 mod entities;
+mod export_scope;
 #[cfg(not(target_arch = "wasm32"))]
 mod frame_profile;
 mod init;
@@ -218,11 +219,26 @@ enum Pending {
     #[cfg(target_arch = "wasm32")]
     BrowserOpen(crate::web::Files),
 }
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DirectoryOperation {
+    SaveAs,
+    ExportDirectory,
+    ExportZip,
+}
 struct DirectoryDialog {
     #[cfg(not(target_arch = "wasm32"))]
     path: String,
     #[cfg(not(target_arch = "wasm32"))]
-    export: bool,
+    operation: DirectoryOperation,
+}
+#[cfg(not(target_arch = "wasm32"))]
+impl DirectoryDialog {
+    fn accept_native_selection(&mut self, selected: Option<PathBuf>) {
+        if let Some(path) = selected {
+            self.path = path.display().to_string();
+        }
+    }
 }
 
 pub struct WorldeditApp {
@@ -311,6 +327,7 @@ pub struct WorldeditApp {
     pending: Option<Pending>,
     allow_close: bool,
     directory: Option<DirectoryDialog>,
+    export_confirmation: Option<export_scope::ExportConfirmation>,
     new_file: Option<String>,
     new_period: Option<(String, String, Option<String>)>,
     map_canvas: maps::MapCanvas,

@@ -1,4 +1,4 @@
-use super::super::inspector::{field, properties};
+use super::super::inspector::{field, properties_with_references};
 use super::{kind_label, WorldeditApp};
 use crate::theme::{self, *};
 use egui::RichText;
@@ -112,7 +112,7 @@ impl WorldeditApp {
                         field(ui, "标签名称", &mut draft.display);
                         ui.label(theme::muted("说明"));
                         ui.add(egui::TextEdit::multiline(&mut draft.description).desired_rows(2).desired_width(f32::INFINITY));
-                        egui::CollapsingHeader::new("标签属性").show(ui, |ui| { properties(ui, &mut draft.properties); });
+                        egui::CollapsingHeader::new("标签属性").show(ui, |ui| { properties_with_references(ui, &mut draft.properties, &catalog, self.project.compile_options()); });
                         if ui.add(theme::primary(if original.is_some() { "应用标签资料" } else { "创建标签" })).clicked() && self.commit("标签资料已更新", |p| p.write_tag(original.as_deref(), draft)) {
                             *original = Some(draft.id.clone()); self.catalog_target = Some(TargetRef::new("tag", &draft.id));
                         }

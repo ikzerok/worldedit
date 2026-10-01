@@ -28,6 +28,12 @@ pub(super) fn history_projection(
             "人物历史只取显式 with；地点历史只取映射的 event → place 关系。",
         ));
     }
+    if result.history.timeline_status == worldline_core::timeline::TimelineStatus::Partial {
+        ui.colored_label(
+            GOLD(),
+            "时间线不完整：请查看编译诊断，当前历史页不提供可信层级",
+        );
+    }
     if result.history.truncated {
         ui.colored_label(
             GOLD(),
@@ -173,17 +179,26 @@ fn history_time(
         TopicProjectionTimeStatus::Unknown => {
             ui.label(theme::muted("时间未知 · core 未补日期或时段"));
         }
+        TopicProjectionTimeStatus::Partial => {
+            ui.colored_label(GOLD(), "时间线不完整 · 层级未知");
+        }
         TopicProjectionTimeStatus::PeriodRanked => {
             if let (Some(period), Some(rank)) = (&event.period, event.rank) {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(format!(
-                        "时段 {} · 拓扑层级 {rank}（不构成全序）",
+                        "直接时段 {} · 内部层级 {rank}（不构成全序）",
                         target_label(catalog, period)
                     ));
                     if ui.small_button("阅读时段").clicked() {
                         *navigation = Some(Navigation::Read(period.clone()));
                     }
                 });
+                if let (Some(scope), Some(root_rank)) = (&event.order_scope, event.root_rank) {
+                    ui.label(theme::muted(format!(
+                        "根内范围 {} · 层级 {root_rank} · 独立根不可比",
+                        target_label(catalog, scope)
+                    )));
+                }
             }
         }
     }

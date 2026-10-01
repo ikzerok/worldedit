@@ -175,6 +175,26 @@ impl WorkbenchState {
             .retain(|_, (_, path)| !paths.contains(path));
     }
 
+    pub(super) fn unapplied_sources(&self) -> Vec<String> {
+        let mut sources: Vec<_> = self
+            .writing_buffers
+            .values()
+            .filter(|buffer| buffer.is_changed())
+            .map(|buffer| format!("正文 · {}", buffer.path().display()))
+            .chain(
+                self.books
+                    .iter()
+                    .filter(|(_, book)| book.changed)
+                    .map(|(id, _)| format!("书稿编排 · manuscript:{id}")),
+            )
+            .collect();
+        if self.create_touched && (!self.new_id.is_empty() || !self.new_title.is_empty()) {
+            sources.push(format!("新建书稿 · {}", self.new_id));
+        }
+        sources.sort();
+        sources
+    }
+
     pub(super) fn has_unsubmitted_work(&self) -> bool {
         (self.create_touched && (!self.new_id.is_empty() || !self.new_title.is_empty()))
             || self.books.values().any(|book| book.changed)

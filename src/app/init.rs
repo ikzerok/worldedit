@@ -102,6 +102,7 @@ impl WorldeditApp {
             pending: None,
             allow_close: false,
             directory: None,
+            export_confirmation: None,
             new_file: None,
             new_period: None,
             map_canvas: maps::MapCanvas::new(maps::MapRenderSnapshot::empty(Vec2::new(
@@ -260,6 +261,8 @@ impl WorldeditApp {
         self.personal.history.clear();
         self.personal.source_scroll = [0.0; 2];
         self.command_palette = commands::CommandPalette::default();
+        self.export_confirmation = None;
+        self.directory = None;
         self.draft_action = None;
         self.new_draft_baselines.clear();
         self.frame_dirty_drafts.clear();

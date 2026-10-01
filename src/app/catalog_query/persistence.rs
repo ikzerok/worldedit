@@ -1,6 +1,26 @@
 use super::*;
 use std::path::Path;
 impl WorkbenchState {
+    pub(in crate::app) fn unapplied_saved_query(
+        &self,
+        project: &worldline_core::project::Project,
+    ) -> Option<String> {
+        if self.saved_query_id.trim().is_empty() && self.saved_query_name.trim().is_empty() {
+            return None;
+        }
+        let draft = SavedQueryDraft {
+            id: self.saved_query_id.clone(),
+            name: self.saved_query_name.clone(),
+            query: self.query.clone(),
+        };
+        let index = project.saved_query_index();
+        index
+            .queries
+            .get(&self.saved_query_id)
+            .is_none_or(|saved| saved.draft != draft)
+            .then(|| format!("saved_query:{}", self.saved_query_id))
+    }
+
     pub(in crate::app) fn restore_favorites(&mut self, storage: Option<&dyn eframe::Storage>) {
         let Some(saved) = storage.and_then(|storage| storage.get_string(FAVORITES_STORAGE_KEY))
         else {

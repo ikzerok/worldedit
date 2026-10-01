@@ -1,5 +1,6 @@
 //! 固定作者命令与完整对象快速切换，不执行用户脚本。
 mod edit;
+mod layers;
 use super::{Tab, WorldeditApp};
 use worldline_core::TargetRef;
 #[derive(Default)]
@@ -55,7 +56,10 @@ fn commands() -> Vec<(&'static str, Action)> {
 }
 impl WorldeditApp {
     pub(super) fn open_commands(&mut self, ctx: &egui::Context, commands_only: bool) {
-        self.command_palette.previous_focus = ctx.memory(|m| m.focused());
+        self.sync_edit_layers(ctx);
+        if !self.command_palette.open {
+            self.command_palette.previous_focus = ctx.memory(|m| m.focused());
+        }
         self.command_palette.open = true;
         self.command_palette.commands_only = commands_only;
         self.command_palette.query.clear();
@@ -105,6 +109,7 @@ impl WorldeditApp {
         if !self.command_palette.open {
             return;
         }
+        let top = self.edit_layer_is_top("commands");
         let mut palette = std::mem::take(&mut self.command_palette);
         let mut open = true;
         let mut action = None;
@@ -164,7 +169,7 @@ impl WorldeditApp {
                     }),
                 );
             }
-            if !self.ime_composing && !palette.ime && !palette.ime_frame {
+            if top && !self.ime_composing && !palette.ime && !palette.ime_frame {
                 if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)) {
                     palette.selected = palette.selected.saturating_add(1);
                 }
@@ -197,7 +202,8 @@ impl WorldeditApp {
             if entries.len() == 1000 {
                 ui.label("最多显示1000项，请继续输入缩小范围");
             }
-            if !palette.ime
+            if top
+                && !palette.ime
                 && !palette.ime_frame
                 && !self.ime_composing
                 && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
@@ -244,3 +250,6 @@ impl WorldeditApp {
         }
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod cancel_tests;

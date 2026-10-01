@@ -21,6 +21,7 @@ impl WorldeditApp {
     }
     pub(in crate::app) fn edit_shortcuts(&mut self, ctx: &egui::Context) {
         self.command_palette.frame_focus = ctx.memory(|m| m.focused());
+        self.sync_edit_layers(ctx);
         let text_focus = ctx
             .memory(|m| m.focused())
             .filter(|id| egui::TextEdit::load_state(ctx, *id).is_some());
@@ -38,7 +39,7 @@ impl WorldeditApp {
         } else if ctx.input_mut(|i| i.consume_key(replace_modifiers, replace_key)) {
             self.open_search(ctx, false, true);
         }
-        if self.search_open {
+        if self.search_open && self.edit_layer_is_top("search") {
             let previous =
                 ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Enter));
             let next = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
@@ -65,18 +66,9 @@ impl WorldeditApp {
             }
 
             let top = self.command_palette.focus_stack.last().map(|entry| entry.0);
-            let blocked = self.entity_editor.is_some()
-                || self.wiki_editor.is_some()
-                || self.relation_editor.is_some()
-                || self.relation_type_editor.is_some()
-                || self.delete_form.is_some()
-                || self.rename_form.is_some()
-                || self.preset_editor.is_some()
-                || self.markdown_import_wizard.is_some()
-                || self.draft_action.is_some()
-                || self.pending.is_some();
-            if blocked && !matches!(top, Some("schema" | "reader")) {
+            if top.is_some_and(|kind| kind.starts_with("guard-")) {
                 self.message = Some("上层表单有待处理输入，请使用其明确取消或应用操作".into());
+                ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
                 return;
             }
             let closed = match top {
@@ -120,50 +112,7 @@ impl WorldeditApp {
     }
     pub(in crate::app) fn capture_edit_focus(&mut self, ctx: &egui::Context) {
         self.refresh_search_return_focus(ctx);
-        let active: Vec<_> = [
-            ("search", self.search_open),
-            ("commands", self.command_palette.open),
-            ("preferences", self.personal.preferences_open),
-            ("reader", self.reader_publish.open),
-            ("schema", self.schema_ui.open),
-        ]
-        .into_iter()
-        .filter_map(|(kind, open)| open.then_some(kind))
-        .collect();
-        let closed_focus = self
-            .command_palette
-            .focus_stack
-            .last()
-            .filter(|(kind, _)| !active.contains(kind))
-            .and_then(|(_, focus)| *focus);
-        self.command_palette
-            .focus_stack
-            .retain(|(kind, _)| active.contains(kind));
-        let new: Vec<_> = active
-            .into_iter()
-            .filter(|kind| {
-                !self
-                    .command_palette
-                    .focus_stack
-                    .iter()
-                    .any(|(known, _)| known == kind)
-            })
-            .collect();
-        if new.is_empty() {
-            if let Some(id) = closed_focus {
-                ctx.memory_mut(|m| m.request_focus(id));
-            }
-        }
-        for kind in new {
-            let focus = if kind == "search" {
-                self.search_return_focus()
-            } else if kind == "commands" {
-                self.command_palette.previous_focus
-            } else {
-                self.command_palette.frame_focus
-            };
-            self.command_palette.focus_stack.push((kind, focus));
-        }
+        self.sync_edit_layers(ctx);
         if ctx.input(|i| {
             i.events
                 .iter()

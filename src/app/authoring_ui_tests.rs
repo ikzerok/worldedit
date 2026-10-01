@@ -17,6 +17,8 @@ mod authoring_mentions;
 mod authoring_source;
 mod catalog;
 mod catalog_sort;
+mod character_ref_layout;
+mod character_refs;
 mod checkpoint;
 mod condition_evidence;
 mod current_draft_preview;

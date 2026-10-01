@@ -16,6 +16,35 @@ pub(super) struct ManagerState {
     error: Option<String>,
 }
 
+impl ManagerState {
+    pub(super) fn unapplied_source(
+        &self,
+        index: Option<&worldline_core::project_templates::ProjectTemplateIndex>,
+    ) -> Option<String> {
+        let current = index.and_then(|index| {
+            self.selected_id
+                .as_ref()
+                .and_then(|id| index.projects.get(id))
+        });
+        let changed = match current {
+            Some(document) => document.source_bytes != self.editor.as_bytes(),
+            None => {
+                !self.editor.trim().is_empty()
+                    || self
+                        .selected_id
+                        .as_ref()
+                        .is_some_and(|id| id.starts_with("project:"))
+            }
+        };
+        (changed || self.preview.is_some()).then(|| {
+            self.selected_id
+                .as_ref()
+                .map(|id| format!("模板管理器 · {id}"))
+                .unwrap_or_else(|| "模板管理器 · 待导入".into())
+        })
+    }
+}
+
 impl WorldeditApp {
     pub(super) fn template_manager_tab(&mut self, ctx: &egui::Context) {
         let index = self.project.template_index();

@@ -399,17 +399,14 @@ impl WorldeditApp {
             self.save();
             return;
         }
-        let result = self
-            .browser_export_package()
+        self.request_strict_export(super::export_scope::ExportDestination::BrowserZip);
+    }
+
+    pub(super) fn write_browser_export(&self) -> Result<(), String> {
+        self.browser_export_package()
             .and_then(|files| archive::encode(&files))
-            .and_then(|bytes| web::download("worldedit-export.zip", &bytes, "application/zip"));
-        match result {
-            Ok(()) => {
-                web::record_export_revision(self.version);
-                self.io_error = None;
-                self.message = Some("完整世界工程已请求下载（保留工作区全部文件）".into());
-            }
-            Err(e) => self.io_error = Some(e),
-        }
+            .and_then(|bytes| web::download("worldedit-export.zip", &bytes, "application/zip"))?;
+        web::record_export_revision(self.version);
+        Ok(())
     }
 }

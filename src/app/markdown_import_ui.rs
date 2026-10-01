@@ -74,6 +74,17 @@ impl Default for Wizard {
 }
 
 impl Wizard {
+    pub(super) fn unapplied_source(&self) -> Option<String> {
+        (!self.source_root.is_empty() || self.source_files.is_some() || !self.namespace.is_empty())
+            .then(|| {
+                if self.source_root.is_empty() {
+                    "Markdown 导入向导".into()
+                } else {
+                    self.source_root.clone()
+                }
+            })
+    }
+
     pub(super) fn show(&mut self, ctx: &egui::Context, app: &mut WorldeditApp) -> bool {
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
             self.closed = true;

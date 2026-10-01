@@ -4,6 +4,11 @@ use crate::theme::{self, *};
 use crate::visual::{bezier_points, draw_arrow};
 use egui::{Pos2, Rect, RichText, Sense, Stroke, Vec2};
 use std::collections::{BTreeMap, HashMap};
+use worldline_core::timeline::{TemporalOrderScope, TimelineStatus};
+
+mod projection;
+#[cfg(test)]
+mod render_tests;
 
 impl WorldeditApp {
     pub(super) fn new_period_dialog(&mut self) {
@@ -48,12 +53,24 @@ impl WorldeditApp {
                         }
                     });
                 });
+                if timeline.status == TimelineStatus::Partial {
+                    ui.colored_label(GOLD(), projection::summary(&timeline));
+                } else {
+                    ui.label(theme::muted(projection::summary(&timeline)));
+                }
                 ui.add_space(12.0);
                 ui.horizontal_wrapped(|ui| {
                     if let Some(from) = self.link_from.clone() {
                         ui.colored_label(
                             ACCENT(),
-                            format!("{from} 先发生 → 点击同一时段中较晚的事件"),
+                            format!(
+                                "{from} 先发生 → 点击{}中较晚的事件",
+                                if timeline.order_scope == TemporalOrderScope::RootPeriod {
+                                    "同一时间根"
+                                } else {
+                                    "同一直接时段"
+                                }
+                            ),
                         );
                         if ui.small_button("取消").clicked() {
                             self.link_from = None;
@@ -79,25 +96,32 @@ impl WorldeditApp {
                     .iter()
                     .map(|(p, depth)| (p.id.clone(), *depth))
                     .collect();
+                let root_indent = depths.values().max().copied().unwrap_or(0) as f32 * 28.0;
                 for (period, depth) in &period_order {
                     let mut ranks: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
                     for event in timeline.events.iter().filter(|e| e.period == period.id) {
                         if let Some(&id) = graph.ids.get(&event.event) {
-                            ranks.entry(event.rank).or_default().push(id as usize);
+                            let rank = timeline.event_rank(event).unwrap_or(0);
+                            ranks.entry(rank).or_default().push(id as usize);
                         }
                     }
                     let count = ranks.values().map(Vec::len).sum::<usize>();
                     let rows = ranks.values().map(Vec::len).max().unwrap_or(0);
                     let columns = ranks.keys().max().copied().unwrap_or(0) + 1;
                     let height = 74.0 + rows as f32 * 132.0;
-                    width = width.max(48.0 + columns as f32 * 280.0 + *depth as f32 * 28.0);
+                    let indent = if timeline.order_scope == TemporalOrderScope::RootPeriod {
+                        root_indent
+                    } else {
+                        *depth as f32 * 28.0
+                    };
+                    width = width.max(48.0 + columns as f32 * 280.0 + indent);
                     for (rank, items) in &mut ranks {
                         items.sort_by_key(|&i| &graph.nodes[i].name);
                         for (row, &id) in items.iter().enumerate() {
                             positions.insert(
                                 id,
                                 Pos2::new(
-                                    24.0 + *rank as f32 * 280.0 + *depth as f32 * 28.0,
+                                    24.0 + *rank as f32 * 280.0 + indent,
                                     top + 68.0 + row as f32 * 132.0,
                                 ),
                             );
@@ -116,9 +140,7 @@ impl WorldeditApp {
                     .nodes
                     .iter()
                     .enumerate()
-                    .filter(|(_, n)| {
-                        n.is_event && !timeline.events.iter().any(|e| e.event == n.name)
-                    })
+                    .filter(|(i, n)| n.is_event && !positions.contains_key(i))
                     .map(|(i, _)| i)
                     .collect();
                 ungrouped.sort_by_key(|&i| {
@@ -142,7 +164,7 @@ impl WorldeditApp {
                     }
                     groups.push((
                         None,
-                        "未分配时段 · 按编排序号整理".into(),
+                        "未归入有效时段 · 时间未知".into(),
                         top,
                         height,
                         ungrouped.len(),
@@ -209,9 +231,16 @@ impl WorldeditApp {
                                 band.min + Vec2::new(24.0, 42.0) * zoom,
                                 egui::Align2::LEFT_TOP,
                                 format!(
-                                    "{} · {count} 个直属事件 · {} 个子时段",
+                                    "{} · {count} 个直属事件 · {} 个子时段 · 根 {}",
                                     id.as_deref().unwrap_or("未归组"),
-                                    descendants.len()
+                                    descendants.len(),
+                                    id.as_ref()
+                                        .and_then(|id| timeline
+                                            .periods
+                                            .iter()
+                                            .find(|p| &p.id == id))
+                                        .and_then(|p| p.root.as_deref())
+                                        .unwrap_or("未知")
                                 ),
                                 egui::FontId::proportional(11.0 * zoom),
                                 MUTED(),
@@ -330,7 +359,17 @@ impl WorldeditApp {
                             painter.text(
                                 start.lerp(end, 0.5) - Vec2::new(0.0, 12.0),
                                 egui::Align2::CENTER_BOTTOM,
-                                "先于",
+                                if timeline
+                                    .events
+                                    .iter()
+                                    .find(|e| e.event == edge.before)
+                                    .zip(timeline.events.iter().find(|e| e.event == edge.after))
+                                    .is_some_and(|(a, b)| a.period != b.period)
+                                {
+                                    "跨时段先于"
+                                } else {
+                                    "先于"
+                                },
                                 egui::FontId::proportional(11.0 * zoom),
                                 ACCENT(),
                             );
@@ -349,19 +388,10 @@ impl WorldeditApp {
                                 .event_editor
                                 .as_ref()
                                 .is_some_and(|e| e.draft.id == node.name);
-                            let caption = format!(
-                                "{} · {}",
-                                node.storyline,
-                                if timeline
-                                    .edges
-                                    .iter()
-                                    .any(|e| e.before == node.name || e.after == node.name)
-                                {
-                                    "有先后约束"
-                                } else {
-                                    "自由事件"
-                                }
-                            );
+                            let temporal = timeline.events.iter().find(|e| e.event == node.name);
+                            let caption = projection::caption(&timeline, temporal);
+                            let response =
+                                response.on_hover_text(projection::details(&timeline, temporal));
                             super::views::draw_node(
                                 &painter,
                                 *rect,

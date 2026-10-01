@@ -3,9 +3,15 @@ use super::WorldeditApp;
 use crate::theme::{self, *};
 use egui::RichText;
 use std::path::Path;
-use worldline_core::ast::{EffectWhen, PropertyValue};
+use worldline_core::ast::EffectWhen;
+#[cfg(test)]
+use worldline_core::ast::PropertyValue;
 use worldline_core::authoring::{EffectDraft, WorldDraft};
 use worldline_core::catalog::Catalog;
+mod properties;
+#[cfg(test)]
+use properties::properties;
+pub(super) use properties::properties_with_references;
 
 pub(super) fn field(ui: &mut egui::Ui, label: &str, value: &mut String) {
     ui.vertical(|ui| {
@@ -78,79 +84,6 @@ fn effect_cards(ui: &mut egui::Ui, effects: &mut Vec<EffectDraft>, catalog: Opti
     }
 }
 
-pub(super) fn properties(ui: &mut egui::Ui, values: &mut Vec<(String, PropertyValue)>) {
-    let mut remove = None;
-    for (i, (name, value)) in values.iter_mut().enumerate() {
-        ui.push_id(i, |ui| {
-            ui.label(super::reading::property_label(name));
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(name)
-                        .hint_text("属性 ID")
-                        .desired_width((ui.available_width() - 38.0).max(90.0)),
-                );
-                if ui.small_button("×").clicked() {
-                    remove = Some(i);
-                }
-            });
-            ui.horizontal(|ui| {
-                let current = match value {
-                    PropertyValue::Str(_) => 0,
-                    PropertyValue::Num(_) => 1,
-                    PropertyValue::Bool(_) => 2,
-                    PropertyValue::Ref(_) => 3,
-                };
-                let mut kind = current;
-                if current == 3 {
-                    ui.label("对象引用");
-                } else {
-                    egui::ComboBox::from_id_salt("type")
-                        .width(65.0)
-                        .selected_text(["文本", "数值", "布尔"][kind])
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut kind, 0, "文本");
-                            ui.selectable_value(&mut kind, 1, "数值");
-                            ui.selectable_value(&mut kind, 2, "布尔");
-                        });
-                }
-                if kind != current {
-                    *value = match kind {
-                        1 => PropertyValue::Num(0.0),
-                        2 => PropertyValue::Bool(false),
-                        _ => PropertyValue::Str(String::new()),
-                    };
-                }
-                match value {
-                    PropertyValue::Str(text) => {
-                        ui.add(
-                            egui::TextEdit::multiline(text)
-                                .desired_rows(3)
-                                .desired_width(ui.available_width())
-                                .hint_text("属性值"),
-                        );
-                    }
-                    PropertyValue::Num(number) => {
-                        ui.add(egui::DragValue::new(number).speed(1.0));
-                    }
-                    PropertyValue::Bool(value) => {
-                        ui.checkbox(value, "是 / 否");
-                    }
-                    PropertyValue::Ref(target) => {
-                        ui.label(format!("{}:{}（从资料编辑器修改）", target.kind, target.id));
-                    }
-                }
-            });
-            ui.add_space(6.0);
-        });
-    }
-    if let Some(index) = remove {
-        values.remove(index);
-    }
-    if ui.button("＋ 添加属性").clicked() {
-        values.push((String::new(), PropertyValue::Str(String::new())));
-    }
-}
-
 impl WorldeditApp {
     pub(super) fn event_inspector(&mut self, ctx: &egui::Context) {
         self.capture_new_draft_baselines();
@@ -204,7 +137,7 @@ impl WorldeditApp {
                                 .desired_width(f32::INFINITY),
                         );
                         field(ui, "事件名称 / 简述", &mut editor.draft.summary);
-                        if let Err(error) = super::choices::choice_cards(ui, &mut editor.draft, self.snapshot.as_ref().map(|s| &s.result.analysis.graph), self.snapshot.as_ref().map(|s| &s.result.analysis.catalog), self.snapshot.as_ref().map(|s| &s.result.analysis.symbols), self.project.language_version() == "1.12") {
+                        if let Err(error) = super::choices::choice_cards(ui, &mut editor.draft, self.snapshot.as_ref().map(|s| &s.result.analysis.graph), self.snapshot.as_ref().map(|s| &s.result.analysis.catalog), self.snapshot.as_ref().map(|s| &s.result.analysis.symbols), self.project.language_version_kind().supports_language_112()) {
                             self.io_error = Some(error);
                         }
                         ui.add_space(12.0);
@@ -470,7 +403,7 @@ impl WorldeditApp {
                 ui.add_space(12.0);
                 theme::card().show(ui, |ui| {
                     ui.label(RichText::new("共同属性").strong().size(16.0));
-                    properties(ui, &mut draft.properties);
+                    properties_with_references(ui, &mut draft.properties, &catalog, self.project.compile_options());
                     if let Some(suggestion) = super::templates::template_panel(
                         ui,
                         "world",

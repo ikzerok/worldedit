@@ -43,6 +43,7 @@ impl WorldeditApp {
                     .filter(|f| f.original.is_none())?;
                 let d = &f.draft;
                 json!([
+                    f.path,
                     d.id,
                     d.summary,
                     d.storyline,
@@ -62,7 +63,7 @@ impl WorldeditApp {
                     .as_ref()
                     .filter(|f| f.original.is_none())?;
                 let d = &f.draft;
-                json!([d.id, d.display, d.properties, d.relations])
+                json!([f.path, d.id, d.display, d.properties, d.relations])
             }
             "实体资料" => serde_json::to_value(
                 &self

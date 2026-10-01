@@ -18,6 +18,10 @@ pub(super) struct SchemaUiState {
 }
 
 impl SchemaUiState {
+    pub(super) fn draft_path(&self) -> Option<&std::path::Path> {
+        self.path.as_deref()
+    }
+
     pub(super) fn has_unsubmitted_work(&self) -> bool {
         self.source != self.original
     }
@@ -72,7 +76,7 @@ impl WorldeditApp {
             );
         }
         let index = self.project.schema_index();
-        let writable = self.project.language_version() == "1.12"
+        let writable = self.project.language_version_kind().supports_language_112()
             && self.project.authoring_diagnostics().is_empty();
         let files: Vec<_> = self
             .project
@@ -105,7 +109,7 @@ impl WorldeditApp {
                         if !writable {
                             ui.colored_label(
                                 theme::ERROR(),
-                                "需显式语言1.12且工作区能力受支持；当前仅可查看，不会自动升级。",
+                                "需显式语言1.12及以上且工作区能力受支持；当前仅可查看，不会自动升级。",
                             );
                         }
                         ui.horizontal_wrapped(|ui| {

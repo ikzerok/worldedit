@@ -46,13 +46,29 @@ struct ProjectEdit {
     paths: Vec<PathBuf>,
 }
 impl WorldeditApp {
+    pub(in crate::app) fn unapplied_search_sources(&self) -> Vec<String> {
+        self.search_state
+            .plan
+            .as_ref()
+            .map(|plan| {
+                plan.changes
+                    .iter()
+                    .map(|change| change.path.display().to_string())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub(in crate::app) fn search_return_focus(&self) -> Option<egui::Id> {
         self.search_state.previous_focus
     }
 
     pub(super) fn open_search(&mut self, ctx: &egui::Context, project: bool, replace: bool) {
+        self.sync_edit_layers(ctx);
         selection::clear_restored_focus(ctx);
-        self.search_state.previous_focus = ctx.memory(|m| m.focused());
+        if !self.search_open {
+            self.search_state.previous_focus = ctx.memory(|m| m.focused());
+        }
         self.search_state.current = selection::editor_selection(ctx).filter(|selection| {
             if self.tab == super::Tab::Manuscript {
                 self.manuscript

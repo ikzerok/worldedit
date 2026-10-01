@@ -121,23 +121,13 @@ impl WorldeditApp {
             .map(|name| name.to_string_lossy().into_owned())
             .filter(|name| !name.is_empty())
             .unwrap_or_else(|| "world-project".into());
-        let Some(target) = rfd::FileDialog::new()
-            .set_directory(parent)
-            .set_file_name(format!("{stem}-export.zip"))
-            .add_filter("ZIP 工程包", &["zip"])
-            .save_file()
-        else {
-            return;
-        };
-        match export_package_bytes(&self.project)
-            .and_then(|bytes| write_package_file(&self.project.root, &target, &bytes))
-        {
-            Ok(()) => {
-                self.io_error = None;
-                self.message = Some("严格工程已导出为 ZIP（未改变当前保存状态）".into());
-            }
-            Err(error) => self.io_error = Some(error),
-        }
+        self.directory = Some(super::DirectoryDialog {
+            operation: super::DirectoryOperation::ExportZip,
+            path: parent
+                .join(format!("{stem}-export.zip"))
+                .display()
+                .to_string(),
+        });
     }
 }
 
