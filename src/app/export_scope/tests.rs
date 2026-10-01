@@ -1,20 +1,23 @@
 use super::*;
 use crate::archive;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{fs, path::Path};
 use worldline_core::project::Project;
 
 pub(super) fn app() -> (egui::Context, WorldeditApp) {
+    static NEXT_ROOT: AtomicUsize = AtomicUsize::new(0);
     let ctx = egui::Context::default();
     ctx.style_mut(|style| style.animation_time = 0.0);
     let mut app = WorldeditApp::new(&eframe::CreationContext::_new_kittest(ctx.clone()), None);
     let root = std::env::temp_dir()
         .join(format!(
-            "export-scope-{}-{}",
+            "export-scope-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_ROOT.fetch_add(1, Ordering::Relaxed)
         ))
         .join("workspace");
     app.project = Project::new(&root);

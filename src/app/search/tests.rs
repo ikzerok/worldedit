@@ -1,15 +1,18 @@
 use super::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 fn app() -> (egui::Context, WorldeditApp) {
+    static NEXT_ROOT: AtomicUsize = AtomicUsize::new(0);
     let ctx = egui::Context::default();
     let cc = eframe::CreationContext::_new_kittest(ctx.clone());
     let mut app = WorldeditApp::new(&cc, None);
     let root = std::env::temp_dir().join(format!(
-        "search-ui-{}-{}",
+        "search-ui-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        NEXT_ROOT.fetch_add(1, Ordering::Relaxed)
     ));
     app.project = worldline_core::project::Project::new(&root);
     app.active_file = app.project.entry.clone();

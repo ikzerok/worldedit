@@ -1,5 +1,6 @@
 use crate::app::{Tab, WorldeditApp};
 use egui::{pos2, vec2, Event, FullOutput, PointerButton, RawInput, Rect};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use worldline_core::project::Project;
 
 pub(super) struct Harness {
@@ -9,17 +10,19 @@ pub(super) struct Harness {
 }
 impl Harness {
     pub fn new(version: &str) -> Self {
+        static NEXT_ROOT: AtomicUsize = AtomicUsize::new(0);
         let ctx = egui::Context::default();
         ctx.style_mut(|style| style.animation_time = 0.0);
         let creation = eframe::CreationContext::_new_kittest(ctx.clone());
         let mut app = WorldeditApp::new(&creation, None);
         let root = std::env::temp_dir().join(format!(
-            "worldedit-predecessor-form-{}-{}",
+            "worldedit-predecessor-form-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_ROOT.fetch_add(1, Ordering::Relaxed)
         ));
         app.project = Project::new(&root);
         let entry = app.project.entry.clone();

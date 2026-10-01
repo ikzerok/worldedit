@@ -1,5 +1,28 @@
 use super::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+
+fn fixture_root(clock_tick: u128) -> std::path::PathBuf {
+    static NEXT_ROOT: AtomicUsize = AtomicUsize::new(0);
+    // 时间戳只防跨进程旧目录重名；并行测试不能依赖系统时钟精度。
+    std::env::temp_dir().join(format!(
+        "cancel-layers-{}-{clock_tick}-{}",
+        std::process::id(),
+        NEXT_ROOT.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
+#[test]
+fn fixture_roots_remain_unique_when_parallel_clock_ticks_match() {
+    let roots = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..32).map(|_| scope.spawn(|| fixture_root(123))).collect();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<std::collections::BTreeSet<_>>()
+    });
+    assert_eq!(roots.len(), 32, "同一时钟值下并行夹具必须使用不同工作区");
+}
 
 fn frame(
     ctx: &egui::Context,
@@ -31,14 +54,12 @@ fn app(dirty: bool) -> (egui::Context, WorldeditApp, egui::Id) {
     let ctx = egui::Context::default();
     ctx.style_mut(|style| style.animation_time = 0.0);
     let mut app = WorldeditApp::new(&eframe::CreationContext::_new_kittest(ctx.clone()), None);
-    let root = std::env::temp_dir().join(format!(
-        "cancel-layers-{}-{}",
-        std::process::id(),
+    let root = fixture_root(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
-    ));
+            .as_nanos(),
+    );
     app.project = worldline_core::project::Project::new(&root);
     app.active_file = app.project.entry.clone();
     app.project
