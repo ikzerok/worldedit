@@ -52,15 +52,28 @@ pub(super) fn object_picker(
         })
         .unwrap_or_else(|| "请选择".into());
     ui.label(label);
-    egui::ComboBox::from_id_salt(id)
+    let width = ui
+        .available_width()
+        .min((ui.ctx().screen_rect().width() - 48.0).max(1.0))
+        .max(1.0);
+    let selected_caption = caption.clone();
+    let response = egui::ComboBox::from_id_salt(id)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .selected_text(caption)
-        .width(ui.available_width().max(160.0) - 12.0)
+        .truncate()
+        // 搜索/清空固定区 + 260px候选滚动区，避免外层默认200px再次剪裁内层。
+        .height(360.0)
+        .width(width)
         .show_ui(ui, |ui| {
+            ui.set_width((width - 16.0).max(1.0));
             let mut query = ui
                 .data_mut(|data| data.get_temp::<String>(id))
                 .unwrap_or_default();
-            ui.add(egui::TextEdit::singleline(&mut query).hint_text("搜索名称、类型、ID或来源"));
+            ui.add(
+                egui::TextEdit::singleline(&mut query)
+                    .desired_width(ui.available_width())
+                    .hint_text("搜索名称、类型、ID或来源"),
+            );
             ui.data_mut(|data| data.insert_temp(id, query.clone()));
             if ui
                 .selectable_label(current.is_none(), "不指定 / 清空")
@@ -87,7 +100,14 @@ pub(super) fn object_picker(
                             object.line
                         );
                         if ui
-                            .selectable_label(current.as_ref() == Some(&object.target), text)
+                            .add(
+                                egui::Button::selectable(
+                                    current.as_ref() == Some(&object.target),
+                                    &text,
+                                )
+                                .wrap(),
+                            )
+                            .on_hover_text(&text)
                             .clicked()
                         {
                             *current = Some(object.target.clone());
@@ -99,6 +119,7 @@ pub(super) fn object_picker(
                 ui.label("匹配超过1000项，请继续输入缩小范围");
             }
         });
+    response.response.on_hover_text(selected_caption);
     if let Some(target) = current {
         if catalog.object(target).is_none()
             || (!allowed.is_empty() && !allowed.contains(&target.kind.as_str()))

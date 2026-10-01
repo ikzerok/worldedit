@@ -1,5 +1,5 @@
 //! 人物档案、可编辑关系图与反向事件索引。
-use super::inspector::{field, properties};
+use super::inspector::{field, properties_with_references};
 use super::{CharacterEditor, Tab, WorldeditApp};
 use crate::theme::{self, *};
 use crate::visual::{draw_arrow, truncated};
@@ -381,7 +381,12 @@ impl WorldeditApp {
                         ui.label(theme::muted(
                             "栏目可留空；例句是创作参考，不会成为发生过的事件。",
                         ));
-                        properties(ui, &mut editor.draft.properties);
+                        properties_with_references(
+                            ui,
+                            &mut editor.draft.properties,
+                            &catalog,
+                            self.project.compile_options(),
+                        );
                         if let Some(suggestion) = super::templates::template_panel(
                             ui,
                             "character",

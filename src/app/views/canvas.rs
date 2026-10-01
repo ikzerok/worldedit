@@ -11,10 +11,11 @@ use worldline_core::EdgeKind;
 impl WorldeditApp {
     pub(in crate::app) fn canvas_tab(&mut self, ctx: &egui::Context) {
         if self.tab == Tab::Timeline
-            && self
-                .snapshot
-                .as_ref()
-                .is_some_and(|s| !s.result.analysis.timeline.periods.is_empty())
+            && self.snapshot.as_ref().is_some_and(|s| {
+                !s.result.analysis.timeline.periods.is_empty()
+                    || s.result.analysis.timeline.status
+                        == worldline_core::timeline::TimelineStatus::Partial
+            })
         {
             self.temporal_tab(ctx);
             return;

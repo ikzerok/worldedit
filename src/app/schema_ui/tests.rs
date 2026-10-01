@@ -135,3 +135,39 @@ fn schema_stale_preview_and_discard_cancel_do_not_overwrite() {
     assert!(app.schema_ui.has_unsubmitted_work());
     assert!(app.history.is_empty());
 }
+
+#[test]
+fn character_constraint_in_113_previews_cancel_applies_and_undoes_without_coercion() {
+    let (ctx, mut app) = app();
+    let manifest = app.project.root.join(".world/project.json");
+    app.project.set_authoring_document(&manifest, br#"{"schema_version":1,"language_version":"1.13","required_features":["content.object_refs.v1","content.character_refs.v1"]}"#.to_vec()).unwrap();
+    let path = app.active_file.clone();
+    let source = "schema city for entity entity_type place\n  field mayor_id mayor ref character required\ncharacter lin as \"林舟\"\nentity town kind place\n  property mayor = ref(\"character\", \"lin\")\nbind entity town to city\nevent start\n  -> END\n";
+    app.project.set_text(&path, source.into()).unwrap();
+    app.recompile();
+    app.load_schema_file(path.clone());
+    let baseline = app.project.content_baseline();
+    app.schema_ui.source = source.replace("mayor ref character", "mayor text");
+    click(&ctx, &mut app, "预览约束影响");
+    assert!(app
+        .schema_ui
+        .preview
+        .as_ref()
+        .unwrap()
+        .after_diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "SCH005"));
+    assert_eq!(app.project.content_baseline(), baseline);
+    click(&ctx, &mut app, "取消影响预览");
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.schema_ui.has_unsubmitted_work());
+    click(&ctx, &mut app, "预览约束影响");
+    click(&ctx, &mut app, "应用约束草稿");
+    assert!(app
+        .project
+        .document(&path)
+        .unwrap()
+        .contains("property mayor = ref(\"character\", \"lin\")"));
+    app.undo(false);
+    assert_eq!(app.project.content_baseline(), baseline);
+}

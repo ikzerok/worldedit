@@ -1,7 +1,7 @@
 //! 显式关系和关系类型编辑；选择器只读取 core 目录。
 use super::authoring_forms::{RelationForm, RelationTypeForm};
 use super::catalog::kind_label;
-use super::inspector::{field, properties};
+use super::inspector::{field, properties_with_references};
 use super::WorldeditApp;
 use crate::theme;
 use worldline_core::catalog::{Catalog, TargetRef, TARGET_KINDS};
@@ -222,8 +222,14 @@ impl WorldeditApp {
                     "范围是作者资料筛选，不表示关系会自动产生、终止或演化。",
                 ));
             });
-            egui::CollapsingHeader::new("自定义属性")
-                .show(ui, |ui| properties(ui, &mut form.draft.properties));
+            egui::CollapsingHeader::new("自定义属性").show(ui, |ui| {
+                properties_with_references(
+                    ui,
+                    &mut form.draft.properties,
+                    &catalog,
+                    self.project.compile_options(),
+                )
+            });
             ui.label(theme::muted(
                 "关系 ID · 同一对端点可有多条关系，不能按名称合并",
             ));

@@ -10,13 +10,22 @@ impl WorldeditApp {
             return;
         };
         let catalog = snapshot.result.analysis.catalog.clone();
-        let impact = worldline_core::reference_impact::deletion_impact_with_collaboration(
+        let mut impact = worldline_core::reference_impact::deletion_impact_with_collaboration(
             &snapshot.result,
             &snapshot.map_index,
             &snapshot.graph_index,
             &snapshot.comment_index,
             target,
         );
+        impact.template_references = snapshot.template_index.references_to(target);
+        impact
+            .diagnostics
+            .extend(snapshot.template_index.diagnostics.iter().cloned());
+        impact.complete &= !snapshot
+            .template_index
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == worldline_core::Severity::Error);
         let map_references = impact
             .map_placements
             .into_iter()
@@ -282,6 +291,7 @@ impl WorldeditApp {
                 + impact.map_rasters.len()
                 + impact.graph_views.len()
                 + impact.comments.len()
+                + impact.template_references.len()
         ))
         .id_salt(("references", target))
         .default_open(target.kind == "event")
@@ -348,6 +358,17 @@ impl WorldeditApp {
                     self.jump_to_file(&reference.file, 1, 1);
                 }
             }
+            for reference in &impact.template_references {
+                if ui
+                    .button(format!(
+                        "模板默认值引用 · {}:{} · 打开模板",
+                        reference.file, reference.line
+                    ))
+                    .clicked()
+                {
+                    self.jump_to_file(&reference.file, reference.line, 1);
+                }
+            }
             for reference in &impact.map_rasters {
                 if ui
                     .button(format!(
@@ -376,9 +397,13 @@ impl WorldeditApp {
                 && impact.map_rasters.is_empty()
                 && impact.graph_views.is_empty()
                 && impact.comments.is_empty()
+                && impact.template_references.is_empty()
             {
                 ui.label(theme::muted("尚无直接引用"));
             }
         });
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,6 +1,6 @@
 //! 通用实体创作页；所有类型使用相同的 core EntityDraft。
 use super::authoring_forms::EntityForm;
-use super::inspector::properties;
+use super::inspector::properties_with_references;
 use super::WorldeditApp;
 use crate::theme;
 use std::path::Path;
@@ -79,6 +79,15 @@ impl WorldeditApp {
             .as_ref()
             .map(|snapshot| snapshot.result.analysis.catalog.clone())
             .unwrap_or_default();
+        let viewport = ctx.available_rect().shrink(8.0);
+        let style = ctx.style();
+        let frame = egui::Frame::window(&style);
+        let title_height = ctx
+            .fonts(|fonts| fonts.row_height(&style.text_styles[&egui::TextStyle::Heading]))
+            .max(style.spacing.interact_size.y);
+        let frame_size = frame.total_margin().sum();
+        let chrome_height =
+            frame_size.y + title_height + frame.inner_margin.sum().y + frame.stroke.width;
         egui::Window::new(if form.original.is_some() {
             "编辑通用资料"
         } else {
@@ -88,6 +97,9 @@ impl WorldeditApp {
         .open(&mut open)
         .default_width(620.0)
         .default_height(760.0)
+        .max_width((viewport.width() - frame_size.x).max(260.0))
+        .max_height((viewport.height() - chrome_height).max(220.0))
+        .constrain_to(viewport)
         .resizable(true)
         .vscroll(true)
         .show(ctx, |ui| {
@@ -152,8 +164,14 @@ impl WorldeditApp {
                     self.message = Some("请先保存新资料，再从模板建议打开关系草稿".into());
                 }
             }
-            egui::CollapsingHeader::new("自定义属性")
-                .show(ui, |ui| properties(ui, &mut form.draft.properties));
+            egui::CollapsingHeader::new("自定义属性").show(ui, |ui| {
+                properties_with_references(
+                    ui,
+                    &mut form.draft.properties,
+                    &catalog,
+                    self.project.compile_options(),
+                )
+            });
             egui::CollapsingHeader::new("稳定身份与来源文件").show(ui, |ui| {
                 ui.label("显示名称和分类可修改；已有 ID 保持不变，避免断开引用。");
                 ui.add_enabled(

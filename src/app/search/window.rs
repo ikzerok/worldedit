@@ -116,7 +116,8 @@ impl WorldeditApp {
                 };
                 self.search_state.selected =
                     self.search_state.selected.min(hits.len().saturating_sub(1));
-                let ime = self.ime_composing
+                let ime = !self.edit_layer_is_top("search")
+                    || self.ime_composing
                     || self.command_palette.ime
                     || self.command_palette.ime_frame;
                 ui.horizontal(|ui| {

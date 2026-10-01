@@ -15,6 +15,10 @@ pub(super) struct WikiEditor {
 }
 
 impl WikiEditor {
+    pub(super) fn draft_target(&self) -> TargetRef {
+        TargetRef::new("tag", self.original.as_deref().unwrap_or(&self.draft.id))
+    }
+
     pub(in crate::app) fn new_draft_value(&self) -> Option<serde_json::Value> {
         self.original.is_none().then(|| {
             serde_json::json!([

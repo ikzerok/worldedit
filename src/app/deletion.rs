@@ -62,6 +62,12 @@ impl WorldeditApp {
                         reference.file, reference.line, reference.kind
                     ));
                 }
+                for reference in &form.impact.template_references {
+                    ui.label(format!(
+                        "模板默认值引用 · {}:{}",
+                        reference.file, reference.line
+                    ));
+                }
                 for reference in &form.impact.map_placements {
                     ui.label(format!(
                         "地图标记 · {} / {}",

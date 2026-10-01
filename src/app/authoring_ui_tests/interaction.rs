@@ -386,7 +386,7 @@ pub(super) fn open_selected_entity_form(
     entry
 }
 
-fn clipped_text_position(
+pub(super) fn clipped_text_position(
     shape: &egui::Shape,
     fragment: &str,
     clip: egui::Rect,

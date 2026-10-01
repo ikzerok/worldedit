@@ -1,5 +1,5 @@
 #[cfg(not(target_arch = "wasm32"))]
-use super::super::{DirectoryDialog, Pending};
+use super::super::{DirectoryDialog, DirectoryOperation, Pending};
 use super::super::{Tab, WorldeditApp};
 use crate::theme;
 use std::path::Path;
@@ -40,7 +40,7 @@ impl WorldeditApp {
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub(in crate::app) fn directory_dialog(&mut self, export: bool) {
-        if self.ime_composing || self.ime_source_draft.is_some() {
+        if !export && (self.ime_composing || self.ime_source_draft.is_some()) {
             self.io_error = Some("正文仍有未提交的输入法草稿，请先完成输入或恢复外部版本。".into());
             return;
         }
@@ -56,7 +56,11 @@ impl WorldeditApp {
             Path::new(".")
         };
         self.directory = Some(DirectoryDialog {
-            export,
+            operation: if export {
+                DirectoryOperation::ExportDirectory
+            } else {
+                DirectoryOperation::SaveAs
+            },
             path: parent
                 .join(format!("{id}{}", if export { "-export" } else { "" }))
                 .to_string_lossy()
@@ -150,36 +154,70 @@ impl WorldeditApp {
         if let Some(mut dialog) = self.directory.take() {
             let mut confirm = false;
             let mut cancel = false;
+            let export = dialog.operation != DirectoryOperation::SaveAs;
+            let zip = dialog.operation == DirectoryOperation::ExportZip;
             egui::Modal::new(egui::Id::new("directory")).show(ctx, |ui| {
                 ui.set_width(540.0);
-                ui.heading(if dialog.export {
-                    "导出完整世界工程"
-                } else {
-                    "保存到新工程文件夹"
+                ui.heading(match dialog.operation {
+                    DirectoryOperation::ExportZip => "导出 ZIP 工程包 · 选择目标",
+                    DirectoryOperation::ExportDirectory => "导出完整世界工程",
+                    DirectoryOperation::SaveAs => "保存到新工程文件夹",
                 });
-                ui.label(theme::muted(if dialog.export {
-                    "保留工作区全部文件与子目录，包括未引用资料。导出前校验整个世界。"
+                ui.label(theme::muted(if export {
+                    "导出已应用工程的全部文件与子目录，包括未引用资料；未应用输入会另行确认。"
                 } else {
                     "将所有文件与未完成的修改保存在同一个文件夹。"
                 }));
                 ui.add_space(12.0);
-                ui.label("新文件夹的完整路径");
+                ui.label(if zip {
+                    "新 ZIP 文件的绝对完整路径"
+                } else {
+                    "新文件夹的完整路径"
+                });
+                if zip {
+                    ui.label(theme::muted(
+                        "预填路径不会自动写入；可直接改路径，系统选择器仅为可选辅助。",
+                    ));
+                }
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut dialog.path).desired_width(420.0));
-                    if ui.button("选择位置").clicked() {
-                        if let Some(parent) = rfd::FileDialog::new().pick_folder() {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut dialog.path)
+                            .id(egui::Id::new("export-target-path"))
+                            .desired_width(360.0),
+                    );
+                    if ui
+                        .button(if zip {
+                            "系统选择器（可选）"
+                        } else {
+                            "选择位置"
+                        })
+                        .clicked()
+                    {
+                        let selected = if zip {
+                            let path = Path::new(&dialog.path);
+                            rfd::FileDialog::new()
+                                .set_directory(path.parent().unwrap_or(Path::new(".")))
+                                .set_file_name(
+                                    path.file_name().unwrap_or_default().to_string_lossy(),
+                                )
+                                .add_filter("ZIP 工程包", &["zip"])
+                                .save_file()
+                        } else {
                             let name = Path::new(&dialog.path)
                                 .file_name()
                                 .unwrap_or_default()
                                 .to_owned();
-                            dialog.path = parent.join(name).display().to_string();
-                        }
+                            rfd::FileDialog::new()
+                                .pick_folder()
+                                .map(|parent| parent.join(name))
+                        };
+                        dialog.accept_native_selection(selected);
                     }
                 });
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
                     confirm = ui
-                        .add(theme::primary(if dialog.export {
+                        .add(theme::primary(if export {
                             "校验并导出"
                         } else {
                             "保存工程"
@@ -187,8 +225,23 @@ impl WorldeditApp {
                         .clicked();
                     cancel = ui.button("取消").clicked();
                 });
+                if let Some(error) = &self.io_error {
+                    ui.colored_label(theme::ERROR(), error);
+                }
             });
-            if confirm {
+            if confirm && dialog.path.trim().is_empty() {
+                self.io_error = Some("请填写目标完整路径".into());
+            } else if confirm && zip && !Path::new(dialog.path.trim()).is_absolute() {
+                self.io_error = Some("ZIP 目标必须是绝对完整路径，请选择工作区外的新文件。".into());
+            } else if confirm && export {
+                let target = PathBuf::from(dialog.path.trim());
+                let destination = if zip {
+                    super::super::export_scope::ExportDestination::Zip(target)
+                } else {
+                    super::super::export_scope::ExportDestination::Directory(target)
+                };
+                cancel = self.request_strict_export(destination);
+            } else if confirm {
                 let destination = PathBuf::from(dialog.path.trim());
                 let active = self
                     .active_file
@@ -197,31 +250,19 @@ impl WorldeditApp {
                     .to_path_buf();
                 let result = if dialog.path.trim().is_empty() {
                     Err("请填写文件夹路径".into())
-                } else if dialog.export {
-                    self.project.export(&destination)
                 } else {
                     self.project.save_as(&destination)
                 };
                 match result {
                     Ok(()) => {
                         self.io_error = None;
-                        self.message = Some(format!(
-                            "{}:{}",
-                            if dialog.export {
-                                "已导出"
-                            } else {
-                                "已保存"
-                            },
-                            destination.display()
-                        ));
-                        if !dialog.export {
-                            self.active_file = self.project.root.join(active);
-                            self.saved_location = true;
-                            self.reset_views();
-                            self.recompile();
-                            if let Some(action) = self.pending.take() {
-                                self.perform_action(action, ctx);
-                            }
+                        self.message = Some(format!("已保存:{}", destination.display()));
+                        self.active_file = self.project.root.join(active);
+                        self.saved_location = true;
+                        self.reset_views();
+                        self.recompile();
+                        if let Some(action) = self.pending.take() {
+                            self.perform_action(action, ctx);
                         }
                         cancel = true;
                     }
