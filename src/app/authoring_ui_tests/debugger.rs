@@ -129,7 +129,7 @@ fn stale_recorded_choice_stops_and_ui_jumps_to_its_source_line() {
 }
 
 #[test]
-fn removed_choice_stops_without_fallback_and_locates_the_recorded_source_line() {
+fn removed_choice_stops_without_fallback_or_a_fabricated_current_source_location() {
     let source = "event start\n  choice \"待删除\"\n    -> END\n";
     let (ctx, mut app) = replay_app(source, 20);
     click(&ctx, &mut app, 20, "选择：待删除");
@@ -150,12 +150,21 @@ fn removed_choice_stops_without_fallback_and_locates_the_recorded_source_line() 
     };
     assert!(actual_choices.is_empty());
 
-    let line = app.replay_debugger.saved_paths[0].trace.steps[0]
-        .choice
-        .line;
-    click(&ctx, &mut app, 20, "跳转到失败位置");
-    assert_eq!(app.tab, super::Tab::Edit);
-    assert_eq!(app.jump, Some((line, 1)));
+    assert!(result.current_node.is_none());
+    let output = frame(&ctx, &mut app, Vec::new(), 20);
+    let mut rendered = String::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut rendered);
+    }
+    assert!(rendered.contains("当前停止位置不可定位"), "{rendered}");
+    assert!(!rendered.contains("跳转到失败位置"), "{rendered}");
+    assert_eq!(app.tab, super::Tab::Play);
+    assert_eq!(
+        app.replay_debugger.saved_paths[0].trace.steps[0]
+            .choice
+            .line,
+        2
+    );
 }
 
 #[test]

@@ -209,6 +209,9 @@ impl Default for ReplayDebugger {
 }
 #[derive(Clone)]
 struct EventEditor {
+    baseline: String,
+    predecessor_query: String,
+    temporal_cache: Option<(String, worldline_core::authoring::EventPredecessorOptions)>,
     path: PathBuf,
     original: Option<String>,
     draft: EventDraft,

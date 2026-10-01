@@ -1,8 +1,7 @@
 use super::super::{PlayState, ReplayDebugger, SavedReplayPath};
+use super::replay_location::failure_location;
 use egui::Color32;
-use worldline_runtime::{
-    ReplayOrigin, ReplayResult, ReplayStatus, ReplayTrace, REPLAY_SCHEMA_VERSION,
-};
+use worldline_runtime::{ReplayOrigin, ReplayStatus, ReplayTrace, REPLAY_SCHEMA_VERSION};
 
 const MAX_IMPORTED_TRACE_BYTES: usize = 1024 * 1024;
 const MAX_IMPORTED_TRACE_STEPS: usize = 20_000;
@@ -15,7 +14,7 @@ pub(super) fn render_debugger_controls(
     current_version: u64,
     can_replay: bool,
     replay_request: &mut bool,
-    failure_jump: &mut Option<(String, u32)>,
+    failure_jump: &mut bool,
 ) {
     ui.heading("叙事调试器");
     ui.horizontal(|ui| {
@@ -277,15 +276,23 @@ pub(super) fn render_debugger_controls(
             result.executed_steps,
             result.current_node.as_deref().unwrap_or("无")
         ));
-        let selected_trace = debugger
-            .selected_path
-            .and_then(|index| debugger.saved_paths.get(index))
-            .map(|path| &path.trace);
-        if let Some((node, line)) = failure_location(result, selected_trace) {
-            ui.label(format!("失败位置：{node} · 第 {line} 行"));
-            if ui.button("跳转到失败位置").clicked() {
-                *failure_jump = Some((node, line));
-            }
+        if let Some(location) = failure_location(result) {
+            ui.label(format!(
+                "失败位置：{} · 第 {} 行",
+                location.node, location.line
+            ));
+            *failure_jump |= ui
+                .add_enabled(
+                    debugger.result_version == Some(current_version),
+                    egui::Button::new("跳转到失败位置"),
+                )
+                .on_disabled_hover_text("编辑稿已变化，请重新重放后定位")
+                .clicked();
+        } else if matches!(
+            result.status,
+            ReplayStatus::Diverged { .. } | ReplayStatus::StoryFailed { .. }
+        ) {
+            ui.label("当前停止位置不可定位，原记录仅供对比");
         }
         egui::CollapsingHeader::new("步骤前后状态差异")
             .default_open(true)
@@ -430,32 +437,5 @@ fn replay_status_text(status: &ReplayStatus) -> String {
         ReplayStatus::Cancelled => "重放已取消；已完成部分记录保留".into(),
         ReplayStatus::IncompleteTrace => "轨迹在故事结束前中断".into(),
         ReplayStatus::StoryFailed { message, .. } => format!("故事运行失败：{message}"),
-    }
-}
-
-fn failure_location(result: &ReplayResult, trace: Option<&ReplayTrace>) -> Option<(String, u32)> {
-    match &result.status {
-        ReplayStatus::Diverged {
-            expected_choice: Some(choice),
-            ..
-        } => Some((choice.node.clone(), choice.line)),
-        ReplayStatus::Diverged {
-            step_index,
-            actual_choices,
-            ..
-        } => actual_choices
-            .first()
-            .map(|choice| (choice.node.clone(), choice.line))
-            .or_else(|| {
-                trace
-                    .and_then(|trace| trace.steps.get(*step_index))
-                    .map(|step| (step.choice.node.clone(), step.choice.line))
-            }),
-        ReplayStatus::StoryFailed {
-            node: Some(node),
-            line: Some(line),
-            ..
-        } => Some((node.clone(), *line)),
-        _ => None,
     }
 }

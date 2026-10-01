@@ -10,6 +10,8 @@
 
 时间顺序与读者执行顺序是两回事。倒叙依旧由原有跳转/选择决定，静态 `follows` 不执行事件、不改变 visits，也不重放状态效果。错误图明确标记不完整，不拿残缺层级冒充可信日期。事件双击返回真实声明源码；时段标题可编辑直接父级。
 
+0.12配对编辑器将这套规则用于前驱选择器：已选跨时段关系可见，改时段不自动清除任何已选边；合法关系保留，非法关系明确标注并阻止应用。处理当前前驱后仍要通过全工程后继/环校验。操作步骤见[时间约束与可信重放](replay-timeline-workflow.md)。
+
 ## 人物直接填入资料槽
 
 如“港口指挥官”确实是一个人物值，可直接写 `property commander = ref("character", "regent")`。工程需同时选择语言 1.13，并在 required_features 声明 `content.object_refs.v1` 与 `content.character_refs.v1`。持续 schema 可以使用 `field commander_id commander ref character`；人物 ID 必须真实存在，不能以同名实体代替，也不能加 entity_type 子类限制。

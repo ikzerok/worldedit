@@ -1,6 +1,7 @@
 //! 命令/对象快速切换的真实 egui 帧；不替代原生窗口或物理输入法验收。
 use super::*;
 use egui::{Event, Key, Modifiers, Pos2, Rect, Vec2};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct Harness {
     ctx: egui::Context,
@@ -9,15 +10,17 @@ struct Harness {
 }
 impl Harness {
     fn new(objects: usize, size: Vec2, theme: crate::theme::ThemeMode) -> Self {
+        static NEXT_ROOT: AtomicUsize = AtomicUsize::new(0);
         let ctx = egui::Context::default();
         let mut app = WorldeditApp::new(&eframe::CreationContext::_new_kittest(ctx.clone()), None);
         let root = std::env::temp_dir().join(format!(
-            "visible-command-{}-{}",
+            "visible-command-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_ROOT.fetch_add(1, Ordering::Relaxed)
         ));
         app.project = worldline_core::project::Project::new(&root);
         app.active_file = app.project.entry.clone();
