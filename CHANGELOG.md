@@ -26,7 +26,7 @@
 - 作者 SVG 选择展开不改变读者发布规则：读者白名单仍逐节点授权，选组不自动公开后代
 - SVG 输出包含 legacy 与 scene 的矢量部分；底图、世界源码和完整附件仍须通过工程备份保留
 
-准确支持范围以配对 [SVG profile](../worldline/spec/vector-scene.md#4-支持的-svg-profile) 为准；单次输入最多 2 MiB、1000 图元，每图 scene 最多 5000 节点。
+准确支持范围以配对 [SVG profile](../worldline/spec/vector-scene.md#4-支持的-svg-profile) 为准，此跨仓相对链接用于两仓同级检出；单次输入最多 2 MiB、1000 图元，每图 scene 最多 5000 节点。
 
 ### 完整静态世界站与发布配置
 
@@ -64,4 +64,8 @@
 
 ### 当前验证状态
 
-0.15.0 仍是开发候选。最终原生交互、Windows 与 release 性能验收正在进行；真实 `file://` 离线浏览受工具安全策略限制，尚未验证。自动测试、静态资源闭包、headless CPU 探针和编译结果不代替实际原生/浏览器验收，不据此宣称已正式发布。
+0.15.0 仍为开发候选，未正式发行。Linux 完整测试 552 通过、0 失败、3 ignored，native/WASM 严格 Clippy、release 与静态包检查通过。本轮实际原生功能会话完成 21 分钟；随后对单 tooltip 修补构建完成局部复核和独立 CPU 采样，不把两个二进制的时长混成一次验收。
+
+release 固定负载、headless 帧与真实原生 CPU 帧分开记录，机器、fixture、产物 hash 和精确数字见 [0.15 验证摘要](docs/verification-0.15.md)。Windows 的路径期望测试及 `unused_mut` 修正已在 exact head `09e826f9d9cf58b05b358b10f3cfa5fce10092b1` 完整配对 CI 通过：默认 553/0/3、可选 prototype 568/0/4，native/WASM 严格 Clippy 与构建均成功；两套测试不合并计数。最终 core 配对记录固定合并后的 `ed77d092abe72b6913dfac98ff71b37ca5cc57c7`，其语言源码与 CI 受测的 `9000075…` 相同，差异仅三份正式文档。
+
+真实 `file://` 与正常 HTTP 均受到工具/客户端阻断，实际网页、Browser Worker 和系统 SVG 文件选择成功路径未验；Node WASM 或源码粘贴成功不能替代这些路径。可选原型的 draw/layout 采样属于实验结果，不是默认产品 SLA。

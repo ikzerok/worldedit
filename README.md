@@ -2,7 +2,7 @@
 
 worldline 的 Rust / egui 作者工作台，用于世界资料、正文书稿、分支故事、关系、时间结构和地图创作。0.15.0 开发候选提供原生矢量编辑、受限 SVG 交换、四步静态世界站发布，以及统一的索引、画布和检查器布局。默认语言仍为 1.9，最高 1.13；旧作品不会自动升级。
 
-最终原生、Windows 与性能验收仍在进行；真实 `file://` 离线浏览受工具安全策略限制，尚未完成验证。当前源码和构建不代表正式发行。完整功能与限制见 [CHANGELOG](CHANGELOG.md)，全部使用入口见 [文档索引](docs/README.md)。
+本轮 Linux 自动检查、对应源码的 Windows 配对 CI、release 固定负载、21 分钟原生功能会话及修补构建的局部复核已完成；真实网页、Browser Worker 与系统 SVG 文件选择成功路径未验。精确范围见 [0.15 验证摘要](docs/verification-0.15.md)。当前仍为未正式发行的开发候选，完整功能见 [CHANGELOG](CHANGELOG.md)，使用入口见 [文档索引](docs/README.md)。
 
 ## 0.15 使用入口
 
@@ -11,7 +11,7 @@ worldline 的 Rust / egui 作者工作台，用于世界资料、正文书稿、
 - [共同界面布局](docs/visual-system-0.15.md)：主导航、索引、内容、检查器和参考区的职责及主题规则
 - [后台计算与取消](docs/web-worker.md)：桌面线程与同源 Web Worker 的进度、资源限制和过期结果保护
 
-从[时间约束与可信重放](docs/replay-timeline-workflow.md)和配对[栖雪山站示例](../worldline/examples/snowline-seeds/README.md)完成双路线改稿。普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
+从[时间约束与可信重放](docs/replay-timeline-workflow.md)和配对[栖雪山站示例](../worldline/examples/snowline-seeds/README.md)完成双路线改稿；跨仓相对链接用于 `worldline` / `worldedit` 同级检出。普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
 [稳定ID重构与存档边界](docs/safe-id-refactor.md)说明逐处预览、原子提交和state所属实体的安全拒绝；[查找与作者位置](docs/search-author-context.md)说明模式保持、源码回退与返回保护。
 
 ## 安装与启动
