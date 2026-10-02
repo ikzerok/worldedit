@@ -17,15 +17,7 @@ fn reader_zip_roundtrips_five_thousand_files_without_backup_limits() {
 
 #[test]
 fn unsafe_paths_and_file_budget_are_rejected_before_encoding() {
-    for name in [
-        "../private",
-        "/absolute",
-        "a/../b",
-        "a//b",
-        "./a",
-        "C:/a",
-        "a\\b",
-    ] {
+    for name in ["../private", "/absolute", "a/../b", "a//b", "./a", "C:/a"] {
         assert!(
             encode(
                 &BTreeMap::from([(PathBuf::from(name), vec![])]),
@@ -129,5 +121,56 @@ fn budget_exhaustion_during_zip_headers_and_finish_never_returns_partial_bytes()
                 .contains("ZIP预算"),
             "budget {limit}"
         );
+    }
+}
+
+#[test]
+fn native_relative_paths_encode_portable_zip_names() {
+    let path = Path::new("objects").join("index.html");
+    assert_eq!(safe_name(&path).unwrap(), "objects/index.html");
+    let bytes = encode(
+        &BTreeMap::from([(path, b"public".to_vec())]),
+        &mut |_, _| true,
+    )
+    .unwrap();
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+    assert_eq!(archive.by_index(0).unwrap().name(), "objects/index.html");
+    #[cfg(not(windows))]
+    assert!(safe_name(Path::new("objects\\index.html")).is_err());
+    #[cfg(windows)]
+    assert_eq!(
+        safe_name(Path::new("objects\\index.html")).unwrap(),
+        "objects/index.html"
+    );
+}
+
+#[test]
+fn workspace_snapshot_names_preserve_ordinary_names_without_url_rules() {
+    for name in ["notes/a&b.txt", "notes/#draft%.md", "notes/中文 空格.txt"] {
+        assert_eq!(safe_snapshot_name(Path::new(name)).unwrap(), name);
+    }
+    let native = Path::new("notes").join("#draft%&.md");
+    assert_eq!(safe_snapshot_name(&native).unwrap(), "notes/#draft%&.md");
+    assert_eq!(
+        snapshot_name_text("notes\\#draft%&.md", true).unwrap(),
+        "notes/#draft%&.md"
+    );
+    assert!(snapshot_name_text("notes\\#draft%&.md", false).is_err());
+    for name in [
+        "",
+        "../secret",
+        "a/../b",
+        "a//b",
+        "./a",
+        "/absolute",
+        "C:/a",
+        "C:a",
+        "\\\\host\\share",
+        "a\\..\\b",
+        "a\\\\b",
+        "a\0b",
+    ] {
+        assert!(snapshot_name_text(name, true).is_err(), "{name:?}");
+        assert!(snapshot_name_text(name, false).is_err(), "{name:?}");
     }
 }

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use worldline_core::presentation_commands::Revision;
 use worldline_core::project::SnapshotState;
 use worldline_core::reader_export::{
-    ReaderExportPreview, ReaderExportSelection, ReaderPublicationProfile,
+    ReaderExportPreview, ReaderExportSelection, ReaderProfileSavePlan, ReaderPublicationProfile,
 };
 use worldline_core::vector_scene::{
     MapScene, SceneBatch, SceneEntityRequest, SceneOp, SvgScenePreview,
@@ -52,6 +52,12 @@ pub(crate) enum WorkTask {
         map_id: String,
         selected: Option<BTreeSet<String>>,
     },
+    ReaderProfileSavePlan {
+        selection: ReaderExportSelection,
+        profile: Option<ReaderPublicationProfile>,
+        id: String,
+        title: String,
+    },
     ReaderPackage {
         selection: ReaderExportSelection,
         profile: Option<ReaderPublicationProfile>,
@@ -75,6 +81,9 @@ pub(crate) enum WorkOutput {
     },
     MapSvgExport {
         source: String,
+    },
+    ReaderProfileSavePlan {
+        plan: ReaderProfileSavePlan,
     },
     ReaderPackage {
         preview: ReaderExportPreview,
@@ -111,12 +120,13 @@ impl WorkRequest {
                 | WorkTask::SceneEntityPreview { .. }
                 | WorkTask::ReaderPackage { .. }
                 | WorkTask::MapSvgExport { .. }
+                | WorkTask::ReaderProfileSavePlan { .. }
         );
         if needs_project != self.snapshot_state.is_some() {
             return Err("后台任务与工程快照状态不匹配".into());
         }
         if needs_project {
-            crate::reader_zip::safe_name(&self.entry)?;
+            crate::reader_zip::safe_snapshot_name(&self.entry)?;
         }
         Ok(())
     }
@@ -131,6 +141,27 @@ impl WorkRequest {
         binaries: &[usize],
     ) -> Result<(), String> {
         match (&self.task, output) {
+            (
+                WorkTask::ReaderProfileSavePlan {
+                    selection,
+                    profile,
+                    id,
+                    title,
+                },
+                WorkOutput::ReaderProfileSavePlan { plan },
+            ) if binaries.is_empty()
+                && &plan.profile.selection == selection
+                && &plan.profile.id == id
+                && &plan.profile.title == title
+                && profile.as_ref().is_none_or(|original| {
+                    original.id == plan.profile.id
+                        && original.schema_version == plan.profile.schema_version
+                        && original.required_features == plan.profile.required_features
+                        && reader_profile_routes_preserved(original, &plan.profile)
+                }) =>
+            {
+                Ok(())
+            }
             (WorkTask::MapSvgExport { .. }, WorkOutput::MapSvgExport { source })
                 if binaries.is_empty() && source.len() <= MAX_JSON_BYTES =>
             {
@@ -197,6 +228,33 @@ impl WorkRequest {
     }
 }
 
+type ReaderRouteKey<'a> = (
+    Option<&'a worldline_core::catalog::TargetRef>,
+    Option<&'a str>,
+    Option<&'a str>,
+    &'a str,
+);
+fn reader_route_key(
+    route: &worldline_core::reader_export::ReaderProfileRoute,
+) -> ReaderRouteKey<'_> {
+    (
+        route.target.as_ref(),
+        route.manuscript_id.as_deref(),
+        route.chapter_id.as_deref(),
+        route.output_path.as_str(),
+    )
+}
+fn reader_profile_routes_preserved(
+    original: &ReaderPublicationProfile,
+    returned: &ReaderPublicationProfile,
+) -> bool {
+    let routes: BTreeSet<_> = returned.routes.iter().map(reader_route_key).collect();
+    original
+        .routes
+        .iter()
+        .all(|route| routes.contains(&reader_route_key(route)))
+}
+
 fn same_json<T: Serialize>(first: &T, second: &T) -> bool {
     matches!((serde_json::to_value(first), serde_json::to_value(second)), (Ok(a), Ok(b)) if a == b)
 }
@@ -251,7 +309,7 @@ pub(crate) fn restore_retained(
 ) -> Result<(), String> {
     let mut unique = BTreeSet::new();
     for (path, bytes) in retained {
-        crate::reader_zip::safe_name(&path)?;
+        crate::reader_zip::safe_snapshot_name(&path)?;
         if !unique.insert(path.clone()) {
             return Err("后台墓碑负载重复".into());
         }

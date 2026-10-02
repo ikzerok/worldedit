@@ -65,7 +65,9 @@ impl WorldeditApp {
                 return;
             };
             let generation = job.generation;
-            let Some(receiver) = job.receiver.as_ref() else { return; };
+            let Some(receiver) = job.receiver.as_ref() else {
+                return;
+            };
             let message = match receiver.try_recv() {
                 Ok(message) => message,
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -119,7 +121,11 @@ impl Drop for ReaderPublishJob {
         self.cancel
             .store(true, std::sync::atomic::Ordering::Release);
         if let Some(receiver) = self.receiver.take() {
-            close::spawn_cleanup(move || { for message in receiver.iter() { drop(message); } });
+            close::spawn_cleanup(move || {
+                for message in receiver.iter() {
+                    drop(message);
+                }
+            });
         }
     }
 }
@@ -174,6 +180,14 @@ pub(super) fn build_reviewed_package_with_progress(
     })
 }
 
+pub(super) fn validate_page_path(path: &str) -> Result<(), String> {
+    // URL字符串不能套用Windows原生文件分隔符的宽容规则。
+    if path.contains('\\') || crate::reader_zip::safe_name(Path::new(path))? != path {
+        return Err("公开页面URL路径不安全".into());
+    }
+    Ok(())
+}
+
 pub(super) fn validate_public_index(
     files: &archive::Files,
     preview: &ReaderExportPreview,
@@ -183,9 +197,30 @@ pub(super) fn validate_public_index(
         .ok_or("静态包缺少公开搜索索引")?;
     let entries: Vec<SearchPreviewEntry> =
         serde_json::from_slice(bytes).map_err(|error| format!("公开搜索索引格式无效：{error}"))?;
+    // v1缺少正文投影，只能跳过内容比对，绝不能跳过URL边界校验。
+    for entry in &entries {
+        let (base, anchor) = entry
+            .url
+            .split_once('#')
+            .map_or((entry.url.as_str(), None), |(base, anchor)| {
+                (base, Some(anchor))
+            });
+        validate_page_path(base)?;
+        if anchor.is_some_and(|anchor| {
+            anchor.is_empty()
+                || !anchor
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        }) {
+            return Err("公开搜索索引锚点路径不安全".into());
+        }
+    }
     // v1没有文本投影；v2/v3必须一一核对主页面。额外项仅允许来自已审核地图的公开锚点。
     if preview.content.is_empty() {
         return Ok(());
+    }
+    for page in &preview.content {
+        validate_page_path(&page.output_path)?;
     }
     let pages: BTreeMap<_, _> = preview
         .content
@@ -206,6 +241,12 @@ pub(super) fn validate_public_index(
     let mut main_pages = BTreeSet::new();
     let mut anchor_offsets = BTreeMap::<&str, usize>::new();
     for entry in &entries {
+        validate_page_path(
+            entry
+                .url
+                .split_once('#')
+                .map_or(entry.url.as_str(), |(base, _)| base),
+        )?;
         if !seen.insert(entry.url.as_str()) {
             return Err("公开搜索索引含重复URL".into());
         }

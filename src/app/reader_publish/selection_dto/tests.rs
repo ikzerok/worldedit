@@ -116,3 +116,16 @@ fn reopening_a_busy_wizard_keeps_the_job_result_channel() {
     assert_eq!(app.reader_publish.job.as_ref().unwrap().generation, 7);
     assert!(!cancel.load(std::sync::atomic::Ordering::Acquire));
 }
+
+#[test]
+fn indexed_ordering_preserves_original_order_and_invalid_duplicate_authorizations() {
+    let selected = ["z".to_owned(), "a".to_owned(), "new".to_owned()]
+        .into_iter()
+        .collect();
+    let old = ["z".into(), "z".into(), "a".into(), "removed".into()];
+    let candidates = ["new".into(), "a".into()];
+    assert_eq!(
+        ordered(&selected, &old, &candidates),
+        vec!["z", "z", "a", "new"]
+    );
+}

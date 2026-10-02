@@ -9,6 +9,16 @@ impl super::super::WorldeditApp {
             "浏览模式：显隐只作用于本次浏览；进入编辑展示后才能保存图层设置。"
         }));
         let layer_details = self.map_canvas.layer_details();
+        if !editing {
+            ui.horizontal(|ui| {
+                if ui.small_button("临时全部隐藏").clicked() {
+                    self.map_canvas.set_all_layers_visible(false);
+                }
+                if ui.small_button("临时全部显示").clicked() {
+                    self.map_canvas.set_all_layers_visible(true);
+                }
+            });
+        }
         if editing {
             if ui.button("添加图层").clicked() {
                 let mut index = 1;

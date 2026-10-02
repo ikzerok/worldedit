@@ -233,3 +233,93 @@ fn scene_error_text_keeps_xml_position_and_field_context() {
         assert!(message.contains(part));
     }
 }
+
+#[test]
+fn reader_profile_plan_keeps_every_original_route_field_and_known_scope() {
+    use worldline_core::reader_export::ReaderProfileRoute;
+    let selection = ReaderExportSelection {
+        schema_version: 3,
+        required_features: vec!["reader.world_site.v1".into()],
+        site_title: "公开站点".into(),
+        objects: vec![],
+        fields: vec![],
+        maps: vec![],
+        manuscripts: vec![],
+        attachments: vec![],
+    };
+    let original = ReaderPublicationProfile {
+        schema_version: 1,
+        required_features: vec!["reader.profiles.v1".into(), "future.required.v99".into()],
+        id: "public".into(),
+        title: "公开配置".into(),
+        selection: selection.clone(),
+        routes: vec![ReaderProfileRoute {
+            target: Some(worldline_core::catalog::TargetRef::new("entity", "a")),
+            manuscript_id: None,
+            chapter_id: None,
+            output_path: "objects/o0001.html".into(),
+        }],
+    };
+    let req = request(WorkTask::ReaderProfileSavePlan {
+        selection,
+        profile: Some(original.clone()),
+        id: original.id.clone(),
+        title: original.title.clone(),
+    });
+    let mut plan = ReaderProfileSavePlan {
+        profile: original.clone(),
+        content_baseline: "baseline".into(),
+        document_path: ".world/reader-profiles/public.json".into(),
+        document_before_hash: None,
+        plan_digest: "digest".into(),
+    };
+    plan.profile.routes.push(ReaderProfileRoute {
+        target: Some(worldline_core::catalog::TargetRef::new("entity", "b")),
+        manuscript_id: None,
+        chapter_id: None,
+        output_path: "objects/o0002.html".into(),
+    });
+    assert!(req
+        .accepts_lengths(
+            &WorkOutput::ReaderProfileSavePlan { plan: plan.clone() },
+            &[]
+        )
+        .is_ok());
+    assert!(req
+        .accepts_lengths(
+            &WorkOutput::ReaderProfileSavePlan { plan: plan.clone() },
+            &[0]
+        )
+        .is_err());
+    for changed in [
+        ReaderProfileRoute {
+            output_path: "objects/o0003.html".into(),
+            ..original.routes[0].clone()
+        },
+        ReaderProfileRoute {
+            target: Some(worldline_core::catalog::TargetRef::new("entity", "other")),
+            ..original.routes[0].clone()
+        },
+        ReaderProfileRoute {
+            manuscript_id: Some("unexpected".into()),
+            ..original.routes[0].clone()
+        },
+        ReaderProfileRoute {
+            chapter_id: Some("unexpected".into()),
+            ..original.routes[0].clone()
+        },
+    ] {
+        let mut changed_plan = plan.clone();
+        changed_plan.profile.routes[0] = changed;
+        assert!(req
+            .accepts_lengths(
+                &WorkOutput::ReaderProfileSavePlan { plan: changed_plan },
+                &[]
+            )
+            .is_err());
+    }
+    plan.profile.required_features.pop();
+    assert!(req
+        .accepts_lengths(&WorkOutput::ReaderProfileSavePlan { plan }, &[])
+        .is_err());
+}

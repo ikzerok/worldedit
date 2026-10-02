@@ -3,13 +3,17 @@ use super::*;
 use worldline_core::reader_export::*;
 
 fn ordered<T: Clone + Ord>(selected: &BTreeSet<T>, previous: &[T], candidates: &[T]) -> Vec<T> {
-    let mut result: Vec<T> = previous
-        .iter()
-        .filter(|value| selected.contains(*value))
-        .cloned()
-        .collect();
+    let mut result = Vec::new();
+    let mut seen = BTreeSet::new();
+    for value in previous {
+        if selected.contains(value) {
+            // 连原配置中的重复项也原样保留，交给core严格拒绝，不静默修正授权。
+            result.push(value.clone());
+            seen.insert(value);
+        }
+    }
     for value in candidates.iter().chain(selected.iter()) {
-        if selected.contains(value) && !result.contains(value) {
+        if selected.contains(value) && seen.insert(value) {
             result.push(value.clone());
         }
     }
@@ -47,6 +51,12 @@ impl ReaderPublishState {
         let previous_fields = previous
             .map(|selection| selection.fields.as_slice())
             .unwrap_or_default();
+        let mut previous_field_keys = BTreeMap::new();
+        for field in previous_fields {
+            previous_field_keys
+                .entry(&field.target)
+                .or_insert(field.keys.as_slice());
+        }
         let fields: Vec<_> = ordered(
             &field_targets,
             &previous_fields
@@ -57,10 +67,9 @@ impl ReaderPublishState {
         )
         .into_iter()
         .map(|target| {
-            let previous_keys = previous_fields
-                .iter()
-                .find(|field| field.target == target)
-                .map(|field| field.keys.as_slice())
+            let previous_keys = previous_field_keys
+                .get(&target)
+                .copied()
                 .unwrap_or_default();
             ReaderFieldSelection {
                 keys: ordered(&self.fields[&target], previous_keys, &[]),

@@ -25,36 +25,10 @@ impl WorldeditApp {
         ctx: &egui::Context,
     ) {
         let result = (|| {
-            let snapshot_state = self.project.snapshot_state()?;
-            let retained_count = snapshot_state
-                .documents
-                .iter()
-                .filter(|document| document.retained_bytes.is_some())
-                .count();
-            let retained_bytes = snapshot_state
-                .documents
-                .iter()
-                .filter_map(|document| document.retained_bytes.as_ref())
-                .try_fold(0usize, |total, bytes| {
-                    total.checked_add(bytes.len()).ok_or("后台墓碑大小溢出")
-                })?;
-            let files = self.project.snapshot_files_limited(
-                crate::reader_zip::MAX_FILES
-                    .checked_sub(retained_count)
-                    .ok_or("后台快照文件数超过预算")?,
-                crate::reader_zip::MAX_BYTES
-                    .checked_sub(retained_bytes)
-                    .ok_or("后台快照字节数超过预算")?,
-            )?;
+            let (snapshot_state, files, entry) = self.reader_worker_snapshot()?;
             let baseline = self.project.content_baseline();
             let generation = self.reader_publish.generation;
             let profile = self.reader_publish.current_profile();
-            let entry = self
-                .project
-                .entry
-                .strip_prefix(&self.project.root)
-                .map_err(|_| "工程入口不在工作区内")?
-                .to_path_buf();
             let request = WorkRequest {
                 schema_version: SCHEMA_VERSION,
                 job_id: format!(

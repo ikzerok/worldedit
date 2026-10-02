@@ -395,9 +395,19 @@ impl super::super::WorldeditApp {
                     self.map_canvas.toolbar(ui);
                     self.map_canvas.scene.render_status_panel(ui);
                     self.scene_job_panel(ui);
-                    if ui.small_button("导出矢量 SVG…").clicked() {
-                        self.begin_svg_export(ctx);
-                    }
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.small_button("导出整图矢量 SVG…").clicked() {
+                            self.begin_svg_export(ctx, false);
+                        }
+                        let selected = !self.map_canvas.scene.selection.is_empty()
+                            || self.map_canvas.selected_placement().is_some();
+                        if ui
+                            .add_enabled(selected, egui::Button::new("导出当前选择…").small())
+                            .clicked()
+                        {
+                            self.begin_svg_export(ctx, true);
+                        }
+                    });
                 } else {
                     ui.heading("开始绘制你的世界");
                     ui.label("先创建空白地图，再添加图层、地点或导入矢量图形。");

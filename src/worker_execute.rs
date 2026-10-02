@@ -124,6 +124,28 @@ fn execute(request_json: &str, files: JsValue, retained: JsValue) -> Result<JsVa
                 .map_err(|error| scene_error(&error))?;
             (WorkOutput::MapSvgExport { source }, Vec::new())
         }
+        WorkTask::ReaderProfileSavePlan {
+            selection,
+            profile,
+            id,
+            title,
+        } => {
+            progress(&request, "检查发布配置", 0, 2);
+            let project = need_project()?;
+            let mut candidate = if let Some(profile) = profile {
+                if &profile.id != id {
+                    return Err("发布配置身份与保存请求不一致".into());
+                }
+                profile.clone()
+            } else {
+                project.create_reader_profile(id, selection)?
+            };
+            candidate.selection = selection.clone();
+            candidate.title = title.clone();
+            progress(&request, "生成配置保存计划", 1, 2);
+            let plan = project.preview_save_reader_profile(&candidate)?;
+            (WorkOutput::ReaderProfileSavePlan { plan }, Vec::new())
+        }
         WorkTask::ReaderPackage { selection, profile } => {
             let project = need_project()?;
             if profile
@@ -201,7 +223,7 @@ fn read_files(value: JsValue, total: &mut usize) -> Result<Files, String> {
             .map_err(js_error)?
             .as_string()
             .ok_or("后台文件缺少路径")?;
-        crate::reader_zip::safe_name(Path::new(&path))?;
+        crate::reader_zip::safe_snapshot_name(Path::new(&path))?;
         let data = Reflect::get(&item, &"bytes".into())
             .map_err(js_error)?
             .dyn_into::<Uint8Array>()

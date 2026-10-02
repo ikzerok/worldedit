@@ -2,7 +2,9 @@
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
-use std::path::{Component, Path, PathBuf};
+#[cfg(any(target_arch = "wasm32", test))]
+use std::path::Component;
+use std::path::{Path, PathBuf};
 
 pub(crate) const MAX_FILES: usize = 10_000;
 pub(crate) const MAX_BYTES: usize = 128 * 1024 * 1024;
@@ -130,18 +132,36 @@ pub(crate) fn validate(files: &BTreeMap<PathBuf, Vec<u8>>) -> Result<usize, Stri
     Ok(total)
 }
 
-pub(crate) fn safe_name(path: &Path) -> Result<&str, String> {
-    let name = path.to_str().ok_or("阅读包路径必须为UTF-8")?;
-    if name.is_empty()
-        || name.contains(['\\', ':', '\0'])
-        || name.split('/').any(|part| matches!(part, "" | "." | ".."))
-        || path
-            .components()
-            .any(|part| !matches!(part, Component::Normal(_)))
+pub(crate) fn safe_name(path: &Path) -> Result<String, String> {
+    worldline_core::reader_export::portable_output_path(path)
+}
+
+/// 完整工作区快照不是公开URL：合法的#/%/&等原始文件名必须保留。
+/// Windows的原生相对路径仅正规化分隔符，其他平台不接受字面反斜杠。
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn safe_snapshot_name(path: &Path) -> Result<String, String> {
+    let raw = path.to_str().ok_or("工作区快照路径必须为UTF-8")?;
+    if path
+        .components()
+        .any(|part| !matches!(part, Component::Normal(_)))
     {
-        return Err(format!("阅读包路径不安全：{name}"));
+        return Err(format!("工作区快照路径不安全：{raw}"));
     }
-    Ok(name)
+    snapshot_name_text(raw, cfg!(windows))
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+fn snapshot_name_text(raw: &str, windows_separators: bool) -> Result<String, String> {
+    if raw.is_empty() || raw.contains([':', '\0']) || (!windows_separators && raw.contains('\\')) {
+        return Err(format!("工作区快照路径不安全：{raw}"));
+    }
+    let parts: Vec<_> = raw
+        .split(|character| character == '/' || (windows_separators && character == '\\'))
+        .collect();
+    if parts.iter().any(|part| matches!(*part, "" | "." | "..")) {
+        return Err(format!("工作区快照路径不安全：{raw}"));
+    }
+    Ok(parts.join("/"))
 }
 
 #[derive(Clone, Copy)]

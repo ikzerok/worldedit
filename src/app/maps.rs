@@ -499,6 +499,10 @@ mod tests_measurement_app;
 #[path = "maps/tests/scene_authoring.rs"]
 mod tests_scene_authoring;
 
+#[cfg(test)]
+#[path = "maps/tests/scene_pointer.rs"]
+mod tests_scene_pointer;
+
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "maps/tests/performance.rs"]
 mod tests_performance;

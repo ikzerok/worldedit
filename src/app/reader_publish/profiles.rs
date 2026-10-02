@@ -4,7 +4,7 @@ use worldline_core::project::Project;
 use worldline_core::reader_export::{READER_SITE_SCHEMA_VERSION, READER_STORY_FEATURE};
 
 impl ReaderPublishState {
-    pub(super) fn refresh_profiles(&mut self, project: &Project) {
+    pub(in crate::app) fn refresh_profiles(&mut self, project: &Project) {
         match project.reader_profiles() {
             Ok(profiles) => {
                 self.profiles = profiles;
@@ -125,7 +125,7 @@ impl ReaderPublishState {
 }
 
 impl WorldeditApp {
-    pub(super) fn reader_profile_action(&mut self, action: PublishAction) {
+    pub(super) fn reader_profile_action(&mut self, action: PublishAction, ctx: &egui::Context) {
         match action {
             PublishAction::LoadProfile(index) => {
                 if let Some(profile) = self.reader_publish.profiles.get(index).cloned() {
@@ -142,39 +142,7 @@ impl WorldeditApp {
                 state.open = true;
                 self.reader_publish = state;
             }
-            PublishAction::SaveProfile => {
-                let candidate = self
-                    .reader_publish
-                    .current_profile()
-                    .map(Ok)
-                    .unwrap_or_else(|| {
-                        self.project.create_reader_profile(
-                            self.reader_publish.profile_id.trim(),
-                            &self.reader_publish.selection(),
-                        )
-                    })
-                    .map(|mut profile| {
-                        if !self.reader_publish.profile_title.trim().is_empty() {
-                            profile.title = self.reader_publish.profile_title.clone();
-                        }
-                        profile
-                    });
-                let plan = candidate
-                    .and_then(|profile| self.project.preview_save_reader_profile(&profile));
-                match plan {
-                    Ok(plan) => {
-                        if self.commit(
-                            "发布配置已应用；保存全部可写入工作区",
-                            |project| project.apply_save_reader_profile(&plan),
-                        ) {
-                            self.reader_publish.load_profile(plan.profile);
-                            self.reader_publish.status =
-                                Some("配置已应用、可撤销；尚需保存全部。".into());
-                        }
-                    }
-                    Err(error) => self.reader_publish.status = Some(format!("配置未应用：{error}")),
-                }
-            }
+            PublishAction::SaveProfile => self.start_reader_profile_save(ctx),
             PublishAction::PreviewMigration => {
                 if let Some(profile) = self.reader_publish.current_profile() {
                     match self.project.preview_reader_profile_migration(&profile) {

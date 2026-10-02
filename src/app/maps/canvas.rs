@@ -240,6 +240,19 @@ impl MapCanvas {
         }
     }
 
+    /// 浏览用批量显隐，一次遍历；不修改核心默认值或作者文档。
+    pub(super) fn set_all_layers_visible(&mut self, visible: bool) {
+        for layer in &mut self.snapshot.layers {
+            layer.visible = visible;
+            self.session_layer_visibility
+                .insert(layer.id.clone(), visible);
+        }
+        if !visible {
+            self.selected = None;
+        }
+        self.release_hidden_scene_layers();
+    }
+
     pub(in crate::app) fn set_layer_default_visible(&mut self, id: &str, visible: bool) {
         self.session_layer_visibility.remove(id);
         if let Some(layer) = self

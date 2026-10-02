@@ -15,6 +15,13 @@ thread_local! {
     static OPEN_REQUESTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
+pub(super) fn clear_cached_for_app_close() {
+    let previews = PREVIEWS.with(|previews| std::mem::take(&mut *previews.borrow_mut()));
+    if !previews.is_empty() {
+        close::spawn_cleanup(move || drop(previews));
+    }
+}
+
 struct PreviewDirectory(PathBuf);
 impl Drop for PreviewDirectory {
     fn drop(&mut self) {
@@ -36,11 +43,15 @@ pub(super) struct BrowserPreviewJob {
     page: String,
 }
 impl BrowserPreviewJob {
-    pub(super) fn request_cancel(&self) { self.cancel.store(true, Ordering::Release); }
+    pub(super) fn request_cancel(&self) {
+        self.cancel.store(true, Ordering::Release);
+    }
     pub(super) fn drain_for_close(mut self) {
         self.request_cancel();
         if let Some(receiver) = self.receiver.take() {
-            for message in receiver.iter() { drop(message); }
+            for message in receiver.iter() {
+                drop(message);
+            }
         }
     }
 
@@ -68,7 +79,11 @@ impl Drop for BrowserPreviewJob {
         self.cancel.store(true, Ordering::Release);
         if let Some(receiver) = self.receiver.take() {
             // 已排队Done可能持有大量文件的目录，不能在关闭窗口这一帧同步删除。
-            close::spawn_cleanup(move || { for message in receiver.iter() { drop(message); } });
+            close::spawn_cleanup(move || {
+                for message in receiver.iter() {
+                    drop(message);
+                }
+            });
         }
     }
 }
@@ -136,7 +151,7 @@ fn materialize(
 }
 
 fn request_open(directory: &Path, page: &str) -> Result<(), String> {
-    crate::reader_zip::safe_name(Path::new(page))?;
+    preview::validate_page_path(page)?;
     #[cfg(test)]
     {
         let _ = directory;
@@ -151,6 +166,10 @@ fn request_open(directory: &Path, page: &str) -> Result<(), String> {
 
 impl WorldeditApp {
     pub(super) fn open_reader_browser_preview(&mut self, page: String) {
+        if let Err(error) = preview::validate_page_path(&page) {
+            self.reader_publish.status = Some(error);
+            return;
+        }
         let Some(reviewed) = self.reader_publish.reviewed.as_ref() else {
             return;
         };

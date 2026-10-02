@@ -1,4 +1,6 @@
 use super::scene_export_job::{SvgExportEvent, SvgExportJob};
+use std::collections::BTreeSet;
+use worldline_core::{presentation::MapDocument, vector_scene::SceneGeometry};
 
 pub(super) struct SvgExportForm {
     map_id: String,
@@ -6,10 +8,11 @@ pub(super) struct SvgExportForm {
     source: Option<String>,
     job: Option<SvgExportJob>,
     error: Option<String>,
+    selected_count: Option<usize>,
 }
 
 impl super::super::WorldeditApp {
-    pub(super) fn begin_svg_export(&mut self, ctx: &egui::Context) {
+    pub(super) fn begin_svg_export(&mut self, ctx: &egui::Context, selection_only: bool) {
         let map_id = self.map_canvas.map_id().to_owned();
         let Some(map) = self
             .snapshot
@@ -19,7 +22,27 @@ impl super::super::WorldeditApp {
         else {
             return;
         };
-        let job = SvgExportJob::render(&self.project, map, ctx);
+        let selected = if selection_only {
+            let mut ids = self.map_canvas.scene.selection.clone();
+            if let Some(placement) = self.map_canvas.selected_placement() {
+                ids.insert(placement.id);
+            }
+            match expand_author_selection(&map, &ids) {
+                Ok(ids) if !ids.is_empty() => Some(ids),
+                Ok(_) => {
+                    self.message = Some("先选择需要交换的矢量对象或组".into());
+                    return;
+                }
+                Err(error) => {
+                    self.message = Some(error);
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+        let selected_count = selected.as_ref().map(BTreeSet::len);
+        let job = SvgExportJob::render(&self.project, map, selected, ctx);
         let (job, error) = match job {
             Ok(job) => (Some(job), None),
             Err(error) => (None, Some(error)),
@@ -28,6 +51,7 @@ impl super::super::WorldeditApp {
             map_id,
             baseline: self.project.content_baseline(),
             source: None,
+            selected_count,
             job,
             error,
         });
@@ -62,7 +86,12 @@ impl super::super::WorldeditApp {
                     if let Err(error) = crate::web::download(&format!("{}.svg", form.map_id), form.source.as_ref().expect("enabled source").as_bytes(), "image/svg+xml") { form.error = Some(error); }
                 }
             });
-            ui.label("导出当前文档默认可见的旧标记与原生 scene，保持每层顺序。个人临时显隐不写入此交换文件。栅格底图、资料正文与附件请用完整工程备份。");
+            if let Some(count) = form.selected_count {
+                ui.label(format!("开始导出时的选择：{count} 个对象。选中组包含全部后代，保持祖先变换、样式与裁剪；未选兄弟不会导出。所含隐藏项在 SVG 中也会可见，默认/临时显隐不筛掉所选内容。"));
+            } else {
+                ui.label("导出当前文档默认可见的旧标记与原生 scene，保持每层顺序。个人临时显隐不写入此交换文件。");
+            }
+            ui.label("栅格底图、资料正文与附件请用完整工程备份。未修改原工程，不会自动保存文件。");
             if self.map_canvas.has_uncommitted_work() { ui.colored_label(crate::theme::WARNING(), "包含已应用版本；未应用检查器或绘制草稿不会进入 SVG。"); }
             if !current { ui.colored_label(crate::theme::WARNING(), "工程已改变，不能保存或复制旧导出；关闭后重新生成。"); }
             if form.job.is_some() {
@@ -108,3 +137,29 @@ impl super::super::WorldeditApp {
         self.map_canvas.scene.export = Some(form);
     }
 }
+
+/// 作者选组按核心 DTO 的 children 显式扩展；不改变 reader 的精确白名单语义。
+pub(super) fn expand_author_selection(
+    map: &MapDocument,
+    selected: &BTreeSet<String>,
+) -> Result<BTreeSet<String>, String> {
+    let mut result = BTreeSet::new();
+    let mut pending: Vec<_> = selected.iter().cloned().collect();
+    while let Some(id) = pending.pop() {
+        if !result.insert(id.clone()) {
+            continue;
+        }
+        if let Some(node) = map.scene.as_ref().and_then(|scene| scene.nodes.get(&id)) {
+            if let SceneGeometry::Group { children } = &node.geometry {
+                pending.extend(children.iter().cloned());
+            }
+        } else if !map.placements.contains_key(&id) {
+            return Err(format!("选择中的对象「{id}」已不存在，请重新选择后导出"));
+        }
+    }
+    Ok(result)
+}
+
+#[cfg(test)]
+#[path = "tests/scene_exchange.rs"]
+mod tests;

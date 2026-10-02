@@ -171,11 +171,12 @@ impl WorldeditApp {
             Some(PublishAction::Browse) => self.choose_reader_package_destination(),
             #[cfg(not(target_arch = "wasm32"))]
             Some(PublishAction::BrowserPreview(page)) => self.open_reader_browser_preview(page),
-            Some(other) => self.reader_profile_action(other),
+            Some(other) => self.reader_profile_action(other, ctx),
             None => {}
         }
         // X/取消先决定；按下尚未释放也不能让已排队完成先触发打开或下载。
         if self.reader_publish.open && !ctx.input(|input| input.pointer.any_down()) {
+            self.poll_reader_profile_job();
             self.poll_reader_publish_job();
             #[cfg(not(target_arch = "wasm32"))]
             self.poll_reader_browser_preview();

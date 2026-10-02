@@ -26,6 +26,10 @@ CSV 列为：
 WORLDEDIT_DENSE_FIXTURE=/path/to/fixture/world.wl cargo test --release --locked dense_scene_headless_release_profile -- --ignored --nocapture
 ```
 
-未设环境变量时只查配对工作目录的 `native-fixture/world.wl`，缺失会明确失败。记录候选 SHA、fixture 文件 hash、机器、DPI 和运行命令。探针用 976×768 地图工作区，先记录加载/冷帧，待纹理就绪后分别测画布平移与对象树滚动，每项三轮、每轮 60 帧，输出 update 与 update+tessellate 的 p50/p95/max。它不包含原生窗口 chrome、GPU 或呈现等待，不能冒称真实原生 FPS，也不替代正式 5000 节点 CPU p95 与至少 20 分钟作者闭环验收。
+未设环境变量时只查配对工作目录的 `native-fixture/authoring/world.wl`，缺失会明确失败。记录候选 SHA、fixture 文件 hash、机器、DPI 和运行命令。探针用 976×768 地图工作区，先记录加载/冷帧，待纹理就绪后分别测画布平移与对象树滚动，每项三轮、每轮 60 帧，输出 update 与 update+tessellate 的 p50/p95/max。它不包含原生窗口 chrome、GPU 或呈现等待，不能冒称真实原生 FPS，也不替代正式 5000 节点 CPU p95 与至少 20 分钟作者闭环验收。
 
 多图层并发/内存是另一项边界；单层 dense 性能通过不能证明资源安全。`actual_many_layer_renderers_queue_then_report_workset_capacity` 使用 5000 个 renderer 验证实际任务数与容量反馈；取消、切图、实际 native 线程许可、内部隔离表面及上传缓存预算也须通过各自回归。限制与行为见 [矢量作者契约](vector-authoring-0.15.md)。
+
+固定作者负载由纯标准库脚本生成：`python3 scripts/make-world-authoring-fixture.py --output ../native-fixture`。脚本拒绝覆盖非空目录，`--check` 只读比较原字节。输出包含 `fixture-manifest.json`（逐文件 SHA-256、负载数量、生成器 hash）与独立 `machine.json`；负载数据确定性，机器描述不作为内容 hash。主入口在 `authoring/`，默认 1.9 与真正空目录新建用例隔离，防止递归混扫源码。
+
+探针先要求连续三帧纹理 Ready，再采样；每帧测量后按约 60Hz 留出后台执行时间，等待不计 CPU。每轮 update 与 update+tessellate 的 p95 都须≤33ms；通过仍只代表此 headless 指标。独立 5000 层全视口压力图预期触发明确容量错误；浏览模式可临时全部隐藏，再显示少量层确认资源恢复，工程字节应不变。

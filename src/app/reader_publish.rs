@@ -2,12 +2,14 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 mod browser_preview;
-mod delivery;
 mod close;
+mod delivery;
 mod maps;
 #[cfg(not(target_arch = "wasm32"))]
 mod native_delivery;
 mod preview;
+mod profile_commit;
+mod profile_job;
 mod profiles;
 mod review_ui;
 mod selection;
@@ -16,6 +18,10 @@ mod selection_ui;
 mod unavailable;
 #[cfg(target_arch = "wasm32")]
 mod web_job;
+#[cfg(target_arch = "wasm32")]
+mod web_profile_job;
+#[cfg(target_arch = "wasm32")]
+mod web_snapshot;
 mod window;
 
 use crate::archive;
@@ -45,6 +51,11 @@ pub(super) struct ReaderPublishState {
     profile_id: String,
     profile_title: String,
     profile_error: Option<String>,
+    profile_job: Option<profile_job::ProfileJob>,
+    profile_plan: Option<(
+        profile_job::ProfileInput,
+        worldline_core::reader_export::ReaderProfileSavePlan,
+    )>,
     migration: Option<ReaderProfileMigrationPlan>,
     migration_origin: Option<ReaderPublicationProfile>,
     story_details: bool,
@@ -166,11 +177,15 @@ impl ReaderPublishState {
     pub(super) fn busy(&self) -> bool {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.job.is_some() || self.delivery_job.is_some() || self.browser_preview_job.is_some() || self.close_drain.is_some()
+            self.profile_job.is_some()
+                || self.job.is_some()
+                || self.delivery_job.is_some()
+                || self.browser_preview_job.is_some()
+                || self.close_drain.is_some()
         }
         #[cfg(target_arch = "wasm32")]
         {
-            self.web_job.is_some()
+            self.profile_job.is_some() || self.web_job.is_some()
         }
     }
 

@@ -203,14 +203,20 @@ impl SceneAuthoring {
                 _ => {}
             }
         }
-        if queued + working + errors == 0 {
+        if self.source.is_none() {
             return;
         }
         let title = format!("矢量显示：{working} 层处理中 · {queued} 层排队 · {errors} 层需处理");
-        egui::CollapsingHeader::new(title)
+        // 状态本身不能改变画布高度，否则 Ready→隐藏状态栏→viewport变大→重绘会循环。
+        ui.add(egui::Label::new(&title).truncate())
+            .on_hover_text(title);
+        egui::CollapsingHeader::new("查看渲染详情")
             .id_salt("scene-render-status")
             .show(ui, |ui| {
-                if errors > 0 && ui.button("资源已调整，重试失败层").clicked() {
+                if ui
+                    .add_enabled(errors > 0, egui::Button::new("资源已调整，重试失败层"))
+                    .clicked()
+                {
                     for layer in self.layers.values_mut() {
                         layer.renderer.retry();
                     }
@@ -225,11 +231,10 @@ impl SceneAuthoring {
                         )
                     })
                     .collect();
-                egui::ScrollArea::vertical().max_height(120.0).show_rows(
-                    ui,
-                    24.0,
-                    rows.len(),
-                    |ui, range| {
+                egui::ScrollArea::vertical()
+                    .max_height(120.0)
+                    .auto_shrink([false, false])
+                    .show_rows(ui, 24.0, rows.len(), |ui, range| {
                         for (id, layer) in &rows[range] {
                             if let Some(message) = layer.renderer.message(id) {
                                 ui.label(
@@ -237,8 +242,7 @@ impl SceneAuthoring {
                                 );
                             }
                         }
-                    },
-                );
+                    });
             });
     }
 }
@@ -287,3 +291,7 @@ impl MapCanvas {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "tests/scene_status.rs"]
+mod tests;

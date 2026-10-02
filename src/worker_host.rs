@@ -28,7 +28,7 @@ impl WorkerJob {
             return Err("后台快照文件数超过预算".into());
         }
         for (path, content) in files.iter().chain(retained.iter().map(|(p, b)| (p, b))) {
-            crate::reader_zip::safe_name(path)?;
+            crate::reader_zip::safe_snapshot_name(path)?;
             if !paths.insert(path) {
                 return Err("后台快照路径重复或活动/墓碑重叠".into());
             }
@@ -186,7 +186,7 @@ fn pack<'a>(
         set(
             &item,
             "path",
-            &JsValue::from_str(crate::reader_zip::safe_name(path)?),
+            &JsValue::from_str(&crate::reader_zip::safe_snapshot_name(path)?),
         )?;
         let data = Uint8Array::from(bytes.as_slice());
         transfer.push(&data.buffer());

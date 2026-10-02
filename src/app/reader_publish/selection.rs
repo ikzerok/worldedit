@@ -14,6 +14,8 @@ impl ReaderPublishState {
     }
 
     pub(super) fn invalidate_review(&mut self) {
+        self.profile_job = None;
+        self.profile_plan = None;
         self.generation = self.generation.wrapping_add(1);
         self.reviewed = None;
         self.step = PublishStep::Select;

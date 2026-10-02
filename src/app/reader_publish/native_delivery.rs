@@ -20,20 +20,30 @@ pub(super) struct NativeDeliveryJob {
     baseline: String,
 }
 impl NativeDeliveryJob {
-    pub(super) fn drain_for_close(mut self) -> Option<String> {
+    pub(super) fn drain_for_close(mut self) -> Result<String, String> {
         self.cancel();
         let mut completion = None;
-        let receiver = self.receiver.take()?;
+        let receiver = self
+            .receiver
+            .take()
+            .ok_or("原生发布回执通道缺失，无法确认提交结果")?;
         for message in receiver.iter() {
             if let DeliveryMessage::Done(result) = message {
                 completion = Some(match result {
-                    Ok(path) => format!("阅读包已写入 {}；关闭没有撤销已完成发布。", path.display()),
-                    Err(error) if error.contains("READER_CANCELLED") => "读者发布已取消，本次暂存文件已结束清理。".into(),
+                    Ok(path) => {
+                        format!("阅读包已写入 {}；关闭没有撤销已完成发布。", path.display())
+                    }
+                    Err(error) if error.contains("READER_CANCELLED") => {
+                        "读者发布已取消，本次暂存文件已结束清理。".into()
+                    }
                     Err(error) => format!("读者发布结束：{error}"),
                 });
             }
         }
-        completion
+        completion.ok_or_else(|| {
+            "原生发布线程已中断且没有完成回执；请检查目标与暂存文件，尚不能确认取消或发布结果。"
+                .into()
+        })
     }
 
     pub(super) fn cancel(&self) -> bool {
@@ -47,7 +57,11 @@ impl Drop for NativeDeliveryJob {
     fn drop(&mut self) {
         self.cancel();
         if let Some(receiver) = self.receiver.take() {
-            super::close::spawn_cleanup(move || { for message in receiver.iter() { drop(message); } });
+            super::close::spawn_cleanup(move || {
+                for message in receiver.iter() {
+                    drop(message);
+                }
+            });
         }
     }
 }
@@ -204,7 +218,9 @@ impl WorldeditApp {
         if job.baseline != self.project.content_baseline() {
             job.cancel();
         }
-        let Some(receiver) = job.receiver.as_ref() else { return; };
+        let Some(receiver) = job.receiver.as_ref() else {
+            return;
+        };
         let result = loop {
             match receiver.try_recv() {
                 Ok(DeliveryMessage::Stage(status)) => self.reader_publish.status = Some(status),
@@ -321,5 +337,119 @@ mod tests {
         assert_eq!(fs::read(&target).unwrap(), b"another completed export");
         assert_eq!(fs::read_dir(root.parent().unwrap()).unwrap().count(), 2);
         fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+    fn closing_app() -> (egui::Context, WorldeditApp) {
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        (ctx, WorldeditApp::new(&creation, None))
+    }
+
+    fn wait_close(ctx: &egui::Context, app: &mut WorldeditApp) {
+        for _ in 0..1000 {
+            if app.poll_reader_app_close(ctx) {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        panic!("退出等待器未完成");
+    }
+
+    #[test]
+    fn global_close_waits_for_a_completed_atomic_receipt_and_keeps_the_target() {
+        let (ctx, mut app) = closing_app();
+        let (root, target) = paths("close-completed");
+        let state = Arc::new(AtomicU8::new(ACTIVE));
+        publish_atomic(&root, &target, b"published", &state, &mut |_, _| {}).unwrap();
+        let (sender, receiver) = mpsc::channel();
+        assert!(sender
+            .send(DeliveryMessage::Done(Ok(target.clone())))
+            .is_ok());
+        app.reader_publish.delivery_job = Some(NativeDeliveryJob {
+            state,
+            receiver: Some(receiver),
+            baseline: app.project.content_baseline(),
+        });
+        app.perform_action(crate::app::Pending::Close, &ctx);
+        assert!(app.reader_app_close_pending());
+        assert!(!app.allow_close);
+        assert!(app.reader_app_close_pending());
+        drop(sender);
+        wait_close(&ctx, &mut app);
+        assert_eq!(fs::read(&target).unwrap(), b"published");
+        assert!(app.message.as_ref().unwrap().contains("已写入"));
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn global_close_cancels_an_active_write_and_waits_for_its_stage_cleanup() {
+        let (ctx, mut app) = closing_app();
+        let (root, target) = paths("close-writing");
+        let state = Arc::new(AtomicU8::new(ACTIVE));
+        let worker_state = state.clone();
+        let worker_root = root.clone();
+        let worker_target = target.clone();
+        let (sender, receiver) = mpsc::channel();
+        let (entered, at_chunk) = mpsc::channel();
+        let (resume, paused) = mpsc::channel();
+        std::thread::spawn(move || {
+            let result = publish_atomic(
+                &worker_root,
+                &worker_target,
+                &vec![1; CHUNK * 3],
+                &worker_state,
+                &mut |completed, _| {
+                    if completed == CHUNK {
+                        entered.send(()).unwrap();
+                        paused.recv().unwrap();
+                    }
+                },
+            );
+            let _ = sender.send(DeliveryMessage::Done(result));
+        });
+        app.reader_publish.delivery_job = Some(NativeDeliveryJob {
+            state: state.clone(),
+            receiver: Some(receiver),
+            baseline: app.project.content_baseline(),
+        });
+        at_chunk
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        app.perform_action(crate::app::Pending::Close, &ctx);
+        assert!(app.reader_app_close_pending());
+        assert!(!app.allow_close);
+        assert_eq!(state.load(Ordering::Acquire), CANCELLED);
+        assert!(!target.exists());
+        resume.send(()).unwrap();
+        wait_close(&ctx, &mut app);
+        assert!(!target.exists());
+        assert_eq!(fs::read_dir(root.parent().unwrap()).unwrap().count(), 1);
+        assert!(app.message.as_ref().unwrap().contains("已取消"));
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn global_close_requires_a_real_atomic_delivery_receipt() {
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = crate::app::WorldeditApp::new(&creation, None);
+        let (sender, receiver) = mpsc::channel();
+        drop(sender);
+        app.reader_publish.delivery_job = Some(NativeDeliveryJob {
+            state: Arc::new(AtomicU8::new(COMMITTING)),
+            receiver: Some(receiver),
+            baseline: app.project.content_baseline(),
+        });
+        app.perform_action(crate::app::Pending::Close, &ctx);
+        for _ in 0..1000 {
+            assert!(!app.poll_reader_app_close(&ctx));
+            if app.reader_app_close_failed() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(app.reader_app_close_failed());
+        assert!(!app.allow_close);
+        assert!(app.io_error.as_ref().unwrap().contains("没有完成回执"));
+        assert!(!app.poll_reader_app_close(&ctx));
     }
 }

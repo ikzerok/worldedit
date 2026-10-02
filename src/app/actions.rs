@@ -55,6 +55,11 @@ impl WorldeditApp {
                 self.open_capabilities();
             }
             Pending::Close => {
+                self.map_canvas.discard_local_work();
+                if !self.prepare_reader_app_close(_ctx) {
+                    _ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    return;
+                }
                 #[cfg(target_arch = "wasm32")]
                 {
                     self.allow_close = true;

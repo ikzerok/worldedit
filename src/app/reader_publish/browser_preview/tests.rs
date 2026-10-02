@@ -231,3 +231,70 @@ fn queued_completion_and_real_window_close_click_never_open_the_page() {
     );
     wait_removed(&path);
 }
+
+fn wait_for_app_cleanup(ctx: &egui::Context, app: &mut crate::app::WorldeditApp) {
+    for _ in 0..1000 {
+        if app.poll_reader_app_close(ctx) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    panic!("全局关闭必须等到后台私有目录清理完成");
+}
+
+#[test]
+fn global_close_drains_queued_preview_directory_before_allowing_exit() {
+    let (ctx, mut app) = app();
+    let directory = materialize(&files(), &AtomicBool::new(false), &mut |_, _| {}).unwrap();
+    let path = directory.0.clone();
+    let (sender, receiver) = mpsc::channel();
+    assert!(sender.send(PreviewMessage::Done(Ok(directory))).is_ok());
+    queue_job(&mut app, receiver);
+    let before = OPEN_REQUESTS.with(|count| count.get());
+    app.perform_action(crate::app::Pending::Close, &ctx);
+    assert!(app.reader_app_close_pending());
+    assert!(!app.allow_close);
+    assert!(app.reader_app_close_pending());
+    drop(sender);
+    wait_for_app_cleanup(&ctx, &mut app);
+    assert!(!path.exists(), "ready之前目录必须清理");
+    assert_eq!(OPEN_REQUESTS.with(|count| count.get()), before);
+}
+
+#[test]
+fn global_close_also_waits_for_cleanup_detached_by_an_earlier_window_cancel() {
+    let (ctx, mut app) = app();
+    let directory = materialize(&files(), &AtomicBool::new(false), &mut |_, _| {}).unwrap();
+    let path = directory.0.clone();
+    let (sender, receiver) = mpsc::channel();
+    assert!(sender.send(PreviewMessage::Done(Ok(directory))).is_ok());
+    queue_job(&mut app, receiver);
+    assert!(app.cancel_reader_publish());
+    assert!(app.reader_publish.browser_preview_job.is_none());
+    // 发送端仍活着，先前普通取消的drain不能被遗漏。
+    app.perform_action(crate::app::Pending::Close, &ctx);
+    assert!(app.reader_app_close_pending());
+    assert!(!app.allow_close);
+    drop(sender);
+    wait_for_app_cleanup(&ctx, &mut app);
+    assert!(!path.exists());
+}
+
+#[test]
+fn global_close_removes_successful_cached_preview_before_exit() {
+    let (ctx, mut app) = app();
+    let directory = materialize(&files(), &AtomicBool::new(false), &mut |_, _| {}).unwrap();
+    let path = directory.0.clone();
+    PREVIEWS.with(|previews| {
+        previews
+            .borrow_mut()
+            .insert("cached-for-exit".into(), directory);
+    });
+    let before = OPEN_REQUESTS.with(|count| count.get());
+    app.perform_action(crate::app::Pending::Close, &ctx);
+    if app.reader_app_close_pending() {
+        wait_for_app_cleanup(&ctx, &mut app);
+    }
+    assert!(!path.exists());
+    assert_eq!(OPEN_REQUESTS.with(|count| count.get()), before);
+}

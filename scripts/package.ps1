@@ -42,6 +42,7 @@ foreach ($directory in @('.agent', 'docs')) {
 }
 Copy-Item -LiteralPath "$editorRoot/README.md", "$editorRoot/LICENSE", "$editorRoot/assets/worldedit.ico" -Destination $desktopRoot
 Copy-Item -LiteralPath "$editorRoot/assets/fonts/OFL.txt" -Destination (Join-Path $desktopRoot 'FONT-LICENSE.txt')
+Copy-Item -LiteralPath "$editorRoot/assets/licenses/resvg-MIT.txt" -Destination (Join-Path $desktopRoot 'RESVG-LICENSE.txt')
 $languageDocs = Join-Path $desktopRoot 'worldline'
 New-Item -ItemType Directory -Path $languageDocs | Out-Null
 foreach ($directory in @('spec', 'docs', 'examples')) {
@@ -58,6 +59,7 @@ if (-not $SkipWeb) {
         if ($LASTEXITCODE -ne 0) { throw 'Web 构建失败' }
     } finally { Pop-Location }
     Copy-Item -LiteralPath "$editorRoot/assets/fonts/OFL.txt", "$editorRoot/LICENSE" -Destination $webRoot
+    Copy-Item -LiteralPath "$editorRoot/assets/licenses/resvg-MIT.txt" -Destination (Join-Path $webRoot 'RESVG-LICENSE.txt')
     Compress-Archive -LiteralPath $webRoot -DestinationPath "$buildRoot/worldedit-web.zip"
 }
 

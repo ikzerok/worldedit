@@ -10,7 +10,7 @@ fn dense_scene_headless_release_profile() {
     let entry = std::env::var_os("WORLDEDIT_DENSE_FIXTURE")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../native-fixture/world.wl")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../native-fixture/authoring/world.wl")
         });
     assert!(
         entry.is_file(),
@@ -57,6 +57,7 @@ fn dense_scene_headless_release_profile() {
     );
     let wait = Instant::now();
     let mut time = 2.0;
+    let mut ready_frames = 0;
     loop {
         let _ = run(&mut app, time, Vec::new());
         time += 0.02;
@@ -66,6 +67,11 @@ fn dense_scene_headless_release_profile() {
                 super::scene_renderer::RenderStatus::Ready
             )
         }) {
+            ready_frames += 1;
+        } else {
+            ready_frames = 0;
+        }
+        if ready_frames >= 3 {
             break;
         }
         assert!(
@@ -82,7 +88,17 @@ fn dense_scene_headless_release_profile() {
         ("object-tree", MapPanel::Layers),
     ] {
         app.map_canvas.panel = panel;
+        let output = run(&mut app, time, Vec::new());
+        time += 0.02;
+        let mut tree_row = first_tree_row(&output);
+        if panel == MapPanel::Layers {
+            assert!(
+                tree_row.is_some(),
+                "object tree must be visible before sampling"
+            );
+        }
         for round in 0..3 {
+            let first_row = tree_row.as_ref().map(|(id, _)| id.clone());
             let mut update = Vec::new();
             let mut total = Vec::new();
             for frame in 0..60 {
@@ -100,7 +116,9 @@ fn dense_scene_headless_release_profile() {
                         });
                     }
                 } else if frame % 10 == 0 {
-                    events.push(egui::Event::PointerMoved(Pos2::new(920.0, 400.0)));
+                    events.push(egui::Event::PointerMoved(
+                        tree_row.as_ref().expect("visible tree row").1 + Vec2::splat(5.0),
+                    ));
                     events.push(egui::Event::MouseWheel {
                         unit: egui::MouseWheelUnit::Point,
                         delta: Vec2::new(0.0, -120.0),
@@ -111,8 +129,22 @@ fn dense_scene_headless_release_profile() {
                 let output = run(&mut app, time, events);
                 time += 1.0 / 60.0;
                 update.push(started.elapsed().as_secs_f64() * 1000.0);
+                if panel == MapPanel::Layers {
+                    tree_row = first_tree_row(&output);
+                }
                 let _ = ctx.tessellate(output.shapes, output.pixels_per_point);
                 total.push(started.elapsed().as_secs_f64() * 1000.0);
+                // 不计入CPU样本；允许后台按近似60Hz的真实帧间隔前进。
+                if let Some(rest) = Duration::from_millis(16).checked_sub(started.elapsed()) {
+                    std::thread::sleep(rest);
+                }
+            }
+            if panel == MapPanel::Layers {
+                assert_ne!(
+                    first_row,
+                    tree_row.as_ref().map(|(id, _)| id.clone()),
+                    "wheel input must actually scroll the object rows"
+                );
             }
             print_samples(case, round, "update", update);
             print_samples(case, round, "update+tessellate", total);
@@ -129,4 +161,24 @@ fn print_samples(case: &str, round: usize, metric: &str, mut values: Vec<f64>) {
         values[(values.len() * 95).div_ceil(100) - 1],
         values[values.len() - 1]
     );
+    let p95 = values[(values.len() * 95).div_ceil(100) - 1];
+    assert!(p95 <= 33.0, "headless {case} round={round} {metric} p95={p95:.3}ms exceeds33ms; still requires separate native acceptance");
+}
+
+fn first_tree_row(output: &egui::FullOutput) -> Option<(String, Pos2)> {
+    fn find(shape: &egui::Shape, clip: Rect) -> Option<(String, Pos2)> {
+        match shape {
+            egui::Shape::Text(text)
+                if text.galley.text().starts_with("rect_") && clip.contains(text.pos) =>
+            {
+                Some((text.galley.text().to_owned(), text.pos))
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| find(shape, clip)),
+            _ => None,
+        }
+    }
+    output
+        .shapes
+        .iter()
+        .find_map(|shape| find(&shape.shape, shape.clip_rect))
 }

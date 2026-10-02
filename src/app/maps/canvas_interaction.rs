@@ -216,6 +216,11 @@ impl MapCanvas {
         if self.form_blocked {
             return;
         }
+        if !ui.ctx().wants_keyboard_input() && ui.input(|input| input.key_pressed(egui::Key::Enter))
+        {
+            self.finish_draft();
+            return;
+        }
         if ui.input(|input| input.key_pressed(egui::Key::Delete))
             && ui.ctx().memory(|memory| memory.focused()).is_none()
         {

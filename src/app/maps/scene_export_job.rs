@@ -21,13 +21,14 @@ impl SvgExportJob {
     pub(super) fn render(
         _project: &Project,
         map: MapDocument,
+        selected: Option<std::collections::BTreeSet<String>>,
         ctx: &egui::Context,
     ) -> Result<Self, String> {
         #[cfg(not(target_arch = "wasm32"))]
         {
             Self::native(
                 move |_| {
-                    worldline_core::vector_scene::map_to_safe_svg(&map, None)
+                    worldline_core::vector_scene::map_to_safe_svg(&map, selected.as_ref())
                         .map(SvgExportEvent::Source)
                         .map_err(|error| error.to_string())
                 },
@@ -51,7 +52,7 @@ impl SvgExportJob {
                 snapshot_state: Some(state),
                 task: WorkTask::MapSvgExport {
                     map_id: map.id,
-                    selected: None,
+                    selected,
                 },
             };
             Ok(Self {
