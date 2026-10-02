@@ -69,3 +69,5 @@
 release 固定负载、headless 帧与真实原生 CPU 帧分开记录，机器、fixture、产物 hash 和精确数字见 [0.15 验证摘要](docs/verification-0.15.md)。Windows 的路径期望测试及 `unused_mut` 修正已在 exact head `09e826f9d9cf58b05b358b10f3cfa5fce10092b1` 完整配对 CI 通过：默认 553/0/3、可选 prototype 568/0/4，native/WASM 严格 Clippy 与构建均成功；两套测试不合并计数。最终 core 配对记录固定合并后的 `ed77d092abe72b6913dfac98ff71b37ca5cc57c7`，其语言源码与 CI 受测的 `9000075…` 相同，差异仅三份正式文档。
 
 真实 `file://` 与正常 HTTP 均受到工具/客户端阻断，实际网页、Browser Worker 和系统 SVG 文件选择成功路径未验；Node WASM 或源码粘贴成功不能替代这些路径。可选原型的 draw/layout 采样属于实验结果，不是默认产品 SLA。
+
+补充纯代码模拟已完成：真实导出搜索脚本的 45 组场景与静态导航/资源闭包通过，真实 Worker 脚本/WASM 的 Node 线程成功/错误/取消检查通过，系统 picker 返回值的 9 个分支通过。主端陈旧身份的投影模型单独标注，不冒充实际 Rust receive 或真实浏览器测试；完整覆盖层级见验证摘要。

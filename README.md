@@ -2,7 +2,7 @@
 
 worldline 的 Rust / egui 作者工作台，用于世界资料、正文书稿、分支故事、关系、时间结构和地图创作。0.15.0 开发候选提供原生矢量编辑、受限 SVG 交换、四步静态世界站发布，以及统一的索引、画布和检查器布局。默认语言仍为 1.9，最高 1.13；旧作品不会自动升级。
 
-本轮 Linux 自动检查、对应源码的 Windows 配对 CI、release 固定负载、21 分钟原生功能会话及修补构建的局部复核已完成；真实网页、Browser Worker 与系统 SVG 文件选择成功路径未验。精确范围见 [0.15 验证摘要](docs/verification-0.15.md)。当前仍为未正式发行的开发候选，完整功能见 [CHANGELOG](CHANGELOG.md)，使用入口见 [文档索引](docs/README.md)。
+本轮 Linux 自动检查、对应源码的 Windows 配对 CI、release 固定负载、21 分钟原生功能会话及修补构建的局部复核已完成；真实网页、Browser Worker 与系统 SVG 文件选择成功路径未验。已补充真实导出脚本的 DOM 模型、Node Worker/WASM 和 picker 返回值模拟，但不将其视为真实浏览器或系统对话框通过。精确范围见 [0.15 验证摘要](docs/verification-0.15.md)。当前仍为未正式发行的开发候选，完整功能见 [CHANGELOG](CHANGELOG.md)，使用入口见 [文档索引](docs/README.md)。
 
 ## 0.15 使用入口
 

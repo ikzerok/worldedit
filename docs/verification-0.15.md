@@ -154,6 +154,17 @@ cargo test --release --features eds11_prototype --locked fixed_tasks_draw_cpu_si
 
 原生 CPU 采样方式见[性能记录](performance.md)。每轮使用新的仓外 `WORLDEDIT_PROFILE_CSV` 文件，记录二进制 SHA-256、fixture 清单、操作系统、窗口/DPI、开始结束时间与实际操作；分析交互样本的 P50/P95/max，不用工具调用往返时间代替 CPU 帧。
 
+## 受限路径的纯代码补充模拟
+
+2026-10-02 18:05 UTC，在不访问受阻浏览器入口的条件下补充了以下有限模拟。没有新增产品功能或修改生产源码；这些检查不计入上面的 Rust 套件数量，也不替代真实浏览器和系统文件选择器验收。
+
+- **导出站点的真实搜索脚本与静态闭包**：输入为上述 SHA-256 `565924e7…` 的完整 native ZIP。未改写的 `reader.js` / `search-data.js` 在 Node VM 的最小 DOM 模型中执行，45 组输入与类型切换场景、全部 34 条公开记录及 13 类筛选共 191 项断言通过；覆盖正文、别名、中英、大小写、空白、空输入/无结果、连续输入清旧结果和地图片段链接。另 651 项静态检查确认 29 个 HTML 均从首页可达、480 条本地引用（含 22 条片段）有效、manifest 精确覆盖 35 份资源并核对长度/FNV 摘要、没有外部引用。两次运行结果一致。模型只实现这些脚本所需的 DOM 接口，不证明真实排版、焦点、屏幕阅读器、媒体播放或离线加载。
+- **真实 Worker 脚本与 WASM 的线程模拟**：未改写的最终 `worker.mjs`、生成 JS 和上述 `21c718…` WASM 在 Node `worker_threads` 中执行，以内存资源适配代替浏览器模块加载。共 15 项分层检查：11 项执行真实脚本/WASM，2 项 Node terminate，另 2 项分别为下述身份投影和既有 Rust 回归记录核对；均通过。真实预览/渲染及进度成功，RGBA 为 320000 字节、390 个可见像素，transferable 发送端 buffer 分离。不安全 SVG、坏 JSON、跨源模块/资源、无效协议版本/代次、路径越界/重复文件及错误工程基线被拒绝。在初始化暂停点和真实 `svg_parse` 进度点 terminate 均退出且无 Done。它不证明 Browser Worker 的实际调度、加载或下载。
+- **主端身份拒绝的投影模型**：按当前 Rust host 的源码条件模拟 54 个 job ID / generation / baseline 变体拒绝。这里只执行投影模型，没有执行 wasm 专用的 Rust `receive`；不能把这一项写成真实主端防护通过。已有相关 Rust 回归仍按前面的完整套件记录，不重复增加数量。
+- **系统 picker 返回值边界**：测试直接 include 未改写的 `svg_import_job.rs`，只替换 `rfd` 选择器返回的 `Some(path)` / `None`。实际后台线程、限量文件读取、UTF-8 与大小验证、core SVG 预检执行完成：有效路径、None、不存在路径、目录读取错误、无效 UTF-8、2 MiB + 1 拒绝、恰好 2 MiB 安全 SVG 通过、不安全 SVG 保留源码并拒绝、畸形 SVG 保留源码并报错，共 9 个分支通过。没有显示系统对话框，不证明 portal 或真实选择成功。
+
+这些补充范围没有发现新的产品缺陷；测试模型或适配自身不等于浏览器实现。真实 `file://` / HTTP、Browser Worker 和 SVG 系统选择器的未验边界继续保留。
+
 ## 未验证及适用边界
 
 - Windows 配对成功适用于上述 exact 源码与运行，不代表 Windows/macOS 原生 GUI 或浏览器验收通过；后续源码变化须另行验证
