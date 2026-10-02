@@ -183,7 +183,7 @@ pub(super) fn wait_for_reader_publish(ctx: &egui::Context, app: &mut WorldeditAp
         for shape in &output.shapes {
             collect_text(&shape.shape, &mut last);
         }
-        if last.contains("发布 ZIP") || last.contains("预览失败：") {
+        if last.contains("作者只读预览") || last.contains("预览失败：") {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(2));

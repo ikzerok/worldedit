@@ -96,7 +96,7 @@ impl super::super::WorldeditApp {
         match result {
             Ok(result) => {
                 self.remember(before);
-                self.map_canvas.reset_local_preview();
+                self.map_canvas.accept_local_preview();
                 self.refresh_presentation_after_map_command();
                 self.io_error = None;
                 self.message = Some(label.into());
@@ -361,7 +361,13 @@ impl super::super::WorldeditApp {
             .snapshot
             .as_ref()
             .and_then(|snapshot| snapshot.map_index.maps.get(map_id));
-        while existing.is_some_and(|map| map.placements.contains_key(&format!("marker_{index}"))) {
+        while existing.is_some_and(|map| {
+            map.placements.contains_key(&format!("marker_{index}"))
+                || map
+                    .scene
+                    .as_ref()
+                    .is_some_and(|scene| scene.nodes.contains_key(&format!("marker_{index}")))
+        }) {
             index += 1;
         }
         format!("marker_{index}")

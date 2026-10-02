@@ -1,24 +1,44 @@
 use super::super::WorldeditApp;
 use super::*;
-use std::path::PathBuf;
+use std::path::Path;
+#[cfg(not(target_arch = "wasm32"))]
 use worldline_core::project::Project;
 
 impl WorldeditApp {
-    pub(super) fn start_reader_publish_preview(&mut self, selection: ReaderExportSelection) {
+    pub(super) fn start_reader_publish_preview(
+        &mut self,
+        selection: ReaderExportSelection,
+        _ctx: &egui::Context,
+    ) {
         self.reader_publish.invalidate_review();
         self.reader_publish.status = Some("正在按 core 公开清单生成静态阅读包……".into());
         #[cfg(not(target_arch = "wasm32"))]
+        let profile = self.reader_publish.current_profile();
+        #[cfg(not(target_arch = "wasm32"))]
         {
             let project = self.project.clone();
+            let generation = self.reader_publish.generation;
             let (sender, receiver) = std::sync::mpsc::channel();
             let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             let worker_cancel = cancel.clone();
             std::thread::spawn(move || {
+                let mut last = std::time::Instant::now();
+                let mut last_stage = String::new();
                 let result = build_reviewed_package_with_progress(
                     &project,
                     selection,
-                    |stage| {
-                        let _ = sender.send(ReaderPublishMessage::Stage(stage));
+                    profile,
+                    |stage, completed, total| {
+                        if stage != last_stage
+                            || completed == total
+                            || last.elapsed().as_millis() >= 100
+                        {
+                            let _ = sender.send(ReaderPublishMessage::Stage(format!(
+                                "{stage} · {completed} / {total}"
+                            )));
+                            last_stage = stage.into();
+                            last = std::time::Instant::now();
+                        }
                     },
                     || worker_cancel.load(std::sync::atomic::Ordering::Acquire),
                 );
@@ -26,117 +46,205 @@ impl WorldeditApp {
                     let _ = sender.send(ReaderPublishMessage::Done(Box::new(result)));
                 }
             });
-            self.reader_publish.job = Some(ReaderPublishJob { cancel, receiver });
+            self.reader_publish.job = Some(ReaderPublishJob {
+                cancel,
+                receiver: Some(receiver),
+                generation,
+            });
         }
         #[cfg(target_arch = "wasm32")]
         {
-            match build_reviewed_package(&self.project, selection) {
-                Ok(reviewed) => {
-                    self.reader_publish.status = Some("静态包已生成并逐文件核对。".into());
-                    self.reader_publish.reviewed = Some(reviewed);
-                }
-                Err(error) => self.reader_publish.status = Some(format!("预览失败：{error}")),
-            }
+            self.start_web_reader_job(selection, None, _ctx);
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn poll_reader_publish_job(&mut self) {
-        let Some(job) = self.reader_publish.job.as_ref() else {
-            return;
-        };
-        let messages = job.receiver.try_iter().collect::<Vec<_>>();
-        for message in messages {
-            match message {
-                ReaderPublishMessage::Stage(status) => {
-                    self.reader_publish.status = Some(status.into());
+        loop {
+            let Some(job) = self.reader_publish.job.as_ref() else {
+                return;
+            };
+            let generation = job.generation;
+            let Some(receiver) = job.receiver.as_ref() else { return; };
+            let message = match receiver.try_recv() {
+                Ok(message) => message,
+                Err(std::sync::mpsc::TryRecvError::Empty) => return,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.reader_publish.job = None;
+                    self.reader_publish.status =
+                        Some("阅读包任务意外中断；未发布，请重试。".into());
+                    return;
                 }
+            };
+            match message {
+                ReaderPublishMessage::Stage(status) => self.reader_publish.status = Some(status),
                 ReaderPublishMessage::Done(result) => {
                     self.reader_publish.job = None;
                     match *result {
-                        Ok(reviewed) => {
+                        Ok(reviewed)
+                            if generation == self.reader_publish.generation
+                                && self.reader_publish.matches_review(
+                                    &reviewed,
+                                    &self.project.content_baseline(),
+                                ) =>
+                        {
                             self.reader_publish.reviewed = Some(reviewed);
+                            self.reader_publish.step = PublishStep::Resources;
                             self.reader_publish.status =
-                                Some("静态包预览已生成；尚未写入目标或启动下载。".into());
+                                Some("静态包已逐文件核对；尚未写入目标或启动下载。".into());
+                        }
+                        Ok(_) => {
+                            self.reader_publish.status =
+                                Some("审核期间内容或选择已变化；结果已丢弃，请重新生成。".into())
                         }
                         Err(error) => {
-                            self.reader_publish.status = Some(format!("预览失败：{error}"));
+                            self.reader_publish.status = Some(format!("预览失败：{error}"))
                         }
                     }
+                    return;
                 }
             }
         }
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(super) fn poll_reader_publish_job(&mut self) {}
+    pub(super) fn poll_reader_publish_job(&mut self) {
+        self.poll_web_reader_job();
+    }
 }
+
 #[cfg(not(target_arch = "wasm32"))]
 impl Drop for ReaderPublishJob {
     fn drop(&mut self) {
         self.cancel
             .store(true, std::sync::atomic::Ordering::Release);
+        if let Some(receiver) = self.receiver.take() {
+            close::spawn_cleanup(move || { for message in receiver.iter() { drop(message); } });
+        }
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-fn build_reviewed_package(
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) fn build_reviewed_package_with_progress(
     project: &Project,
     selection: ReaderExportSelection,
-) -> Result<ReviewedPackage, String> {
-    build_reviewed_package_with_progress(project, selection, |_| {}, || false)
-}
-
-fn build_reviewed_package_with_progress(
-    project: &Project,
-    selection: ReaderExportSelection,
-    mut report_progress: impl FnMut(&'static str),
+    profile: Option<ReaderPublicationProfile>,
+    mut report: impl FnMut(&str, usize, usize),
     is_cancelled: impl Fn() -> bool,
 ) -> Result<ReviewedPackage, String> {
-    report_progress("正在计算 core 预览与排除报告……");
-    let preview = project.preview_reader_export(&selection)?;
-    if is_cancelled() {
-        return Err("阅读包预览已取消".into());
-    }
-    report_progress("正在构建仅包含已选内容的离线站点……");
-    let files = project.build_reader_export(&selection, &preview.plan_digest)?;
-    if is_cancelled() {
-        return Err("阅读包预览已取消".into());
-    }
-    let raw_bytes = files.values().map(Vec::len).sum();
-    report_progress("正在编码并逐文件核对 ZIP……");
-    let zip = archive::encode(&files)?;
-    let decoded = archive::decode(&zip)?;
-    if is_cancelled() {
-        return Err("阅读包预览已取消".into());
-    }
-    if decoded != files {
-        return Err("静态包 ZIP 解包核对与预览文件不一致".into());
-    }
-    let search_index = files
-        .get(&PathBuf::from("search-index.json"))
-        .ok_or("静态包缺少公开搜索索引")?;
-    let search_entries: Vec<SearchPreviewEntry> = serde_json::from_slice(search_index)
-        .map_err(|error| format!("公开搜索索引格式无效：{error}"))?;
-    if search_entries.len() != preview.content.len()
-        || search_entries
-            .iter()
-            .zip(&preview.content)
-            .any(|(entry, page)| {
-                entry.title != page.title
-                    || entry.url != page.output_path
-                    || entry.text != page.text
-            })
+    if profile
+        .as_ref()
+        .is_some_and(|profile| profile.selection != selection)
     {
-        return Err("实际阅读页与 core 预览内容不一致".into());
+        return Err("发布配置与本次选择不一致".into());
     }
+    let mut progress = |value: &worldline_core::reader_export::ReaderExportProgress| {
+        report(&value.phase, value.completed, value.total);
+        !is_cancelled()
+    };
+    let preview = match &profile {
+        Some(profile) => project.preview_reader_profile_with_progress(profile, &mut progress)?,
+        None => project.preview_reader_export_with_progress(&selection, &mut progress)?,
+    };
+    let files = match &profile {
+        Some(profile) => project.build_reader_profile_with_progress(
+            profile,
+            &preview.plan_digest,
+            &mut progress,
+        )?,
+        None => project.build_reader_export_with_progress(
+            &selection,
+            &preview.plan_digest,
+            &mut progress,
+        )?,
+    };
+    let raw_bytes = crate::reader_zip::validate(&files)?;
+    validate_public_index(&files, &preview)?;
+    let zip = crate::reader_zip::encode(&files, &mut |completed, total| {
+        report("ZIP编码与逐文件核对", completed, total);
+        !is_cancelled()
+    })?;
     Ok(ReviewedPackage {
         selection,
+        profile,
         preview,
-        files,
-        zip,
+        files: std::sync::Arc::new(files),
+        zip: std::sync::Arc::new(zip),
         raw_bytes,
     })
+}
+
+pub(super) fn validate_public_index(
+    files: &archive::Files,
+    preview: &ReaderExportPreview,
+) -> Result<(), String> {
+    let bytes = files
+        .get(Path::new("search-index.json"))
+        .ok_or("静态包缺少公开搜索索引")?;
+    let entries: Vec<SearchPreviewEntry> =
+        serde_json::from_slice(bytes).map_err(|error| format!("公开搜索索引格式无效：{error}"))?;
+    // v1没有文本投影；v2/v3必须一一核对主页面。额外项仅允许来自已审核地图的公开锚点。
+    if preview.content.is_empty() {
+        return Ok(());
+    }
+    let pages: BTreeMap<_, _> = preview
+        .content
+        .iter()
+        .map(|page| (page.output_path.as_str(), page))
+        .collect();
+    let map_pages: BTreeSet<_> = preview
+        .included
+        .iter()
+        .filter(|item| {
+            item.target
+                .as_ref()
+                .is_some_and(|target| target.kind == "map")
+        })
+        .map(|item| item.output_path.as_str())
+        .collect();
+    let mut seen = BTreeSet::new();
+    let mut main_pages = BTreeSet::new();
+    let mut anchor_offsets = BTreeMap::<&str, usize>::new();
+    for entry in &entries {
+        if !seen.insert(entry.url.as_str()) {
+            return Err("公开搜索索引含重复URL".into());
+        }
+        if let Some(page) = pages.get(entry.url.as_str()) {
+            if entry.title != page.title || entry.text != page.text {
+                return Err("实际阅读页与 core 预览内容不一致".into());
+            }
+            main_pages.insert(entry.url.as_str());
+            continue;
+        }
+        let Some((base, anchor)) = entry.url.split_once('#') else {
+            return Err("公开搜索索引出现未审核页面".into());
+        };
+        let valid_anchor = !anchor.is_empty()
+            && anchor
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
+        if entry.kind != "map_placement"
+            || !map_pages.contains(base)
+            || !valid_anchor
+            || !entry.text.contains(&entry.title)
+        {
+            return Err("公开搜索索引锚点不属于已审核地图正文".into());
+        }
+        let page = pages.get(base).ok_or("公开搜索锚点没有已审核地图页")?;
+        // core按地图正文顺序发出锚点；单向游标避免每个图元重扫整张地图正文。
+        let offset = anchor_offsets.entry(base).or_default();
+        let found = page
+            .text
+            .get(*offset..)
+            .and_then(|text| text.find(&entry.text))
+            .ok_or("公开搜索锚点文字与地图审核正文不一致")?;
+        *offset += found + entry.text.len();
+    }
+    if main_pages.len() != pages.len() {
+        return Err("公开搜索索引缺少已审核主页面".into());
+    }
+
+    Ok(())
 }
 
 #[derive(serde::Deserialize)]
@@ -144,4 +252,9 @@ struct SearchPreviewEntry {
     title: String,
     url: String,
     text: String,
+    #[serde(default)]
+    kind: String,
 }
+
+#[cfg(test)]
+mod tests;

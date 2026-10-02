@@ -16,8 +16,10 @@ pub(crate) use browser::{
     encode_browser_snapshot,
 };
 #[cfg(any(target_arch = "wasm32", test))]
+pub use codec::decode;
+pub use codec::encode;
+#[cfg(any(target_arch = "wasm32", test))]
 pub use codec::prepare_import;
-pub use codec::{decode, encode};
 #[cfg(any(target_arch = "wasm32", test))]
 pub use paths::relative_path;
 pub use paths::{ensure_legacy_manifest, entry, validate_files};

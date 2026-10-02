@@ -199,7 +199,7 @@ impl WorldeditApp {
             self.delete_form = None;
             self.rename_form = None;
             self.map_failed_command = None;
-            self.map_canvas.reset_local_preview();
+            self.map_canvas.reset_for_history();
             if source_before == self.project.sources()
                 && options_before == self.project.compile_options()
             {

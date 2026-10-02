@@ -1,6 +1,21 @@
 //! 作者工作台的统一色彩、间距与控件样式。
 use egui::{Color32, FontId, RichText, Stroke, TextStyle, Vec2};
 
+mod sources;
+pub use sources::{relative_source, source_caption, source_path, technical_value};
+
+pub const SPACE_XS: f32 = 4.0;
+pub const SPACE_SM: f32 = 8.0;
+pub const SPACE_MD: f32 = 12.0;
+pub const SPACE_LG: f32 = 16.0;
+pub const SPACE_XL: f32 = 24.0;
+pub const CONTROL_HEIGHT: f32 = 32.0;
+pub const INDEX_WIDTH: f32 = 232.0;
+pub const INSPECTOR_WIDTH: f32 = 288.0;
+pub const BODY_SIZE: f32 = 14.0;
+pub const META_SIZE: f32 = 12.0;
+pub const HEADING_SIZE: f32 = 22.0;
+
 thread_local! { static LIGHT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -210,27 +225,27 @@ pub fn install(ctx: &egui::Context) {
     style.visuals.widgets.active.bg_stroke = Stroke::new(2.0_f32, ACCENT());
     style.visuals.hyperlink_color = ACCENT();
     style.animation_time = 0.12;
-    style.spacing.item_spacing = Vec2::new(8.0, 8.0);
+    style.spacing.item_spacing = Vec2::splat(SPACE_SM);
     style.spacing.button_padding = Vec2::new(10.0, 6.0);
-    style.spacing.interact_size = Vec2::new(36.0, 32.0);
+    style.spacing.interact_size = Vec2::new(36.0, CONTROL_HEIGHT);
     style.spacing.window_margin = egui::Margin::same(20);
     style
         .text_styles
-        .insert(TextStyle::Body, FontId::proportional(14.0));
+        .insert(TextStyle::Body, FontId::proportional(BODY_SIZE));
     style
         .text_styles
-        .insert(TextStyle::Button, FontId::proportional(14.0));
+        .insert(TextStyle::Button, FontId::proportional(BODY_SIZE));
     style
         .text_styles
-        .insert(TextStyle::Heading, FontId::proportional(22.0));
+        .insert(TextStyle::Heading, FontId::proportional(HEADING_SIZE));
     style
         .text_styles
-        .insert(TextStyle::Small, FontId::proportional(12.0));
+        .insert(TextStyle::Small, FontId::proportional(META_SIZE));
     ctx.set_style(style);
 }
 
 pub fn muted(text: impl Into<String>) -> RichText {
-    RichText::new(text).color(MUTED()).size(12.0)
+    RichText::new(text).color(MUTED()).size(META_SIZE)
 }
 pub fn primary(text: &str) -> egui::Button<'_> {
     egui::Button::new(RichText::new(text).color(BG()).strong()).fill(ACCENT())
@@ -242,8 +257,23 @@ pub fn card() -> egui::Frame {
     egui::Frame::new()
         .fill(CARD())
         .corner_radius(12)
-        .inner_margin(16)
+        .inner_margin(SPACE_LG as i8)
         .stroke(Stroke::new(1.0_f32, BORDER()))
+}
+
+/// 集合索引与文档/画布表面分开，窄栏采用较小内边距。
+pub fn index_panel() -> egui::Frame {
+    egui::Frame::new()
+        .fill(PANEL())
+        .inner_margin(SPACE_MD as i8)
+}
+
+pub fn canvas_background() -> Color32 {
+    BG()
+}
+
+pub fn document_background() -> Color32 {
+    CARD()
 }
 
 /// 同一节奏用于功能页标题；说明自动换行，不挤占右侧操作空间。
@@ -252,7 +282,7 @@ pub fn page_heading(ui: &mut egui::Ui, title: &str, subtitle: &str) {
     if !subtitle.is_empty() {
         ui.add(egui::Label::new(muted(subtitle)).wrap());
     }
-    ui.add_space(8.0);
+    ui.add_space(SPACE_SM);
 }
 
 /// 密集工具区与阅读区分开，窄面板时自然换行。
@@ -263,7 +293,7 @@ pub fn toolbar<R>(ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) 
             contents(ui)
         })
         .inner;
-    ui.add_space(8.0);
+    ui.add_space(SPACE_SM);
     result
 }
 

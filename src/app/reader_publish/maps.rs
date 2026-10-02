@@ -8,10 +8,8 @@ impl ReaderPublishState {
             .map_index()
             .maps
             .into_values()
-            .map(|map| MapChoice {
-                id: map.id,
-                title: map.title,
-                placements: map
+            .map(|map| {
+                let mut placements = map
                     .placements
                     .into_values()
                     .map(|p| {
@@ -21,26 +19,34 @@ impl ReaderPublishState {
                         };
                         (p.id, label)
                     })
-                    .collect(),
-                rasters: map
-                    .raster_layers
-                    .into_iter()
-                    .map(|r| (r.id, r.asset.id))
-                    .collect(),
+                    .collect::<Vec<_>>();
+                if let Some(scene) = map.scene {
+                    placements.extend(scene.nodes.into_values().map(|node| {
+                        let label = if matches!(
+                            node.geometry,
+                            worldline_core::vector_scene::SceneGeometry::Group { .. }
+                        ) {
+                            format!("组 {}（子项须单独选择）", node.name)
+                        } else if node.name.is_empty() {
+                            "矢量图元".into()
+                        } else {
+                            node.name
+                        };
+                        (node.id, label)
+                    }));
+                }
+                MapChoice {
+                    id: map.id,
+                    title: map.title,
+                    placements,
+                    rasters: map
+                        .raster_layers
+                        .into_iter()
+                        .map(|r| (r.id, r.asset.id))
+                        .collect(),
+                }
             })
             .collect();
-        self.maps.retain(|id, selected| {
-            let Some(choice) = self.map_choices.iter().find(|m| m.id == *id) else {
-                return false;
-            };
-            selected
-                .placements
-                .retain(|id| choice.placements.iter().any(|(item, _)| item == id));
-            selected
-                .raster_layers
-                .retain(|id| choice.rasters.iter().any(|(item, _)| item == id));
-            true
-        });
     }
 
     pub(super) fn map_choices_ui(&mut self, ui: &mut egui::Ui) -> bool {
@@ -51,7 +57,26 @@ impl ReaderPublishState {
         ui.label("地图校准与临时尺子不会公开到读者站；完整工程导出保留已保存校准。");
         ui.label("标记、底图层逐项选择；底图素材还需在附件中勾选。底图内文字也会公开。");
         let mut changed = false;
-        for map in &self.map_choices {
+        let query = self.query.trim().to_lowercase();
+        let choices = self
+            .map_choices
+            .iter()
+            .filter(|map| {
+                [&map.id, &map.title]
+                    .iter()
+                    .any(|value| value.to_lowercase().contains(&query))
+                    || map
+                        .placements
+                        .iter()
+                        .chain(map.rasters.iter())
+                        .any(|(id, title)| {
+                            id.to_lowercase().contains(&query)
+                                || title.to_lowercase().contains(&query)
+                        })
+            })
+            .collect::<Vec<_>>();
+        let range = selection_ui::page_range(ui, &mut self.map_page, choices.len());
+        for map in &choices[range] {
             let mut selected = self.maps.contains_key(&map.id);
             if ui
                 .checkbox(&mut selected, format!("{} ({})", map.title, map.id))
@@ -73,7 +98,33 @@ impl ReaderPublishState {
             }
             if let Some(selection) = self.maps.get_mut(&map.id) {
                 ui.indent(format!("reader-map-{}", map.id), |ui| {
-                    for (id, title) in &map.placements {
+                    let map_matches = [&map.id, &map.title]
+                        .iter()
+                        .any(|value| value.to_lowercase().contains(&query));
+                    let nodes = map
+                        .placements
+                        .iter()
+                        .filter(|(id, title)| {
+                            map_matches
+                                || id.to_lowercase().contains(&query)
+                                || title.to_lowercase().contains(&query)
+                        })
+                        .collect::<Vec<_>>();
+                    if ui.button("选择此地图的全部筛选图元").clicked() {
+                        for (id, _) in &nodes {
+                            if !selection.placements.contains(id) {
+                                selection.placements.push(id.clone());
+                            }
+                        }
+                        changed = true;
+                    }
+                    let page_id = ui.make_persistent_id(("reader-map-nodes", &map.id, &query));
+                    let mut page = ui
+                        .data(|data| data.get_temp::<usize>(page_id))
+                        .unwrap_or_default();
+                    let range = selection_ui::page_range(ui, &mut page, nodes.len());
+                    ui.data_mut(|data| data.insert_temp(page_id, page));
+                    for (id, title) in &nodes[range] {
                         changed |= choice_checkbox(
                             ui,
                             &mut selection.placements,

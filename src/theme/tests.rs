@@ -1,6 +1,39 @@
 use super::*;
 use egui::{Event, Pos2, Rect};
 
+#[test]
+fn roles_keep_shared_metrics_and_distinct_surfaces_in_both_themes() {
+    for mode in [ThemeMode::Dark, ThemeMode::Light] {
+        let ctx = egui::Context::default();
+        configure(&ctx, mode);
+        assert_eq!(ctx.style().spacing.interact_size.y, CONTROL_HEIGHT);
+        assert_eq!(ctx.style().text_styles[&TextStyle::Body].size, BODY_SIZE);
+        assert_eq!(ctx.style().text_styles[&TextStyle::Small].size, META_SIZE);
+        assert_ne!(canvas_background(), document_background());
+        assert_eq!(index_panel().fill, PANEL());
+        let metrics = [SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG, SPACE_XL];
+        assert!(metrics.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+}
+
+#[test]
+fn relative_sources_keep_unicode_and_distinguish_same_named_files() {
+    use std::path::Path;
+    let root = Path::new("作品");
+    assert_eq!(
+        relative_source(root, Path::new("作品/甲/人物.wl")),
+        "甲/人物.wl"
+    );
+    assert_ne!(
+        relative_source(root, Path::new("作品/甲/人物.wl")),
+        relative_source(root, Path::new("作品/乙/人物.wl"))
+    );
+    assert_eq!(
+        relative_source(root, Path::new("其他/人物.wl")),
+        "其他/人物.wl"
+    );
+}
+
 fn luminance(color: Color32) -> f32 {
     let channel = |v: u8| {
         let v = f32::from(v) / 255.0;

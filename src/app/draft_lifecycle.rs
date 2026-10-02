@@ -281,7 +281,7 @@ impl WorldeditApp {
         self.review.pending_comment_action = None;
         self.map_creation = map_creation::MapCreationForm::default();
         self.map_form = maps::PlacementForm::default();
-        self.map_canvas.reset_local_preview();
+        self.map_canvas.discard_local_work();
         self.map_failed_command = None;
         self.manuscript = manuscript::WorkbenchState::default();
         self.schema_ui = schema_ui::SchemaUiState::default();

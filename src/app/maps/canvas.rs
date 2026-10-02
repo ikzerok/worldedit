@@ -4,6 +4,8 @@ use std::path::Path;
 impl MapCanvas {
     pub(in crate::app) fn new(snapshot: MapRenderSnapshot) -> Self {
         Self {
+            scene: Default::default(),
+            panel: MapPanel::Inspector,
             svg_import: Default::default(),
             text_sizes: HashMap::new(),
             camera: Camera2D::new(snapshot.extent),
@@ -14,6 +16,7 @@ impl MapCanvas {
             viewport: Rect::NOTHING,
             mode: CanvasMode::Browse,
             form_blocked: false,
+            legacy_place_tool: false,
             measurement_blocked: false,
             measurement: Default::default(),
             tool: CanvasTool::Select,
@@ -34,6 +37,7 @@ impl MapCanvas {
     }
 
     pub(in crate::app) fn clear(&mut self) {
+        self.scene = Default::default();
         self.svg_import = Default::default();
         self.measurement = Default::default();
         self.text_sizes.clear();
@@ -93,6 +97,7 @@ impl MapCanvas {
             None
         };
         if !same_map {
+            self.scene = Default::default();
             self.measurement = Default::default();
             self.camera = Camera2D::new(snapshot.extent);
             self.fit_pending = true;
@@ -108,7 +113,6 @@ impl MapCanvas {
             self.session_layer_visibility.clear();
         } else {
             if !same_source && !preserve_local {
-                self.selected = None;
                 self.drag = None;
                 self.draft = None;
                 self.edit_intents.clear();
@@ -149,7 +153,33 @@ impl MapCanvas {
         self.source_version = source_version;
         self.core_snapshot = core_snapshot;
         self.snapshot = display_snapshot;
+        if !preserve_local {
+            self.reconcile_legacy_selection();
+        }
         true
+    }
+
+    fn reconcile_legacy_selection(&mut self) {
+        let Some((id, hit)) = self.selected.as_mut() else {
+            return;
+        };
+        let placement = self
+            .snapshot
+            .layers
+            .iter()
+            .filter(|layer| layer.visible)
+            .flat_map(|layer| &layer.placements)
+            .find(|placement| placement.id == *id);
+        match placement {
+            None => self.selected = None,
+            Some(placement) => {
+                if matches!(hit, GeometryHit::Vertex(index)
+                    if super::render::geometry_vertex(&placement.geometry, *index).is_none())
+                {
+                    *hit = GeometryHit::Body;
+                }
+            }
+        }
     }
 
     #[cfg(test)]
@@ -197,7 +227,14 @@ impl MapCanvas {
         if let Some(layer) = self.snapshot.layers.iter_mut().find(|layer| layer.id == id) {
             self.session_layer_visibility.insert(id.to_owned(), visible);
             layer.visible = visible;
-            if !visible {
+            if !visible
+                && self.selected.as_ref().is_some_and(|(selected, _)| {
+                    layer
+                        .placements
+                        .iter()
+                        .any(|placement| placement.id == *selected)
+                })
+            {
                 self.selected = None;
             }
         }
@@ -215,7 +252,14 @@ impl MapCanvas {
         }
         if let Some(layer) = self.snapshot.layers.iter_mut().find(|layer| layer.id == id) {
             layer.visible = visible;
-            if !visible {
+            if !visible
+                && self.selected.as_ref().is_some_and(|(selected, _)| {
+                    layer
+                        .placements
+                        .iter()
+                        .any(|placement| placement.id == *selected)
+                })
+            {
                 self.selected = None;
             }
         }
@@ -237,28 +281,59 @@ impl MapCanvas {
     }
 
     pub(in crate::app) fn select_placement_id(&mut self, id: &str) -> bool {
-        let Some(placement) = self
+        let placement = self
             .snapshot
             .layers
             .iter()
             .filter(|layer| layer.visible)
             .flat_map(|layer| layer.placements.iter())
             .find(|placement| placement.id == id)
-        else {
-            return false;
-        };
-        self.selected = Some((placement.id.clone(), GeometryHit::Body));
-        true
+            .cloned();
+        if let Some(placement) = placement {
+            self.selected = Some((placement.id.clone(), GeometryHit::Body));
+            self.scene.selection.clear();
+            self.scene.inspector = None;
+            self.focus_legacy(&placement.geometry);
+            return true;
+        }
+        if self
+            .placement_layer(id)
+            .is_some_and(|(_, visible, _)| visible)
+            && self.select_scene(id, false)
+        {
+            self.focus_scene(id);
+            self.panel = MapPanel::Inspector;
+            return true;
+        }
+        false
     }
 
     pub(in crate::app) fn placement_layer(&self, id: &str) -> Option<(String, bool, bool)> {
-        self.snapshot.layers.iter().find_map(|layer| {
-            layer
-                .placements
-                .iter()
-                .find(|placement| placement.id == id)
-                .map(|_| (layer.id.clone(), layer.visible, layer.locked))
-        })
+        self.snapshot
+            .layers
+            .iter()
+            .find_map(|layer| {
+                layer
+                    .placements
+                    .iter()
+                    .find(|placement| placement.id == id)
+                    .map(|_| (layer.id.clone(), layer.visible, layer.locked))
+            })
+            .or_else(|| {
+                let scene = self.scene.source.as_ref()?;
+                let node = scene.nodes.get(id)?;
+                let layer = self
+                    .snapshot
+                    .layers
+                    .iter()
+                    .find(|layer| layer.id == node.layer_id)?;
+                let state = worldline_core::vector_scene::node_state(scene, id).ok()?;
+                Some((
+                    layer.id.clone(),
+                    layer.visible && (state.visible || self.scene.revealed.contains(id)),
+                    layer.locked || state.locked,
+                ))
+            })
     }
 
     pub(in crate::app) fn reveal_layer_for_session(&mut self, id: &str) -> bool {
@@ -373,7 +448,8 @@ impl MapCanvas {
     }
 
     pub(in crate::app) fn has_uncommitted_work(&self) -> bool {
-        self.svg_import.open
+        self.scene.has_uncommitted_work()
+            || self.svg_import.open
             || self.measurement.calibration.is_some()
             || self.drag.is_some()
             || self.draft.is_some()
@@ -429,23 +505,6 @@ impl MapCanvas {
             }
             EditIntent::Delete { .. } => {}
         }
-    }
-
-    pub(in crate::app) fn reset_local_preview(&mut self) {
-        self.measurement.calibration = None;
-        self.snapshot = self.core_snapshot.clone();
-        for layer in &mut self.snapshot.layers {
-            if let Some(visible) = self.session_layer_visibility.get(&layer.id) {
-                layer.visible = *visible;
-            }
-        }
-        self.selected = None;
-        self.drag = None;
-        self.draft = None;
-        self.edit_intents.clear();
-        self.intent_baselines.clear();
-        self.command_baseline = None;
-        self.last_error = None;
     }
 
     pub(in crate::app) fn validation_error(&self) -> Option<&str> {

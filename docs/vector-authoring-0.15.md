@@ -86,9 +86,10 @@ SVG 读取/预检、场景预检、组合绑定预检和像素渲染使用 nativ
 - scene 图层和导入预览共用调度，最多 **2 个实际活动渲染 job**，不能按图层各自开无上限线程/Worker
 - 我方显式管理的 scene RGBA 工作缓冲与纹理 cache 合计预算：**native 128 MiB；WASM 64 MiB**。MiB = 1,048,576 bytes；这是 scene 渲染预算，不挪用或悄悄扩大既有 raster 预算
 - 开任务与分配完整 viewport 前 checked 计算 `width × height × 4`，按实际同时存活的输出、裁切副本、ColorImage/纹理存储预留，不能在裁透明边后才计费；初始保守预留三份 viewport RGBA，若实现同时存活更多份须提高预留或消除副本
-- cache lease 与 in-flight reservation 共享计数；结果收取时验证尺寸，原子转换为实际缓存费用。错误、终止、丢弃、隐藏层和替换 cache 释放其费用
+- cache lease 与 in-flight reservation 共享计数；结果收取时验证尺寸，原子转换为实际裁切后缓存费用，缓存保守计上传数据与纹理两份 RGBA。错误、终止、丢弃、隐藏层和替换 cache 释放其费用
 - native 许可必须被实际执行线程持有，切图/Close/丢接收器不能提前放行第三个 job。Worker 许可直到终止或完成才释放
-- 预算不声称涵盖 resvg 树、字体、驱动延迟回收或全部进程 RSS。resvg 隔离组可能另分配中间 Pixmap，必须单独预检可证明的尺寸/嵌套工作集上界并在不可容纳时明确拒绝；不得将三份我方 RGBA 预留宣称为任意 SVG 总内存上限
+- resvg 内部表面另有每实际 job **native 64 MiB；WASM 32 MiB** 上限；按已解析渲染树的实际变换和 layer bbox 保守计算，覆盖根/默认 viewport、全部隔离组及矩形 clip 的 RGBA 与 alpha mask。同级取实际顺序峰值、嵌套累加；溢出、未知结构或无法证明上界时明确拒绝。纯像素入口强制执行，Worker 不能旁路
+- 两类受控像素内存合计峰值最多 **native 256 MiB；WASM 128 MiB**（我方共享预算加至多两个内部表面预算）。这不包含 resvg 树、字体、驱动延迟回收或全部进程 RSS；不得将三份我方 RGBA 预留宣称为任意 SVG 总内存上限
 - 资源保护不改变 map 的合法 layer/node 语义，不静默丢层。绘制仍逐层保持 legacy → scene 次序，不能将所有 scene 合并压到所有 legacy 顶上
 
 调度状态必须可解释：

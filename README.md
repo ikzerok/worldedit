@@ -97,3 +97,5 @@ trunk build --release --locked
 **兼容提醒：** 负数rnd的旧错误结果在本版按规范纠正，不保证旧错误轨迹跨版本重放相同；保存的既有值与RNG状态不重算，合法非负seed序列保持。CI构建不等于各平台原生交互已经验收，具体交互范围以独立验收报告为准。
 
 作者工作区的个人布局、停靠参考、快速命令与草稿退出保护见 [作者工作区说明](docs/author-workspace.md)；正文中心编辑与书稿重组见 [书稿写作工作区](docs/manuscript-workspace.md)。
+
+矢量地图作者工作流与资源限制见 [0.15 作者契约](docs/vector-authoring-0.15.md)；固定 5000 节点 release headless 探针命令和原生验收边界见 [性能记录](docs/performance.md)。

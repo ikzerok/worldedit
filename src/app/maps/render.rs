@@ -41,7 +41,8 @@ impl MapCanvas {
         }
     }
 
-    pub(super) fn draw_vectors(&self, painter: &egui::Painter, viewport: Rect) {
+    pub(super) fn draw_vectors(&mut self, painter: &egui::Painter, viewport: Rect) {
+        self.release_hidden_scene_layers();
         for layer in &self.snapshot.layers {
             if !layer.visible {
                 continue;
@@ -93,6 +94,22 @@ impl MapCanvas {
                     }
                     draw_control_points(painter, &placement.geometry, &self.camera, viewport);
                 }
+            }
+            // 逐地图层保持 legacy → scene；不能将所有 scene 放在全体旧图元顶层。
+            if let Some(scene_layer) = self.scene.layers.get_mut(&layer.id) {
+                scene_layer.renderer.show(
+                    painter,
+                    &scene_layer.scene,
+                    self.scene.generation,
+                    super::scene_renderer::SceneView {
+                        camera: &self.camera,
+                        viewport,
+                        extent: [
+                            self.snapshot.canvas.width as f64,
+                            self.snapshot.canvas.height as f64,
+                        ],
+                    },
+                );
             }
         }
     }

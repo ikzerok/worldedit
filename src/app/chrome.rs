@@ -28,19 +28,7 @@ impl WorldeditApp {
                         self.edit_menu(ui);
                         self.workspace_view_menu(ui);
                         self.compact_navigation_menu(ui);
-                        if ui
-                            .button("快速切换")
-                            .on_hover_text("Ctrl/Cmd+P 对象 · Ctrl/Cmd+Shift+P 命令")
-                            .clicked()
-                        {
-                            self.open_commands(ctx, false);
-                        }
                         ui.menu_button("工程", |ui| {
-                            if ui.button("导出工程  ↗").clicked() {
-                                self.directory_dialog(true);
-                                ui.close();
-                            }
-                            ui.separator();
                             if ui.button("语言与资料能力…").clicked() {
                                 self.open_capabilities();
                                 ui.close();
@@ -73,11 +61,6 @@ impl WorldeditApp {
                                 self.directory_dialog(false);
                                 ui.close();
                             }
-                            #[cfg(not(target_arch = "wasm32"))]
-                            if ui.button("导出 ZIP 工程包…").clicked() {
-                                ui.close();
-                                self.export_package();
-                            }
                             if ui.button("导入 Markdown…").clicked() {
                                 ui.close();
                                 self.markdown_import_wizard =
@@ -94,15 +77,7 @@ impl WorldeditApp {
                                 ui.close();
                             }
                         });
-                        if ui.button("发布给读者").clicked() {
-                            self.open_reader_publish();
-                        }
-                        #[cfg(target_arch = "wasm32")]
-                        if (self.browser_pending_save || self.io_error.is_some())
-                            && ui.button("导出恢复副本").clicked()
-                        {
-                            self.export_browser_recovery_copy();
-                        }
+                        self.export_publish_menu(ui);
                         if ui
                             .add(theme::primary("保存全部"))
                             .on_hover_text("Ctrl+S · 保存工程中的全部修改")
@@ -139,6 +114,31 @@ impl WorldeditApp {
                     });
                 });
         }
+    }
+    fn export_publish_menu(&mut self, ui: &mut egui::Ui) {
+        ui.menu_button("导出与发布", |ui| {
+            if ui.button("发布给读者").clicked() {
+                self.open_reader_publish();
+                ui.close();
+            }
+            ui.separator();
+            if ui.button("导出工程  ↗").clicked() {
+                self.directory_dialog(true);
+                ui.close();
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if ui.button("导出 ZIP 工程包…").clicked() {
+                self.export_package();
+                ui.close();
+            }
+            #[cfg(target_arch = "wasm32")]
+            if (self.browser_pending_save || self.io_error.is_some())
+                && ui.button("导出恢复副本").clicked()
+            {
+                self.export_browser_recovery_copy();
+                ui.close();
+            }
+        });
     }
     pub(super) fn status_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("status")
@@ -186,7 +186,8 @@ impl WorldeditApp {
                         "全部文件已保存"
                     }));
                     if let Some(message) = &self.message {
-                        ui.label(theme::muted(message));
+                        ui.add(egui::Label::new(theme::muted(message)).truncate())
+                            .on_hover_text(message);
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(theme::muted(format!(

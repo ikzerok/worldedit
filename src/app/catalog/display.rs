@@ -17,10 +17,10 @@ impl WorldeditApp {
         let catalog = snapshot.result.analysis.catalog.clone();
         let compact_index = ctx.available_rect().width() < 742.0;
         if !compact_index {
-            egui::SidePanel::right("catalog-index")
-                .default_width(270.0)
+            egui::SidePanel::left("catalog-index")
+                .default_width(theme::INDEX_WIDTH)
                 .width_range(230.0..=(ctx.available_rect().width() - 512.0).min(380.0))
-                .frame(theme::panel())
+                .frame(theme::index_panel())
                 .show(ctx, |ui| {
                     self.catalog_index_ui(ui, &catalog);
                 });
@@ -43,7 +43,7 @@ impl WorldeditApp {
                 self.personal.catalog_drawer_open = false;
             }
         }
-        egui::CentralPanel::default().frame(theme::panel().fill(BG())).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(theme::panel().fill(theme::document_background())).show(ctx, |ui| {
             theme::page_heading(ui, "资料与状态", &format!("{} 个标签 · {} 个状态 · {} 份素材", catalog.tags.len(), catalog.states.len(), catalog.assets.len()));
             theme::toolbar(ui, |ui| {
                 if compact_index && ui.button("资料索引（窄窗）").clicked() {
@@ -94,7 +94,7 @@ impl WorldeditApp {
             egui::ScrollArea::vertical().id_salt("catalog-detail").show(ui, |ui| {
                 if self.catalog_filter == "tag" && self.catalog_target.is_none() && editor.is_none() {
                     ui.heading("全部标签");
-                    ui.label(theme::muted("点击标签即可编辑、给它添加标签，并查看关联对象。右侧搜索按名称、ID 或别名筛选。"));
+                    ui.label(theme::muted("点击标签即可编辑、给它添加标签，并查看关联对象。左侧搜索按名称、ID 或别名筛选。"));
                     for object in catalog.search_objects(&self.catalog_query).into_iter().filter(|o| o.target.kind == "tag") {
                         let count = catalog.query(&object.target.id, false).len();
                         if ui.button(format!("# {} · {} · {} 个关联对象", object.display, object.target.id, count)).clicked() {
@@ -124,7 +124,7 @@ impl WorldeditApp {
                         if let Some(asset) = catalog.assets.get(&target.id).filter(|_| target.kind == "asset") {
                             ui.label(RichText::new(if asset.available { "文件可用" } else { "文件缺失或格式不可用" }).color(if asset.available { ACCENT() } else { GOLD() }));
                             ui.label(theme::muted("引用路径")); ui.label(&asset.path);
-                            ui.label(theme::muted("本机文件")); ui.label(&asset.resolved_path);
+                            theme::source_path(ui, &self.project.root, std::path::Path::new(&asset.resolved_path));
                             ui.horizontal_wrapped(|ui| {
                                 if ui.add_enabled(asset.available, egui::Button::new(crate::media::OPEN_REFERENCE_LABEL)).clicked() {
                                     if let Err(error) = crate::media::open_reference(&self.project.root, std::path::Path::new(&asset.resolved_path)) { self.io_error = Some(error); }
@@ -160,7 +160,7 @@ impl WorldeditApp {
                     theme::card().show(ui, |ui| {
                         ui.label(RichText::new("让资料通过引用连接起来").strong().size(20.0));
                         ui.label(theme::muted("创建“坐标”和“雾港码头”两个标签,用坐标标记雾港码头,再用雾港码头标记事件。从坐标就可以逐层找到地点与事件。"));
-                        ui.label(theme::muted("在右侧切换到“全部”,可以为世界、人物、时段、文件等完整对象添加标签与引用文件。"));
+                        ui.label(theme::muted("在左侧切换到“全部”,可以为世界、人物、时段、文件等完整对象添加标签与引用文件。"));
                     });
                 }
             });

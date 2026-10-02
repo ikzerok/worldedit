@@ -49,12 +49,18 @@ fn waiting_and_permanent_workset_capacity_are_different() {
     let budget = RenderBudget::with_limit(24_000);
     let (first, running) = budget.start([50, 20]).unwrap();
     let (second, running2) = budget.start([50, 20]).unwrap();
-    assert!(matches!(budget.start([50, 20]), Err(AdmissionError::Waiting { .. })));
+    assert!(matches!(
+        budget.start([50, 20]),
+        Err(AdmissionError::Waiting { .. })
+    ));
     drop(running);
     drop(running2);
     let first_cache = first.cache(4000).unwrap();
     let second_cache = second.cache(4000).unwrap();
-    assert!(matches!(budget.start([50, 20]), Err(AdmissionError::Capacity { .. })));
+    assert!(matches!(
+        budget.start([50, 20]),
+        Err(AdmissionError::Capacity { .. })
+    ));
     drop(first_cache);
     let pending = budget.start([50, 20]).unwrap();
     bounded(&budget);
@@ -66,8 +72,14 @@ fn waiting_and_permanent_workset_capacity_are_different() {
 #[test]
 fn bad_dimensions_and_forged_results_cannot_bypass_reservation() {
     let budget = RenderBudget::with_limit(24_000);
-    assert!(matches!(budget.start([0, 10]), Err(AdmissionError::InvalidDimensions)));
-    assert!(matches!(budget.start([100, 100]), Err(AdmissionError::Oversized { .. })));
+    assert!(matches!(
+        budget.start([0, 10]),
+        Err(AdmissionError::InvalidDimensions)
+    ));
+    assert!(matches!(
+        budget.start([100, 100]),
+        Err(AdmissionError::Oversized { .. })
+    ));
     assert!(budget.start([u32::MAX, u32::MAX]).is_err());
     let (permit, execution) = budget.start([50, 20]).unwrap();
     drop(execution);
@@ -93,7 +105,10 @@ fn closing_ui_does_not_release_a_still_running_native_thread() {
     assert_eq!(budget.stats().active, 1);
     assert_eq!(budget.stats().reserved, 12_000);
     let second = budget.start([50, 20]).unwrap();
-    assert!(matches!(budget.start([50, 20]), Err(AdmissionError::Waiting { .. })));
+    assert!(matches!(
+        budget.start([50, 20]),
+        Err(AdmissionError::Waiting { .. })
+    ));
     release.send(()).unwrap();
     thread.join().unwrap();
     assert_eq!(budget.stats().active, 1);

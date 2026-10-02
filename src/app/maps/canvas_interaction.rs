@@ -12,6 +12,10 @@ impl MapCanvas {
         if mode == CanvasMode::Browse {
             self.svg_import = Default::default();
             self.drag = None;
+            if let Some(job) = self.scene.job.take() {
+                self.scene.retry_operations = job.batch.operations.clone();
+                self.scene.retry_review = job.review;
+            }
         }
     }
 
@@ -21,72 +25,6 @@ impl MapCanvas {
         self.draft = None;
         self.drag = None;
         self.last_error = None;
-    }
-
-    pub(in crate::app) fn toolbar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_wrapped(|ui| {
-            ui.label(crate::theme::muted("模式"));
-            if ui
-                .selectable_label(self.mode == CanvasMode::Browse, "浏览")
-                .clicked()
-            {
-                self.set_mode(CanvasMode::Browse);
-            }
-            if ui
-                .selectable_label(self.mode == CanvasMode::Edit, "编辑展示")
-                .clicked()
-            {
-                self.set_mode(CanvasMode::Edit);
-            }
-        });
-        ui.horizontal_wrapped(|ui| {
-            ui.label(crate::theme::muted("镜头"));
-            if ui.small_button("适配全图").clicked() && self.viewport.is_positive() {
-                self.camera.fit(self.viewport);
-            }
-            if ui.small_button("重置镜头").clicked() {
-                self.camera.reset();
-            }
-            ui.label(format!("{:.0}%", self.camera.zoom() * 100.0));
-        });
-        self.measurement_toolbar(ui);
-        if self.mode == CanvasMode::Edit && !self.measurement_active() {
-            ui.horizontal_wrapped(|ui| {
-                ui.label(crate::theme::muted("绘制"));
-                let previous_tool = self.tool;
-                ui.selectable_value(&mut self.tool, CanvasTool::Select, "选择")
-                    .on_hover_text("选择标记并拖动控制点，释放后提交一个展示命令");
-                ui.selectable_value(&mut self.tool, CanvasTool::Point, "点")
-                    .on_hover_text("在地图范围内放置一个点预览");
-                ui.selectable_value(&mut self.tool, CanvasTool::Text, "文字")
-                    .on_hover_text("点按放置独立文字；填写文字后保存，Esc 取消落点");
-                ui.selectable_value(&mut self.tool, CanvasTool::Polyline, "线")
-                    .on_hover_text("连续点按添加线段，双击完成，Esc 取消");
-                ui.selectable_value(&mut self.tool, CanvasTool::Polygon, "面")
-                    .on_hover_text("连续点按添加面边界，双击完成，Esc 取消");
-
-                if self.tool != previous_tool {
-                    self.draft = None;
-                    self.drag = None;
-                    self.last_error = None;
-                }
-            });
-            ui.horizontal_wrapped(|ui| {
-                ui.label(crate::theme::muted("线/面双击完成，Esc 取消"));
-                if ui
-                    .add_enabled(
-                        self.has_uncommitted_work(),
-                        egui::Button::new("放弃未提交修改").small(),
-                    )
-                    .clicked()
-                {
-                    self.reset_local_preview();
-                }
-            });
-        }
-        if let Some(error) = self.validation_error() {
-            ui.colored_label(crate::theme::ERROR(), error);
-        }
     }
 
     pub(super) fn hit_test(
@@ -161,9 +99,16 @@ impl MapCanvas {
             }
         }
         self.handle_input(&response, ui);
-        painter.rect_filled(response.rect, 0.0, Color32::from_gray(22));
+        painter.rect_filled(response.rect, 0.0, crate::theme::canvas_background());
+        let document = Rect::from_two_pos(
+            self.camera.normalized_to_screen(Pos2::ZERO, response.rect),
+            self.camera
+                .normalized_to_screen(Pos2::new(1.0, 1.0), response.rect),
+        );
+        painter.rect_filled(document, 0.0, crate::theme::document_background());
         self.draw_rasters(&painter, ui.ctx(), response.rect);
         self.draw_vectors(&painter, response.rect);
+        self.draw_scene_overlay(&painter);
         if let Some(draft) = self.draft.as_ref() {
             draw_geometry(
                 &painter,
@@ -199,6 +144,15 @@ impl MapCanvas {
         if self.svg_import.open && self.is_edit_mode() {
             return;
         }
+        if self.scene.source.is_some()
+            && (self.scene.gesture.is_some()
+                || ui.input(|input| {
+                    input.key_pressed(egui::Key::Escape) || input.key_pressed(egui::Key::Enter)
+                }))
+            && self.handle_scene_input(response, ui)
+        {
+            return;
+        }
         if self.mode == CanvasMode::Edit && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
             self.draft = None;
             self.drag = None;
@@ -224,6 +178,22 @@ impl MapCanvas {
             self.measurement_input(response, ui);
             return;
         }
+        if self.handle_scene_input(response, ui) {
+            return;
+        }
+        if self.tool == CanvasTool::Pan
+            || ui.input(|input| {
+                input.key_down(egui::Key::Space)
+                    || input.pointer.button_down(egui::PointerButton::Middle)
+            })
+        {
+            if response.dragged()
+                || ui.input(|input| input.pointer.button_down(egui::PointerButton::Middle))
+            {
+                self.camera.pan_by(ui.input(|input| input.pointer.delta()));
+            }
+            return;
+        }
         if self.mode == CanvasMode::Browse {
             if response.dragged_by(egui::PointerButton::Primary) {
                 self.camera.pan_by(ui.input(|i| i.pointer.delta()));
@@ -233,6 +203,8 @@ impl MapCanvas {
                     let map_point = self.camera.screen_to_normalized(pointer, response.rect);
                     self.selected =
                         self.hit_test(NormalizedPoint::new(map_point.x, map_point.y), 10.0);
+                    self.scene.selection.clear();
+                    self.scene.inspector = None;
                 }
             }
             return;
@@ -261,8 +233,15 @@ impl MapCanvas {
         let map_point = self.camera.screen_to_normalized(pointer, response.rect);
         let normalized = NormalizedPoint::new(map_point.x, map_point.y);
         let primary_down = ui.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
-        if primary_down && self.drag.is_none() && self.tool == CanvasTool::Select {
+        if primary_down
+            && self.drag.is_none()
+            && matches!(self.tool, CanvasTool::Select | CanvasTool::Nodes)
+        {
             self.selected = self.hit_test(normalized, 10.0);
+            if self.selected.is_some() {
+                self.scene.selection.clear();
+                self.scene.inspector = None;
+            }
             if let Some((placement, GeometryHit::Vertex(vertex))) = self.selected.clone() {
                 if self
                     .placement_layer(&placement)
@@ -337,9 +316,13 @@ impl MapCanvas {
                     }));
                 }
                 CanvasTool::Polyline | CanvasTool::Polygon => self.append_draft_point(normalized),
-                CanvasTool::Select => {
+                CanvasTool::Select | CanvasTool::Nodes => {
                     self.selected = self.hit_test(normalized, 10.0);
                 }
+                CanvasTool::Pan
+                | CanvasTool::Rectangle
+                | CanvasTool::Ellipse
+                | CanvasTool::Bezier => {}
             }
         }
         if ui.input(|i| i.pointer.any_released()) {

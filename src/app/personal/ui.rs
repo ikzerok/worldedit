@@ -41,6 +41,15 @@ impl WorldeditApp {
 
     pub(in crate::app) fn workspace_view_menu(&mut self, ui: &mut egui::Ui) {
         ui.menu_button("视图", |ui| {
+            if ui.button("快速切换 · Ctrl/Cmd+P").clicked() {
+                self.open_commands(ui.ctx(), false);
+                ui.close();
+            }
+            if ui.button("任务命令 · Ctrl/Cmd+Shift+P").clicked() {
+                self.open_commands(ui.ctx(), true);
+                ui.close();
+            }
+            ui.separator();
             ui.checkbox(&mut self.personal.settings.navigation, "显示导航");
             ui.checkbox(&mut self.personal.settings.diagnostics, "显示诊断栏");
             ui.checkbox(&mut self.personal.settings.focus, "正文专注模式");

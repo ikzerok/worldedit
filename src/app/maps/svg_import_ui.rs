@@ -1,196 +1,204 @@
-//! SVG 安全导入与基础图形制作；预览/取消只修改本地表单。
+//! SVG 安全预检窗口；typed core scene 是唯一编辑真源。
+use super::scene_renderer::{SceneRenderer, SceneView};
+use super::svg_import_job::SvgJob;
 use super::*;
+use worldline_core::vector_scene::{import_view_transform, MapScene, SceneOp, SvgScenePreview};
+
 #[derive(Default)]
 pub(super) struct SvgImportForm {
     pub(super) open: bool,
     map_id: String,
     baseline: Option<MapCommandBaseline>,
     source: String,
-    preview: Option<worldline_core::svg_import::SvgPreview>,
+    preview: Option<SvgScenePreview>,
+    display: Option<MapScene>,
+    renderer: SceneRenderer,
+    generation: u64,
+    job: Option<SvgJob>,
     error: Option<String>,
-    ellipse: bool,
-    bounds: [f32; 4],
-    fill: String,
-    stroke: String,
-    width: f32,
-    opacity: f32,
 }
+
 impl super::super::WorldeditApp {
     pub(super) fn svg_import_panel(&mut self, ui: &mut egui::Ui) {
-        if !self.map_canvas.is_edit_mode() {
-            return;
-        }
-        ui.separator();
-        ui.strong("添加矢量内容");
-        if !self.map_canvas.svg_import.open {
-            let open = egui::CollapsingHeader::new("图形与导入")
-                .id_salt("map-add-vector-content")
-                .show(ui, |ui| ui.button("绘制矩形、椭圆 / 导入 SVG").clicked())
-                .body_returned
-                .unwrap_or(false);
-            if open {
-                if self.map_canvas.has_uncommitted_work() {
-                    self.message = Some("请先完成或取消当前绘图".into());
-                    return;
-                }
-                let map_id = self.map_selection.clone().unwrap_or_default();
-                let baseline = self.map_command_baseline(&map_id);
-                self.map_canvas.svg_import = SvgImportForm {
-                    open: true,
-                    map_id,
-                    baseline,
-                    bounds: [10., 10., 60., 40.],
-                    fill: "#356f99".into(),
-                    stroke: "#65b4ff".into(),
-                    width: 2.,
-                    opacity: 1.,
-                    ..Default::default()
-                };
+        if self.map_canvas.is_edit_mode()
+            && !self.map_canvas.svg_import.open
+            && ui.button("导入 SVG：预检与原生编辑…").clicked()
+        {
+            if self.map_canvas.has_uncommitted_work() {
+                self.message = Some("请先完成或取消当前地图草稿".into());
+                return;
             }
+            let map_id = self.map_canvas.map_id().to_owned();
+            self.map_canvas.svg_import = SvgImportForm {
+                open: true,
+                baseline: self.map_command_baseline(&map_id),
+                map_id,
+                ..Default::default()
+            };
+        }
+    }
+
+    pub(super) fn svg_import_window(&mut self, ctx: &egui::Context) {
+        if !self.map_canvas.svg_import.open {
             return;
         }
         let mut form = std::mem::take(&mut self.map_canvas.svg_import);
-        let mut cancel = false;
-        let mut apply = false;
-        ui.label(crate::theme::muted(
-            "确认后生成可编辑图层，可整体撤销。椭圆以 64 个顶点近似。",
-        ));
-        egui::CollapsingHeader::new("基础图形与样式").default_open(true).show(ui,|ui|{
-            ui.horizontal(|ui|{ui.selectable_value(&mut form.ellipse,false,"矩形");ui.selectable_value(&mut form.ellipse,true,"椭圆");});
-            for (i,label) in ["左侧 %","顶部 %","宽度 %","高度 %"].iter().enumerate(){ui.add(egui::Slider::new(&mut form.bounds[i],0.0..=100.0).text(*label));}
-            ui.horizontal(|ui|{ui.label("填充");ui.text_edit_singleline(&mut form.fill);});
-            ui.horizontal(|ui|{ui.label("描边");ui.text_edit_singleline(&mut form.stroke);});
-            ui.label(crate::theme::muted("颜色：#RGB / #RRGGBB；none 表示透明"));
-            ui.add(egui::Slider::new(&mut form.width,0.0..=20.0).text("描边宽度"));
-            ui.add(egui::Slider::new(&mut form.opacity,0.0..=1.0).text("填充不透明度"));
-            if ui.button("生成图形预览").clicked(){
-                let [x,y,w,h]=form.bounds;
-                let geometry=if form.ellipse{format!("<ellipse cx='{}' cy='{}' rx='{}' ry='{}'",x+w/2.,y+h/2.,w/2.,h/2.)}else{format!("<rect x='{x}' y='{y}' width='{w}' height='{h}'")};
-                form.source=format!("<svg viewBox='0 0 100 100'>{geometry} fill='{}' stroke='{}' stroke-width='{}' fill-opacity='{}'/></svg>",form.fill,form.stroke,form.width,form.opacity);
-                form.check();
-            }
-        });
-        #[cfg(not(target_arch = "wasm32"))]
-        if ui.button("选择 SVG 文件…").clicked() {
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("SVG 矢量图", &["svg"])
-                .pick_file()
-            {
-                let result = std::fs::metadata(&path)
-                    .map_err(|e| e.to_string())
-                    .and_then(|m| {
-                        if m.len() > 2 * 1024 * 1024 {
-                            Err("SVG 超过 2 MiB 上限".into())
-                        } else {
-                            std::fs::read_to_string(path).map_err(|e| e.to_string())
+        if let Some(result) = form.job.as_mut().and_then(|job| job.poll(ctx)) {
+            form.job = None;
+            match result {
+                Ok(result) => {
+                    form.source = result.source;
+                    match result.preview {
+                        Ok(preview) => {
+                            let target =
+                                self.map_canvas.scene.source.clone().unwrap_or_else(|| {
+                                    MapScene::new(
+                                        self.map_canvas.snapshot.canvas.width as f64,
+                                        self.map_canvas.snapshot.canvas.height as f64,
+                                    )
+                                });
+                            match preview_display(&preview, &target) {
+                                Ok(display) => {
+                                    form.display = Some(display);
+                                    form.preview = Some(preview);
+                                    form.error = None;
+                                }
+                                Err(error) => form.error = Some(error),
+                            }
+                            form.generation = form.generation.wrapping_add(1);
                         }
-                    });
-                match result {
-                    Ok(source) => {
-                        form.source = source;
-                        form.check();
+                        Err(error) => {
+                            form.preview = None;
+                            form.display = None;
+                            form.error = Some(error);
+                        }
                     }
-                    Err(error) => form.error = Some(error),
                 }
+                Err(error) => form.error = Some(error),
             }
         }
-        ui.label("或粘贴 SVG 源码");
-        if ui
-            .add(
-                egui::TextEdit::multiline(&mut form.source)
-                    .desired_rows(4)
-                    .desired_width(f32::INFINITY)
-                    .char_limit(2 * 1024 * 1024),
-            )
-            .changed()
-        {
-            form.preview = None;
-            form.error = None;
-        }
-        ui.label(crate::theme::muted("支持基础图形和 M/L/H/V/Z、C/Q 路径（含相对指令与重复参数）；曲线转换为可编辑折线。支持平移、旋转、缩放；带描边的非均匀缩放、matrix/skew、圆弧、CSS、文字和外链将明确拒绝。图形按 viewBox 映射到整张地图。"));
-        if ui.button("检查并预览 SVG").clicked() {
-            form.check();
-        }
-        if let Some(error) = &form.error {
-            ui.colored_label(crate::theme::GOLD(), error);
-        }
-        if let Some(preview) = &form.preview {
-            ui.label(format!(
-                "{} 个图形 · {} × {}",
-                preview.shapes.len(),
-                preview.width,
-                preview.height
-            ));
-            let (rect, _) = ui
-                .allocate_exact_size(egui::vec2(ui.available_width(), 130.), egui::Sense::hover());
-            ui.painter().rect_filled(rect, 4., Color32::from_gray(22));
-            let camera = Camera2D::new(rect.size());
-            for shape in &preview.shapes {
-                render::draw_geometry(
-                    ui.painter(),
-                    &geometry_from_core(&shape.geometry),
-                    &map_style(Some(&shape.style)),
-                    &camera,
-                    rect,
-                );
-            }
-        }
-        ui.horizontal(|ui| {
-            apply = ui
-                .add_enabled(
-                    form.preview.is_some(),
-                    crate::theme::primary("确认添加图层"),
-                )
-                .clicked();
-            cancel = ui.button("取消").clicked();
-        });
-        if apply {
-            let Some(baseline) = form.baseline.clone() else {
-                form.error = Some("无法读取地图基线，请取消后重开".into());
-                self.map_canvas.svg_import = form;
+        let mut open = true;
+        let mut confirm = false;
+        let mut cancel = false;
+        egui::Window::new("导入 SVG · 安全预检").id(egui::Id::new("scene-svg-import"))
+            .open(&mut open).default_width(660.0).show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    confirm = ui.add_enabled(form.preview.is_some() && form.job.is_none(), crate::theme::primary("确认添加矢量图层")).clicked();
+                    cancel = ui.button("取消导入").clicked();
+                    ui.label("完整预检后一次应用，可撤销");
+                });
+                if let Some(job) = &form.job {
+                    ui.horizontal(|ui| { ui.spinner(); ui.label(job.label()); });
+                    if ui.button("取消本次预检（保留输入）").clicked() { form.job = None; }
+                    ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                }
+                ui.horizontal(|ui| {
+                    if ui.button("选择 SVG 文件…").clicked() {
+                        form.clear_preview();
+                        match SvgJob::pick(ctx) { Ok(job) => form.job = Some(job), Err(error) => form.error = Some(error) }
+                    }
+                    if ui.add_enabled(!form.source.is_empty(), egui::Button::new("检查并预览当前源码")).clicked() {
+                        form.clear_preview();
+                        match SvgJob::check(form.source.clone(), ctx) { Ok(job) => form.job = Some(job), Err(error) => form.error = Some(error) }
+                    }
+                });
+                ui.label("保留曲线控制柄、多子路径、基本文字、组与 Affine；不支持项整批拒绝，原输入保留。");
+                egui::CollapsingHeader::new(format!("SVG 源码 · {} bytes", form.source.len()))
+                    .id_salt("svg-complete-source").default_open(form.source.len() <= 32 * 1024).show(ui, |ui| {
+                        if ui.add(egui::TextEdit::multiline(&mut form.source).desired_rows(5).desired_width(f32::INFINITY)
+                            .char_limit(2 * 1024 * 1024)).changed() { form.clear_preview(); }
+                        if ui.button("复制完整源码").clicked() { ctx.copy_text(form.source.clone()); }
+                    });
+                if let Some(error) = &form.error { ui.colored_label(crate::theme::ERROR(), error); }
+                if let Some(preview) = &form.preview {
+                    ui.label(format!("{} 个节点 · 源 viewport {} × {}", preview.scene.nodes.len(), preview.width, preview.height));
+                    for diagnostic in &preview.diagnostics { ui.colored_label(crate::theme::WARNING(), diagnostic.to_string()); }
+                }
+                if let Some(scene) = &form.display {
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 240.0), egui::Sense::hover());
+                    let painter = ui.painter().with_clip_rect(rect);
+                    painter.rect_filled(rect, 0.0, crate::theme::canvas_background());
+                    let extent = [self.map_canvas.snapshot.canvas.width as f64, self.map_canvas.snapshot.canvas.height as f64];
+                    let mut camera = Camera2D::new(Vec2::new(extent[0] as f32, extent[1] as f32)); camera.fit(rect);
+                    let document = Rect::from_two_pos(camera.normalized_to_screen(Pos2::ZERO, rect), camera.normalized_to_screen(Pos2::new(1.0, 1.0), rect));
+                    painter.rect_filled(document, 0.0, crate::theme::document_background());
+                    form.renderer.show(&painter, scene, form.generation, SceneView { camera: &camera, viewport: rect, extent });
+                    if let Some(message) = form.renderer.message("导入预览") { ui.colored_label(crate::theme::WARNING(), message); }
+                }
+            });
+        if confirm {
+            if form.map_id != self.map_canvas.map_id() {
+                form.error = Some("地图已切换，请重新预检".into());
+            } else if let (Some(preview), Some(baseline)) =
+                (form.preview.take(), form.baseline.clone())
+            {
+                let mut index = 1;
+                while self
+                    .map_canvas
+                    .snapshot
+                    .layers
+                    .iter()
+                    .any(|layer| layer.id == format!("svg_{index}"))
+                {
+                    index += 1;
+                }
+                let mut operations = Vec::new();
+                if self.map_canvas.scene.source.is_none() {
+                    operations.push(SceneOp::EnableScene);
+                }
+                operations.push(SceneOp::ImportScene {
+                    layer_id: format!("svg_{index}"),
+                    title: format!("SVG {index}"),
+                    scene: preview.scene,
+                    width: preview.width,
+                    height: preview.height,
+                });
+                self.map_canvas.scene.intent_baseline = Some(baseline);
+                self.map_canvas.scene_queue(operations);
                 return;
-            };
-            let before = self.project.clone();
-            let mut i = 1;
-            let layers = &self.map_canvas.snapshot.layers;
-            while layers.iter().any(|l| l.id == format!("svg_{i}")) {
-                i += 1;
-            }
-            match worldline_core::svg_import::apply(
-                &mut self.project,
-                &mut self.map_revision,
-                &form.map_id,
-                &format!("svg_{i}"),
-                &form.source,
-                baseline.revision,
-                baseline.expected_documents,
-            ) {
-                Ok(count) => {
-                    self.remember(before);
-                    self.map_canvas.reset_local_preview();
-                    self.refresh_presentation_after_map_command();
-                    self.message = Some(format!("已添加 {count} 个可编辑矢量图形（可撤销）"));
-                    self.io_error = None;
-                    return;
-                }
-                Err(error) => form.error = Some(error.to_string()),
+            } else {
+                form.error = Some("地图预检基线不可用，请关闭后重新打开".into());
             }
         }
-        if !cancel {
+        if open && !cancel {
             self.map_canvas.svg_import = form;
         }
     }
 }
+
+fn preview_display(preview: &SvgScenePreview, target: &MapScene) -> Result<MapScene, String> {
+    let transform = import_view_transform(&preview.scene, preview.width, preview.height, target)
+        .map_err(|error| error.to_string())?;
+    let mut display = preview.scene.clone();
+    for id in display.root_order.values().flatten() {
+        if let Some(root) = display.nodes.get_mut(id) {
+            root.transform = transform.then(root.transform);
+        }
+    }
+    display.view_box = target.view_box;
+    display.preserve_aspect_ratio = target.preserve_aspect_ratio.clone();
+    Ok(display)
+}
+
 impl SvgImportForm {
+    fn clear_preview(&mut self) {
+        self.preview = None;
+        self.display = None;
+        self.renderer.clear();
+        self.job = None;
+        self.error = None;
+    }
+
+    #[cfg(test)]
     fn check(&mut self) {
-        match worldline_core::svg_import::preview(&self.source) {
+        match worldline_core::svg_import::preview_scene(&self.source) {
             Ok(preview) => {
                 self.preview = Some(preview);
                 self.error = None;
             }
             Err(error) => {
                 self.preview = None;
-                self.error = Some(error);
+                self.error = Some(error.to_string());
             }
         }
     }

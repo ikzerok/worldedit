@@ -3,6 +3,7 @@
 mod camera;
 mod canvas;
 mod canvas_interaction;
+mod canvas_lifecycle;
 mod geometry;
 mod map_commands;
 mod map_form;
@@ -17,8 +18,34 @@ mod measurement_ui;
 pub(super) mod navigation;
 mod raster;
 mod render;
+mod render_budget;
+mod scene_authoring;
+mod scene_batch_job;
+mod scene_canvas;
+mod scene_commands;
+mod scene_exchange;
+mod scene_export_job;
+mod scene_fields;
+mod scene_gestures;
+mod scene_handles;
+mod scene_input;
+mod scene_inspector;
+mod scene_migration;
+mod scene_navigation;
+mod scene_overlay;
+mod scene_place;
+mod scene_render_job;
+mod scene_renderer;
+mod scene_selection;
+#[cfg(any(target_arch = "wasm32", test))]
+mod scene_snapshot;
+mod scene_tree;
+mod svg_import_job;
 mod svg_import_ui;
+#[cfg(target_arch = "wasm32")]
+mod svg_picker;
 mod text_labels;
+mod toolbar;
 
 use camera::Camera2D;
 use egui::{Color32, Pos2, Rect, Vec2};
@@ -271,10 +298,15 @@ pub(super) enum CanvasMode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CanvasTool {
     Select,
+    Nodes,
+    Pan,
     Point,
     Text,
     Polyline,
     Polygon,
+    Rectangle,
+    Ellipse,
+    Bezier,
 }
 
 #[derive(Default)]
@@ -363,6 +395,8 @@ pub(super) struct PendingMapCommand {
 }
 
 pub(super) struct MapCanvas {
+    scene: scene_authoring::SceneAuthoring,
+    panel: MapPanel,
     svg_import: svg_import_ui::SvgImportForm,
     snapshot: MapRenderSnapshot,
     text_sizes: HashMap<String, (Vec2, f32)>,
@@ -373,6 +407,7 @@ pub(super) struct MapCanvas {
     viewport: Rect,
     mode: CanvasMode,
     form_blocked: bool,
+    legacy_place_tool: bool,
     measurement_blocked: bool,
     measurement: measurement::MeasurementState,
     tool: CanvasTool,
@@ -387,6 +422,13 @@ pub(super) struct MapCanvas {
     textures: RasterTextureCache,
     raster_errors: HashMap<String, String>,
     raster_attempts: HashSet<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum MapPanel {
+    #[default]
+    Inspector,
+    Layers,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -452,3 +494,11 @@ mod tests_measurement;
 #[cfg(test)]
 #[path = "maps/tests/measurement_app.rs"]
 mod tests_measurement_app;
+
+#[cfg(test)]
+#[path = "maps/tests/scene_authoring.rs"]
+mod tests_scene_authoring;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "maps/tests/performance.rs"]
+mod tests_performance;
