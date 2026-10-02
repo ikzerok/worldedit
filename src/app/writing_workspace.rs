@@ -68,7 +68,15 @@ pub(super) fn draw(
     let mut action = Action::default();
     let previous_mode = view.mode;
     ui.horizontal_wrapped(|ui| {
-        ui.heading("正文");
+        let identity = format!("{}:{}", target.kind, target.id);
+        ui.heading("正文")
+            .on_hover_text(&identity)
+            .context_menu(|ui| {
+                if ui.button("复制来源对象身份").clicked() {
+                    ui.ctx().copy_text(identity);
+                    ui.close();
+                }
+            });
         ui.selectable_value(&mut view.mode, Mode::Prose, "写作");
         ui.selectable_value(&mut view.mode, Mode::Structure, "结构");
         ui.selectable_value(&mut view.mode, Mode::Source, "源码");
@@ -97,14 +105,7 @@ pub(super) fn draw(
         view.selection_mode = None;
     }
     if !typography.compact {
-        let source_label = format!(
-            "{}:{} · {}",
-            target.kind,
-            target.id,
-            buffer.path().display()
-        );
-        ui.add(egui::Label::new(theme::muted(&source_label)).truncate())
-            .on_hover_text(source_label);
+        theme::source_caption(ui, &project.root, buffer.path());
     }
     ui.horizontal_wrapped(|ui| {
         ui.label(theme::muted(if buffer.is_changed() {
@@ -256,10 +257,14 @@ pub(super) fn draw(
                 }
             }
             WritingBlockKind::Structure if !block.text.is_empty() => {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(theme::muted(&block.label));
-                    ui.monospace(&block.text);
-                });
+                egui::CollapsingHeader::new(theme::muted(&block.label))
+                    .id_salt(("writing-structure-detail", buffer.path(), block.range.start))
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(&block.text).monospace()).wrap(),
+                        );
+                    });
             }
             _ => {
                 ui.add_space(4.0);

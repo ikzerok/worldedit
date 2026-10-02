@@ -1,8 +1,17 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台，用于人物资料、世界设定、正文书稿、多文件分支故事、关系图、时间偏序、状态和叙事锚点创作。工具0.14.0明确试玩与严格重放使用的已应用稿件范围，条件证据可安全返回作者来源，试玩语义色适配明暗/系统主题，并提供已有语言与资料能力的显式启用入口。默认语言仍为1.9，最高1.13，本版不新增DSL。[作者使用与兼容边界](docs/explicit-authoring-0.14.md)。
+worldline 的 Rust / egui 作者工作台，用于世界资料、正文书稿、分支故事、关系、时间结构和地图创作。0.15.0 开发候选提供原生矢量编辑、受限 SVG 交换、四步静态世界站发布，以及统一的索引、画布和检查器布局。默认语言仍为 1.9，最高 1.13；旧作品不会自动升级。
 
-从[时间约束与可信重放](docs/replay-timeline-workflow.md)和配对[栖雪山站示例](../worldline/examples/snowline-seeds/README.md)完成双路线改稿。普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
+本轮 Linux 自动检查、对应源码的 Windows 配对 CI、release 固定负载、21 分钟原生功能会话及修补构建的局部复核已完成；真实网页、Browser Worker 与系统 SVG 文件选择成功路径未验。已补充真实导出脚本的 DOM 模型、Node Worker/WASM 和 picker 返回值模拟，但不将其视为真实浏览器或系统对话框通过。精确范围见 [0.15 验证摘要](docs/verification-0.15.md)。当前仍为未正式发行的开发候选，完整功能见 [CHANGELOG](CHANGELOG.md)，使用入口见 [文档索引](docs/README.md)。
+
+## 0.15 使用入口
+
+- [矢量地图](docs/vector-authoring-0.15.md)：绘制与节点编辑、组和图层、对象绑定、撤销与保存、SVG 预览和交换
+- [发布给读者](docs/reader-publishing.md)：选择内容 → 核对资源 → 预览页面 → 确认生成；字段和附件须分别授权
+- [共同界面布局](docs/visual-system-0.15.md)：主导航、索引、内容、检查器和参考区的职责及主题规则
+- [后台计算与取消](docs/web-worker.md)：桌面线程与同源 Web Worker 的进度、资源限制和过期结果保护
+
+从[时间约束与可信重放](docs/replay-timeline-workflow.md)和配对[栖雪山站示例](../worldline/examples/snowline-seeds/README.md)完成双路线改稿；跨仓相对链接用于 `worldline` / `worldedit` 同级检出。普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
 [稳定ID重构与存档边界](docs/safe-id-refactor.md)说明逐处预览、原子提交和state所属实体的安全拒绝；[查找与作者位置](docs/search-author-context.md)说明模式保持、源码回退与返回保护。
 
 ## 安装与启动
@@ -33,7 +42,7 @@ worldline 的 Rust / egui 作者工作台，用于人物资料、世界设定、
 - Wiki：关键词、别名与释义维护；正文、资料及试玩中的关键词自动链接，同名词条可选择，出现位置可反查并定位。详见 [Wiki 词条](docs/wiki.md)。
 - 工程：新增/引用源码、保存全部、另存、完整导出、撤销重做和未保存保护。
 - 演练：选择、变量、访问次数、实际状态与历史；不把分支源码变化当成唯一当前事实。
-- 地图画布：浏览工程中已注册的地图、PNG/JPEG 栅格图层及点线面标记；缩放、平移、图层显隐和查看资料不会修改工程。见[地图浏览](docs/maps.md)。
+- 地图画布：旧点线面、文字、底图与测量继续可用；原生矢量支持曲线、文字、组、变换、节点编辑和对象绑定。浏览与文档编辑有独立入口，见[矢量地图工作流](docs/vector-authoring-0.15.md)和[既有地图操作](docs/maps.md)。
 
 Ctrl/Cmd+S 保存全部，Ctrl/Cmd+O 选择工作区，Ctrl/Cmd+F 当前稿查找，Ctrl/Cmd+Shift+F 工程搜索；其余命令见“编辑”菜单。修改前后应检查工程诊断。
 
@@ -81,7 +90,7 @@ trunk build --release --locked
 
 静态产物在 dist，必须经 HTTP 服务打开；浏览器需要 WebAssembly 与 WebGL。网页直接运行同一个 WorldeditApp，共用语言分析与业务界面。字体只嵌入仓库中的 Noto Sans SC，许可证见 assets/fonts/OFL.txt。
 
-打开文件夹导入全部子目录与素材，也可打开 ZIP 工程包。浏览器只持有授权快照，不能自动观察磁盘后续变化；需重新导入。保存下载 ZIP 并尝试存入浏览器本地存储，达到配额会保留未保存标记。ZIP 限制 4096 文件、64 MiB。没有云端同步；关闭浏览器标签页的操作由浏览器管理。
+打开文件夹导入全部子目录与素材，也可打开 ZIP 工程包。浏览器只持有授权快照，不能自动观察磁盘后续变化；需重新导入。保存下载 ZIP 并尝试存入浏览器本地存储，达到配额会保留未保存标记。完整工程 ZIP 限制为 4096 文件、64 MiB；读者站使用独立的 10000 文件、128 MiB 原始内容与 128 MiB ZIP 预算，不能混作工程备份额度。没有云端同步；关闭浏览器标签页的操作由浏览器管理。
 
 ## 发布与边界
 
@@ -97,3 +106,5 @@ trunk build --release --locked
 **兼容提醒：** 负数rnd的旧错误结果在本版按规范纠正，不保证旧错误轨迹跨版本重放相同；保存的既有值与RNG状态不重算，合法非负seed序列保持。CI构建不等于各平台原生交互已经验收，具体交互范围以独立验收报告为准。
 
 作者工作区的个人布局、停靠参考、快速命令与草稿退出保护见 [作者工作区说明](docs/author-workspace.md)；正文中心编辑与书稿重组见 [书稿写作工作区](docs/manuscript-workspace.md)。
+
+矢量地图作者工作流与资源限制见 [0.15 作者契约](docs/vector-authoring-0.15.md)；固定 5000 节点 release headless 探针命令和原生验收边界见 [性能记录](docs/performance.md)。

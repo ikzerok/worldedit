@@ -62,7 +62,7 @@ pub(crate) fn write_package_file(
     Ok(())
 }
 
-fn is_same_or_descendant(root: &Path, target: &Path) -> bool {
+pub(in crate::app) fn is_same_or_descendant(root: &Path, target: &Path) -> bool {
     let mut root_components = root.components();
     let mut target_components = target.components();
     loop {
@@ -78,7 +78,7 @@ fn is_same_or_descendant(root: &Path, target: &Path) -> bool {
     }
 }
 
-fn normalized_path(path: &Path) -> PathBuf {
+pub(in crate::app) fn normalized_path(path: &Path) -> PathBuf {
     let absolute = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
     let canonical = absolute.canonicalize().unwrap_or_else(|_| {
         match (absolute.parent(), absolute.file_name()) {

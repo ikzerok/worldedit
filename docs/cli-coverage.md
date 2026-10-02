@@ -1,6 +1,6 @@
 # CLI 与编辑器功能覆盖
 
-结论：CLI **不能完全控制 worldedit 的全部功能**。当前 worldedit 命令行只接受工作区目录（兼容根入口文件），没有 IPC、远程控制端口或编辑器命令队列。wl 与 wl-agent 服务语言及演练层，不能访问运行中编辑器的未保存缓冲。
+CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令接受工作区目录（兼容根入口文件），没有 IPC、远程控制端口或编辑器命令队列。0.15 的 `wl` 与 `wl-agent` 已提供语言分析、资料编辑、独立演练、矢量场景事务和静态站点发布；它们读取磁盘作品或自身 Project 会话，不能访问编辑器窗口内的未应用稿或未保存缓冲。
 
 | 功能 | wl | wl-agent | 编辑器 / AI 可行方式 |
 |---|---|---|---|
@@ -11,6 +11,12 @@
 | 1.10 实体目录与属性 | catalog --kind entity | project.open / project.analyze | 同一 core 目录；同名实体和旧词条保持独立 |
 | 创建、修改、删除 1.10 实体 | entity create / update / delete | entity.create / entity.update / entity.delete | 显式1.10工程；按基线与引用保护写入磁盘，桌面随后刷新 |
 | 工作区检查、地图与标记反查 | workspace check / maps list | workspace.check / maps.list | 核心分域诊断及地图索引；读取已保存作品，不连接编辑器缓冲 |
+| SVG 安全预检 | scene svg-preview --source SVG文本 | scene.svg.preview | 返回同一 core typed 预检；没有工程副作用，不代表完成 UI 导入 |
+| 原生矢量批次 | scene preview / apply --request-json SceneBatch | scene.preview / scene.apply | core 预览、基线与摘要核验；apply 保存自身 Project，不控制画布手势 |
+| 全图矢量 SVG | scene export --map-id ID | scene.export | 输出 legacy + scene 安全 SVG，遵守文档默认显隐；不包含底图与完整作者元数据 |
+| 静态世界站 v1/v2/v3 | reader-export preview / apply --selection-json DTO | reader.export.preview / reader.export.apply | 同一 core 白名单和计划；原生 apply 写工作区外的新目录，编辑器向导另负责 ZIP 交付 |
+| 发布 profile 保存、升级与复用 | 无专用命令 | 无专用方法 | 编辑器发布向导或 Rust Project API；配置应用不自动发布 |
+| 新建地点并绑定的组合事务 | 无专用命令 | 无专用方法 | 编辑器与 core 组合 API；分两次实体/地图命令不等同一个原子事务 |
 | 独立关系查询与分页 | relations --target KIND:ID；续页 --offset | relation.query（offset） | 同一 core 邻接查询，保留修订和筛选；事件控制流仍使用 graph |
 | 关系类型及实例编辑 | relation-type / relation create、update、delete | relation.type.* / relation.create、update、delete | 1.10 Project 事务、基线与引用保护 |
 | 旧人物关系显式提升 | relations promote preview / commit | relation.promote.preview / commit | 预览新关系及旧项移除、保存兼容影响；提交时校验基线和预览一致性 |
@@ -26,13 +32,23 @@
 | 最大化、关闭、窗口拖动 | 无 | 无 | UI / 系统窗口管理 |
 | 浏览器目录授权、下载 | 无 | 无 | 浏览器 UI |
 
-`wl-agent` 的完整方法表以 worldline/spec/agent-protocol.md 为准。`export` 的两个格式是 graph_mermaid、timeline_mermaid，不能导出工作区文件。当前没有“所有编辑器功能均可由 CLI 控制”的保证。
+`wl-agent` 的完整方法表以 [机器协议](../../worldline/spec/agent-protocol.md)和[场景协议](../../worldline/spec/scene-protocol.md)为准。旧 `export` 方法仍只有 graph_mermaid、timeline_mermaid，不要与新增 `scene.export` 或独立 `reader.export.apply` 混同。后两者也不等于完整工程备份。
 
 AI 创作的可用流程是：读取作品 → CLI 检查与反查 → 改写工作区文件 → CLI 复查 / 演练 → 桌面自动刷新 → 必要时真实 UI 验证 / 导出。浏览器目录是快照，需要重新导入外部变化。运行中编辑器有未保存修改时，应先合并，避免 AI 的磁盘稿与缓冲冲突。
 
+## 0.15 预览与提交参数
+
+场景预览使用 `wl scene preview 工程 --request-json SceneBatch --json`；应用重传同一 batch，并带 `--baseline` 与 `--plan-digest`。SVG 预检的文本选项是 `--source`，导出地图选项是 `--map-id`。这些入口当前没有 `--request-file` 或 `--source-file` 选项；完整 DTO 见[场景协议](../../worldline/spec/scene-protocol.md)。
+
+RPC 的 `scene.preview/apply/export` 必须且只能提供 `path` 或 `project_id`；`scene.svg.preview` 只接收 `source`。有状态会话成功保存后推进 scene 修订，一次性 path 调用从默认修订开始，均不能跳过内容基线、文档 hash 和计划重算。初始化能力名为 `authoring.vector_scene.v1`。
+
+读者站预览使用 `wl reader-export preview 工程 --selection-json DTO --json`；应用增加 `--plan-digest` 和 `--out 新目录`。RPC 为 `reader.export.preview/apply`，应用另需 `plan_digest` 与 `output`。选择 v3 必须显式包含 `reader.world_site.v1`；属性与静态条件说明各有额外授权。已有输出不覆盖，改变公开选择或原稿后重新预览。参数和公开边界见[世界站规范](../../worldline/spec/reader-site.md)。
+
+核心计划一致不代表 UI 体验等价：独立命令没有画布选择、拖动、检查器输入、窗口取消、临时浏览器预览或编辑器撤销栈。运行中编辑器存在未保存稿时仍须按工作区冲突规则合并。
+
 ## 验证依据
 
-静态核对 worldedit/src/main.rs 的参数入口、app.rs 的 UI 操作、worldline/cli/src/lib.rs 的子命令分发和 worldline/agent/src/lib.rs 的 RPC 方法分发；CLI 与协议测试覆盖分析及会话。实体接口以配对 worldline/spec/agent-protocol.md 的参数和验收为准。此表不把“共享 Rust API”计作现成 CLI 能力。
+静态核对 worldedit/src/main.rs 的参数入口、app.rs 的 UI 操作、worldline/cli/src/lib.rs 的子命令分发和 worldline/agent/src/lib.rs 的 RPC 方法分发；CLI 与协议测试覆盖分析及会话。实体与 reader 接口以配对 worldline/spec/agent-protocol.md 为准；scene 参数已对照 cli/src/lib/scene.rs、cli/src/lib.rs 与 agent/src/lib.rs 注册项和 spec/scene-protocol.md。此表是能力入口核对，不表示当前候选已完成实际交互验收，也不把“共享 Rust API”计作现成 CLI 能力。
 
 ## 0.9 约束与当前稿边界
 

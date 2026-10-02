@@ -34,13 +34,17 @@ impl WorldeditApp {
             return;
         }
         let layer_id = self.snapshot.as_ref().and_then(|snapshot| {
-            snapshot
-                .map_index
-                .maps
-                .get(map_id)?
-                .placements
+            let map = snapshot.map_index.maps.get(map_id)?;
+            map.placements
                 .get(placement_id)
                 .map(|placement| placement.layer_id.clone())
+                .or_else(|| {
+                    map.scene
+                        .as_ref()?
+                        .nodes
+                        .get(placement_id)
+                        .map(|node| node.layer_id.clone())
+                })
         });
         let Some(layer_id) = layer_id else {
             self.message = Some("该地图标记已不存在，请刷新资料后重试".into());

@@ -135,3 +135,29 @@ fn network_release_profile_meets_m2_frame_and_reading_gates() {
         "暖态资料切换 P95 {p95_reading:.3}ms 超过 200ms"
     );
 }
+
+#[test]
+fn empty_network_has_a_real_searchable_center_picker_and_does_not_edit_the_project() {
+    let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
+    let output = frame(&ctx, &mut app, Vec::new(), 37);
+    assert!(visible_text_position(&output, "搜索中心对象").is_some());
+    assert!(app.network_state.focus.is_none());
+    click(&ctx, &mut app, 37, "请选择");
+    enter_text_at_placeholder_in_window(&ctx, &mut app, 37, "搜索名称、类型、ID或来源", "a");
+    let target = TargetRef::new("entity", "a");
+    let label = super::super::object_picker::candidate_label(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .result
+            .analysis
+            .catalog
+            .object(&target)
+            .unwrap(),
+    );
+    click(&ctx, &mut app, 37, &label);
+    assert_eq!(app.network_state.focus.as_ref(), Some(&target));
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+}

@@ -9,111 +9,185 @@ impl super::super::WorldeditApp {
             "浏览模式：显隐只作用于本次浏览；进入编辑展示后才能保存图层设置。"
         }));
         let layer_details = self.map_canvas.layer_details();
-        for (index, (id, title, visible, locked, count)) in layer_details.iter().enumerate() {
-            let mut next = if editing {
-                self.map_canvas
-                    .layer_default_visibility(id)
-                    .unwrap_or(*visible)
-            } else {
-                *visible
-            };
+        if !editing {
             ui.horizontal(|ui| {
-                if ui
-                    .checkbox(
-                        &mut next,
-                        if editing {
-                            format!("{}  ·  默认可见 · {} 个标记", title, count)
-                        } else {
-                            format!("{}  ·  临时显示 · {} 个标记", title, count)
-                        },
-                    )
-                    .changed()
-                {
-                    if editing {
-                        let applied = self.apply_map_command(
-                            selected_map_id.as_deref().unwrap_or_default(),
-                            worldline_core::presentation_commands::Command::SetLayer {
-                                map_id: selected_map_id.clone().unwrap_or_default(),
-                                layer_id: id.clone(),
-                                title: None,
-                                visible_default: Some(next),
-                                locked: None,
-                                layer_order: None,
-                            },
-                            "已保存图层默认显隐",
-                        );
-                        if applied {
-                            self.map_canvas.set_layer_default_visible(id, next);
-                        }
-                    } else {
-                        self.map_canvas.set_layer_visible(id, next);
-                    }
+                if ui.small_button("临时全部隐藏").clicked() {
+                    self.map_canvas.set_all_layers_visible(false);
                 }
-                if editing {
-                    let lock_label = if *locked { "🔒" } else { "🔓" };
-                    if ui
-                        .small_button(lock_label)
-                        .on_hover_text(if *locked {
-                            "解锁图层"
-                        } else {
-                            "锁定图层"
-                        })
-                        .clicked()
-                    {
-                        let _ = self.apply_map_command(
-                            selected_map_id.as_deref().unwrap_or_default(),
-                            worldline_core::presentation_commands::Command::SetLayer {
-                                map_id: selected_map_id.clone().unwrap_or_default(),
-                                layer_id: id.clone(),
-                                title: None,
-                                visible_default: None,
-                                locked: Some(!locked),
-                                layer_order: None,
-                            },
-                            if *locked {
-                                "已解锁图层"
-                            } else {
-                                "已锁定图层"
-                            },
-                        );
-                    }
-                    if index > 0 && ui.small_button("↑").on_hover_text("上移图层").clicked() {
-                        let mut order = self.map_canvas.layer_order();
-                        order.swap(index, index - 1);
-                        let _ = self.apply_map_command(
-                            selected_map_id.as_deref().unwrap_or_default(),
-                            worldline_core::presentation_commands::Command::SetLayer {
-                                map_id: selected_map_id.clone().unwrap_or_default(),
-                                layer_id: id.clone(),
-                                title: None,
-                                visible_default: None,
-                                locked: None,
-                                layer_order: Some(order),
-                            },
-                            "已调整图层顺序",
-                        );
-                    }
-                    if index + 1 < layer_details.len()
-                        && ui.small_button("↓").on_hover_text("下移图层").clicked()
-                    {
-                        let mut order = self.map_canvas.layer_order();
-                        order.swap(index, index + 1);
-                        let _ = self.apply_map_command(
-                            selected_map_id.as_deref().unwrap_or_default(),
-                            worldline_core::presentation_commands::Command::SetLayer {
-                                map_id: selected_map_id.clone().unwrap_or_default(),
-                                layer_id: id.clone(),
-                                title: None,
-                                visible_default: None,
-                                locked: None,
-                                layer_order: Some(order),
-                            },
-                            "已调整图层顺序",
-                        );
-                    }
+                if ui.small_button("临时全部显示").clicked() {
+                    self.map_canvas.set_all_layers_visible(true);
                 }
             });
         }
+        if editing {
+            if ui.button("添加图层").clicked() {
+                let mut index = 1;
+                while layer_details
+                    .iter()
+                    .any(|(id, ..)| id == &format!("layer_{index}"))
+                {
+                    index += 1;
+                }
+                let map_id = selected_map_id.clone().unwrap_or_default();
+                let id = format!("layer_{index}");
+                if self.apply_map_command(
+                    &map_id,
+                    worldline_core::presentation_commands::Command::CreateLayer {
+                        map_id: map_id.clone(),
+                        layer_id: id.clone(),
+                        title: format!("图层 {index}"),
+                        visible_default: true,
+                        locked: false,
+                    },
+                    "已添加图层",
+                ) {
+                    self.map_canvas.scene.active_layer = Some(id);
+                }
+            }
+            if ui.button("预览迁移全部旧标记…").clicked() {
+                self.preview_legacy_migration(None);
+            }
+        }
+        egui::ScrollArea::vertical()
+            .id_salt("map-layer-rows")
+            .max_height(280.0)
+            .show_rows(ui, 112.0, layer_details.len(), |ui, range| {
+                for index in range {
+                    let (id, title, visible, locked, count) = &layer_details[index];
+                    let mut next = if editing {
+                        self.map_canvas
+                            .layer_default_visibility(id)
+                            .unwrap_or(*visible)
+                    } else {
+                        *visible
+                    };
+                    ui.horizontal(|ui| {
+                        if editing
+                            && ui
+                                .selectable_label(
+                                    self.map_canvas.scene.active_layer.as_ref() == Some(id),
+                                    "绘制",
+                                )
+                                .on_hover_text("绘制到此层")
+                                .clicked()
+                        {
+                            self.map_canvas.scene.active_layer = Some(id.clone());
+                        }
+                        if ui.checkbox(&mut next, "").changed() {
+                            if editing {
+                                let applied = self.apply_map_command(
+                                    selected_map_id.as_deref().unwrap_or_default(),
+                                    worldline_core::presentation_commands::Command::SetLayer {
+                                        map_id: selected_map_id.clone().unwrap_or_default(),
+                                        layer_id: id.clone(),
+                                        title: None,
+                                        visible_default: Some(next),
+                                        locked: None,
+                                        layer_order: None,
+                                    },
+                                    "已保存图层默认显隐",
+                                );
+                                if applied {
+                                    self.map_canvas.set_layer_default_visible(id, next);
+                                }
+                            } else {
+                                self.map_canvas.set_layer_visible(id, next);
+                            }
+                        }
+                        ui.add_sized([90.0, 24.0], egui::Label::new(title).truncate())
+                            .on_hover_text(format!("{title} · {count} 个旧标记 · 图层 {id}"));
+                        if editing {
+                            let lock_label = if *locked { "🔒" } else { "🔓" };
+                            if ui
+                                .small_button(lock_label)
+                                .on_hover_text(if *locked {
+                                    "解锁图层"
+                                } else {
+                                    "锁定图层"
+                                })
+                                .clicked()
+                            {
+                                let _ = self.apply_map_command(
+                                    selected_map_id.as_deref().unwrap_or_default(),
+                                    worldline_core::presentation_commands::Command::SetLayer {
+                                        map_id: selected_map_id.clone().unwrap_or_default(),
+                                        layer_id: id.clone(),
+                                        title: None,
+                                        visible_default: None,
+                                        locked: Some(!locked),
+                                        layer_order: None,
+                                    },
+                                    if *locked {
+                                        "已解锁图层"
+                                    } else {
+                                        "已锁定图层"
+                                    },
+                                );
+                            }
+                            if index > 0 && ui.small_button("↑").on_hover_text("上移图层").clicked()
+                            {
+                                let mut order = self.map_canvas.layer_order();
+                                order.swap(index, index - 1);
+                                let _ = self.apply_map_command(
+                                    selected_map_id.as_deref().unwrap_or_default(),
+                                    worldline_core::presentation_commands::Command::SetLayer {
+                                        map_id: selected_map_id.clone().unwrap_or_default(),
+                                        layer_id: id.clone(),
+                                        title: None,
+                                        visible_default: None,
+                                        locked: None,
+                                        layer_order: Some(order),
+                                    },
+                                    "已调整图层顺序",
+                                );
+                            }
+                            if index + 1 < layer_details.len()
+                                && ui.small_button("↓").on_hover_text("下移图层").clicked()
+                            {
+                                let mut order = self.map_canvas.layer_order();
+                                order.swap(index, index + 1);
+                                let _ = self.apply_map_command(
+                                    selected_map_id.as_deref().unwrap_or_default(),
+                                    worldline_core::presentation_commands::Command::SetLayer {
+                                        map_id: selected_map_id.clone().unwrap_or_default(),
+                                        layer_id: id.clone(),
+                                        title: None,
+                                        visible_default: None,
+                                        locked: None,
+                                        layer_order: Some(order),
+                                    },
+                                    "已调整图层顺序",
+                                );
+                            }
+                        }
+                    });
+                    if editing {
+                        if *count > 0 && ui.small_button("预览迁移本层全部旧标记…").clicked()
+                        {
+                            self.preview_legacy_migration(Some(id));
+                        }
+                        let scene_count = self
+                            .map_canvas
+                            .scene
+                            .layers
+                            .get(id)
+                            .map_or(0, |layer| layer.scene.nodes.len());
+                        if *count == 0
+                            && scene_count == 0
+                            && ui.small_button("删除空图层").clicked()
+                        {
+                            self.apply_map_command(
+                                selected_map_id.as_deref().unwrap_or_default(),
+                                worldline_core::presentation_commands::Command::DeleteLayer {
+                                    map_id: selected_map_id.clone().unwrap_or_default(),
+                                    layer_id: id.clone(),
+                                },
+                                "已删除空图层",
+                            );
+                        }
+                    }
+                }
+            });
 
         if let Some(request) = self.map_locate_request.clone() {
             if request.map_id == selected_map_id.as_deref().unwrap_or_default() {
@@ -126,6 +200,8 @@ impl super::super::WorldeditApp {
                 ui.horizontal(|ui| {
                     if ui.button("临时显示并定位").clicked() {
                         self.map_canvas.reveal_layer_for_session(&request.layer_id);
+                        self.map_canvas
+                            .reveal_scene_node_for_session(&request.placement_id);
                         self.map_canvas.select_placement_id(&request.placement_id);
                         self.map_locate_request = None;
                     }

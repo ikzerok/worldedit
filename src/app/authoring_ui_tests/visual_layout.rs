@@ -12,7 +12,7 @@ fn compact_sidebar_keeps_files_and_primary_actions_visible() {
     for label in [
         "工程文件",
         "保存全部",
-        "发布给读者",
+        "导出与发布",
         "世界资料",
         "书稿工作台",
     ] {
@@ -23,6 +23,11 @@ fn compact_sidebar_keeps_files_and_primary_actions_visible() {
             "{label}: {point:?}"
         );
     }
+    click(&ctx, &mut app, 32, "导出与发布");
+    let menu = frame(&ctx, &mut app, Vec::new(), 32);
+    assert!(visible_text_position(&menu, "发布给读者").is_some());
+    assert!(visible_text_position(&menu, "导出工程  ↗").is_some());
+    click(&ctx, &mut app, 32, "导出与发布");
     // 最小宽窗通过真实折叠/展开导航到结构视图；不是要求全部模块常驻。
     click(&ctx, &mut app, 32, "世界资料");
     click(&ctx, &mut app, 32, "结构与审阅");

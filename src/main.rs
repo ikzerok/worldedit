@@ -8,12 +8,20 @@ mod eds11_prototype;
 mod fonts;
 mod highlight;
 mod media;
+mod reader_zip;
 #[cfg(any(target_arch = "wasm32", test))]
 mod save_flow;
+mod scene_raster;
 mod theme;
 mod visual;
 #[cfg(target_arch = "wasm32")]
 mod web;
+#[cfg(target_arch = "wasm32")]
+mod worker_execute;
+#[cfg(target_arch = "wasm32")]
+mod worker_host;
+#[cfg(any(target_arch = "wasm32", test))]
+mod worker_protocol;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;

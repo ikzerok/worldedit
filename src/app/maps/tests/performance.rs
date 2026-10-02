@@ -1,0 +1,249 @@
+//! release headless 探针用于定位 CPU 开销；不是原生 FPS/GPU/present 验收。
+use super::*;
+use std::time::{Duration, Instant};
+
+#[test]
+#[ignore = "release-only fixed-fixture performance evidence"]
+#[allow(clippy::assertions_on_constants)]
+fn dense_scene_headless_release_profile() {
+    assert!(!cfg!(debug_assertions), "run with --release");
+    let entry = fixture_entry();
+    assert!(
+        entry.is_file(),
+        "set WORLDEDIT_DENSE_FIXTURE to the documented fixed fixture world.wl"
+    );
+    let ctx = egui::Context::default();
+    let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+    let setup = Instant::now();
+    let mut app = super::super::WorldeditApp::new(&creation, Some(entry));
+    assert_workflow_maps(&app);
+    let map_id = app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .map_index
+        .maps
+        .values()
+        .find(|map| {
+            map.scene
+                .as_ref()
+                .is_some_and(|scene| scene.nodes.len() == 5000)
+        })
+        .expect("fixture must contain exactly 5000 scene nodes")
+        .id
+        .clone();
+    app.map_selection = Some(map_id);
+    let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(976.0, 768.0));
+    let run = |app: &mut super::super::WorldeditApp, time, events| {
+        ctx.run(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                time: Some(time),
+                events,
+                ..Default::default()
+            },
+            |ctx| app.map_tab(ctx),
+        )
+    };
+    let cold = Instant::now();
+    let _ = run(&mut app, 1.0, Vec::new());
+    println!(
+        "headless-only map-work-area=976x768 setup_ms={:.3} cold_update_ms={:.3}",
+        setup.elapsed().as_secs_f64() * 1000.0,
+        cold.elapsed().as_secs_f64() * 1000.0
+    );
+    let wait = Instant::now();
+    let mut time = 2.0;
+    let mut ready_frames = 0;
+    loop {
+        let _ = run(&mut app, time, Vec::new());
+        time += 0.02;
+        if app.map_canvas.scene.layers.values().all(|layer| {
+            matches!(
+                layer.renderer.status,
+                super::scene_renderer::RenderStatus::Ready
+            )
+        }) {
+            ready_frames += 1;
+        } else {
+            ready_frames = 0;
+        }
+        if ready_frames >= 3 {
+            break;
+        }
+        assert!(
+            wait.elapsed() < Duration::from_secs(30),
+            "warm render did not settle; inspect resource status"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let baseline = app.project.content_baseline();
+    app.map_canvas.set_mode(CanvasMode::Edit);
+    app.map_canvas.set_tool(CanvasTool::Pan);
+    for (case, panel) in [
+        ("canvas-pan", MapPanel::Inspector),
+        ("object-tree", MapPanel::Layers),
+    ] {
+        app.map_canvas.panel = panel;
+        let output = run(&mut app, time, Vec::new());
+        time += 0.02;
+        let mut tree_row = first_tree_row(&output);
+        if panel == MapPanel::Layers {
+            assert!(
+                tree_row.is_some(),
+                "object tree must be visible before sampling"
+            );
+        }
+        for round in 0..3 {
+            let first_row = tree_row.as_ref().map(|(id, _)| id.clone());
+            let mut update = Vec::new();
+            let mut total = Vec::new();
+            for frame in 0..60 {
+                let center = app.map_canvas.viewport.center();
+                let mut events = Vec::new();
+                if panel == MapPanel::Inspector {
+                    let pointer = center + Vec2::new((frame % 8) as f32, 0.0);
+                    events.push(egui::Event::PointerMoved(pointer));
+                    if frame == 0 || frame == 59 {
+                        events.push(egui::Event::PointerButton {
+                            pos: pointer,
+                            button: egui::PointerButton::Primary,
+                            pressed: frame == 0,
+                            modifiers: egui::Modifiers::NONE,
+                        });
+                    }
+                } else if frame % 10 == 0 {
+                    events.push(egui::Event::PointerMoved(
+                        tree_row.as_ref().expect("visible tree row").1 + Vec2::splat(5.0),
+                    ));
+                    events.push(egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: Vec2::new(0.0, -120.0),
+                        modifiers: egui::Modifiers::NONE,
+                    });
+                }
+                let started = Instant::now();
+                let output = run(&mut app, time, events);
+                time += 1.0 / 60.0;
+                update.push(started.elapsed().as_secs_f64() * 1000.0);
+                if panel == MapPanel::Layers {
+                    tree_row = first_tree_row(&output);
+                }
+                let _ = ctx.tessellate(output.shapes, output.pixels_per_point);
+                total.push(started.elapsed().as_secs_f64() * 1000.0);
+                // 不计入CPU样本；允许后台按近似60Hz的真实帧间隔前进。
+                if let Some(rest) = Duration::from_millis(16).checked_sub(started.elapsed()) {
+                    std::thread::sleep(rest);
+                }
+            }
+            if panel == MapPanel::Layers {
+                assert_ne!(
+                    first_row,
+                    tree_row.as_ref().map(|(id, _)| id.clone()),
+                    "wheel input must actually scroll the object rows"
+                );
+            }
+            print_samples(case, round, "update", update);
+            print_samples(case, round, "update+tessellate", total);
+        }
+    }
+    assert_eq!(app.project.content_baseline(), baseline);
+}
+
+fn print_samples(case: &str, round: usize, metric: &str, mut values: Vec<f64>) {
+    values.sort_by(f64::total_cmp);
+    println!(
+        "headless {case} round={round} {metric} p50_ms={:.3} p95_ms={:.3} max_ms={:.3}",
+        values[values.len() / 2],
+        values[(values.len() * 95).div_ceil(100) - 1],
+        values[values.len() - 1]
+    );
+    let p95 = values[(values.len() * 95).div_ceil(100) - 1];
+    assert!(p95 <= 33.0, "headless {case} round={round} {metric} p95={p95:.3}ms exceeds33ms; still requires separate native acceptance");
+}
+
+fn first_tree_row(output: &egui::FullOutput) -> Option<(String, Pos2)> {
+    fn find(shape: &egui::Shape, clip: Rect) -> Option<(String, Pos2)> {
+        match shape {
+            egui::Shape::Text(text)
+                if text.galley.text().starts_with("rect_") && clip.contains(text.pos) =>
+            {
+                Some((text.galley.text().to_owned(), text.pos))
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| find(shape, clip)),
+            _ => None,
+        }
+    }
+    output
+        .shapes
+        .iter()
+        .find_map(|shape| find(&shape.shape, shape.clip_rect))
+}
+
+fn fixture_entry() -> PathBuf {
+    std::env::var_os("WORLDEDIT_DENSE_FIXTURE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../native-fixture/authoring/world.wl")
+        })
+}
+
+fn assert_workflow_maps(app: &super::super::WorldeditApp) {
+    let snapshot = app.snapshot.as_ref().expect("fixture must load");
+    assert!(
+        snapshot.map_index.diagnostics.is_empty(),
+        "presentation diagnostics: {:?}",
+        snapshot.map_index.diagnostics
+    );
+    for id in ["a_workflow", "b_dense", "c_layers_pressure"] {
+        assert!(
+            snapshot.map_index.maps.contains_key(id),
+            "registered fixture map {id} missing from presentation index"
+        );
+    }
+    let workflow = &snapshot.map_index.maps["a_workflow"];
+    assert_eq!(workflow.placements.len(), 6);
+    assert_eq!(workflow.scene.as_ref().unwrap().nodes.len(), 7);
+    assert!(
+        workflow.raster_layers[0]
+            .asset_info
+            .as_ref()
+            .unwrap()
+            .available
+    );
+    assert!(workflow.measurement.is_some());
+}
+
+#[test]
+#[ignore = "requires the documented external generated fixture"]
+fn author_fixture_presentation_and_media_are_registered() {
+    let ctx = egui::Context::default();
+    let creation = eframe::CreationContext::_new_kittest(ctx);
+    let app = super::super::WorldeditApp::new(&creation, Some(fixture_entry()));
+    assert_workflow_maps(&app);
+    let snapshot = app.snapshot.as_ref().unwrap();
+    assert!(!snapshot.result.has_errors());
+    for id in ["harbor_image", "harbor_audio"] {
+        assert!(
+            snapshot.result.analysis.catalog.assets[id].available,
+            "fixture asset {id} unavailable"
+        );
+    }
+    let manuscript = app.project.manuscript_index("harbor_book").unwrap();
+    assert!(
+        manuscript.diagnostics.is_empty(),
+        "manuscript diagnostics: {:?}",
+        manuscript.diagnostics
+    );
+    assert_eq!(manuscript.entries.len(), 4);
+    for chapter in manuscript
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == worldline_core::ManuscriptEntryKind::Chapter)
+    {
+        assert_eq!(
+            chapter.source.as_ref().unwrap().status,
+            worldline_core::ManuscriptReferenceStatus::Resolved
+        );
+    }
+}

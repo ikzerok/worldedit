@@ -2,11 +2,11 @@ use super::super::WorldeditApp;
 use super::*;
 use worldline_core::manuscript::ManuscriptEntryKind;
 use worldline_core::project::Project;
-use worldline_core::reader_export::ReaderManuscriptSelection;
 
 impl ReaderPublishState {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
+            initialized: true,
             site_title: "离线阅读包".into(),
             #[cfg(not(target_arch = "wasm32"))]
             destination: "reader-site.zip".into(),
@@ -15,43 +15,24 @@ impl ReaderPublishState {
     }
 
     pub(super) fn invalidate_review(&mut self) {
+        self.profile_job = None;
+        self.profile_plan = None;
+        self.generation = self.generation.wrapping_add(1);
         self.reviewed = None;
+        self.step = PublishStep::Select;
         self.confirmed = false;
         self.status = None;
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.web_job = None;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.job = None;
-        }
-    }
-
-    pub(super) fn selection(&self) -> ReaderExportSelection {
-        ReaderExportSelection {
-            required_features: vec![worldline_core::reader_export::READER_FIELDS_FEATURE.into()],
-            fields: self
-                .fields
-                .iter()
-                .filter(|(target, keys)| self.objects.contains(*target) && !keys.is_empty())
-                .map(
-                    |(target, keys)| worldline_core::reader_export::ReaderFieldSelection {
-                        target: target.clone(),
-                        keys: keys.iter().cloned().collect(),
-                    },
-                )
-                .collect(),
-            schema_version: worldline_core::reader_export::READER_FIELDS_SCHEMA_VERSION,
-            site_title: self.site_title.clone(),
-            objects: self.objects.iter().cloned().collect(),
-            manuscripts: self
-                .chapters
-                .iter()
-                .filter(|(_, chapters)| !chapters.is_empty())
-                .map(|(id, chapters)| ReaderManuscriptSelection {
-                    id: id.clone(),
-                    chapters: chapters.iter().cloned().collect(),
-                })
-                .collect(),
-            attachments: self.attachments.iter().cloned().collect(),
-            maps: self.maps.values().cloned().collect(),
+            self.browser_preview_job = None;
+            if self.delivery_job.as_ref().is_some_and(|job| job.cancel()) {
+                self.delivery_job = None;
+            }
         }
     }
 
@@ -99,6 +80,7 @@ impl ReaderPublishState {
                         fields: snapshot.result.reader_field_candidates(&object.target),
                         target: object.target.clone(),
                         display: object.display.clone(),
+                        aliases: snapshot.result.analysis.catalog.aliases_for(&object.target),
                     })
                     .collect::<Vec<_>>()
             })
@@ -144,34 +126,8 @@ impl ReaderPublishState {
             })
             .collect::<Vec<_>>();
 
-        let allowed_objects: BTreeSet<_> = object_choices
-            .iter()
-            .map(|choice| choice.target.clone())
-            .collect();
-        let allowed_attachments: BTreeSet<_> = attachment_choices
-            .iter()
-            .map(|choice| choice.id.clone())
-            .collect();
-        self.objects
-            .retain(|target| allowed_objects.contains(target));
-        self.attachments
-            .retain(|id| allowed_attachments.contains(id));
-        self.chapters.retain(|book_id, chapters| {
-            let Some(book) = manuscript_choices.iter().find(|book| book.id == *book_id) else {
-                return false;
-            };
-            let allowed_chapters: BTreeSet<_> =
-                book.chapters.iter().map(|(id, _)| id.as_str()).collect();
-            chapters.retain(|id| allowed_chapters.contains(id.as_str()));
-            !chapters.is_empty()
-        });
-        self.fields.retain(|target, keys| {
-            let Some(choice) = object_choices.iter().find(|c| c.target == *target) else {
-                return false;
-            };
-            keys.retain(|key| choice.fields.iter().any(|field| field.key == *key));
-            !keys.is_empty()
-        });
+        // 已保存授权不能随候选变化缩减；失效项留给显式移除和core拒绝。
+        self.refresh_profiles(project);
         self.object_choices = object_choices;
         self.manuscript_choices = manuscript_choices;
         self.attachment_choices = attachment_choices;
@@ -181,6 +137,19 @@ impl ReaderPublishState {
 
 impl WorldeditApp {
     pub(in crate::app) fn open_reader_publish(&mut self) {
+        // 重复打开只把现有向导带回前台，不能丢选择或断开正在提交的结果通道。
+        if self.reader_publish.open || self.reader_publish.busy() {
+            self.reader_publish.open = true;
+            return;
+        }
+        if self.reader_publish.initialized {
+            self.reader_publish
+                .refresh_choices(&self.project, self.snapshot.as_ref());
+            self.reader_publish.open = true;
+            self.reader_publish.status =
+                Some("已恢复上次选择与配置输入；请重新审核后发布。".into());
+            return;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         let state = {
             let mut state = ReaderPublishState::new();

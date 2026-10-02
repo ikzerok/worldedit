@@ -28,19 +28,7 @@ impl WorldeditApp {
                         self.edit_menu(ui);
                         self.workspace_view_menu(ui);
                         self.compact_navigation_menu(ui);
-                        if ui
-                            .button("快速切换")
-                            .on_hover_text("Ctrl/Cmd+P 对象 · Ctrl/Cmd+Shift+P 命令")
-                            .clicked()
-                        {
-                            self.open_commands(ctx, false);
-                        }
                         ui.menu_button("工程", |ui| {
-                            if ui.button("导出工程  ↗").clicked() {
-                                self.directory_dialog(true);
-                                ui.close();
-                            }
-                            ui.separator();
                             if ui.button("语言与资料能力…").clicked() {
                                 self.open_capabilities();
                                 ui.close();
@@ -73,11 +61,6 @@ impl WorldeditApp {
                                 self.directory_dialog(false);
                                 ui.close();
                             }
-                            #[cfg(not(target_arch = "wasm32"))]
-                            if ui.button("导出 ZIP 工程包…").clicked() {
-                                ui.close();
-                                self.export_package();
-                            }
                             if ui.button("导入 Markdown…").clicked() {
                                 ui.close();
                                 self.markdown_import_wizard =
@@ -94,15 +77,7 @@ impl WorldeditApp {
                                 ui.close();
                             }
                         });
-                        if ui.button("发布给读者").clicked() {
-                            self.open_reader_publish();
-                        }
-                        #[cfg(target_arch = "wasm32")]
-                        if (self.browser_pending_save || self.io_error.is_some())
-                            && ui.button("导出恢复副本").clicked()
-                        {
-                            self.export_browser_recovery_copy();
-                        }
+                        self.export_publish_menu(ui);
                         if ui
                             .add(theme::primary("保存全部"))
                             .on_hover_text("Ctrl+S · 保存工程中的全部修改")
@@ -140,6 +115,31 @@ impl WorldeditApp {
                 });
         }
     }
+    fn export_publish_menu(&mut self, ui: &mut egui::Ui) {
+        ui.menu_button("导出与发布", |ui| {
+            if ui.button("发布给读者").clicked() {
+                self.open_reader_publish();
+                ui.close();
+            }
+            ui.separator();
+            if ui.button("导出工程  ↗").clicked() {
+                self.directory_dialog(true);
+                ui.close();
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if ui.button("导出 ZIP 工程包…").clicked() {
+                self.export_package();
+                ui.close();
+            }
+            #[cfg(target_arch = "wasm32")]
+            if (self.browser_pending_save || self.io_error.is_some())
+                && ui.button("导出恢复副本").clicked()
+            {
+                self.export_browser_recovery_copy();
+                ui.close();
+            }
+        });
+    }
     pub(super) fn status_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("status")
             .frame(
@@ -154,68 +154,89 @@ impl WorldeditApp {
                     .inner_margin(egui::Margin::symmetric(18, 8)),
             )
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    let errors = self
-                        .diagnostics()
-                        .iter()
-                        .filter(|d| d.severity == Severity::Error)
-                        .count();
-                    let warnings = self
-                        .diagnostics()
-                        .iter()
-                        .filter(|d| d.severity == Severity::Warning)
-                        .count();
-                    ui.colored_label(
-                        if errors > 0 { ERROR() } else { ACCENT() },
-                        if errors > 0 {
-                            format!("● {errors} 个错误")
-                        } else {
-                            "● 编译通过".into()
+                // 先给右侧固定操作真实空间，再把剩余宽度交给左侧状态与长回执。
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(theme::muted(format!(
+                        "WORLDLINE {}  ·  UTF-8",
+                        self.project.language_version()
+                    )));
+                    if ui
+                        .add_enabled(
+                            !self.redo.is_empty() || !self.search_state.redo.is_empty(),
+                            egui::Button::new("重做").small(),
+                        )
+                        .clicked()
+                    {
+                        self.edit_undo(true);
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.history.is_empty() || !self.search_state.undo.is_empty(),
+                            egui::Button::new("撤销").small(),
+                        )
+                        .clicked()
+                    {
+                        self.edit_undo(false);
+                    }
+                    ui.add_space(8.0);
+                    let remaining =
+                        egui::vec2(ui.available_width().max(0.0), ui.spacing().interact_size.y);
+                    ui.allocate_ui_with_layout(
+                        remaining,
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.set_clip_rect(ui.clip_rect().intersect(ui.max_rect()));
+                            self.status_details(ui);
                         },
                     );
-                    if warnings > 0 {
-                        ui.label(theme::muted(format!("{warnings} 个提醒")));
-                    }
-                    ui.separator();
-                    let has_draft = self.has_open_authoring_form();
-                    ui.label(theme::muted(if has_draft {
-                        "有未应用输入（尚未保存）"
-                    } else if self.project.is_dirty() {
-                        "有未保存修改"
-                    } else {
-                        "全部文件已保存"
-                    }));
-                    if let Some(message) = &self.message {
-                        ui.label(theme::muted(message));
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(theme::muted(format!(
-                            "WORLDLINE {}  ·  UTF-8",
-                            self.project.language_version()
-                        )));
-                        if ui
-                            .add_enabled(
-                                !self.redo.is_empty() || !self.search_state.redo.is_empty(),
-                                egui::Button::new("重做").small(),
-                            )
-                            .clicked()
-                        {
-                            self.edit_undo(true);
-                        }
-                        if ui
-                            .add_enabled(
-                                !self.history.is_empty() || !self.search_state.undo.is_empty(),
-                                egui::Button::new("撤销").small(),
-                            )
-                            .clicked()
-                        {
-                            self.edit_undo(false);
-                        }
-                    });
                 });
             });
+    }
+
+    fn status_details(&self, ui: &mut egui::Ui) {
+        let errors = self
+            .diagnostics()
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .count();
+        let warnings = self
+            .diagnostics()
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .count();
+        ui.colored_label(
+            if errors > 0 { ERROR() } else { ACCENT() },
+            if errors > 0 {
+                format!("● {errors} 个错误")
+            } else {
+                "● 编译通过".into()
+            },
+        );
+        if warnings > 0 {
+            ui.label(theme::muted(format!("{warnings} 个提醒")));
+        }
+        ui.separator();
+        ui.label(theme::muted(if self.has_open_authoring_form() {
+            "有未应用输入（尚未保存）"
+        } else if self.project.is_dirty() {
+            "有未保存修改"
+        } else {
+            "全部文件已保存"
+        }));
+        if let Some(message) = &self.message {
+            ui.add_sized(
+                egui::vec2(ui.available_width().max(0.0), ui.spacing().interact_size.y),
+                egui::Label::new(theme::muted(message))
+                    .truncate()
+                    .show_tooltip_when_elided(false),
+            )
+            .on_hover_text(message);
+        }
     }
     pub(super) fn page_heading(&self, ui: &mut egui::Ui, title: &str, subtitle: &str) {
         theme::page_heading(ui, title, subtitle);
     }
 }
+
+#[cfg(test)]
+mod tests;

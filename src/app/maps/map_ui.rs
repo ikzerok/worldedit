@@ -1,6 +1,7 @@
 use super::*;
 impl super::super::WorldeditApp {
     pub(in crate::app) fn map_tab(&mut self, ctx: &egui::Context) {
+        self.poll_scene_operations();
         if ctx.input(|i| i.key_pressed(egui::Key::Escape))
             && !self.map_canvas.measurement_active()
             && self.map_canvas.measurement.calibration.is_none()
@@ -107,6 +108,8 @@ impl super::super::WorldeditApp {
                         self.message = Some(
                             "当前地图有未提交的展示修改，请保存、重试或取消后再切换地图。".into(),
                         );
+                    } else {
+                        self.map_canvas.sync_scene(document.scene.as_ref());
                     }
                 } else {
                     self.map_navigation = None;
@@ -136,6 +139,8 @@ impl super::super::WorldeditApp {
                         if visible {
                             self.map_canvas.select_placement_id(&request.placement_id);
                             self.map_locate_request = None;
+                        } else {
+                            self.map_canvas.panel = MapPanel::Layers;
                         }
                     }
                 }
@@ -177,13 +182,23 @@ impl super::super::WorldeditApp {
         // 画布选择改变时将详情带回视野，不能只把它放在长滚动列表的逻辑顶部。
         let selected_identity = selected_placement
             .as_ref()
-            .map(|placement| (selected_map_id.clone(), placement.id.clone()));
+            .map(|placement| (selected_map_id.clone(), placement.id.clone()))
+            .or_else(|| {
+                self.map_canvas
+                    .scene
+                    .inspector
+                    .as_ref()
+                    .map(|node| (selected_map_id.clone(), node.id.clone()))
+            });
         let selection_changed = ctx.data_mut(|data| {
             let id = egui::Id::new("map-inspector-selection");
             let previous = data.get_temp::<Option<(Option<String>, String)>>(id);
             data.insert_temp(id, selected_identity.clone());
             previous.as_ref() != Some(&selected_identity)
         });
+        if selection_changed && self.map_canvas.scene.inspector.is_some() {
+            self.map_canvas.panel = MapPanel::Inspector;
+        }
         let mut back_requested = false;
         let mut enter_requested = None;
         // 窄工作区默认让出画布；进行中的表单始终保留提交和取消入口。
@@ -191,7 +206,9 @@ impl super::super::WorldeditApp {
         let inspector_id = egui::Id::new(("map-inspector-visible", compact));
         let needs_inspector = self.map_creation.open
             || self.map_canvas.svg_import.open
-            || self.map_form.has_uncommitted_work();
+            || self.map_form.has_uncommitted_work()
+            || self.map_canvas.scene.inspector_dirty;
+        let needs_inspector = needs_inspector || self.map_locate_request.is_some();
         let mut inspector_visible = ctx
             .data(|data| data.get_temp::<bool>(inspector_id))
             .unwrap_or(!compact || selected_placement.is_some() || !has_document);
@@ -221,13 +238,39 @@ impl super::super::WorldeditApp {
                     }
                 });
             });
+        if !compact {
+            egui::SidePanel::left("map-index")
+                .default_width(crate::theme::INDEX_WIDTH)
+                .resizable(true)
+                .frame(crate::theme::index_panel())
+                .show(ctx, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt("map-index-scroll")
+                        .show(ui, |ui| {
+                            self.map_overview_panel(ui, &map_summaries, &mut back_requested);
+                            self.map_search_panel(ui);
+                        });
+                });
+        }
         if inspector_visible {
             egui::SidePanel::right("map-inspector")
                 .resizable(true)
-                .default_width(310.0)
+                .default_width(crate::theme::INSPECTOR_WIDTH)
                 .width_range(260.0..=420.0)
                 .frame(crate::theme::panel())
                 .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(
+                            &mut self.map_canvas.panel,
+                            MapPanel::Inspector,
+                            "当前选择",
+                        );
+                        ui.selectable_value(
+                            &mut self.map_canvas.panel,
+                            MapPanel::Layers,
+                            "图层/对象",
+                        );
+                    });
                     let mut scroll = egui::ScrollArea::vertical()
                         .id_salt("map-inspector-scroll")
                         .auto_shrink([false, false]);
@@ -238,13 +281,20 @@ impl super::super::WorldeditApp {
                         if self.map_canvas.calibration_active() {
                             ui.disable();
                         }
-                        let text_active = has_document
+                        if self.map_canvas.panel == MapPanel::Layers {
+                            self.map_layers_panel(ui, &selected_map_id);
+                            self.map_canvas.scene_tree_panel(ui);
+                            return;
+                        }
+                        let scene_active = self.scene_inspector(ui);
+                        let text_active = !scene_active
+                            && has_document
                             && self.map_text_panel(
                                 ui,
                                 selected_map_id.as_deref(),
                                 selected_placement.as_ref(),
                             );
-                        if has_document && !text_active {
+                        if has_document && !text_active && !scene_active {
                             self.map_selected_marker_panel(
                                 ui,
                                 selected_map_id.clone(),
@@ -253,19 +303,22 @@ impl super::super::WorldeditApp {
                                 &mut enter_requested,
                             );
                         }
-                        self.map_overview_panel(ui, &map_summaries, &mut back_requested);
+                        if compact {
+                            self.map_overview_panel(ui, &map_summaries, &mut back_requested);
+                        }
                         if has_document {
                             // 打开的导入表单不能被折叠或藏在其他长表单之后。
                             self.svg_import_panel(ui);
-                            if !text_active {
+                            if !text_active && !scene_active {
                                 self.map_markers_panel(
                                     ui,
                                     selected_map_id.clone(),
                                     selected_placement,
                                 );
                             }
-                            self.map_layers_panel(ui, &selected_map_id);
-                            self.map_search_panel(ui);
+                            if compact {
+                                self.map_search_panel(ui);
+                            }
                         } else if self.map_form.has_uncommitted_work() {
                             ui.separator();
                             ui.label(egui::RichText::new("保留的标记表单").strong());
@@ -307,16 +360,18 @@ impl super::super::WorldeditApp {
                                             color,
                                             format!("[{}] {}", diagnostic.code, diagnostic.message),
                                         );
-                                        ui.horizontal(|ui| {
-                                            ui.label(crate::theme::muted(diagnostic.file.clone()));
-                                            if ui.small_button("打开原文").clicked() {
-                                                self.jump_to_file(
-                                                    &diagnostic.file,
-                                                    diagnostic.span.line,
-                                                    diagnostic.span.column,
-                                                );
-                                            }
-                                        });
+                                        crate::theme::source_caption(
+                                            ui,
+                                            &self.project.root,
+                                            std::path::Path::new(&diagnostic.file),
+                                        );
+                                        if ui.small_button("打开原文").clicked() {
+                                            self.jump_to_file(
+                                                &diagnostic.file,
+                                                diagnostic.span.line,
+                                                diagnostic.span.column,
+                                            );
+                                        }
                                     }
                                 });
                         }
@@ -340,6 +395,21 @@ impl super::super::WorldeditApp {
                         || self.map_failed_command.is_some()
                         || self.map_creation.open;
                     self.map_canvas.toolbar(ui);
+                    self.map_canvas.scene.render_status_panel(ui);
+                    self.scene_job_panel(ui);
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.small_button("导出整图矢量 SVG…").clicked() {
+                            self.begin_svg_export(ctx, false);
+                        }
+                        let selected = !self.map_canvas.scene.selection.is_empty()
+                            || self.map_canvas.selected_placement().is_some();
+                        if ui
+                            .add_enabled(selected, egui::Button::new("导出当前选择…").small())
+                            .clicked()
+                        {
+                            self.begin_svg_export(ctx, true);
+                        }
+                    });
                 } else {
                     ui.heading("开始绘制你的世界");
                     ui.label("先创建空白地图，再添加图层、地点或导入矢量图形。");
@@ -369,7 +439,9 @@ impl super::super::WorldeditApp {
                     });
                 }
                 ui.separator();
-                self.map_canvas.form_blocked = self.map_form.text_draft.is_some();
+                self.map_canvas.form_blocked =
+                    self.map_form.text_draft.is_some() || self.map_form.pending_place.is_some();
+                self.map_canvas.legacy_place_tool = self.map_form.create_place_on_next_point;
                 self.map_canvas.show(ui);
             });
 
@@ -389,5 +461,10 @@ impl super::super::WorldeditApp {
         }
         let (intents, baselines) = self.map_canvas.take_edit_batch();
         self.apply_map_intents(intents, baselines);
+        self.scene_review_window(ctx);
+        self.svg_import_window(ctx);
+        self.scene_place_window(ctx);
+        self.scene_export_window(ctx);
+        self.submit_scene_operations(ctx);
     }
 }

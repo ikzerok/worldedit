@@ -274,14 +274,19 @@ impl WorldeditApp {
                                         "{prefix}  {name}{}",
                                         if *dirty { "  ●" } else { "" }
                                     );
-                                    if ui
+                                    let response = ui
                                         .add(egui::Button::selectable(
                                             self.active_file == *path,
                                             RichText::new(label).size(12.0),
                                         ))
-                                        .on_hover_text(path.display().to_string())
-                                        .clicked()
-                                    {
+                                        .on_hover_text(path.display().to_string());
+                                    response.context_menu(|ui| {
+                                        if ui.button("复制完整来源").clicked() {
+                                            ui.ctx().copy_text(path.display().to_string());
+                                            ui.close();
+                                        }
+                                    });
+                                    if response.clicked() {
                                         if self.project.documents.contains_key(path) {
                                             self.remember_author_position();
                                             self.active_file = path.clone();

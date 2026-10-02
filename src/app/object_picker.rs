@@ -104,7 +104,7 @@ pub(super) fn object_picker(
                 .show(ui, |ui| {
                     for object in candidates.iter().take(1000) {
                         let text = candidate_label(object);
-                        if ui
+                        let response = ui
                             .add(
                                 egui::Button::selectable(
                                     current.as_ref() == Some(&object.target),
@@ -112,9 +112,14 @@ pub(super) fn object_picker(
                                 )
                                 .wrap(),
                             )
-                            .on_hover_text(&text)
-                            .clicked()
-                        {
+                            .on_hover_text(&text);
+                        response.context_menu(|ui| {
+                            if ui.button("复制完整身份与来源").clicked() {
+                                ui.ctx().copy_text(text.clone());
+                                ui.close();
+                            }
+                        });
+                        if response.clicked() {
                             *current = Some(object.target.clone());
                             ui.close();
                         }
@@ -158,5 +163,19 @@ mod tests {
         assert!(matches(&b, "林", &[]));
         assert!(!matches(&a, "same", &["character"]));
         assert!(matches(&b, "b.wl", &["character"]));
+    }
+    #[test]
+    fn same_basename_sources_remain_distinguishable_in_the_visible_candidate() {
+        let make = |file: &str| CatalogObject {
+            target: TargetRef::new("character", "same"),
+            display: "林".into(),
+            file: file.into(),
+            line: 3,
+        };
+        let left = candidate_label(&make("/project/甲/人物.wl"));
+        let right = candidate_label(&make("/project/乙/人物.wl"));
+        assert_ne!(left, right);
+        assert!(left.contains("/project/甲/人物.wl:3"));
+        assert!(right.contains("/project/乙/人物.wl:3"));
     }
 }

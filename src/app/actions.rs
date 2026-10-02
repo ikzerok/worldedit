@@ -55,6 +55,11 @@ impl WorldeditApp {
                 self.open_capabilities();
             }
             Pending::Close => {
+                self.map_canvas.discard_local_work();
+                if !self.prepare_reader_app_close(_ctx) {
+                    _ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    return;
+                }
                 #[cfg(target_arch = "wasm32")]
                 {
                     self.allow_close = true;
@@ -199,7 +204,7 @@ impl WorldeditApp {
             self.delete_form = None;
             self.rename_form = None;
             self.map_failed_command = None;
-            self.map_canvas.reset_local_preview();
+            self.map_canvas.reset_for_history();
             if source_before == self.project.sources()
                 && options_before == self.project.compile_options()
             {

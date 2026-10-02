@@ -61,6 +61,9 @@ fn error(value: JsValue) -> String {
 }
 
 pub fn start() {
+    if web_sys::window().is_none() {
+        return;
+    }
     spawn_local(async {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document

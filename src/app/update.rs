@@ -38,6 +38,27 @@ impl eframe::App for WorldeditApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if self.reader_app_close_pending() {
+            if self.poll_reader_app_close(ctx) {
+                self.allow_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.heading("正在清理后台任务");
+                    if self.reader_app_close_failed() {
+                        ui.label("无法确认后台清理结果，请检查目标与退出状态；尚未允许退出。");
+                    } else {
+                        ui.label("等待本次临时文件清理与原子提交的真实结果，然后关闭工作台。");
+                        ui.spinner();
+                    }
+                    if let Some(error) = &self.io_error {
+                        ui.colored_label(ui.visuals().error_fg_color, error);
+                    }
+                });
+            }
+            return;
+        }
         self.capture_new_draft_baselines();
         self.frame_dirty_drafts = self.dirty_draft_names();
         crate::theme::configure(ctx, self.personal.settings.theme);
@@ -134,12 +155,12 @@ impl eframe::App for WorldeditApp {
         }
         #[cfg(target_arch = "wasm32")]
         self.browser_events(ctx);
-        if ctx.input(|i| i.viewport().close_requested())
-            && !self.allow_close
-            && (self.project.is_dirty() || self.has_open_authoring_form())
-        {
+        if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.request_action(Pending::Close, ctx);
+            if self.reader_app_close_pending() {
+                return;
+            }
         }
         if !self.ime_composing
             && !self.command_palette.ime

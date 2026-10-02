@@ -231,3 +231,63 @@ fn escape_cancels_a_local_geometry_draft() {
     assert!(canvas.draft.is_none());
     assert!(canvas.edit_intents().is_empty());
 }
+
+#[test]
+fn accepting_each_vertex_commit_keeps_stable_selection_and_camera() {
+    let mut canvas = point_canvas();
+    canvas.selected = Some(("point".into(), GeometryHit::Vertex(0)));
+    canvas.camera.pan_by(vec2(19.0, 27.0));
+    let camera = *canvas.camera();
+    for revision in 1..=5 {
+        let geometry = MapGeometry::Point(NormalizedPoint::new(0.1 * revision as f32, 0.4));
+        canvas.draft = Some(geometry.clone());
+        canvas.accept_local_preview();
+        let mut updated = canvas.snapshot.clone();
+        updated.layers[0].placements[0].geometry = geometry;
+        assert!(canvas.set_snapshot(revision, updated));
+        assert_eq!(
+            canvas.selected,
+            Some(("point".into(), GeometryHit::Vertex(0)))
+        );
+        assert_eq!(*canvas.camera(), camera);
+        assert!(!canvas.has_uncommitted_work());
+    }
+}
+
+#[test]
+fn shortening_geometry_falls_back_to_body_but_deleted_identity_is_cleared() {
+    let mut canvas = point_canvas();
+    canvas.selected = Some(("point".into(), GeometryHit::Vertex(9)));
+    assert!(canvas.set_snapshot(1, canvas.snapshot.clone()));
+    assert_eq!(canvas.selected, Some(("point".into(), GeometryHit::Body)));
+    let mut removed = canvas.snapshot.clone();
+    removed.layers[0].placements.clear();
+    assert!(canvas.set_snapshot(2, removed));
+    assert!(canvas.selected.is_none());
+}
+
+#[test]
+fn hiding_an_unrelated_layer_preserves_selected_object() {
+    let mut canvas = point_canvas();
+    canvas.snapshot.layers.push(MapLayer {
+        id: "other".into(),
+        title: "另一层".into(),
+        visible: true,
+        locked: false,
+        placements: Vec::new(),
+    });
+    canvas.core_snapshot = canvas.snapshot.clone();
+    canvas.selected = Some(("point".into(), GeometryHit::Body));
+    canvas.set_layer_visible("other", false);
+    assert_eq!(
+        canvas.selected.as_ref().map(|(id, _)| id.as_str()),
+        Some("point")
+    );
+    canvas.set_layer_default_visible("other", false);
+    assert_eq!(
+        canvas.selected.as_ref().map(|(id, _)| id.as_str()),
+        Some("point")
+    );
+    canvas.set_layer_visible("places", false);
+    assert!(canvas.selected.is_none());
+}

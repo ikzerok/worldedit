@@ -1,6 +1,6 @@
 //! Wiki 的列表、词条表单与共用文字链接；匹配和出现位置由 core 提供。
 use super::{Tab, WorldeditApp};
-use crate::theme::{self, ACCENT, BG};
+use crate::theme::{self, ACCENT};
 use egui::RichText;
 use worldline_core::authoring::WorldDraft;
 use worldline_core::catalog::{Catalog, TargetRef};
@@ -287,10 +287,10 @@ impl WorldeditApp {
             return;
         };
         let catalog = snapshot.result.analysis.catalog.clone();
-        egui::SidePanel::right("wiki-index")
-            .default_width(290.0)
-            .width_range(230.0..=400.0)
-            .frame(theme::panel())
+        egui::SidePanel::left("wiki-index")
+            .default_width(theme::INDEX_WIDTH)
+            .width_range(200.0..=360.0)
+            .frame(theme::index_panel())
             .show(ctx, |ui| {
                 ui.heading("关键词索引");
                 ui.add(
@@ -327,11 +327,11 @@ impl WorldeditApp {
                             });
                         }
                         if catalog.search_objects(&self.wiki_query).is_empty() {
-                            ui.label("没有匹配的词条，可用左侧按钮创建。");
+                            ui.label("没有匹配的词条，可用正文上方按钮创建。");
                         }
                     });
             });
-        egui::CentralPanel::default().frame(theme::panel().fill(BG())).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(theme::panel().fill(theme::document_background())).show(ctx, |ui| {
             theme::page_heading(ui, "Wiki", "为关键词写下释义。在正文、资料和试玩中点击关键词，即可查看注释与出现位置。");
             theme::toolbar(ui, |ui| {
                 if ui.add(theme::primary("＋ 新建词条")).clicked() { self.edit_wiki_entry(None); }
@@ -343,7 +343,7 @@ impl WorldeditApp {
                 } else {
                     ui.add_space(30.0);
                     ui.heading("让每个名字都有来处");
-                    ui.label("从右侧索引选择人物、地点或设定，也可以新建词条，填写关键词、释义和别名。");
+                    ui.label("从左侧索引选择人物、地点或设定，也可以新建词条，填写关键词、释义和别名。");
                     ui.label(theme::muted("现有资料会自动进入索引；同名词条分别保留。释义中出现的其他关键词也可以继续点击。"));
                 }
             });

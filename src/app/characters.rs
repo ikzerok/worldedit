@@ -1,4 +1,5 @@
 //! 人物档案、可编辑关系图与反向事件索引。
+mod collection;
 use super::inspector::{field, properties_with_references};
 use super::{CharacterEditor, Tab, WorldeditApp};
 use crate::theme::{self, *};
@@ -69,6 +70,7 @@ impl WorldeditApp {
         self.reset_new_draft_baseline("人物资料");
     }
     pub(super) fn characters_tab(&mut self, ctx: &egui::Context) {
+        self.character_collection(ctx);
         self.character_inspector(ctx);
         let Some(snapshot) = &self.snapshot else {
             return;
@@ -76,7 +78,7 @@ impl WorldeditApp {
         let symbols = snapshot.result.analysis.symbols.clone();
         let ids = &symbols.character_order;
         egui::CentralPanel::default()
-            .frame(theme::panel().fill(BG()))
+            .frame(theme::panel().fill(theme::canvas_background()))
             .show(ctx, |ui| {
                 theme::page_heading(
                     ui,
@@ -88,39 +90,7 @@ impl WorldeditApp {
                         self.new_character();
                     }
                 });
-                ui.add_space(18.0);
-                egui::ScrollArea::horizontal()
-                    .id_salt("character-cards")
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            for id in ids {
-                                let info = &symbols.characters[id];
-                                let selected = self
-                                    .character_editor
-                                    .as_ref()
-                                    .is_some_and(|c| c.draft.id == *id);
-                                if ui
-                                    .add_sized(
-                                        [164.0, 82.0],
-                                        egui::Button::selectable(
-                                            selected,
-                                            RichText::new(format!(
-                                                "{}\n{} · {} 个事件",
-                                                info.display,
-                                                id,
-                                                info.events.len()
-                                            ))
-                                            .size(13.0),
-                                        ),
-                                    )
-                                    .clicked()
-                                {
-                                    self.select_character(id);
-                                }
-                            }
-                        });
-                    });
-                ui.add_space(18.0);
+                ui.add_space(theme::SPACE_MD);
                 ui.label(RichText::new("人物关系图").strong().size(17.0));
                 ui.label(theme::muted(if self.character_link.is_some() {
                     "点击目标人物建立关系,随后在档案中编辑关系名称"
@@ -319,8 +289,8 @@ impl WorldeditApp {
             .map(|snapshot| snapshot.result.analysis.catalog.clone())
             .unwrap_or_default();
         egui::SidePanel::right("character-inspector")
-            .default_width(320.0)
-            .width_range(285.0..=420.0)
+            .default_width(theme::INSPECTOR_WIDTH)
+            .width_range(250.0..=420.0)
             .frame(theme::panel())
             .show(ctx, |ui| {
                 let Some(mut editor) = self.character_editor.take() else {
@@ -341,20 +311,17 @@ impl WorldeditApp {
                 egui::ScrollArea::vertical()
                     .id_salt("person-form")
                     .show(ui, |ui| {
-                        field(
-                            ui,
-                            "角色 ID（改名会同步全部结构引用）",
-                            &mut editor.draft.id,
-                        );
                         field(ui, "姓名", &mut editor.draft.display);
-                        ui.label(theme::muted(
-                            editor
-                                .path
-                                .strip_prefix(&self.project.root)
-                                .unwrap_or(&editor.path)
-                                .display()
-                                .to_string(),
-                        ));
+                        egui::CollapsingHeader::new("身份与来源")
+                            .default_open(editor.original.is_none())
+                            .show(ui, |ui| {
+                                field(
+                                    ui,
+                                    "角色 ID（改名会同步全部结构引用）",
+                                    &mut editor.draft.id,
+                                );
+                                theme::source_path(ui, &self.project.root, &editor.path);
+                            });
                         ui.separator();
                         ui.label(RichText::new("人物属性").strong());
                         ui.menu_button("＋ 常用资料栏目", |ui| {
