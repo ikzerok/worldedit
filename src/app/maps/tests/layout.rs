@@ -203,3 +203,57 @@ fn native_minimum_window_work_area_uses_compact_inspector_default() {
     assert!(app.map_canvas.viewport.width() > 700.);
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn map_diagnostic_long_source_stays_inside_inspector_and_keeps_open_action_visible() {
+    let root = test_workspace("layout-diagnostic-source");
+    let ctx = egui::Context::default();
+    let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+    let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+    let file = root
+        .join(format!(
+            ".world/maps/{}map.json",
+            "very-long-segment/".repeat(20)
+        ))
+        .display()
+        .to_string();
+    app.snapshot
+        .as_mut()
+        .unwrap()
+        .map_index
+        .diagnostics
+        .push(worldline_core::Diagnostic::error(
+            "MAP007",
+            &file,
+            worldline_core::Span::new(1, 1, 1),
+            "标记缺少 target_ref",
+        ));
+    for _ in 0..3 {
+        paint(&ctx, &mut app, 1100.0);
+    }
+    let output = paint(&ctx, &mut app, 1100.0);
+    assert!(
+        text_position(&output, "打开原文").is_some(),
+        "source action must stay reachable in the inspector"
+    );
+    fn find(shape: &egui::Shape, clip: Rect) -> bool {
+        match shape {
+            egui::Shape::Text(text)
+                if text.galley.text().contains("very-long-segment") && clip.contains(text.pos) =>
+            {
+                assert!(
+                    text.pos.x + text.galley.size().x <= 1100.0,
+                    "diagnostic source escaped the window instead of truncating"
+                );
+                true
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().any(|shape| find(shape, clip)),
+            _ => false,
+        }
+    }
+    assert!(output
+        .shapes
+        .iter()
+        .any(|shape| find(&shape.shape, shape.clip_rect)));
+    let _ = std::fs::remove_dir_all(root);
+}

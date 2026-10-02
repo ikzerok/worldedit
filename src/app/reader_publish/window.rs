@@ -196,11 +196,14 @@ impl WorldeditApp {
             .as_ref()
             .is_some_and(|job| !job.cancel())
         {
+            self.reader_publish.invalidate_review();
             self.reader_publish.open = false;
             self.message = Some("阅读包已进入原子提交阶段；等待真实结果，未宣称取消成功。".into());
             return false;
         }
-        self.reader_publish = ReaderPublishState::default();
+        // 关闭只撤销本次任务与审核，不删除作者选择/配置输入；显式“新建选择”才重置。
+        self.reader_publish.invalidate_review();
+        self.reader_publish.open = false;
         true
     }
 }

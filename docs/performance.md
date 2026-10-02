@@ -33,3 +33,5 @@ WORLDEDIT_DENSE_FIXTURE=/path/to/fixture/world.wl cargo test --release --locked 
 固定作者负载由纯标准库脚本生成：`python3 scripts/make-world-authoring-fixture.py --output ../native-fixture`。脚本拒绝覆盖非空目录，`--check` 只读比较原字节。输出包含 `fixture-manifest.json`（逐文件 SHA-256、负载数量、生成器 hash）与独立 `machine.json`；负载数据确定性，机器描述不作为内容 hash。主入口在 `authoring/`，默认 1.9 与真正空目录新建用例隔离，防止递归混扫源码。
 
 探针先要求连续三帧纹理 Ready，再采样；每帧测量后按约 60Hz 留出后台执行时间，等待不计 CPU。每轮 update 与 update+tessellate 的 p95 都须≤33ms；通过仍只代表此 headless 指标。独立 5000 层全视口压力图预期触发明确容量错误；浏览模式可临时全部隐藏，再显示少量层确认资源恢复，工程字节应不变。
+
+开始原生验收前还须运行 `author_fixture_presentation_and_media_are_registered -- --ignored`：实际构建编辑器快照，要求三张注册地图全部存在且地图诊断为空、底图/音频可用、校准和书稿章节来源已解析。普通 `wl check` 的语言零诊断不足以代替展示文档门禁。dense probe 同样先检查全部工作流地图，避免遗漏无效 a_workflow 仍通过单层性能。

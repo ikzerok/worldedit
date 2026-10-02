@@ -208,6 +208,9 @@ fn queued_completion_and_real_window_close_click_never_open_the_page() {
     drop(sender);
     queue_job(&mut app, receiver);
     let before = OPEN_REQUESTS.with(|count| count.get());
+    app.reader_publish.profile_id = "draft-reader".into();
+    app.reader_publish.profile_title = "未应用配置名称".into();
+    let kept_selection = app.reader_publish.selection();
     for pressed in [true, false] {
         window_frame(
             &ctx,
@@ -230,6 +233,12 @@ fn queued_completion_and_real_window_close_click_never_open_the_page() {
         "已排队Done不能越过X打开页面"
     );
     wait_removed(&path);
+    app.open_reader_publish();
+    assert_eq!(app.reader_publish.profile_id, "draft-reader");
+    assert_eq!(app.reader_publish.profile_title, "未应用配置名称");
+    assert_eq!(app.reader_publish.selection(), kept_selection);
+    assert!(app.reader_publish.reviewed.is_none());
+    assert!(!app.reader_publish.confirmed);
 }
 
 fn wait_for_app_cleanup(ctx: &egui::Context, app: &mut crate::app::WorldeditApp) {

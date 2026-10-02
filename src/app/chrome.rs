@@ -154,69 +154,87 @@ impl WorldeditApp {
                     .inner_margin(egui::Margin::symmetric(18, 8)),
             )
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    let errors = self
-                        .diagnostics()
-                        .iter()
-                        .filter(|d| d.severity == Severity::Error)
-                        .count();
-                    let warnings = self
-                        .diagnostics()
-                        .iter()
-                        .filter(|d| d.severity == Severity::Warning)
-                        .count();
-                    ui.colored_label(
-                        if errors > 0 { ERROR() } else { ACCENT() },
-                        if errors > 0 {
-                            format!("● {errors} 个错误")
-                        } else {
-                            "● 编译通过".into()
+                // 先给右侧固定操作真实空间，再把剩余宽度交给左侧状态与长回执。
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(theme::muted(format!(
+                        "WORLDLINE {}  ·  UTF-8",
+                        self.project.language_version()
+                    )));
+                    if ui
+                        .add_enabled(
+                            !self.redo.is_empty() || !self.search_state.redo.is_empty(),
+                            egui::Button::new("重做").small(),
+                        )
+                        .clicked()
+                    {
+                        self.edit_undo(true);
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.history.is_empty() || !self.search_state.undo.is_empty(),
+                            egui::Button::new("撤销").small(),
+                        )
+                        .clicked()
+                    {
+                        self.edit_undo(false);
+                    }
+                    ui.add_space(8.0);
+                    let remaining =
+                        egui::vec2(ui.available_width().max(0.0), ui.spacing().interact_size.y);
+                    ui.allocate_ui_with_layout(
+                        remaining,
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.set_clip_rect(ui.clip_rect().intersect(ui.max_rect()));
+                            self.status_details(ui);
                         },
                     );
-                    if warnings > 0 {
-                        ui.label(theme::muted(format!("{warnings} 个提醒")));
-                    }
-                    ui.separator();
-                    let has_draft = self.has_open_authoring_form();
-                    ui.label(theme::muted(if has_draft {
-                        "有未应用输入（尚未保存）"
-                    } else if self.project.is_dirty() {
-                        "有未保存修改"
-                    } else {
-                        "全部文件已保存"
-                    }));
-                    if let Some(message) = &self.message {
-                        ui.add(egui::Label::new(theme::muted(message)).truncate())
-                            .on_hover_text(message);
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(theme::muted(format!(
-                            "WORLDLINE {}  ·  UTF-8",
-                            self.project.language_version()
-                        )));
-                        if ui
-                            .add_enabled(
-                                !self.redo.is_empty() || !self.search_state.redo.is_empty(),
-                                egui::Button::new("重做").small(),
-                            )
-                            .clicked()
-                        {
-                            self.edit_undo(true);
-                        }
-                        if ui
-                            .add_enabled(
-                                !self.history.is_empty() || !self.search_state.undo.is_empty(),
-                                egui::Button::new("撤销").small(),
-                            )
-                            .clicked()
-                        {
-                            self.edit_undo(false);
-                        }
-                    });
                 });
             });
+    }
+
+    fn status_details(&self, ui: &mut egui::Ui) {
+        let errors = self
+            .diagnostics()
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .count();
+        let warnings = self
+            .diagnostics()
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .count();
+        ui.colored_label(
+            if errors > 0 { ERROR() } else { ACCENT() },
+            if errors > 0 {
+                format!("● {errors} 个错误")
+            } else {
+                "● 编译通过".into()
+            },
+        );
+        if warnings > 0 {
+            ui.label(theme::muted(format!("{warnings} 个提醒")));
+        }
+        ui.separator();
+        ui.label(theme::muted(if self.has_open_authoring_form() {
+            "有未应用输入（尚未保存）"
+        } else if self.project.is_dirty() {
+            "有未保存修改"
+        } else {
+            "全部文件已保存"
+        }));
+        if let Some(message) = &self.message {
+            ui.add_sized(
+                egui::vec2(ui.available_width().max(0.0), ui.spacing().interact_size.y),
+                egui::Label::new(theme::muted(message)).truncate(),
+            )
+            .on_hover_text(message);
+        }
     }
     pub(super) fn page_heading(&self, ui: &mut egui::Ui, title: &str, subtitle: &str) {
         theme::page_heading(ui, title, subtitle);
     }
 }
+
+#[cfg(test)]
+mod tests;

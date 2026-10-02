@@ -7,11 +7,7 @@ use std::time::{Duration, Instant};
 #[allow(clippy::assertions_on_constants)]
 fn dense_scene_headless_release_profile() {
     assert!(!cfg!(debug_assertions), "run with --release");
-    let entry = std::env::var_os("WORLDEDIT_DENSE_FIXTURE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../native-fixture/authoring/world.wl")
-        });
+    let entry = fixture_entry();
     assert!(
         entry.is_file(),
         "set WORLDEDIT_DENSE_FIXTURE to the documented fixed fixture world.wl"
@@ -20,6 +16,7 @@ fn dense_scene_headless_release_profile() {
     let creation = eframe::CreationContext::_new_kittest(ctx.clone());
     let setup = Instant::now();
     let mut app = super::super::WorldeditApp::new(&creation, Some(entry));
+    assert_workflow_maps(&app);
     let map_id = app
         .snapshot
         .as_ref()
@@ -181,4 +178,72 @@ fn first_tree_row(output: &egui::FullOutput) -> Option<(String, Pos2)> {
         .shapes
         .iter()
         .find_map(|shape| find(&shape.shape, shape.clip_rect))
+}
+
+fn fixture_entry() -> PathBuf {
+    std::env::var_os("WORLDEDIT_DENSE_FIXTURE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../native-fixture/authoring/world.wl")
+        })
+}
+
+fn assert_workflow_maps(app: &super::super::WorldeditApp) {
+    let snapshot = app.snapshot.as_ref().expect("fixture must load");
+    assert!(
+        snapshot.map_index.diagnostics.is_empty(),
+        "presentation diagnostics: {:?}",
+        snapshot.map_index.diagnostics
+    );
+    for id in ["a_workflow", "b_dense", "c_layers_pressure"] {
+        assert!(
+            snapshot.map_index.maps.contains_key(id),
+            "registered fixture map {id} missing from presentation index"
+        );
+    }
+    let workflow = &snapshot.map_index.maps["a_workflow"];
+    assert_eq!(workflow.placements.len(), 6);
+    assert_eq!(workflow.scene.as_ref().unwrap().nodes.len(), 7);
+    assert!(
+        workflow.raster_layers[0]
+            .asset_info
+            .as_ref()
+            .unwrap()
+            .available
+    );
+    assert!(workflow.measurement.is_some());
+}
+
+#[test]
+#[ignore = "requires the documented external generated fixture"]
+fn author_fixture_presentation_and_media_are_registered() {
+    let ctx = egui::Context::default();
+    let creation = eframe::CreationContext::_new_kittest(ctx);
+    let app = super::super::WorldeditApp::new(&creation, Some(fixture_entry()));
+    assert_workflow_maps(&app);
+    let snapshot = app.snapshot.as_ref().unwrap();
+    assert!(!snapshot.result.has_errors());
+    for id in ["harbor_image", "harbor_audio"] {
+        assert!(
+            snapshot.result.analysis.catalog.assets[id].available,
+            "fixture asset {id} unavailable"
+        );
+    }
+    let manuscript = app.project.manuscript_index("harbor_book").unwrap();
+    assert!(
+        manuscript.diagnostics.is_empty(),
+        "manuscript diagnostics: {:?}",
+        manuscript.diagnostics
+    );
+    assert_eq!(manuscript.entries.len(), 4);
+    for chapter in manuscript
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == worldline_core::ManuscriptEntryKind::Chapter)
+    {
+        assert_eq!(
+            chapter.source.as_ref().unwrap().status,
+            worldline_core::ManuscriptReferenceStatus::Resolved
+        );
+    }
 }

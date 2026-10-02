@@ -360,16 +360,18 @@ impl super::super::WorldeditApp {
                                             color,
                                             format!("[{}] {}", diagnostic.code, diagnostic.message),
                                         );
-                                        ui.horizontal(|ui| {
-                                            ui.label(crate::theme::muted(diagnostic.file.clone()));
-                                            if ui.small_button("打开原文").clicked() {
-                                                self.jump_to_file(
-                                                    &diagnostic.file,
-                                                    diagnostic.span.line,
-                                                    diagnostic.span.column,
-                                                );
-                                            }
-                                        });
+                                        crate::theme::source_caption(
+                                            ui,
+                                            &self.project.root,
+                                            std::path::Path::new(&diagnostic.file),
+                                        );
+                                        if ui.small_button("打开原文").clicked() {
+                                            self.jump_to_file(
+                                                &diagnostic.file,
+                                                diagnostic.span.line,
+                                                diagnostic.span.column,
+                                            );
+                                        }
                                     }
                                 });
                         }

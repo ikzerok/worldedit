@@ -99,9 +99,9 @@ def workflow_map():
         document["placements"][name] = {"layer_id": layer, "target_ref": target,
             "geometry": {"kind": "point", "position": position}, "annotation": "旧标记，可显式迁移并反查资料",
             "role": "作者验收入口", "label_override": None, "navigation": navigation, "scope_refs": []}
-    document["placements"]["legacy_route"] = {"layer_id": "places", "geometry": {"kind": "polyline", "points": [[0.1, 0.75], [0.45, 0.7], [0.75, 0.4]]},
+    document["placements"]["legacy_route"] = {"layer_id": "places", "target_ref": None, "geometry": {"kind": "polyline", "points": [[0.1, 0.75], [0.45, 0.7], [0.75, 0.4]]},
         "annotation": "旧折线、节点选择与迁移顺序", "role": "路线", "scope_refs": []}
-    document["placements"]["legacy_label"] = {"layer_id": "places", "geometry": {"kind": "text", "position": [0.06, 0.08], "text": "旧标签 · Harbor", "font_size": 16, "color": "#19384a"},
+    document["placements"]["legacy_label"] = {"layer_id": "places", "target_ref": None, "geometry": {"kind": "text", "position": [0.06, 0.08], "text": "旧标签 · Harbor", "font_size": 16, "color": "#19384a"},
         "annotation": "保留旧文字编辑能力", "role": "说明", "scope_refs": []}
     group = node("harbor_group", "places", {"kind": "group", "children": ["curve", "ellipse", "caption"]},
                  transform=[1, 0.08, 0.12, 1, 16, 10], style={"opacity": 0.8})

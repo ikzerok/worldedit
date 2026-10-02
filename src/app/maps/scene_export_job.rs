@@ -93,12 +93,12 @@ impl SvgExportJob {
     pub(super) fn pick(filename: String, ctx: &egui::Context) -> Result<Self, String> {
         Self::native(
             move |_| {
-                Ok(SvgExportEvent::Picked(
-                    rfd::FileDialog::new()
-                        .add_filter("SVG", &["svg"])
-                        .set_file_name(filename)
-                        .save_file(),
-                ))
+                let path = rfd::FileDialog::new()
+                    .add_filter("SVG", &["svg"])
+                    .set_file_name(filename)
+                    .save_file()
+                    .ok_or(super::svg_import_job::NO_FILE_SELECTION)?;
+                Ok(SvgExportEvent::Picked(Some(path)))
             },
             ctx,
         )

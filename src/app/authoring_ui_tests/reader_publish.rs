@@ -178,6 +178,16 @@ fn reader_publish_cancel_after_preview_leaves_no_output_and_preserves_author_sta
     assert_eq!(app.project.content_baseline(), baseline);
     assert_eq!(app.project.is_dirty(), dirty);
     assert!(app.history.is_empty());
+    // 真实取消按钮→重新打开，不重新点对象；原选择必须仍能直接生成新审核。
+    click(&ctx, &mut app, 26, "导出与发布");
+    click(&ctx, &mut app, 26, "发布给读者");
+    click(&ctx, &mut app, 26, "生成 / 更新预览");
+    wait_for_reader_publish(&ctx, &mut app);
+    assert!(!destination.exists());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.project.is_dirty(), dirty);
+    assert!(app.history.is_empty());
+    click(&ctx, &mut app, 26, "取消发布");
 }
 
 #[test]

@@ -6,6 +6,7 @@ use worldline_core::project::Project;
 impl ReaderPublishState {
     pub(super) fn new() -> Self {
         Self {
+            initialized: true,
             site_title: "离线阅读包".into(),
             #[cfg(not(target_arch = "wasm32"))]
             destination: "reader-site.zip".into(),
@@ -139,6 +140,14 @@ impl WorldeditApp {
         // 重复打开只把现有向导带回前台，不能丢选择或断开正在提交的结果通道。
         if self.reader_publish.open || self.reader_publish.busy() {
             self.reader_publish.open = true;
+            return;
+        }
+        if self.reader_publish.initialized {
+            self.reader_publish
+                .refresh_choices(&self.project, self.snapshot.as_ref());
+            self.reader_publish.open = true;
+            self.reader_publish.status =
+                Some("已恢复上次选择与配置输入；请重新审核后发布。".into());
             return;
         }
         #[cfg(not(target_arch = "wasm32"))]

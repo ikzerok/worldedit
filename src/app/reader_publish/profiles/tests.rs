@@ -232,5 +232,50 @@ fn global_close_waits_for_profile_planning_and_discards_a_queued_valid_plan() {
     assert!(app.project.reader_profiles().unwrap().is_empty());
 }
 
+#[test]
+fn cancelling_profile_task_and_reopening_preserves_inputs_but_not_review_or_plan() {
+    let mut app = app();
+    pending_plan(&mut app);
+    let profile = app
+        .reader_publish
+        .profile_plan
+        .as_ref()
+        .unwrap()
+        .1
+        .profile
+        .clone();
+    app.reader_publish.load_profile(profile);
+    app.reader_publish.profile_title = "尚未应用的配置名称".into();
+    app.reader_publish.site_title = "尚未应用的站点标题".into();
+    app.reader_publish.query = "保留搜索".into();
+    let selection = app.reader_publish.selection();
+    let profile = app.reader_publish.current_profile();
+    let id = app.reader_publish.profile_id.clone();
+    let baseline = app.project.content_baseline();
+    let ctx = egui::Context::default();
+    app.start_reader_profile_save(&ctx);
+    assert!(app.reader_publish.profile_job.is_some());
+    app.reader_publish.confirmed = true;
+    assert!(app.cancel_reader_publish());
+    assert!(!app.reader_publish.open);
+    assert!(!app.reader_publish.confirmed);
+    assert!(app.reader_publish.profile_job.is_none());
+    assert!(app.reader_publish.reviewed.is_none());
+    assert!(app.reader_publish.profile_plan.is_none());
+    app.open_reader_publish();
+    assert!(app.reader_publish.open);
+    assert_eq!(app.reader_publish.selection(), selection);
+    assert_eq!(app.reader_publish.current_profile(), profile);
+    assert_eq!(app.reader_publish.profile_id, id);
+    assert_eq!(app.reader_publish.query, "保留搜索");
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+    app.reader_profile_action(PublishAction::NewProfile, &ctx);
+    assert!(app.reader_publish.profile.is_none());
+    assert!(app.reader_publish.profile_id.is_empty());
+    assert!(app.reader_publish.profile_title.is_empty());
+    assert!(!app.reader_publish.has_selection());
+}
+
 #[path = "tests/performance.rs"]
 mod performance;

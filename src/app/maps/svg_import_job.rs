@@ -4,6 +4,9 @@ use std::sync::{
 };
 use worldline_core::vector_scene::{SceneProgress, SvgScenePreview};
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) const NO_FILE_SELECTION: &str = "未选择文件，可能已取消或系统文件选择器不可用";
+
 pub(super) struct SvgResult {
     pub(super) source: String,
     pub(super) preview: Result<SvgScenePreview, String>,
@@ -50,7 +53,7 @@ impl SvgJob {
                     let path = rfd::FileDialog::new()
                         .add_filter("SVG 矢量", &["svg"])
                         .pick_file()
-                        .ok_or("已取消文件选择")?;
+                        .ok_or(NO_FILE_SELECTION)?;
                     let file = std::fs::File::open(path).map_err(|error| error.to_string())?;
                     if file.metadata().map_err(|error| error.to_string())?.len() > 2 * 1024 * 1024 {
                         return Err("SVG 超过 2 MiB 上限".into());

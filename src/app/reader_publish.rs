@@ -35,6 +35,7 @@ use worldline_core::reader_export::{
 #[derive(Default)]
 pub(super) struct ReaderPublishState {
     pub(super) open: bool,
+    initialized: bool,
     site_title: String,
     step: PublishStep,
     group: SelectionGroup,
