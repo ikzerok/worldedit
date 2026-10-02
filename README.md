@@ -1,10 +1,14 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台，用于世界资料、正文书稿、分支故事、关系、时间结构和地图创作。0.15.0 开发候选提供原生矢量编辑、受限 SVG 交换、四步静态世界站发布，以及统一的索引、画布和检查器布局。默认语言仍为 1.9，最高 1.13；旧作品不会自动升级。
+worldline 的 Rust / egui 作者工作台。0.16.0 开发候选新增安全源码路径整理、原生 SVG 虚线样式、内容优先地图布局、长表单固定操作区和对象快切来源层级。默认语言仍为 1.9，最高既有显式版本 1.13；旧作品不自动升级。
 
-本轮 Linux 自动检查、对应源码的 Windows 配对 CI、release 固定负载、21 分钟原生功能会话及修补构建的局部复核已完成；真实网页、Browser Worker 与系统 SVG 文件选择成功路径未验。已补充真实导出脚本的 DOM 模型、Node Worker/WASM 和 picker 返回值模拟，但不将其视为真实浏览器或系统对话框通过。精确范围见 [0.15 验证摘要](docs/verification-0.15.md)。当前仍为未正式发行的开发候选，完整功能见 [CHANGELOG](CHANGELOG.md)，使用入口见 [文档索引](docs/README.md)。
+本候选尚未公开发行。完整功能见 [CHANGELOG](CHANGELOG.md)，验证状态及真实平台边界见 [0.16 验证摘要](docs/verification-0.16.md)。静态渲染、egui事件测试与Node模型不会冒充真实浏览器、系统输入法或物理高DPI验收。
 
-## 0.15 使用入口
+## 使用入口
+
+- [安全源码路径](docs/source-lifecycle.md)：预览正式引用与资源变化，整批应用、一次撤销，保存才落盘
+- [内容优先工作台](docs/content-first-workbench-0.16.md)：地图空间、固定操作区与对象来源层级
+- [地图与虚线](docs/maps.md)：受控样式、能力保护与安全 SVG 边界
 
 - [矢量地图](docs/vector-authoring-0.15.md)：绘制与节点编辑、组和图层、对象绑定、撤销与保存、SVG 预览和交换
 - [发布给读者](docs/reader-publishing.md)：选择内容 → 核对资源 → 预览页面 → 确认生成；字段和附件须分别授权

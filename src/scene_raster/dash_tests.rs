@@ -133,7 +133,10 @@ fn dash_safe_large_arc_backend_bounds_match_zero_rotation_for_both_huge_signs() 
     };
     let canonical = safe(0);
     // 只交给后端已通过 core、已规范化的输出；危险原 SVG 从不进入渲染库。
-    let expected = usvg::Tree::from_str(&canonical, &options()).unwrap().root().abs_bounding_box();
+    let expected = usvg::Tree::from_str(&canonical, &options())
+        .unwrap()
+        .root()
+        .abs_bounding_box();
     assert!(expected.width().is_finite() && expected.width() <= 300_000_000.0);
     assert!(expected.height().is_finite() && expected.height() <= 10.0);
     for angle in [999999720, -999999720] {

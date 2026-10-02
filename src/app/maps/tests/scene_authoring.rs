@@ -448,6 +448,6 @@ fn dashed_layer_projection_keeps_required_features_without_amplifying_unknown_ro
             },
         )
         .unwrap();
-        assert!(bytes.chunks_exact(4).any(|pixel| pixel[3] != 0));
+        assert!(bytes.as_chunks::<4>().0.iter().any(|pixel| pixel[3] != 0));
     }
 }

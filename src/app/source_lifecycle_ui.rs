@@ -145,6 +145,7 @@ impl WorldeditApp {
             .id(egui::Id::new("source-move"))
             .open(&mut open).collapsible(false).resizable(true)
             .default_width(width).max_width(width)
+            .max_height((viewport.height() - 50.0).max(200.0))
             .constrain_to(viewport).show(ctx, |ui| {
                 ui.label(format!("原路径：{}", theme::relative_source(&form.root, &form.source)));
                 ui.label("新路径（相对工作区，保留 .wl）");
@@ -157,11 +158,12 @@ impl WorldeditApp {
                 egui::ScrollArea::vertical().id_salt("source-move-preview")
                     .max_height((viewport.height() - 285.0).max(100.0))
                     .auto_shrink([false, false]).show(ui, |ui| {
+                        if let Some(error) = &form.error { ui.colored_label(theme::ERROR(), error); }
                         if let Some(plan) = &form.plan { draw_plan(ui, plan, &form.root); }
                         else { ui.label("预览将列出每处正式路径修改、附件解析与运行指纹证明。"); }
                     });
                 ui.separator();
-                if let Some(error) = &form.error { ui.colored_label(theme::ERROR(), error); }
+                if form.error.is_some() { ui.colored_label(theme::ERROR(), "未应用；完整原因见上方，输入已保留。"); }
                 let current = form.plan.as_ref().is_some_and(|p| p.content_baseline == self.project.content_baseline()) && form.root == self.project.root;
                 if form.plan.is_some() && !current { ui.colored_label(theme::WARNING(), "工程已变化；输入保留，请重新预览。" ); }
                 ui.horizontal_wrapped(|ui| {
@@ -209,7 +211,11 @@ fn draw_plan(ui: &mut egui::Ui, plan: &SourceLifecyclePlan, root: &Path) {
         .default_open(true)
         .show(ui, |ui| {
             for occurrence in &change.occurrences {
-                ui.label(format!("第 {} 行 · {}", occurrence.line, occurrence.field));
+                ui.label(format!(
+                    "第 {} 行 · {}",
+                    occurrence.line,
+                    occurrence.field.as_deref().unwrap_or("正式路径")
+                ));
                 ui.label(format!(
                     "{} → {}",
                     occurrence.before_token, occurrence.after_token
@@ -236,3 +242,6 @@ fn draw_plan(ui: &mut egui::Ui, plan: &SourceLifecyclePlan, root: &Path) {
         },
     );
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;

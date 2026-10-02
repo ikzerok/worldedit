@@ -302,7 +302,9 @@ fn browse_layout_releases_empty_inspector_and_budgets_remaining_canvas() {
         }
         let output = workspace_frame(&ctx, &mut app, size, navigation, vec![]);
         assert!(text_position(&output, "显示地图面板").is_some());
-        assert!(text_position(&output, "标记信息").is_none());
+        // 目录说明也含“标记信息”；检查仅检查器拥有的标签，避免子串误报。
+        assert!(text_position(&output, "当前选择").is_none());
+        assert!(text_position(&output, "点击画布上的标记查看信息。").is_none());
         assert!(app.map_canvas.viewport.width() >= 600.0);
         app.map_canvas.select_placement_id("lighthouse");
         for _ in 0..5 {
