@@ -99,7 +99,10 @@ fn private_directory() -> Result<PreviewDirectory, String> {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    #[cfg(unix)]
     let mut builder = fs::DirBuilder::new();
+    #[cfg(not(unix))]
+    let builder = fs::DirBuilder::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
