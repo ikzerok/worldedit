@@ -226,7 +226,9 @@ impl WorldeditApp {
         if let Some(message) = &self.message {
             ui.add_sized(
                 egui::vec2(ui.available_width().max(0.0), ui.spacing().interact_size.y),
-                egui::Label::new(theme::muted(message)).truncate(),
+                egui::Label::new(theme::muted(message))
+                    .truncate()
+                    .show_tooltip_when_elided(false),
             )
             .on_hover_text(message);
         }

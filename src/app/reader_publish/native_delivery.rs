@@ -294,10 +294,10 @@ mod tests {
     fn completed_atomic_commit_is_not_reported_as_cancelled() {
         let (root, target) = paths("done");
         let state = AtomicU8::new(ACTIVE);
-        assert_eq!(
-            publish_atomic(&root, &target, b"complete", &state, &mut |_, _| {}).unwrap(),
-            target
-        );
+        let published =
+            publish_atomic(&root, &target, b"complete", &state, &mut |_, _| {}).unwrap();
+        // 成功创建后按文件身份比较，包含 Windows 的规范化路径前缀。
+        assert_eq!(published, target.canonicalize().unwrap());
         assert_eq!(state.load(Ordering::Acquire), COMPLETE);
         assert!(state
             .compare_exchange(ACTIVE, CANCELLED, Ordering::AcqRel, Ordering::Acquire)

@@ -101,11 +101,13 @@ fn long_status_receipt_is_single_line_with_full_hover_and_clickable_right_contro
                     vec![egui::Event::PointerMoved(point)],
                 );
             }
-            assert!(
+            assert_eq!(
                 hover
                     .iter()
-                    .any(|text| text.text == message && !text.elided),
-                "完整回执必须能悬停查看"
+                    .filter(|text| text.text == message && !text.elided)
+                    .count(),
+                1,
+                "完整回执只能出现一份tooltip，不能叠加截断Label自动提示与手动提示"
             );
             for (index, (rect, forward)) in [(undo, false), (redo, true)].into_iter().enumerate() {
                 let history = app.history.len();
