@@ -157,6 +157,11 @@ impl WorldeditApp {
                             .unwrap_or_else(|| format!("新建 preset:{}", f.draft.id))
                     })
                     .unwrap_or_default(),
+                "源码路径" => self
+                    .source_move_form
+                    .as_ref()
+                    .map(|f| format!("{} → {}", self.export_source_path(&f.source), f.destination))
+                    .unwrap_or_default(),
                 "文件名称" => self.new_file.clone().unwrap_or_default(),
                 "时段资料" => self
                     .new_period

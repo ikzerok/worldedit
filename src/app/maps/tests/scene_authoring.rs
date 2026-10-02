@@ -398,3 +398,56 @@ fn cancelled_or_stale_scene_result_never_mutates_the_project() {
     assert!(!app.map_canvas.scene.retry_operations.is_empty());
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn dashed_layer_projection_keeps_required_features_without_amplifying_unknown_root_data() {
+    use worldline_core::vector_scene::SCENE_DASH_FEATURE;
+    let mut scene = MapScene::new(400.0, 400.0);
+    scene.extra.insert(
+        "required_features".into(),
+        serde_json::json!(vec![SCENE_DASH_FEATURE; 100]),
+    );
+    scene.extra.insert(
+        "future-root".into(),
+        serde_json::json!("x".repeat(128 * 1024)),
+    );
+    for (id, layer, y) in [("a", "places", 20.0), ("b", "routes", 40.0)] {
+        let mut node = SceneNode::new(
+            id,
+            layer,
+            SceneGeometry::Polyline {
+                points: vec![[10.0, y], [100.0, y]],
+            },
+        );
+        node.style.stroke = Some("blue".into());
+        node.style.stroke_dasharray = Some(vec![15.0, 12.0]);
+        scene.root_order.insert(layer.into(), vec![id.into()]);
+        scene.nodes.insert(id.into(), node);
+    }
+    let canvas = canvas_scene(scene.clone());
+    assert_eq!(canvas.scene.source.as_ref().unwrap(), &scene);
+    assert_eq!(canvas.scene.layers.len(), 2);
+    for layer in canvas.scene.layers.values() {
+        assert_eq!(
+            layer.scene.extra["required_features"],
+            serde_json::json!([SCENE_DASH_FEATURE])
+        );
+        assert!(!layer.scene.extra.contains_key("future-root"));
+        let svg =
+            worldline_core::vector_scene::scene_to_safe_svg(&layer.scene, 400.0, 400.0).unwrap();
+        assert!(svg.contains("stroke-dasharray=\"15 12\""));
+        let bytes = crate::scene_raster::render_scene(
+            &layer.scene,
+            [400.0, 400.0],
+            &crate::scene_raster::RasterSpec {
+                width: 100,
+                height: 100,
+                zoom: 0.25,
+                pan: [0.0, 0.0],
+                dpi: 1.0,
+            },
+        )
+        .unwrap();
+        assert!(bytes.chunks_exact(4).any(|pixel| pixel[3] != 0));
+    }
+}

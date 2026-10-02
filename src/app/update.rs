@@ -189,6 +189,7 @@ impl eframe::App for WorldeditApp {
             self.poll_replay(ctx);
         }
         self.review_navigation_guard(ctx);
+        object_picker::set_workspace_root(ctx, &self.project.root);
         match self.tab {
             Tab::Timeline | Tab::Graph => {
                 self.event_inspector(ctx);
@@ -222,6 +223,7 @@ impl eframe::App for WorldeditApp {
             Tab::CheckpointHistory => self.checkpoint_history_tab(ctx),
         }
         self.dialogs(ctx);
+        object_picker::set_workspace_root(ctx, &self.project.root);
         self.project_search(ctx);
         self.command_window(ctx);
         self.preferences_window(ctx);
@@ -233,6 +235,7 @@ impl eframe::App for WorldeditApp {
         self.relation_type_editor_window(ctx);
         self.content_deletion_window(ctx);
         self.target_rename_window(ctx);
+        self.source_move_window(ctx);
         self.markdown_import_window(ctx);
         self.reader_publish_window(ctx);
         self.preset_editor_window(ctx);

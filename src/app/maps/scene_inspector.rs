@@ -95,7 +95,7 @@ impl super::super::WorldeditApp {
                                     .nodes
                                     .get(id)?
                                     .clone();
-                                copy.style = node.style.clone();
+                                super::scene_fields::copy_known_style(&node.style, &mut copy.style);
                                 Some(SceneOp::Update { node: copy })
                             })
                             .collect();

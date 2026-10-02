@@ -43,7 +43,7 @@ fn narrow_map_defaults_to_canvas_and_can_restore_inspector_without_writes() {
     assert!(text_position(&output, "显示地图面板").is_some());
     assert!(app.map_canvas.viewport.width() > 550.);
     let camera = *app.map_canvas.camera();
-    ctx.data_mut(|data| data.insert_temp(egui::Id::new(("map-inspector-visible", true)), true));
+    ctx.data_mut(|data| data.insert_temp(egui::Id::new("map-inspector-visible"), true));
     for _ in 0..3 {
         paint(&ctx, &mut app, 640.);
     }
@@ -61,13 +61,13 @@ fn selected_map_context_precedes_navigation_and_long_edit_form() {
     let ctx = egui::Context::default();
     let creation = eframe::CreationContext::_new_kittest(ctx.clone());
     let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
-    paint(&ctx, &mut app, 1100.);
+    paint(&ctx, &mut app, 1400.);
     app.map_canvas.set_mode(CanvasMode::Edit);
     app.map_canvas.select_placement_id("lighthouse");
     for _ in 0..3 {
-        paint(&ctx, &mut app, 1100.);
+        paint(&ctx, &mut app, 1400.);
     }
-    let output = paint(&ctx, &mut app, 1100.);
+    let output = paint(&ctx, &mut app, 1400.);
     let selected = text_position(&output, "标记 ID：lighthouse").expect("选中对象应在首屏");
     let navigation = text_position(&output, "地图浏览").unwrap();
     assert!(
@@ -87,7 +87,7 @@ fn unfinished_map_form_keeps_inspector_accessible_in_narrow_layout() {
     paint(&ctx, &mut app, 640.);
     app.map_canvas.set_mode(CanvasMode::Edit);
     app.map_form.annotation = "保留草稿".into();
-    ctx.data_mut(|data| data.insert_temp(egui::Id::new(("map-inspector-visible", true)), false));
+    ctx.data_mut(|data| data.insert_temp(egui::Id::new("map-inspector-visible"), false));
     for _ in 0..3 {
         paint(&ctx, &mut app, 640.);
     }
@@ -255,5 +255,121 @@ fn map_diagnostic_long_source_stays_inside_inspector_and_keeps_open_action_visib
         .shapes
         .iter()
         .any(|shape| find(&shape.shape, shape.clip_rect)));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+fn workspace_frame(
+    ctx: &egui::Context,
+    app: &mut super::super::WorldeditApp,
+    size: egui::Vec2,
+    navigation: bool,
+    events: Vec<Event>,
+) -> egui::FullOutput {
+    ctx.run(
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
+            events,
+            ..Default::default()
+        },
+        |ctx| {
+            if navigation {
+                egui::SidePanel::left("layout-test-global-nav")
+                    .exact_width(212.0)
+                    .show(ctx, |ui| {
+                        ui.label("全局导航");
+                    });
+            }
+            app.map_tab(ctx);
+        },
+    )
+}
+
+#[test]
+fn browse_layout_releases_empty_inspector_and_budgets_remaining_canvas() {
+    for (size, navigation) in [
+        (vec2(1040.0, 660.0), true),
+        (vec2(1188.0, 848.0), true),
+        (vec2(1188.0, 848.0), false),
+        (vec2(1600.0, 1000.0), true),
+    ] {
+        let root = test_workspace(&format!("content-first-{}-{navigation}", size.x));
+        let ctx = egui::Context::default();
+        let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+        let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+        let baseline = app.project.content_baseline();
+        for _ in 0..5 {
+            workspace_frame(&ctx, &mut app, size, navigation, vec![]);
+        }
+        let output = workspace_frame(&ctx, &mut app, size, navigation, vec![]);
+        assert!(text_position(&output, "显示地图面板").is_some());
+        assert!(text_position(&output, "标记信息").is_none());
+        assert!(app.map_canvas.viewport.width() >= 600.0);
+        app.map_canvas.select_placement_id("lighthouse");
+        for _ in 0..5 {
+            workspace_frame(&ctx, &mut app, size, navigation, vec![]);
+        }
+        let output = workspace_frame(&ctx, &mut app, size, navigation, vec![]);
+        assert!(text_position(&output, "标记 ID：lighthouse").is_some());
+        if size.x == 1188.0 && navigation {
+            assert!(text_position(&output, "显示地图目录").is_some());
+            assert!(app.map_canvas.viewport.width() >= 600.0);
+        }
+        assert_eq!(app.project.content_baseline(), baseline);
+        let _ = std::fs::remove_dir_all(root);
+    }
+}
+
+#[test]
+fn resized_panels_and_larger_text_trigger_compact_map_without_losing_controls() {
+    let root = test_workspace("content-first-resized-panels");
+    let ctx = egui::Context::default();
+    let creation = eframe::CreationContext::_new_kittest(ctx.clone());
+    let mut app = super::super::WorldeditApp::new(&creation, Some(root.join("world.wl")));
+    for _ in 0..3 {
+        paint(&ctx, &mut app, 1300.0);
+    }
+    app.map_canvas.select_placement_id("lighthouse");
+    ctx.data_mut(|data| {
+        data.insert_persisted(
+            egui::Id::new("map-index"),
+            egui::containers::panel::PanelState {
+                rect: Rect::from_min_size(egui::Pos2::ZERO, vec2(360.0, 700.0)),
+            },
+        );
+        data.insert_persisted(
+            egui::Id::new("map-inspector"),
+            egui::containers::panel::PanelState {
+                rect: Rect::from_min_size(egui::Pos2::ZERO, vec2(420.0, 700.0)),
+            },
+        );
+    });
+    for _ in 0..3 {
+        paint(&ctx, &mut app, 1300.0);
+    }
+    let output = paint(&ctx, &mut app, 1300.0);
+    assert!(text_position(&output, "显示地图目录").is_some());
+    assert!(app.map_canvas.viewport.width() > 800.0);
+    let camera = *app.map_canvas.camera();
+    // 手动展开仍可覆盖自动布局，不删命令、不写工程也不重置镜头。
+    ctx.data_mut(|data| data.insert_temp(egui::Id::new("map-index-visible"), true));
+    for _ in 0..3 {
+        paint(&ctx, &mut app, 1300.0);
+    }
+    let output = paint(&ctx, &mut app, 1300.0);
+    assert!(text_position(&output, "收起地图目录").is_some());
+    assert!(text_position(&output, "地图浏览").is_some());
+    assert_eq!(*app.map_canvas.camera(), camera);
+    ctx.data_mut(|data| data.remove::<bool>(egui::Id::new("map-index-visible")));
+    ctx.style_mut(|style| {
+        for font in style.text_styles.values_mut() {
+            font.size *= 1.5;
+        }
+    });
+    for _ in 0..3 {
+        paint(&ctx, &mut app, 1500.0);
+    }
+    let output = paint(&ctx, &mut app, 1500.0);
+    assert!(text_position(&output, "显示地图目录").is_some());
+    assert!(text_position(&output, "收起地图面板").is_some());
     let _ = std::fs::remove_dir_all(root);
 }

@@ -93,7 +93,7 @@ impl WorldeditApp {
             "工程模板草稿" => Tab::Templates,
             "共享网络布局" => Tab::Network,
             "共享查询定义" => Tab::Catalog,
-            "文件名称" | "正在输入的源码 / 输入法" => Tab::Edit,
+            "文件名称" | "源码路径" | "正在输入的源码 / 输入法" => Tab::Edit,
             _ => self.tab,
         };
         if kind == "共享查询定义" {

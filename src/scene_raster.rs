@@ -96,4 +96,6 @@ fn options() -> usvg::Options<'static> {
 }
 
 #[cfg(test)]
+mod dash_tests;
+#[cfg(test)]
 mod tests;

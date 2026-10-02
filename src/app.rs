@@ -48,6 +48,7 @@ mod refactor_ui;
 mod relation_editor;
 mod schema_ui;
 mod search;
+mod source_lifecycle_ui;
 #[cfg(not(target_arch = "wasm32"))]
 mod startup;
 mod states;
@@ -324,6 +325,7 @@ pub struct WorldeditApp {
     relation_type_editor: Option<authoring_forms::RelationTypeForm>,
     delete_form: Option<authoring_forms::DeleteForm>,
     rename_form: Option<authoring_forms::RenameForm>,
+    source_move_form: Option<source_lifecycle_ui::SourceMoveForm>,
     preset_editor: Option<presets::PresetEditor>,
     alias_input: String,
     link_query: String,

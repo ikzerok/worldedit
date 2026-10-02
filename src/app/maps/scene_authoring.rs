@@ -112,11 +112,32 @@ impl SceneAuthoring {
             }
         }
         let scene = &display;
+        if let Err(error) = worldline_core::vector_scene::validate_scene(
+            scene,
+            &worldline_core::vector_scene::SceneLimits::default(),
+        ) {
+            self.error = Some(error.to_string());
+            return;
+        }
+        // 能力声明必须随临时图层投影传播；去重后只复制有界的已知能力，不放大 root extra。
+        let mut projection_extra = serde_json::Map::new();
+        if let Some(features) = scene
+            .extra
+            .get("required_features")
+            .and_then(serde_json::Value::as_array)
+        {
+            let unique: std::collections::BTreeSet<_> = features
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .collect();
+            projection_extra.insert("required_features".into(), serde_json::json!(unique));
+        }
         // O(nodes + layers)，不为每层重新 filter 整个 scene，也不复制无关 root extras。
         for (id, roots) in &scene.root_order {
             let mut subset = MapScene::new(scene.view_box[2], scene.view_box[3]);
             subset.view_box = scene.view_box;
             subset.preserve_aspect_ratio = scene.preserve_aspect_ratio.clone();
+            subset.extra = projection_extra.clone();
             subset.root_order.insert(id.clone(), roots.clone());
             self.layers.insert(
                 id.clone(),

@@ -281,6 +281,13 @@ impl WorldeditApp {
                                         ))
                                         .on_hover_text(path.display().to_string());
                                     response.context_menu(|ui| {
+                                        if *path != self.project.entry
+                                            && self.project.documents.contains_key(path)
+                                            && ui.button("安全移动 / 重命名路径…").clicked()
+                                        {
+                                            self.begin_source_move(path.clone());
+                                            ui.close();
+                                        }
                                         if ui.button("复制完整来源").clicked() {
                                             ui.ctx().copy_text(path.display().to_string());
                                             ui.close();

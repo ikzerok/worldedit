@@ -208,6 +208,13 @@ impl WorldeditApp {
         {
             names.push("对象重命名");
         }
+        if self
+            .source_move_form
+            .as_ref()
+            .is_some_and(|form| form.changed())
+        {
+            names.push("源码路径");
+        }
         if self.new_file.is_some() {
             names.push("文件名称");
         }
@@ -274,6 +281,7 @@ impl WorldeditApp {
         self.wiki_editor = None;
         self.preset_editor = None;
         self.rename_form = None;
+        self.source_move_form = None;
         self.delete_form = None;
         self.new_file = None;
         self.new_period = None;
@@ -340,7 +348,7 @@ impl WorldeditApp {
                 "审阅批注" => Tab::Review,
                 "地图草稿" | "新建地图" => Tab::Map,
                 "时段资料" => Tab::Timeline,
-                "文件名称" => Tab::Edit,
+                "文件名称" | "源码路径" => Tab::Edit,
                 "标签" | "状态" | "锚点" => Tab::Catalog,
                 "正在输入的源码 / 输入法" => Tab::Edit,
                 _ => self.tab,

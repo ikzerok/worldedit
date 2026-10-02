@@ -203,6 +203,7 @@ impl WorldeditApp {
             self.relation_type_editor = None;
             self.delete_form = None;
             self.rename_form = None;
+            self.source_move_form = None;
             self.map_failed_command = None;
             self.map_canvas.reset_for_history();
             if source_before == self.project.sources()
