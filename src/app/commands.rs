@@ -161,7 +161,10 @@ impl WorldeditApp {
                     .take(1000)
                     .map(|object| {
                         (
-                            super::object_picker::candidate_label(object),
+                            super::object_picker::candidate_caption(
+                                object,
+                                Some(&self.project.root),
+                            ),
                             Action::Object(object.target.clone()),
                         )
                     }),
@@ -186,7 +189,22 @@ impl WorldeditApp {
                 .show(ui, |ui| {
                     for (index, (label, candidate)) in entries.iter().enumerate() {
                         let selected = index == palette.selected;
-                        let row = ui.selectable_label(selected, label);
+                        let object = match candidate {
+                            Action::Object(target) => self.snapshot.as_ref().and_then(|snapshot| {
+                                snapshot.result.analysis.catalog.object(target)
+                            }),
+                            _ => None,
+                        };
+                        let row = if let Some(object) = object {
+                            super::object_picker::candidate_row(
+                                ui,
+                                object,
+                                Some(&self.project.root),
+                                selected,
+                            )
+                        } else {
+                            ui.selectable_label(selected, label)
+                        };
                         if row.clicked() {
                             action = Some(candidate.clone());
                         }

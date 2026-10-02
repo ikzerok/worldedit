@@ -108,7 +108,7 @@ fn object_entry(h: &Harness, index: usize) -> (String, TargetRef) {
         &[],
     )[index];
     (
-        super::super::object_picker::candidate_label(object),
+        super::super::object_picker::candidate_caption(object, Some(&h.app.project.root)),
         object.target.clone(),
     )
 }

@@ -71,7 +71,9 @@ fn real_entity_window_expanded_character_refs_remain_in_viewport_after_sixty_fra
             "entity titlebar/X escaped viewport: {rectangles:?}"
         );
     }
-    // The footer may require scrolling, but must remain reachable inside the same viewport.
+    // The fixed footer stays visible before and throughout content scrolling.
+    let before_scroll = bounded_frame(&ctx, &mut app, Vec::new());
+    assert!(visible_text_position(&before_scroll, "应用资料").is_some());
     let mut found = false;
     for _ in 0..20 {
         let output = bounded_frame(
@@ -93,6 +95,6 @@ fn real_entity_window_expanded_character_refs_remain_in_viewport_after_sixty_fra
             break;
         }
     }
-    assert!(found, "底部应用动作必须能在视口内滚动到达");
+    assert!(found, "固定应用动作必须保持在视口内");
     assert!(app.entity_editor.is_some());
 }

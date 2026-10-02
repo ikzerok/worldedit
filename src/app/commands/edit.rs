@@ -126,6 +126,17 @@ impl WorldeditApp {
         let command = if mac { "⌘" } else { "Ctrl+" };
         let (_, _, replace_label) = replacement_shortcut(ui.ctx().os());
         ui.menu_button("编辑", |ui| {
+            if ui
+                .add_enabled(
+                    self.active_file != self.project.entry
+                        && self.project.documents.contains_key(&self.active_file),
+                    egui::Button::new("安全整理当前源码路径…"),
+                )
+                .clicked()
+            {
+                self.begin_source_move(self.active_file.clone());
+                ui.close();
+            }
             for (label, forward, key) in [("撤销", false, "Z"), ("重做", true, "Shift+Z")] {
                 if ui.button(format!("{label}  {command}{key}")).clicked() {
                     if let Some(id) = self.command_palette.edit_focus {

@@ -201,27 +201,59 @@ impl super::super::WorldeditApp {
         }
         let mut back_requested = false;
         let mut enter_requested = None;
-        // 窄工作区默认让出画布；进行中的表单始终保留提交和取消入口。
-        let compact = ctx.available_rect().width() < 900.0;
-        let inspector_id = egui::Id::new(("map-inspector-visible", compact));
+        // 面板宽度包括边距；用主导航之后的空间与上次实际拖拽宽度预算画布。
+        let panel_width = |name, fallback| {
+            egui::containers::panel::PanelState::load(ctx, egui::Id::new(name))
+                .map_or(fallback, |state| state.size().x)
+        };
+        let inspector_id = egui::Id::new("map-inspector-visible");
+        let index_id = egui::Id::new("map-index-visible");
         let needs_inspector = self.map_creation.open
             || self.map_canvas.svg_import.open
             || self.map_form.has_uncommitted_work()
-            || self.map_canvas.scene.inspector_dirty;
-        let needs_inspector = needs_inspector || self.map_locate_request.is_some();
-        let mut inspector_visible = ctx
-            .data(|data| data.get_temp::<bool>(inspector_id))
-            .unwrap_or(!compact || selected_placement.is_some() || !has_document);
-        if needs_inspector {
-            inspector_visible = true;
+            || self.map_canvas.scene.inspector_dirty
+            || self.map_locate_request.is_some();
+        if selection_changed {
+            ctx.data_mut(|data| data.remove::<bool>(inspector_id));
         }
+        let mut inspector_visible = needs_inspector
+            || ctx
+                .data(|data| data.get_temp::<bool>(inspector_id))
+                .unwrap_or(
+                    selected_identity.is_some()
+                        || self.map_canvas.is_edit_mode()
+                        || !has_document
+                        || !map_diagnostics.is_empty(),
+                );
+        let canvas_margin = crate::theme::panel().total_margin().sum().x;
+        let inspector_width = if inspector_visible {
+            panel_width("map-inspector", crate::theme::INSPECTOR_WIDTH).clamp(260.0, 420.0)
+        } else {
+            0.0
+        };
+        let font_scale =
+            ctx.style().text_styles[&egui::TextStyle::Body].size / crate::theme::BODY_SIZE;
+        let compact = ctx.available_rect().width()
+            - panel_width("map-index", crate::theme::INDEX_WIDTH)
+            - inspector_width
+            - canvas_margin
+            < 600.0 * font_scale.max(1.0);
+        let mut index_visible = ctx
+            .data(|data| data.get_temp::<bool>(index_id))
+            .unwrap_or(!compact);
         egui::TopBottomPanel::top("map-layout-controls")
             .frame(crate::theme::panel())
             .show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.strong("地图画布");
-                    if !self.map_canvas.map_title().is_empty() {
-                        ui.label(self.map_canvas.map_title());
+                    let index_label = if index_visible {
+                        "收起地图目录"
+                    } else {
+                        "显示地图目录"
+                    };
+                    if ui.button(index_label).clicked() {
+                        index_visible = !index_visible;
+                        ctx.data_mut(|data| data.insert_temp(index_id, index_visible));
                     }
                     let label = if inspector_visible {
                         "收起地图面板"
@@ -236,9 +268,13 @@ impl super::super::WorldeditApp {
                         inspector_visible = !inspector_visible;
                         ctx.data_mut(|data| data.insert_temp(inspector_id, inspector_visible));
                     }
+                    if !self.map_canvas.map_title().is_empty() {
+                        ui.add(egui::Label::new(self.map_canvas.map_title()).truncate())
+                            .on_hover_text(self.map_canvas.map_title());
+                    }
                 });
             });
-        if !compact {
+        if index_visible {
             egui::SidePanel::left("map-index")
                 .default_width(crate::theme::INDEX_WIDTH)
                 .resizable(true)
@@ -303,7 +339,7 @@ impl super::super::WorldeditApp {
                                 &mut enter_requested,
                             );
                         }
-                        if compact {
+                        if !index_visible {
                             self.map_overview_panel(ui, &map_summaries, &mut back_requested);
                         }
                         if has_document {
@@ -316,7 +352,7 @@ impl super::super::WorldeditApp {
                                     selected_placement,
                                 );
                             }
-                            if compact {
+                            if !index_visible {
                                 self.map_search_panel(ui);
                             }
                         } else if self.map_form.has_uncommitted_work() {
@@ -397,17 +433,19 @@ impl super::super::WorldeditApp {
                     self.map_canvas.toolbar(ui);
                     self.map_canvas.scene.render_status_panel(ui);
                     self.scene_job_panel(ui);
-                    ui.horizontal_wrapped(|ui| {
-                        if ui.small_button("导出整图矢量 SVG…").clicked() {
+                    ui.menu_button("导出矢量…", |ui| {
+                        if ui.button("导出整图矢量 SVG…").clicked() {
+                            ui.close();
                             self.begin_svg_export(ctx, false);
                         }
                         let selected = !self.map_canvas.scene.selection.is_empty()
                             || self.map_canvas.selected_placement().is_some();
                         if ui
-                            .add_enabled(selected, egui::Button::new("导出当前选择…").small())
+                            .add_enabled(selected, egui::Button::new("导出当前选择…"))
                             .clicked()
                         {
                             self.begin_svg_export(ctx, true);
+                            ui.close();
                         }
                     });
                 } else {

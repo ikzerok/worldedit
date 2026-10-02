@@ -1,3 +1,6 @@
+#[path = "scene_dash_fields.rs"]
+mod dash_fields;
+
 use worldline_core::vector_scene::{PathSegment, SceneGeometry, SceneStyle, TextRun};
 
 pub(super) fn number(ui: &mut egui::Ui, label: &str, value: &mut f64) -> bool {
@@ -79,6 +82,7 @@ pub(super) fn style_fields(ui: &mut egui::Ui, style: &mut SceneStyle) -> bool {
     let mut changed = optional_text(ui, "填充", &mut style.fill, "#357ebe");
     changed |= optional_text(ui, "描边", &mut style.stroke, "#65b4ff");
     changed |= optional_number(ui, "线宽", &mut style.stroke_width, 2.0);
+    changed |= dash_fields::fields(ui, style);
     changed |= optional_number(ui, "整体透明度", &mut style.opacity, 1.0);
     changed |= optional_number(ui, "填充透明度", &mut style.fill_opacity, 1.0);
     changed |= optional_number(ui, "描边透明度", &mut style.stroke_opacity, 1.0);
@@ -274,4 +278,11 @@ fn item_index(ui: &mut egui::Ui, label: &str, count: usize) -> usize {
     });
     ui.ctx().data_mut(|data| data.insert_temp(id, index));
     index
+}
+
+/// 批量样式编辑只复制已知解释字段；未知扩展始终归原节点所有。
+pub(super) fn copy_known_style(source: &SceneStyle, target: &mut SceneStyle) {
+    let extra = std::mem::take(&mut target.extra);
+    *target = source.clone();
+    target.extra = extra;
 }

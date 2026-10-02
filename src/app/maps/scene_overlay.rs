@@ -215,6 +215,11 @@ impl MapCanvas {
         };
         let mut scene = MapScene::new(source.view_box[2], source.view_box[3]);
         scene.view_box = source.view_box;
+        // 仅临时金色几何导线；声明可解释的样式能力，不修改原稿或开启持久 scene。
+        scene.extra.insert(
+            "required_features".into(),
+            serde_json::json!([worldline_core::vector_scene::SCENE_DASH_FEATURE]),
+        );
         node.id = "draft".into();
         node.layer_id = "draft".into();
         node.parent_id = None;
