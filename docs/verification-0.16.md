@@ -17,3 +17,9 @@
 实际桌面仅 dot Linux 隔离工程与独立配置窗口，app-bound截图。Windows运行测试依靠最终CI日志核验，Windows/macOS GUI、物理输入法、读屏、高DPI及真实file://浏览器必须实际执行才报告通过；没有验证的范围保持未验。
 
 本地因磁盘容量限制设置 CARGO_INCREMENTAL=0、CARGO_PROFILE_DEV_DEBUG=0、CARGO_PROFILE_TEST_DEBUG=0；测试断言与debug优化层级不变，仅去DWARF符号/增量缓存，release配置未变。只清理可再生incremental缓存，原始证据和native候选保留。
+
+## Linux 候选实测
+
+普通编辑器569通过、0失败、3忽略；原型584通过、0失败、4忽略。普通/原型native与WASM严格Clippy及构建均已执行通过；native release构建通过。固定配对脚本Python回归8通过。实际桌面已验证地图空选择内容宽度、虚线地图、相对来源快速切换和固定表单操作区；最终二进制复验与精确pair门禁单列，不把早期截图写成最终SHA截图。
+
+源码移动实际UI CPU门（五个新工程、501源码/1001正式路径）：预览145–167ms，完整apply/history/recompile184–198ms，陈旧拒绝146–169ms，撤销/重做19–28ms。每工程30个实际egui窗口空闲帧p95为2.8–3.8ms；250ms回调/33ms空闲帧门通过。这不等同原生GPU/present验收，也不由CLI启动/保存总时间推断。

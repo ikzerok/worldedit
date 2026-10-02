@@ -2,6 +2,8 @@ use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use worldline_core::project::Project;
 
+mod performance;
+
 fn app() -> (egui::Context, WorldeditApp, PathBuf) {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let ctx = egui::Context::default();
@@ -94,4 +96,23 @@ fn source_move_path_input_participates_in_exit_and_export_guards() {
     assert!(app.source_move_form.is_none());
     assert_eq!(before, app.project.content_baseline());
     let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn nested_native_source_path_becomes_portable_lifecycle_request() {
+    let root = std::env::temp_dir().join("source-request-format-only");
+    let form = SourceMoveForm {
+        source: root.join("lore").join("part.wl"),
+        root,
+        destination: "drafts/new.wl".into(),
+        plan: None,
+        error: None,
+    };
+    assert_eq!(
+        form.request(),
+        SourceLifecycleRequest::Move {
+            from: PathBuf::from("lore/part.wl"),
+            to: PathBuf::from("drafts/new.wl"),
+        }
+    );
 }

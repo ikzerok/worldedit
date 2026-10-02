@@ -15,11 +15,13 @@ pub(super) struct SourceMoveForm {
 impl SourceMoveForm {
     fn request(&self) -> SourceLifecycleRequest {
         SourceLifecycleRequest::Move {
-            from: self
-                .source
-                .strip_prefix(&self.root)
-                .unwrap_or(&self.source)
-                .into(),
+            from: PathBuf::from(
+                self.source
+                    .strip_prefix(&self.root)
+                    .unwrap_or(&self.source)
+                    .to_string_lossy()
+                    .replace(std::path::MAIN_SEPARATOR, "/"),
+            ),
             to: PathBuf::from(self.destination.trim()),
         }
     }
