@@ -209,6 +209,7 @@ impl WorldeditApp {
         } else {
             format!("内容编译通过 · {warnings} 提醒")
         };
+        let compact = ui.available_width() < 500.;
         self.problems_status(ui, &content);
         ui.separator();
         let (short, full) = if self.has_open_authoring_form() {
@@ -218,7 +219,8 @@ impl WorldeditApp {
         } else {
             ("已保存", "全部文件已保存")
         };
-        ui.label(theme::muted(short)).on_hover_text(full);
+        ui.label(theme::muted(if compact { short } else { full }))
+            .on_hover_text(full);
         if let Some(message) = &self.message {
             ui.add_sized(
                 egui::vec2(ui.available_width().max(0.0), ui.spacing().interact_size.y),

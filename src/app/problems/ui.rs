@@ -572,7 +572,7 @@ impl WorldeditApp {
         };
         let full = format!("{content} · {text}");
         // 为保存状态与长回执保留真实宽度；窄窗只截断入口文字，完整信息仍可悬停或打开。
-        let width = (ui.available_width() * 0.58).min(540.).max(0.);
+        let width = (ui.available_width() * 0.58).clamp(0., 540.);
         if ui
             .add_sized(
                 [width, ui.spacing().interact_size.y],
