@@ -15,6 +15,7 @@ pub(super) fn draw_edges(
     edges: &[Edge],
 ) -> Option<(String, u32, u32)> {
     let mut source = None;
+    let mut labels = Vec::new();
     let mut lanes: BTreeMap<(String, String), usize> = BTreeMap::new();
     for (index, edge) in edges.iter().enumerate() {
         let (from, to) = (state::key(&edge.from), state::key(&edge.to));
@@ -33,6 +34,17 @@ pub(super) fn draw_edges(
         } else {
             start.lerp(end, 0.5) + Vec2::new(-direction.y, direction.x) * offset
         };
+        let caption = truncated(
+            &format!("{}·{}", state::kind_label(&edge.kind), edge.label),
+            14,
+        );
+        let galley =
+            painter.layout_no_wrap(caption.clone(), egui::FontId::proportional(11.0), TEXT());
+        let label_size = (galley.size() + Vec2::new(12.0, 8.0)).max(Vec2::new(96.0, 24.0));
+        let hit =
+            super::graph_layout::edge_label_rect(midpoint, label_size, canvas, rects, &labels);
+        labels.push(hit);
+        let midpoint = hit.center();
         let color = if edge.kind == Kind::TextMention {
             MUTED()
         } else {
@@ -47,15 +59,11 @@ pub(super) fn draw_edges(
         if edge.direction == RelationDirection::Directed && midpoint.distance(end) > 1.0 {
             draw_arrow(painter, midpoint, midpoint.lerp(end, 0.5), color);
         }
-        let hit = Rect::from_center_size(midpoint, Vec2::new(108.0, 22.0));
         painter.rect_filled(hit, 3, PANEL());
         painter.text(
             midpoint,
             egui::Align2::CENTER_CENTER,
-            truncated(
-                &format!("{}·{}", state::kind_label(&edge.kind), edge.label),
-                14,
-            ),
+            caption,
             egui::FontId::proportional(11.0),
             TEXT(),
         );

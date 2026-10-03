@@ -26,6 +26,10 @@ pub(in crate::app) struct CharacterFocus {
     pub canvas: Option<egui::Rect>,
     pub positions: BTreeMap<String, [f64; 2]>,
     pub fit: bool,
+    pub auto_fit: bool,
+    pub layout_manual: bool,
+    pub layout_size: Option<egui::Vec2>,
+    pub layout_members: Vec<String>,
     pub filters: [bool; 6],
     pub mentions: bool,
     pub full: bool,
@@ -49,6 +53,10 @@ impl Default for CharacterFocus {
             canvas: None,
             positions: BTreeMap::new(),
             fit: true,
+            auto_fit: true,
+            layout_manual: false,
+            layout_size: None,
+            layout_members: Vec::new(),
             filters: [true; 6],
             mentions: false,
             full: false,
@@ -63,27 +71,6 @@ impl Default for CharacterFocus {
     }
 }
 impl CharacterFocus {
-    pub fn fit_graph(&mut self, points: &[[f64; 2]], size: [f64; 2]) {
-        if points.is_empty() {
-            return;
-        }
-        let mut min = [f64::INFINITY; 2];
-        let mut max = [f64::NEG_INFINITY; 2];
-        for point in points {
-            for axis in 0..2 {
-                min[axis] = min[axis].min(point[axis]);
-                max[axis] = max[axis].max(point[axis]);
-            }
-        }
-        // 卡片随图缩放；无需沿用另一画布固定160/120px的留白。
-        self.camera.zoom = ((size[0] - 24.0) / (max[0] - min[0] + 168.0))
-            .min((size[1] - 24.0) / (max[1] - min[1] + 62.0))
-            .clamp(0.05, 1.0);
-        self.camera.pan = [
-            -(min[0] + max[0]) * 0.5 * self.camera.zoom,
-            -(min[1] + max[1]) * 0.5 * self.camera.zoom,
-        ];
-    }
     pub fn visible(&self, kind: &WorldContextKind) -> bool {
         KINDS
             .iter()

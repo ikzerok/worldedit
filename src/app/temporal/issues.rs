@@ -71,8 +71,9 @@ impl WorldeditApp {
             .collapsible(false)
             .resizable(true)
             .default_width(700.0)
+            .default_height((viewport.height() - 100.0).max(250.0))
             .max_width((viewport.width() - 30.0).max(280.0))
-            .max_height((viewport.height() - 50.0).max(250.0))
+            .max_height((viewport.height() - 100.0).max(250.0))
             .constrain_to(viewport)
             .show(ctx, |ui| {
                 ui.label(theme::muted(format!(
@@ -121,19 +122,26 @@ impl WorldeditApp {
                 ui.collapsing("按稳定 ID 直接输入（可选）", |ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.temporal_issues.left)
+                            .id(egui::Id::new("temporal-compare-left-input"))
                             .hint_text("左侧事件稳定 ID")
                             .desired_width(f32::INFINITY),
                     );
                     ui.add(
                         egui::TextEdit::singleline(&mut self.temporal_issues.right)
+                            .id(egui::Id::new("temporal-compare-right-input"))
                             .hint_text("右侧事件稳定 ID")
                             .desired_width(f32::INFINITY),
                     );
                 });
                 ui.separator();
+                // 头部会因可选ID、失效提示和选择器展开改变高度；按真实剩余空间留固定footer。
+                let body_height = (ui.available_height() - 82.0)
+                    .min(viewport.bottom() - ui.cursor().top() - 82.0)
+                    .max(40.0);
                 egui::ScrollArea::vertical()
                     .id_salt("temporal-issues-content")
-                    .max_height((viewport.height() - 280.0).max(120.0))
+                    .max_height(body_height)
+                    .auto_shrink([false, false])
                     .show(ui, |ui| {
                         if !self.temporal_issues.left.trim().is_empty()
                             && !self.temporal_issues.right.trim().is_empty()
@@ -153,7 +161,13 @@ impl WorldeditApp {
                             }
                             if !comparison.evidence.is_empty() {
                                 ui.label("先后依据 · 以下边按真实先于方向排列");
-                                draw_edges(ui, &comparison.evidence, &display, &mut source);
+                                draw_edges(
+                                    ui,
+                                    &comparison.evidence,
+                                    &display,
+                                    &mut source,
+                                    &self.project.root,
+                                );
                             }
                             ui.separator();
                         }
@@ -223,7 +237,13 @@ impl WorldeditApp {
                                     .id_salt((&cycle.id, "witness"))
                                     .default_open(true)
                                     .show(ui, |ui| {
-                                        draw_edges(ui, &cycle.witness, &display, &mut source)
+                                        draw_edges(
+                                            ui,
+                                            &cycle.witness,
+                                            &display,
+                                            &mut source,
+                                            &self.project.root,
+                                        )
                                     });
                                 ui.collapsing("技术详情", |ui| {
                                     ui.label(format!("A213 · 环标识 {} · 稳定最短闭环", cycle.id));
@@ -252,6 +272,7 @@ fn draw_edges(
     edges: &[TemporalEdge],
     display: &impl Fn(&str) -> String,
     source: &mut Option<(String, u32)>,
+    root: &std::path::Path,
 ) {
     for (index, edge) in edges.iter().enumerate() {
         ui.push_id(("edge", index), |ui| {
@@ -265,9 +286,16 @@ fn draw_edges(
                     *source = Some((edge.file.clone(), edge.line));
                 }
             });
-            let line = format!("{}:{} · 行级来源", edge.file, edge.line);
+            let line = format!(
+                "{}:{} · 行级来源",
+                theme::relative_source(root, std::path::Path::new(&edge.file)),
+                edge.line
+            );
             ui.add(egui::Label::new(theme::muted(&line)).truncate())
-                .on_hover_text(format!("{line}\n{} → {}", edge.before, edge.after));
+                .on_hover_text(format!(
+                    "{}:{}\n{} → {}",
+                    edge.file, edge.line, edge.before, edge.after
+                ));
         });
     }
 }

@@ -2,7 +2,7 @@
 use super::*;
 use worldline_core::world_context::WorldContextKind;
 
-fn focus_app() -> (egui::Context, WorldeditApp) {
+pub(super) fn focus_app() -> (egui::Context, WorldeditApp) {
     let (ctx, mut app) = app();
     let manifest = app.project.root.join(".world/project.json");
     app.project.set_authoring_document(&manifest,br#"{"schema_version":1,"language_version":"1.13","required_features":["content.entities.v1","content.relations.v1","content.object_refs.v1","content.character_refs.v1"]}"#.to_vec()).unwrap();
@@ -20,7 +20,7 @@ fn focus_app() -> (egui::Context, WorldeditApp) {
     app.select_character("linqi");
     (ctx, app)
 }
-fn work_frame(
+pub(super) fn work_frame(
     ctx: &egui::Context,
     app: &mut WorldeditApp,
     size: egui::Vec2,
@@ -402,7 +402,7 @@ fn legacy_port_drag_creates_only_legacy_edge_and_keeps_property_reference() {
     };
     let start = screen("linqi")
         + vec2(
-            84.0 * (app.character_focus.camera.zoom as f32).max(0.65),
+            100.0 * (app.character_focus.camera.zoom as f32).max(1.0),
             0.0,
         );
     let end = screen("lingzhou");

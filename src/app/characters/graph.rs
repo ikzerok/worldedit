@@ -1,5 +1,8 @@
 //! typed上下文的图形投影；布局只影响个人视图。
-use super::{state, WorldeditApp};
+use super::{
+    graph_layout::{NODE_SIZE, SELECTED_SIZE},
+    state, WorldeditApp,
+};
 use crate::{
     theme::{self, *},
     visual::truncated,
@@ -37,9 +40,12 @@ impl WorldeditApp {
                     .changed()
             {
                 self.character_focus.positions.clear();
+                self.character_focus.layout_manual = false;
+                self.character_focus.auto_fit = true;
                 self.character_focus.fit = true;
             }
             if ui.button("定位所选").clicked() {
+                self.character_focus.auto_fit = false;
                 let point = self
                     .character_editor
                     .as_ref()
@@ -55,19 +61,24 @@ impl WorldeditApp {
                 self.character_focus.camera.pan = [-point[0] * zoom, -point[1] * zoom];
             }
             if ui.button("适配当前结果").clicked() {
+                self.character_focus.auto_fit = true;
                 self.character_focus.fit = true;
             }
             if ui.small_button("−").clicked() {
+                self.character_focus.auto_fit = false;
                 self.character_focus.camera.zoom =
                     (self.character_focus.camera.zoom / 1.2).max(0.05);
             }
             ui.label(format!("{:.0}%", self.character_focus.camera.zoom * 100.0));
             if ui.small_button("＋").clicked() {
+                self.character_focus.auto_fit = false;
                 self.character_focus.camera.zoom =
                     (self.character_focus.camera.zoom * 1.2).min(6.0);
             }
             if ui.button("恢复局部布局").clicked() {
                 self.character_focus.positions.clear();
+                self.character_focus.layout_manual = false;
+                self.character_focus.auto_fit = true;
                 self.character_focus.fit = true;
             }
             ui.checkbox(&mut self.character_focus.show_results, "来源列表");
@@ -258,7 +269,7 @@ impl WorldeditApp {
             .collect();
         (nodes, edges)
     }
-    pub(super) fn character_context_graph(&mut self, ui: &mut egui::Ui) {
+    pub(in crate::app) fn character_context_graph(&mut self, ui: &mut egui::Ui) {
         let (nodes, edges) = self.character_graph_projection(ui);
         let selected = self
             .character_editor
@@ -300,26 +311,13 @@ impl WorldeditApp {
             );
             return;
         }
-        let count = nodes
+        let keys = nodes
             .iter()
-            .filter(|n| selected.as_ref() != Some(&n.target))
-            .count()
-            .max(1);
-        let mut other = 0;
-        for node in &nodes {
-            let point = if selected.as_ref() == Some(&node.target) {
-                [0.0, 0.0]
-            } else {
-                let angle = other as f64 / count as f64 * std::f64::consts::TAU;
-                other += 1;
-                let radius = (count as f64 * 32.0).max(245.0);
-                [angle.cos() * radius, angle.sin() * radius]
-            };
-            self.character_focus
-                .positions
-                .entry(state::key(&node.target))
-                .or_insert(point);
-        }
+            .map(|node| state::key(&node.target))
+            .collect::<Vec<_>>();
+        let selected_key = selected.as_ref().map(state::key);
+        self.character_focus
+            .update_graph_layout(&keys, selected_key.as_deref(), canvas.size());
         let size = [canvas.width() as f64, canvas.height() as f64];
         if self.character_focus.fit {
             let points = nodes
@@ -329,18 +327,21 @@ impl WorldeditApp {
                         .positions
                         .get(&state::key(&n.target))
                         .copied()
+                        .map(|point| (point, selected.as_ref() == Some(&n.target)))
                 })
                 .collect::<Vec<_>>();
             self.character_focus.fit_graph(&points, size);
             self.character_focus.fit = false;
         }
         if response.dragged() {
+            self.character_focus.auto_fit = false;
             let d = ui.input(|i| i.pointer.delta());
             self.character_focus.camera.pan_by([d.x as f64, d.y as f64]);
         }
         if response.hovered() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
+                self.character_focus.auto_fit = false;
                 let p = ui
                     .input(|i| i.pointer.hover_pos())
                     .unwrap_or(canvas.center())
@@ -364,12 +365,11 @@ impl WorldeditApp {
                     state::key(&n.target),
                     Rect::from_center_size(
                         canvas.min + Vec2::new(p[0] as f32, p[1] as f32),
-                        Vec2::new(168.0, 62.0)
-                            * if selected.as_ref() == Some(&n.target) {
-                                zoom.max(0.65)
-                            } else {
-                                zoom
-                            },
+                        if selected.as_ref() == Some(&n.target) {
+                            SELECTED_SIZE * zoom.max(1.0)
+                        } else {
+                            NODE_SIZE * zoom
+                        },
                     ),
                 )
             })
@@ -425,7 +425,7 @@ impl WorldeditApp {
                     BLUE(),
                 );
             }
-            let node_zoom = if chosen { zoom.max(0.65) } else { zoom };
+            let node_zoom = if chosen { zoom.max(1.0) } else { zoom };
             if node_zoom > 0.22 {
                 painter.text(
                     rect.center() - Vec2::new(0.0, 10.0 * node_zoom),
@@ -457,6 +457,8 @@ impl WorldeditApp {
                 }
             }
             if response.dragged() && self.character_link.is_none() {
+                self.character_focus.layout_manual = true;
+                self.character_focus.auto_fit = false;
                 let d = ui.input(|i| i.pointer.delta()) / zoom;
                 if let Some(p) = self
                     .character_focus

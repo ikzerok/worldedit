@@ -3,6 +3,7 @@ mod collection;
 mod graph;
 mod graph_edges;
 mod graph_gestures;
+mod graph_layout;
 mod inspector;
 mod results;
 mod state;

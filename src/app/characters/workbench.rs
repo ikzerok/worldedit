@@ -29,6 +29,8 @@ impl WorldeditApp {
         self.character_focus.source_error = None;
         if changed_target {
             self.character_focus.positions.clear();
+            self.character_focus.layout_manual = false;
+            self.character_focus.auto_fit = true;
             self.character_focus.fit = true;
             self.character_focus.full_page = 0;
         }
