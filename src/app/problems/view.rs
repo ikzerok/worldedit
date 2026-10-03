@@ -57,6 +57,7 @@ pub(super) fn location_label(location: &ProblemLocation) -> String {
 pub(super) fn location_ui(
     ui: &mut egui::Ui,
     label: &str,
+    scope: egui::Id,
     location: &ProblemLocation,
     current: bool,
 ) -> bool {
@@ -64,7 +65,7 @@ pub(super) fn location_ui(
     let text = location_label(location);
     ui.horizontal_wrapped(|ui| {
         ui.add(egui::Label::new(&text).wrap());
-        if ui.small_button("复制位置").clicked() {
+        if focus_action(detail_button(ui, scope.with("copy"), "复制位置", true)) {
             ui.ctx().copy_text(text.clone());
         }
     });
@@ -73,16 +74,17 @@ pub(super) fn location_ui(
     }
     let enabled =
         current && location.precision != ProblemPrecision::Unavailable && location.path.is_some();
-    let clicked = ui
-        .add_enabled(
-            enabled,
-            egui::Button::new(if location.precision == ProblemPrecision::Document {
-                "打开文档（无精确选区）"
-            } else {
-                "定位来源"
-            }),
-        )
-        .clicked();
+    let response = detail_button(
+        ui,
+        scope.with("locate"),
+        if location.precision == ProblemPrecision::Document {
+            "打开文档（无精确选区）"
+        } else {
+            "定位来源"
+        },
+        enabled,
+    );
+    let clicked = focus_action(response);
     if let Some(excerpt) = &location.excerpt {
         ui.add(egui::Label::new(egui::RichText::new(excerpt).monospace().size(13.)).wrap());
     }
@@ -90,4 +92,118 @@ pub(super) fn location_ui(
         ui.label(theme::muted("摘录已限长，完整原文请打开来源"));
     }
     clicked
+}
+
+/// 两个各自限一行的文本层，不能把含换行的整张Button设为Truncate（那会只留下摘要）。
+pub(super) fn problem_row(
+    ui: &mut egui::Ui,
+    problem: &worldline_core::problems::ProblemEntry,
+    selected: bool,
+    font: f32,
+    height: f32,
+) -> egui::Response {
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), height),
+        egui::Sense::hover(),
+    );
+    let response = ui.interact(
+        rect,
+        ui.make_persistent_id(("problem-row", &problem.id)),
+        egui::Sense::click() & !egui::Sense::focusable_noninteractive(),
+    );
+    let background = if selected {
+        ui.visuals().selection.bg_fill
+    } else if response.hovered() {
+        ui.visuals().widgets.hovered.weak_bg_fill
+    } else {
+        egui::Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, 3., background);
+    let source = format!(
+        "{} · {}",
+        location_label(&problem.primary),
+        domain_label(problem.domain)
+    );
+    let title = format!(
+        "{} · {}",
+        severity_label(problem.severity),
+        crate::visual::truncated(&problem.message, 90)
+    );
+    let mut row = ui.new_child(
+        egui::UiBuilder::new()
+            .id_salt(("problem-text", &problem.id))
+            .max_rect(rect.shrink2(egui::vec2(6., 3.)))
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    row.set_clip_rect(rect.intersect(ui.clip_rect()));
+    row.spacing_mut().item_spacing.y = 0.;
+    row.add(
+        egui::Label::new(
+            egui::RichText::new(&title)
+                .size(font)
+                .color(severity_color(problem.severity)),
+        )
+        .truncate()
+        .selectable(false),
+    );
+    row.add(
+        egui::Label::new(
+            egui::RichText::new(&source)
+                .size((font * 0.85).max(12.))
+                .color(theme::MUTED()),
+        )
+        .truncate()
+        .selectable(false),
+    );
+    response.widget_info(|| {
+        egui::WidgetInfo::selected(
+            egui::WidgetType::SelectableLabel,
+            ui.is_enabled(),
+            selected,
+            format!("{title}; {source}"),
+        )
+    });
+    response.on_hover_text(format!(
+        "{}\n{} · {}",
+        problem.message,
+        location_label(&problem.primary),
+        problem.code
+    ))
+}
+
+/// 只在焦点进入时滚入，保留作者之后的手动阅读滚动。
+pub(super) fn focus_action(response: egui::Response) -> bool {
+    if response.gained_focus() {
+        response.scroll_to_me(Some(egui::Align::Center));
+    }
+    response.clicked()
+}
+
+/// 动态段落折行不得改变键盘动作的身份；外观复用Button，交互绑定稳定问题/来源ID。
+pub(super) fn detail_button(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    label: &str,
+    enabled: bool,
+) -> egui::Response {
+    ui.add_enabled_ui(enabled, |ui| {
+        let painted = ui.add(egui::Button::new(label).small().sense(egui::Sense::hover()));
+        let response = ui.interact(painted.rect, id, egui::Sense::click());
+        if response.has_focus() || response.hovered() {
+            ui.painter().rect_stroke(
+                response.rect,
+                3.,
+                egui::Stroke::new(
+                    if response.has_focus() { 1.5_f32 } else { 1_f32 },
+                    theme::ACCENT(),
+                ),
+                egui::StrokeKind::Inside,
+            );
+        }
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
+        });
+        response
+    })
+    .inner
 }

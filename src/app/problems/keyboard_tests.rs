@@ -43,7 +43,6 @@ fn frame(
     size: egui::Vec2,
     events: Vec<egui::Event>,
 ) -> egui::FullOutput {
-    ctx.data_mut(|data| data.remove::<Vec<String>>(egui::Id::new("problem-focus-debug")));
     ctx.run(
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
@@ -136,10 +135,8 @@ fn tab_reveals_primary_and_related_actions_then_enter_and_back_work_in_short_lar
             let mut locations = 0;
             let mut copied = 0;
             let mut seen_labels = Vec::new();
-            let mut seen_focus = Vec::new();
             for _ in 0..80 {
                 let focus = press(&ctx, &mut app, size, egui::Key::Tab, egui::Modifiers::NONE);
-                seen_focus.push(ctx.memory(|m|m.focused()).and_then(|id|ctx.read_response(id)).map(|r| format!("{:?} {:?}",r.id,r.rect)));
                 for item in focus {
                     if let Some(label) = item.label {
                         seen_labels.push(label.clone());
@@ -157,35 +154,6 @@ fn tab_reveals_primary_and_related_actions_then_enter_and_back_work_in_short_lar
                 }
                 if locations == 2 {
                     break;
-                }
-            }
-            if locations != 2 {
-                eprintln!("FOCUS_SEQUENCE {seen_focus:?}");
-                eprintln!("RESPONSE_DEBUG {:?}",ctx.data(|data|data.get_temp::<Vec<String>>(egui::Id::new("problem-focus-debug"))));
-                eprintln!(
-                    "DEBUG panel={:?} page={:?} rows={}",
-                    egui::containers::panel::PanelState::load(
-                        &ctx,
-                        egui::Id::new("project-problems")
-                    )
-                    .map(|s| s.rect),
-                    app.problems.page.as_ref().map(|p| p
-                        .entries
-                        .iter()
-                        .map(|e| &e.id)
-                        .collect::<Vec<_>>()),
-                    app.problems.rendered_rows
-                );
-                let output = frame(&ctx, &mut app, size, vec![]);
-                for shape in output.shapes {
-                    if let egui::epaint::Shape::Text(text) = shape.shape {
-                        eprintln!(
-                            "DEBUG_TEXT {:?} pos={:?} clip={:?}",
-                            text.galley.text(),
-                            text.pos,
-                            shape.clip_rect
-                        );
-                    }
                 }
             }
             assert_eq!(

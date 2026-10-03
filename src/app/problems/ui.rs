@@ -13,12 +13,34 @@ impl WorldeditApp {
         egui::TopBottomPanel::bottom("project-problems")
             .resizable(true)
             .default_height(280.)
-            .min_height(180.)
+            .min_height(220.)
             .max_height(max_height)
-            .frame(theme::panel())
+            .frame(theme::index_panel())
             .show(ctx, |ui| {
+                let compact_controls = ui.available_height() < 280.;
                 self.problems_header(ui);
-                self.problems_filters(ui);
+                if compact_controls {
+                    ui.horizontal(|ui| {
+                        let count = usize::from(!self.problems.query.severities.is_empty())
+                            + usize::from(!self.problems.query.domains.is_empty())
+                            + usize::from(self.problems.query.path.is_some())
+                            + usize::from(!self.problems.query.text.is_empty());
+                        ui.menu_button(
+                            if count == 0 {
+                                "筛选（全部）".to_owned()
+                            } else {
+                                format!("筛选（{count} 项）")
+                            },
+                            |ui| {
+                                ui.set_max_width(760.);
+                                self.problems_filters(ui);
+                            },
+                        );
+                        ui.label(theme::muted("按级别、域、路径或文字筛选"));
+                    });
+                } else {
+                    self.problems_filters(ui);
+                }
                 if let Some(error) = &self.problems.error {
                     ui.colored_label(theme::ERROR(), error);
                 }
@@ -66,7 +88,9 @@ impl WorldeditApp {
     fn problems_header(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_wrapped(|ui| {
             ui.strong("工程问题");
-            let status = if self.problems.job.is_some() {
+            let status = if self.problems.cancelling() {
+                "等待旧检查退出"
+            } else if self.problems.job.is_some() {
                 "刷新中"
             } else if self.problems.error.is_some() {
                 "检查未完成"
@@ -87,7 +111,11 @@ impl WorldeditApp {
             }
             if self.problems.job.is_some() {
                 ui.spinner();
-                if ui.small_button("取消检查").clicked() {
+                if self.problems.cancelling() {
+                    if ui.small_button("排队检查最新稿").clicked() {
+                        self.retry_problems(ui.ctx());
+                    }
+                } else if ui.small_button("取消检查").clicked() {
                     self.cancel_problems();
                 }
             } else if ui.small_button("刷新检查").clicked() {
@@ -268,11 +296,10 @@ impl WorldeditApp {
             entry.request_focus();
             self.problems.focus_list = false;
         }
-        if entry.has_focus() {
-            ui.label(theme::muted("键盘焦点：↑↓选择 · Enter定位 · Esc返回"));
-        }
+        // 聚焦提示始终占相同空间，避免Tab移出时改变面板高度和控件布局而丢焦点。
+        ui.label(theme::muted("列表聚焦后：↑↓选择 · Enter定位 · Esc返回"));
         let font = self.personal.settings.body_size;
-        let row_height = font * 2. + 12.;
+        let row_height = font * 2.5 + 8.;
         self.problems.rendered_rows = 0;
         let mut scroll = egui::ScrollArea::vertical()
             .id_salt("problems-list-scroll")
@@ -295,30 +322,7 @@ impl WorldeditApp {
                 self.problems.rendered_rows += 1;
                 let problem = &page.entries[index];
                 let selected = self.problems.selected.as_ref() == Some(&problem.id);
-                let text = format!(
-                    "{} · {}\n{} · {}",
-                    severity_label(problem.severity),
-                    crate::visual::truncated(&problem.message, 90),
-                    location_label(&problem.primary),
-                    domain_label(problem.domain)
-                );
-                let response = ui
-                    .add_sized(
-                        [ui.available_width(), row_height],
-                        egui::Button::selectable(
-                            selected,
-                            RichText::new(text)
-                                .size(font)
-                                .color(severity_color(problem.severity)),
-                        )
-                        .truncate(),
-                    )
-                    .on_hover_text(format!(
-                        "{}\n{} · {}",
-                        problem.message,
-                        location_label(&problem.primary),
-                        problem.code
-                    ));
+                let response = problem_row(ui, problem, selected, font, row_height);
                 if response.clicked() {
                     self.problems.select(problem.id.clone());
                     self.problems.narrow_detail = narrow;
@@ -352,90 +356,112 @@ impl WorldeditApp {
             return;
         };
         let current = !self.problems.stale(self.version) && self.problems.error.is_none();
-        egui::ScrollArea::vertical()
+        let scope = egui::Id::new(("problem-detail", &problem.id));
+        let mut scroll = egui::ScrollArea::vertical()
             .id_salt("problem-details-scroll")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.set_max_width(ui.available_width().min(800.));
-                ui.horizontal_wrapped(|ui| {
-                    ui.colored_label(
-                        severity_color(problem.severity),
-                        severity_label(problem.severity),
-                    );
-                    ui.label(theme::muted(format!(
-                        "{} · {}",
-                        domain_label(problem.domain),
-                        problem.code
-                    )));
-                    if ui.small_button("复制问题").clicked() {
-                        ui.ctx()
-                            .copy_text(serde_json::to_string_pretty(&problem).unwrap_or_default());
-                    }
-                });
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(&problem.message).size(self.personal.settings.body_size),
-                    )
-                    .wrap(),
+            .auto_shrink([false, false]);
+        if self.problems.detail_reset {
+            scroll = scroll.vertical_scroll_offset(0.).animated(false);
+            self.problems.detail_reset = false;
+        }
+        scroll.show(ui, |ui| {
+            ui.set_max_width(ui.available_width().min(800.));
+            ui.horizontal_wrapped(|ui| {
+                ui.colored_label(
+                    severity_color(problem.severity),
+                    severity_label(problem.severity),
                 );
-                if let Some(note) = &problem.note {
-                    ui.label(format!("说明：{note}"));
-                }
-                if let Some(suggestion) = &problem.suggestion {
-                    ui.label(format!("建议：{suggestion}"));
-                }
-                if problem.text_truncated {
-                    ui.colored_label(theme::GOLD(), "问题文本达到上限，当前说明不完整");
-                }
-                if problem.code == "A213" && ui.button("查看时间环与来源证据").clicked() {
-                    self.open_temporal_issues(ui.ctx());
-                }
-                ui.separator();
-                if location_ui(ui, "主位置", &problem.primary, current) {
-                    self.locate_problem(ui.ctx(), None);
-                }
-                if problem.related_count > 0 {
-                    ui.separator();
-                    ui.strong(format!("相关位置 · 共 {} 处", problem.related_count));
-                    if let Some(related) = self.problems.related.clone() {
-                        for (index, location) in related.locations.iter().enumerate() {
-                            let index = self.problems.related_offset + index;
-                            if location_ui(
-                                ui,
-                                &format!("相关位置 {}", index + 1),
-                                location,
-                                current,
-                            ) {
-                                self.locate_problem(ui.ctx(), Some(index));
-                            }
-                            ui.separator();
-                        }
-                        ui.horizontal(|ui| {
-                            if ui
-                                .add_enabled(
-                                    !self.problems.related_history.is_empty(),
-                                    egui::Button::new("上页相关位置"),
-                                )
-                                .clicked()
-                            {
-                                self.problem_related_page(true);
-                            }
-                            if ui
-                                .add_enabled(
-                                    related.next_cursor.is_some(),
-                                    egui::Button::new("下页相关位置"),
-                                )
-                                .clicked()
-                            {
-                                self.problem_related_page(false);
-                            }
-                        });
-                        if related.truncated {
-                            ui.colored_label(theme::GOLD(), "相关来源已截断，不能视为完整证据");
-                        }
-                    }
+                ui.label(theme::muted(format!(
+                    "{} · {}",
+                    domain_label(problem.domain),
+                    problem.code
+                )));
+                if focus_action(detail_button(
+                    ui,
+                    scope.with("copy-problem"),
+                    "复制问题",
+                    true,
+                )) {
+                    ui.ctx()
+                        .copy_text(serde_json::to_string_pretty(&problem).unwrap_or_default());
                 }
             });
+            ui.add(
+                egui::Label::new(
+                    RichText::new(&problem.message).size(self.personal.settings.body_size),
+                )
+                .wrap(),
+            );
+            if let Some(note) = &problem.note {
+                ui.label(format!("说明：{note}"));
+            }
+            if let Some(suggestion) = &problem.suggestion {
+                ui.label(format!("建议：{suggestion}"));
+            }
+            if problem.text_truncated {
+                ui.colored_label(theme::GOLD(), "问题文本达到上限，当前说明不完整");
+            }
+            if problem.code == "A213"
+                && focus_action(detail_button(
+                    ui,
+                    scope.with("temporal"),
+                    "查看时间环与来源证据",
+                    true,
+                ))
+            {
+                self.open_temporal_issues(ui.ctx());
+            }
+            ui.separator();
+            if location_ui(
+                ui,
+                "主位置",
+                scope.with("primary"),
+                &problem.primary,
+                current,
+            ) {
+                self.locate_problem(ui.ctx(), None);
+            }
+            if problem.related_count > 0 {
+                ui.separator();
+                ui.strong(format!("相关位置 · 共 {} 处", problem.related_count));
+                if let Some(related) = self.problems.related.clone() {
+                    for (index, location) in related.locations.iter().enumerate() {
+                        let index = self.problems.related_offset + index;
+                        if location_ui(
+                            ui,
+                            &format!("相关位置 {}", index + 1),
+                            scope.with(("related", index)),
+                            location,
+                            current,
+                        ) {
+                            self.locate_problem(ui.ctx(), Some(index));
+                        }
+                        ui.separator();
+                    }
+                    ui.horizontal(|ui| {
+                        if focus_action(detail_button(
+                            ui,
+                            scope.with("related-previous"),
+                            "上页相关位置",
+                            !self.problems.related_history.is_empty(),
+                        )) {
+                            self.problem_related_page(true);
+                        }
+                        if focus_action(detail_button(
+                            ui,
+                            scope.with("related-next"),
+                            "下页相关位置",
+                            related.next_cursor.is_some(),
+                        )) {
+                            self.problem_related_page(false);
+                        }
+                    });
+                    if related.truncated {
+                        ui.colored_label(theme::GOLD(), "相关来源已截断，不能视为完整证据");
+                    }
+                }
+            }
+        });
     }
 
     fn problem_related_page(&mut self, previous: bool) {
@@ -469,6 +495,7 @@ impl WorldeditApp {
                 self.problems.related_offset = cursor.as_ref().map_or(0, |cursor| cursor.offset);
                 self.problems.related_cursor = cursor;
                 self.problems.related = Some(std::sync::Arc::new(page));
+                self.problems.detail_reset = true;
             }
             Err(error) => self.problems.error = Some(error.to_string()),
         }
@@ -510,7 +537,7 @@ impl WorldeditApp {
         });
     }
 
-    pub(in crate::app) fn problems_status(&mut self, ui: &mut egui::Ui) {
+    pub(in crate::app) fn problems_status(&mut self, ui: &mut egui::Ui, content: &str) {
         let text = if let Some(report) = &self.problems.report {
             let errors = report
                 .entries
@@ -524,6 +551,8 @@ impl WorldeditApp {
                 .count();
             let status = if self.problems.error.is_some() {
                 "检查未完成"
+            } else if self.problems.cancelling() {
+                "等待旧检查退出"
             } else if self.problems.job.is_some() {
                 "刷新中"
             } else if self.problems.stale(self.version) {
@@ -541,7 +570,17 @@ impl WorldeditApp {
         } else {
             "工程问题 · 未就绪".into()
         };
-        if ui.small_button(text).clicked() {
+        let full = format!("{content} · {text}");
+        // 为保存状态与长回执保留真实宽度；窄窗只截断入口文字，完整信息仍可悬停或打开。
+        let width = (ui.available_width() * 0.58).min(540.).max(0.);
+        if ui
+            .add_sized(
+                [width, ui.spacing().interact_size.y],
+                egui::Button::new(&full).small().truncate(),
+            )
+            .on_hover_text(full)
+            .clicked()
+        {
             self.open_problems(ui.ctx());
         }
     }
