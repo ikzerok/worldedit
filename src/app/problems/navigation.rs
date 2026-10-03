@@ -133,6 +133,7 @@ impl WorldeditApp {
         match self.project.problem_location(&report, &id, related) {
             Err(error) => self.problems.error = Some(error.to_string()),
             Ok(location) => {
+                let source_location = location.clone();
                 let Some(relative) = &location.path else {
                     return;
                 };
@@ -152,7 +153,7 @@ impl WorldeditApp {
                         self.problems.notice = Some("来源当前无法读取，未沿用旧选区".into());
                         return;
                     };
-                    crate::app::search::request_selection(
+                    crate::app::search::request_diagnostic_selection(
                         ctx,
                         path.clone(),
                         source,
@@ -178,6 +179,7 @@ impl WorldeditApp {
                 }
                 self.remember_author_location(position);
                 self.personal.restore_source = false;
+                self.remember_problem_source(&report, &id, related, path.clone(), source_location);
                 self.active_file = path;
                 self.tab = Tab::Edit;
                 self.jump = None;

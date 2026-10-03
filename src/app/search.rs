@@ -2,13 +2,17 @@
 mod navigation;
 mod objects;
 mod selection;
+mod selection_origin;
 mod transactions;
 mod window;
 use super::WorldeditApp;
 pub(crate) use selection::{
     clear_pending_selection, editor_selection, record_editor_selection, record_navigation_focus,
-    request_selection, restore_editor_selection, restore_writing_selection,
+    request_diagnostic_selection, request_selection, restore_editor_selection, restore_writing_selection,
     scroll_editor_selection, selection_is_representable,
+};
+pub(crate) use selection_origin::{
+    observe_manual_selection, restore_origin, selection_is_diagnostic,
 };
 use std::{collections::BTreeSet, path::PathBuf};
 use worldline_core::{manuscript::WritingBuffer, search_replace::*};

@@ -68,6 +68,10 @@ pub(super) struct Location {
     pub source_scroll: [f32; 2],
     pub source_baseline: Option<String>,
     pub source_secondary: Option<usize>,
+    #[serde(skip)]
+    pub source_selection_diagnostic: bool,
+    #[serde(skip)]
+    pub source_problem: Option<std::sync::Arc<super::problems::SourceProblem>>,
     pub source_view: Option<source_view::SourceView>,
     pub target: Option<TargetRef>,
     pub editor: Option<TargetRef>,
@@ -245,7 +249,11 @@ impl WorldeditApp {
                     .map(|(_, view)| view.clone())
             }),
             source_baseline: source.map(|(_, text)| super::writing_workspace::fingerprint(text)),
+            source_problem: self.capture_problem_source(),
             source_secondary: selection.map(|range| range.secondary.index),
+            source_selection_diagnostic: source.is_some_and(|(id, _)| {
+                ctx.is_some_and(|ctx| super::search::selection_is_diagnostic(ctx, id, selection))
+            }),
             target: self
                 .open_object_identity()
                 .or_else(|| self.catalog_target.clone()),
@@ -399,6 +407,9 @@ impl WorldeditApp {
                         ),
                         h_pos: None,
                     }));
+                    super::search::restore_origin(
+                        ctx, id, state.cursor.char_range(), location.source_selection_diagnostic,
+                    );
                     egui::TextEdit::store_state(ctx, id, state);
                     ctx.memory_mut(|memory| memory.request_focus(id));
                     super::search::record_navigation_focus(ctx, id);
@@ -443,6 +454,7 @@ impl WorldeditApp {
                 return;
             }
         }
+        self.restore_problem_source(location.source_problem);
         if let Some(tab) = location.tab {
             self.tab = tab;
         }

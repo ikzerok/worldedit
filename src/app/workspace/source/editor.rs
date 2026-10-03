@@ -3,6 +3,7 @@ use super::text::{active_mention, source_link_at_cursor, source_selection};
 use crate::app::personal::source_view::SourceFrame;
 use crate::theme;
 mod layout;
+mod selection_action;
 use std::path::PathBuf;
 
 impl WorldeditApp {
@@ -24,6 +25,7 @@ impl WorldeditApp {
                     &relative,
                     "当前缓冲区与整个工程一起编译 · Ctrl+Enter 打开源码引用或按选中文本建档 · Ctrl+S 保存全部文件",
                 );
+        self.problem_source_summary(ui, &path);
         if ui
             .add_enabled(!self.ime_composing, egui::Button::new("为当前选区添加批注"))
             .clicked()
@@ -256,6 +258,7 @@ impl WorldeditApp {
                         .layouter(&mut layouter)
                         .show(ui);
                     super::gutter::paint(ui, gutter, &output.galley, output.galley_pos, body_size);
+                    crate::app::search::observe_manual_selection(ctx, &output, search_navigation);
                     crate::app::writing_workspace::remember_text_undo(ctx, id, &text);
                     crate::app::search::scroll_editor_selection(ui, &output);
                     if output.response.has_focus() {
@@ -461,65 +464,10 @@ impl WorldeditApp {
                     });
                 });
         }
-        let selection_area_id = egui::Id::new(("source-selection-action", &path));
-        // 点建议自身时TextEdit会因外部按下而暂失焦；保留这次明确的建档点击。
-        let pressed_on_suggestion = ctx
-            .input(|input| {
-                input
-                    .pointer
-                    .primary_pressed()
-                    .then(|| input.pointer.interact_pos())
-                    .flatten()
-            })
-            .is_some_and(|position| {
-                ctx.layer_id_at(position)
-                    == Some(egui::LayerId::new(
-                        egui::Order::Foreground,
-                        selection_area_id,
-                    ))
-            });
-        if source_focused && pressed_on_suggestion {
-            ctx.memory_mut(|memory| memory.request_focus(id));
-        }
-        // 选区建议属于源码编辑焦点，不能越过命令/搜索或受保护上层。
-        if !ctx.memory(|memory| memory.has_focus(id))
-            || self.ime_composing
-            || self.command_palette.ime
-            || self.command_palette.ime_frame
-            || self.command_palette.open
-            || self.search_open
-            || self.personal.preferences_open
-            || self
-                .command_palette
-                .focus_stack
-                .iter()
-                .any(|(kind, _)| *kind != "problems")
-        {
-            selected_source_text = None;
-        }
-        if let (Some(selection), Some(anchor)) = (selected_source_text.take(), selection_anchor) {
-            let screen = ctx.screen_rect();
-            let pos = egui::pos2(
-                anchor.x.clamp(
-                    screen.left() + 8.0,
-                    (screen.right() - 220.0).max(screen.left() + 8.0),
-                ),
-                anchor.y.clamp(
-                    screen.top() + 8.0,
-                    (screen.bottom() - 44.0).max(screen.top() + 8.0),
-                ),
-            );
-            egui::Area::new(selection_area_id)
-                .order(egui::Order::Foreground)
-                .fixed_pos(pos)
-                .show(ctx, |ui| {
-                    egui::Frame::popup(ui.style()).show(ui, |ui| {
-                        ui.label(theme::muted("Ctrl+Enter 也可从选中文本建档"));
-                        if ui.button("从选中文本建档").clicked() {
-                            create_from_selection = Some(selection);
-                        }
-                    });
-                });
+        if let Some(selection) = self.source_selection_suggestion(
+            ctx, id, &path, source_focused, selected_source_text.take(), selection_anchor,
+        ) {
+            create_from_selection = Some(selection);
         }
         if self.ime_composing {
             if changed {

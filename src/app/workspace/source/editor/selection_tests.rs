@@ -159,3 +159,46 @@ fn source_selection_suggestion_waits_for_ime_and_keeps_selected_text() {
     );
     assert_eq!(app.project.document(&app.active_file).unwrap(), source);
 }
+
+#[test]
+fn diagnostic_program_selection_and_back_never_offer_passive_creation() {
+    let (ctx, mut app, source) = selected_source();
+    let start = source.find("手选").unwrap();
+    let path = app.active_file.clone();
+    crate::app::search::request_diagnostic_selection(
+        &ctx, path.clone(), source.clone(), start..start + "手选中".len(),
+    );
+    for _ in 0..3 {
+        assert!(text_position(&frame(&ctx, &mut app, vec![]), "从选中文本建档").is_none());
+    }
+    let position = app.author_location(Some(&ctx));
+    assert!(position.source_selection_diagnostic);
+    app.remember_author_location(position);
+    select(&ctx, &app, 0, 0);
+    app.author_back(&ctx);
+    for _ in 0..3 {
+        assert!(text_position(&frame(&ctx, &mut app, vec![]), "从选中文本建档").is_none());
+    }
+    assert_eq!(app.project.document(&path).unwrap(), source);
+    assert!(app.entity_editor.is_none());
+    // 新的Shift选字是明确人工意图，即使问题工具仍在也恢复建议。
+    app.personal.settings.diagnostics = true;
+    frame(&ctx, &mut app, vec![key(Key::ArrowRight, Modifiers::SHIFT)]);
+    assert!(text_position(&frame(&ctx, &mut app, vec![]), "从选中文本建档").is_some());
+    frame(&ctx, &mut app, vec![key(Key::Enter, Modifiers::COMMAND)]);
+    assert!(app.entity_editor.is_some());
+    assert_eq!(app.project.document(&path).unwrap(), source);
+}
+
+#[test]
+fn explicit_ctrl_enter_can_use_diagnostic_selection_without_passive_popup() {
+    let (ctx, mut app, source) = selected_source();
+    let start = source.find("手选").unwrap();
+    crate::app::search::request_diagnostic_selection(
+        &ctx, app.active_file.clone(), source.clone(), start..start + "手选中".len(),
+    );
+    assert!(text_position(&frame(&ctx, &mut app, vec![]), "从选中文本建档").is_none());
+    frame(&ctx, &mut app, vec![key(Key::Enter, Modifiers::COMMAND)]);
+    assert_eq!(app.entity_editor.as_ref().unwrap().draft.display, "手选中");
+    assert_eq!(app.project.document(&app.active_file).unwrap(), source);
+}
