@@ -265,7 +265,7 @@ impl WorldeditApp {
         }
     }
     pub(super) fn reset_views(&mut self) {
-        self.problems = problems::ProblemsState::default();
+        self.problems.reset_for_workspace();
         self.personal.history.clear();
         self.personal.source_scroll = [0.0; 2];
         self.command_palette = commands::CommandPalette::default();

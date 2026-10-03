@@ -1,6 +1,10 @@
 //! 作者问题工具只消费 core 报告；不在 UI 推断诊断、位置或修复状态。
 mod job;
 #[cfg(all(test, not(target_arch = "wasm32")))]
+mod job_slot_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod keyboard_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod lifecycle_tests;
 mod navigation;
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -45,11 +49,33 @@ pub(super) struct ProblemsState {
     pub return_focus: Option<egui::Id>,
     focus_list: bool,
     scroll_selected: bool,
+    detail_reset: bool,
     pub narrow_detail: bool,
     rendered_rows: usize,
 }
 
 impl ProblemsState {
+    fn cancel_job(&mut self) {
+        if self.job.as_mut().is_some_and(job::ProblemsJob::cancel) {
+            self.job = None;
+        }
+    }
+
+    fn cancelling(&self) -> bool {
+        self.job
+            .as_ref()
+            .is_some_and(job::ProblemsJob::is_cancelled)
+    }
+
+    pub(in crate::app) fn reset_for_workspace(&mut self) {
+        self.cancel_job();
+        let retiring = self.job.take();
+        *self = Self {
+            job: retiring,
+            ..Default::default()
+        };
+    }
+
     fn refresh_query(&mut self) {
         let Some(report) = &self.report else { return };
         match report.query(&self.query, self.cursor.as_ref(), 200) {
@@ -83,6 +109,7 @@ impl ProblemsState {
     fn select(&mut self, id: String) {
         if self.selected.as_ref() != Some(&id) {
             self.selected = Some(id.clone());
+            self.detail_reset = true;
             self.related_cursor = None;
             self.related_history.clear();
             self.related_offset = 0;
@@ -143,7 +170,7 @@ impl WorldeditApp {
         let now = ctx.input(|input| input.time);
         if self.problems.schedule.observe(self.version, now) {
             self.problems.invalidated = true;
-            self.problems.job = None;
+            self.problems.cancel_job();
             self.problems.error = None;
         }
         if (self.problems.observation.is_none() && !self.problems.observation_failed)
@@ -157,7 +184,7 @@ impl WorldeditApp {
                     {
                         self.problems.invalidated = true;
                         self.problems.schedule.invalidate(self.version, now);
-                        self.problems.job = None;
+                        self.problems.cancel_job();
                         self.problems.error = None;
                     }
                     self.problems.observation = Some(key);
@@ -165,7 +192,7 @@ impl WorldeditApp {
                 }
                 Err(error) => {
                     self.problems.observation_failed = true;
-                    self.problems.job = None;
+                    self.problems.cancel_job();
                     self.problems.schedule.cancel();
                     self.problems.error =
                         Some(format!("来源范围无法重新观测，旧结果未重新检查：{error}"));
@@ -183,46 +210,16 @@ impl WorldeditApp {
                 self.problems.change_filter();
             }
         }
-        if let Some((ticket, result)) = self
-            .problems
-            .job
-            .as_mut()
-            .and_then(|job| job.poll().map(|result| (job.ticket.clone(), result)))
-        {
-            let baseline = self.project.content_baseline();
-            let observation = self.project.problems_observation_key().ok();
-            let current = observation.as_ref().is_some_and(|observation| {
-                self.problems
-                    .schedule
-                    .accepts(&ticket, self.version, &baseline, observation)
-            });
-            self.problems.job = None;
-            self.problems.schedule.finish();
-            if current {
-                match result {
-                    Ok(report)
-                        if report.content_baseline == baseline
-                            && observation.as_ref() == Some(&report.source_observation) =>
-                    {
-                        self.problems.install(report, self.version)
-                    }
-                    Ok(_) => {
-                        self.problems.error = Some("后台报告基线不匹配，未替换当前结果".into())
-                    }
-                    Err(error) => self.problems.error = Some(error),
-                }
-            } else if let Some(observation) = observation {
-                self.problems.observation = Some(observation);
-                self.problems.invalidated = true;
-                self.problems.schedule.invalidate(self.version, now);
-                self.problems.notice =
-                    Some("来源范围在检查期间变化，已丢弃旧结果并等待重检".into());
-            } else {
-                self.problems.observation_failed = true;
-                self.problems.error = Some("来源范围无法读取，后台结果未接管当前稿".into());
-            }
+        if let Some((ticket, cancelled, result)) = self.problems.job.as_mut().and_then(|job| {
+            job.poll()
+                .map(|result| (job.ticket.clone(), job.is_cancelled(), result))
+        }) {
+            self.finish_problem_job(ticket, cancelled, result, now);
         }
-        if self.problems.schedule.ready(now) && !self.problems.observation_failed {
+        if self.problems.job.is_none()
+            && self.problems.schedule.ready(now)
+            && !self.problems.observation_failed
+        {
             if let Some(ticket) = self.problems.schedule.begin(
                 self.project.content_baseline(),
                 self.problems.observation.clone().unwrap_or_default(),
@@ -243,9 +240,53 @@ impl WorldeditApp {
         }
     }
 
+    fn finish_problem_job(
+        &mut self,
+        ticket: schedule::ReportTicket,
+        cancelled: bool,
+        result: Result<ProblemsReport, String>,
+        now: f64,
+    ) {
+        if cancelled {
+            self.problems.job = None;
+            self.problems.schedule.finish();
+            // 保留最新排队意图：显式取消的attempted仍为true，retry/invalidate才允许重启。
+            return;
+        }
+        let baseline = self.project.content_baseline();
+        let observation = self.project.problems_observation_key().ok();
+        let current = observation.as_ref().is_some_and(|observation| {
+            self.problems
+                .schedule
+                .accepts(&ticket, self.version, &baseline, observation)
+        });
+        self.problems.job = None;
+        self.problems.schedule.finish();
+        if current {
+            match result {
+                Ok(report)
+                    if report.content_baseline == baseline
+                        && observation.as_ref() == Some(&report.source_observation) =>
+                {
+                    self.problems.install(report, self.version)
+                }
+                Ok(_) => self.problems.error = Some("后台报告基线不匹配，未替换当前结果".into()),
+                Err(error) => self.problems.error = Some(error),
+            }
+        } else if let Some(observation) = observation {
+            self.problems.observation = Some(observation);
+            self.problems.invalidated = true;
+            self.problems.schedule.invalidate(self.version, now);
+            self.problems.notice = Some("来源范围在检查期间变化，已丢弃旧结果并等待重检".into());
+        } else {
+            self.problems.observation_failed = true;
+            self.problems.error = Some("来源范围无法读取，后台结果未接管当前稿".into());
+        }
+    }
+
     fn retry_problems(&mut self, ctx: &egui::Context) {
         self.problems.invalidated = true;
-        self.problems.job = None;
+        self.problems.cancel_job();
         self.problems.error = None;
         self.problems.schedule.retry(ctx.input(|input| input.time));
         ctx.request_repaint();
@@ -253,7 +294,7 @@ impl WorldeditApp {
 
     fn cancel_problems(&mut self) {
         self.problems.invalidated = true;
-        self.problems.job = None;
+        self.problems.cancel_job();
         self.problems.schedule.cancel();
         self.problems.error = Some("检查已取消；现有结果未重新检查，请显式刷新".into());
     }

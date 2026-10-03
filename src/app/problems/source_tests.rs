@@ -130,3 +130,92 @@ fn asset_delete_restore_requires_recheck_even_when_the_observation_key_returns()
     assert!(!app.problems.stale(version));
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn document_only_problem_opens_json_without_fake_range_and_back_restores_json_selection() {
+    use worldline_core::problems::{ProblemDomain, ProblemPrecision};
+    let (ctx, mut app) = app();
+    let root = app.project.root.clone();
+    app.project.create_authoring_document(&root.join(".world/project.json"), br#"{"schema_version":1,"language_version":"1.13","required_features":["presentation.maps.v1"],"maps":{"broken":".world/maps.json"}}"#.to_vec()).unwrap();
+    let json_path = root.join(".world/maps.json");
+    let raw = format!("{{\n{}", "  未完成的中文 JSON 🧭\n".repeat(120)).into_bytes();
+    app.project
+        .create_authoring_document(&json_path, raw.clone())
+        .unwrap();
+    app.recompile();
+    let report = app.project.problems_report(&Default::default()).unwrap();
+    let document = report
+        .entries
+        .iter()
+        .find(|entry| {
+            entry.domain == ProblemDomain::Maps
+                && entry.primary.precision == ProblemPrecision::Document
+        })
+        .unwrap()
+        .clone();
+    let source = report
+        .entries
+        .iter()
+        .find(|entry| {
+            entry.domain == ProblemDomain::Content
+                && entry.primary.precision == ProblemPrecision::Span
+        })
+        .unwrap()
+        .clone();
+    assert!(document.primary.span.is_none() && document.primary.byte_range.is_none());
+    app.problems.observation = Some(report.source_observation.clone());
+    app.problems.install(report, app.version);
+    let id = egui::Id::new(("authoring-source", &json_path));
+    let mut state = egui::TextEdit::load_state(&ctx, id).unwrap_or_default();
+    state
+        .cursor
+        .set_char_range(Some(egui::text::CCursorRange::two(
+            egui::text::CCursor::new(2),
+            egui::text::CCursor::new(5),
+        )));
+    state.store(&ctx, id);
+    app.problems.select(document.id);
+    app.locate_problem(&ctx, None);
+    assert_eq!(app.active_file, json_path);
+    assert!(app.jump.is_none());
+    let collapsed = egui::TextEdit::load_state(&ctx, id)
+        .unwrap()
+        .cursor
+        .char_range()
+        .unwrap();
+    assert_eq!(
+        collapsed.primary.index, collapsed.secondary.index,
+        "文档级不能呈现假精确选区"
+    );
+    for _ in 0..3 {
+        frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+    }
+    let mut state = egui::TextEdit::load_state(&ctx, id).unwrap();
+    state.cursor.set_char_range(Some(egui::text::CCursorRange {
+        primary: egui::text::CCursor::new(20),
+        secondary: egui::text::CCursor::new(2),
+        h_pos: None,
+    }));
+    state.store(&ctx, id);
+    app.personal.source_scroll = [0., 120.];
+    app.problems.select(source.id);
+    app.locate_problem(&ctx, None);
+    assert_ne!(app.active_file, json_path);
+    app.author_back(&ctx);
+    assert_eq!(app.active_file, json_path);
+    let restored = egui::TextEdit::load_state(&ctx, id)
+        .unwrap()
+        .cursor
+        .char_range()
+        .unwrap();
+    assert_eq!((restored.primary.index, restored.secondary.index), (20, 2));
+    assert_eq!(app.personal.source_scroll, [0., 120.]);
+    assert!(app.personal.restore_source);
+    frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+    assert!(!app.personal.restore_source);
+    assert!(app.personal.source_scroll[1] > 100.);
+    assert_eq!(
+        app.project.authoring_document(&json_path).unwrap().bytes(),
+        raw
+    );
+}

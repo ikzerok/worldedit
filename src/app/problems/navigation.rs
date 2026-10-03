@@ -119,6 +119,11 @@ impl WorldeditApp {
             self.problems.notice = Some("输入法草稿尚未提交，未离开当前位置".into());
             return;
         }
+        if self.problems.stale(self.version) || self.problems.error.is_some() {
+            self.problems.notice =
+                Some("报告尚未在当前来源范围完成重检，请刷新后定位；当前位置与草稿已保留".into());
+            return;
+        }
         let Some(report) = self.problems.report.clone() else {
             return;
         };
@@ -155,10 +160,24 @@ impl WorldeditApp {
                     );
                 } else {
                     crate::app::search::clear_pending_selection(ctx);
+                    if let Some((id, _)) = self.source_position_document(&path) {
+                        if let Some(mut state) = egui::TextEdit::load_state(ctx, id) {
+                            if let Some(range) = state.cursor.char_range() {
+                                state
+                                    .cursor
+                                    .set_char_range(Some(egui::text::CCursorRange::one(
+                                        range.primary,
+                                    )));
+                                state.store(ctx, id);
+                            }
+                        }
+                        ctx.memory_mut(|memory| memory.request_focus(id));
+                    }
                     self.problems.notice =
                         Some("已打开问题文档；core只提供文档级位置，未伪造行列或选区".into());
                 }
                 self.remember_author_location(position);
+                self.personal.restore_source = false;
                 self.active_file = path;
                 self.tab = Tab::Edit;
                 self.jump = None;

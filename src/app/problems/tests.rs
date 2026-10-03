@@ -271,3 +271,76 @@ fn native_worker_returns_matching_read_only_report_and_cancellation_is_isolated(
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(report.limits.max_report_bytes <= 16 * 1024 * 1024);
 }
+
+#[test]
+fn row_has_two_visible_text_layers_and_uses_one_list_keyboard_focus() {
+    let (ctx, app) = app();
+    let problem = app.problems.report.as_ref().unwrap().entries[0].clone();
+    let source = super::view::location_label(&problem.primary);
+    let mut row_focusable = true;
+    let output = ctx.run(egui::RawInput::default(), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let response = super::view::problem_row(ui, &problem, true, 16., 48.);
+            row_focusable = response.sense.is_focusable();
+        });
+    });
+    assert!(!row_focusable, "行点击后焦点归列表，不能额外制造Tab陷阱");
+    assert!(
+        output.shapes.iter().any(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) => text.galley.text().starts_with(&source),
+            _ => false,
+        }),
+        "相对路径必须有独立可见文本层，不可被摘要单行截断吞掉"
+    );
+}
+
+#[test]
+fn pointer_click_on_both_row_text_layers_selects_the_problem() {
+    let (ctx, mut app) = app();
+    app.open_problems(&ctx);
+    for _ in 0..3 {
+        frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+    }
+    for secondary in [false, true] {
+        app.problems.selected = None;
+        let output = frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+        let first = &app.problems.page.as_ref().unwrap().entries[0];
+        let expected = first.id.clone();
+        let prefix = if secondary {
+            super::view::location_label(&first.primary)
+        } else {
+            format!("{} · ", super::view::severity_label(first.severity))
+        };
+        let point = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::epaint::Shape::Text(text) if text.galley.text().starts_with(&prefix) => {
+                    Some(text.pos + egui::vec2(8., text.galley.size().y / 2.))
+                }
+                _ => None,
+            })
+            .expect("问题行文本必须可见");
+        for pressed in [true, false] {
+            frame(
+                &ctx,
+                &mut app,
+                egui::vec2(1280., 800.),
+                vec![
+                    egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton {
+                        pos: point,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+            );
+        }
+        assert_eq!(
+            app.problems.selected,
+            Some(expected),
+            "行内文本不能截走整行点击"
+        );
+    }
+}

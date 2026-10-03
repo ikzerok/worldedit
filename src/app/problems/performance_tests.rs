@@ -81,3 +81,112 @@ fn five_thousand_problem_consumer_budget() {
     assert!(frame_p95 <= 40., "布局p95超过冻结40ms预算");
     assert!(delta <= 128 * 1024, "增量RSS超过128MiB预算");
 }
+
+fn hwm_kib() -> usize {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|text| {
+            text.lines()
+                .find(|line| line.starts_with("VmHWM:"))
+                .and_then(|line| line.split_whitespace().nth(1))
+                .and_then(|value| value.parse().ok())
+        })
+        .unwrap_or(0)
+}
+struct RssSampler {
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    peak: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+impl RssSampler {
+    fn start(baseline: usize) -> Self {
+        use std::sync::{
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+            Arc,
+        };
+        let stop = Arc::new(AtomicBool::new(false));
+        let peak = Arc::new(AtomicUsize::new(baseline));
+        let worker_stop = stop.clone();
+        let worker_peak = peak.clone();
+        let thread = std::thread::spawn(move || {
+            while !worker_stop.load(Ordering::Acquire) {
+                worker_peak.fetch_max(rss_kib(), Ordering::AcqRel);
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        });
+        Self {
+            stop,
+            peak,
+            thread: Some(thread),
+        }
+    }
+    fn peak(&self) -> usize {
+        self.peak.load(std::sync::atomic::Ordering::Acquire)
+    }
+}
+impl Drop for RssSampler {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::Release);
+        if let Some(thread) = self.thread.take() {
+            thread.join().unwrap();
+        }
+    }
+}
+
+#[test]
+#[ignore = "独占同一进程实际报告+问题UI的RSS门禁，--ignored --test-threads=1"]
+fn actual_report_and_ui_combined_memory_budget() {
+    let (ctx, mut app) = app();
+    let source = format!(
+        "event start\n{}",
+        (0..5_000)
+            .map(|i| format!("  -> missing_{i:04}\n"))
+            .collect::<String>()
+    );
+    app.project
+        .set_text(&app.active_file.clone(), source)
+        .unwrap();
+    app.recompile();
+    app.problems.report = None;
+    app.problems.page = None;
+    app.open_problems(&ctx);
+    for _ in 0..3 {
+        frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+    }
+    let baseline_rss = rss_kib();
+    let baseline_hwm = hwm_kib();
+    let sampler = RssSampler::start(baseline_rss);
+    let started = std::time::Instant::now();
+    let ticket = super::schedule::ReportTicket {
+        generation: 1,
+        version: app.version,
+        baseline: app.project.content_baseline(),
+        observation: app.project.problems_observation_key().unwrap(),
+    };
+    let mut job = super::job::ProblemsJob::start(&app.project, ticket, &ctx).unwrap();
+    let report = loop {
+        if let Some(result) = job.poll() {
+            break result.unwrap();
+        }
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "实际后台报告超过5秒预算"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    };
+    let build_ms = started.elapsed().as_secs_f64() * 1000.;
+    let count = report.entries.len();
+    assert!(count >= 5_000, "必须由真实core构建不少于5000问题");
+    assert_eq!(report.compile_count, 1);
+    app.problems.observation = Some(report.source_observation.clone());
+    app.problems.install(report, app.version);
+    for _ in 0..60 {
+        frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+    }
+    let peak = sampler.peak().max(hwm_kib());
+    let delta = peak.saturating_sub(baseline_rss);
+    println!("PROBLEMS_COMBINED_RSS {{\"actual_problem_count\":{count},\"build_ms\":{build_ms},\"layout_samples\":60,\"sampling_interval_ms\":1,\"baseline_rss_kib\":{baseline_rss},\"baseline_hwm_kib\":{baseline_hwm},\"peak_rss_or_kernel_hwm_kib\":{peak},\"delta_kib\":{delta},\"compile_count\":1,\"rendered_rows\":{}}}", app.problems.rendered_rows);
+    assert!(baseline_rss > 0 && peak > 0, "RSS来源不可用不能当作通过");
+    assert!(delta <= 128 * 1024, "同进程实际报告+UI增量超过128MiB");
+    assert!(app.problems.rendered_rows < 40);
+}

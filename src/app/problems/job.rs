@@ -107,10 +107,50 @@ impl ProblemsJob {
     }
 
     pub(super) fn status(&self) -> String {
+        if self.is_cancelled() {
+            return "等待旧版本检查退出；保留当前稿，不并行启动新编译".into();
+        }
         self.progress
             .lock()
             .map(|value| value.clone())
             .unwrap_or_else(|_| "正在检查工程问题".into())
+    }
+
+    pub(super) fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+
+    /// true表示可立即释放slot；native必须等receiver终态，WASM terminate已停止worker。
+    pub(super) fn cancel(&mut self) -> bool {
+        self.cancelled.store(true, Ordering::Release);
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.worker.cancel();
+            true
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            false
+        }
+    }
+
+    #[cfg(all(test, not(target_arch = "wasm32")))]
+    pub(super) fn controlled(
+        ticket: ReportTicket,
+    ) -> (
+        Self,
+        std::sync::mpsc::Sender<Result<ProblemsReport, String>>,
+    ) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        (
+            Self {
+                ticket,
+                cancelled: Arc::new(AtomicBool::new(false)),
+                progress: Arc::new(Mutex::new("受控未完成检查".into())),
+                receiver,
+            },
+            sender,
+        )
     }
 
     pub(super) fn poll(&mut self) -> Option<Result<ProblemsReport, String>> {
@@ -146,9 +186,7 @@ impl ProblemsJob {
 }
 impl Drop for ProblemsJob {
     fn drop(&mut self) {
-        self.cancelled.store(true, Ordering::Release);
-        #[cfg(target_arch = "wasm32")]
-        self.worker.cancel();
+        self.cancel();
     }
 }
 
