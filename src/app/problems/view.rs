@@ -176,7 +176,35 @@ pub(super) fn focus_action(response: egui::Response) -> bool {
     if response.gained_focus() {
         response.scroll_to_me(Some(egui::Align::Center));
     }
-    response.clicked()
+    action_clicked(response)
+}
+
+/// 键盘激活只属于这次工具动作，不能再投递给本帧随后出现的新来源TextEdit。
+pub(super) fn action_clicked(response: egui::Response) -> bool {
+    let clicked = response.clicked();
+    if clicked && !response.clicked_by(egui::PointerButton::Primary) {
+        response.ctx.input_mut(|input| {
+            let enter = input.key_pressed(egui::Key::Enter);
+            let space = input.key_pressed(egui::Key::Space);
+            input.events.retain(|event| match event {
+                egui::Event::Key {
+                    key: egui::Key::Enter,
+                    pressed: true,
+                    ..
+                } => !enter,
+                egui::Event::Key {
+                    key: egui::Key::Space,
+                    pressed: true,
+                    ..
+                } => !space,
+                egui::Event::Text(text) => {
+                    !(enter && matches!(text.as_str(), "\n" | "\r") || space && text == " ")
+                }
+                _ => true,
+            });
+        });
+    }
+    clicked
 }
 
 /// 动态段落折行不得改变键盘动作的身份；外观复用Button，交互绑定稳定问题/来源ID。

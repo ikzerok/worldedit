@@ -63,18 +63,17 @@ fn press(
 ) -> Vec<egui::WidgetInfo> {
     let mut focused = Vec::new();
     for pressed in [true, false] {
-        let output = frame(
-            ctx,
-            app,
-            size,
-            vec![egui::Event::Key {
-                key,
-                physical_key: Some(key),
-                pressed,
-                repeat: false,
-                modifiers,
-            }],
-        );
+        let mut events = vec![egui::Event::Key {
+            key,
+            physical_key: Some(key),
+            pressed,
+            repeat: false,
+            modifiers,
+        }];
+        if pressed && key == egui::Key::Space {
+            events.push(egui::Event::Text(" ".into()));
+        }
+        let output = frame(ctx, app, size, events);
         for event in output.platform_output.events {
             if let egui::output::OutputEvent::FocusGained(info) = event {
                 focused.push(info);
@@ -105,81 +104,89 @@ fn visible_focus(ctx: &egui::Context, app: &mut WorldeditApp, size: egui::Vec2, 
 
 #[test]
 fn tab_reveals_primary_and_related_actions_then_enter_and_back_work_in_short_large_type_pane() {
-    for size in [egui::vec2(1188., 848.), egui::vec2(1040., 660.)] {
-        for font in [16., 28.] {
-            let (ctx, mut app, id) = fixture();
-            let original = app.active_file.clone();
-            let target = app
-                .project
-                .problem_location(app.problems.report.as_ref().unwrap(), &id, Some(0))
-                .unwrap()
-                .path
-                .unwrap();
-            app.personal.settings.body_size = font;
-            app.open_problems(&ctx);
-            app.problems.narrow_detail = size.x < 1180.;
-            ctx.data_mut(|data| {
-                data.insert_persisted(
-                    egui::Id::new("project-problems"),
-                    egui::containers::panel::PanelState {
-                        rect: egui::Rect::from_min_size(
-                            egui::pos2(0., size.y - 220.),
-                            egui::vec2(size.x, 220.),
-                        ),
-                    },
-                )
-            });
-            for _ in 0..4 {
-                frame(&ctx, &mut app, size, vec![]);
-            }
-            let mut locations = 0;
-            let mut copied = 0;
-            let mut seen_labels = Vec::new();
-            for _ in 0..80 {
-                let focus = press(&ctx, &mut app, size, egui::Key::Tab, egui::Modifiers::NONE);
-                for item in focus {
-                    if let Some(label) = item.label {
-                        seen_labels.push(label.clone());
-                        if matches!(label.as_str(), "复制问题" | "复制位置" | "定位来源")
-                        {
-                            visible_focus(&ctx, &mut app, size, &label);
-                            if label == "复制位置" {
-                                copied += 1;
-                            }
-                            if label == "定位来源" {
-                                locations += 1;
+    for activation in [egui::Key::Enter, egui::Key::Space] {
+        for size in [egui::vec2(1188., 848.), egui::vec2(1040., 660.)] {
+            for font in [16., 28.] {
+                let (ctx, mut app, id) = fixture();
+                let original = app.active_file.clone();
+                let target = app
+                    .project
+                    .problem_location(app.problems.report.as_ref().unwrap(), &id, Some(0))
+                    .unwrap()
+                    .path
+                    .unwrap();
+                app.personal.settings.body_size = font;
+                app.open_problems(&ctx);
+                app.problems.narrow_detail = size.x < 1180.;
+                ctx.data_mut(|data| {
+                    data.insert_persisted(
+                        egui::Id::new("project-problems"),
+                        egui::containers::panel::PanelState {
+                            rect: egui::Rect::from_min_size(
+                                egui::pos2(0., size.y - 220.),
+                                egui::vec2(size.x, 220.),
+                            ),
+                        },
+                    )
+                });
+                for _ in 0..4 {
+                    frame(&ctx, &mut app, size, vec![]);
+                }
+                let mut locations = 0;
+                let mut copied = 0;
+                let mut seen_labels = Vec::new();
+                for _ in 0..80 {
+                    let focus = press(&ctx, &mut app, size, egui::Key::Tab, egui::Modifiers::NONE);
+                    for item in focus {
+                        if let Some(label) = item.label {
+                            seen_labels.push(label.clone());
+                            if matches!(label.as_str(), "复制问题" | "复制位置" | "定位来源")
+                            {
+                                visible_focus(&ctx, &mut app, size, &label);
+                                if label == "复制位置" {
+                                    copied += 1;
+                                }
+                                if label == "定位来源" {
+                                    locations += 1;
+                                }
                             }
                         }
                     }
+                    if locations == 2 {
+                        break;
+                    }
                 }
-                if locations == 2 {
-                    break;
-                }
-            }
-            assert_eq!(
+                assert_eq!(
                 locations, 2,
                 "主/related定位均应可Tab到达，size={size:?} font={font}; seen={seen_labels:?}; selected={:?} stale={} error={:?} narrow={}", app.problems.selected, app.problems.stale(app.version), app.problems.error, app.problems.narrow_detail
             );
-            assert!(copied >= 2);
-            press(
-                &ctx,
-                &mut app,
-                size,
-                egui::Key::Enter,
-                egui::Modifiers::NONE,
-            );
-            assert_eq!(app.active_file, app.project.root.join(target));
-            assert_eq!(app.tab, Tab::Edit);
-            press(
-                &ctx,
-                &mut app,
-                size,
-                egui::Key::ArrowLeft,
-                egui::Modifiers::ALT,
-            );
-            assert_eq!(app.active_file, original);
-            assert_eq!(app.tab, Tab::Manuscript);
-            assert_eq!(app.problems.selected, Some(id));
+                assert!(copied >= 2);
+                let sources_before = app.project.sources();
+                let dirty_before = app.project.is_dirty();
+                let version_before = app.version;
+                let history_before = app.history.len();
+                press(&ctx, &mut app, size, activation, egui::Modifiers::NONE);
+                assert_eq!(
+                    app.project.sources(),
+                    sources_before,
+                    "激活键{activation:?}不能泄漏为源码输入"
+                );
+                assert_eq!(app.project.is_dirty(), dirty_before);
+                assert_eq!(app.version, version_before);
+                assert_eq!(app.history.len(), history_before);
+                assert_eq!(app.active_file, app.project.root.join(target));
+                assert_eq!(app.tab, Tab::Edit);
+                press(
+                    &ctx,
+                    &mut app,
+                    size,
+                    egui::Key::ArrowLeft,
+                    egui::Modifiers::ALT,
+                );
+                assert_eq!(app.active_file, original);
+                assert_eq!(app.tab, Tab::Manuscript);
+                assert_eq!(app.problems.selected, Some(id));
+            }
         }
     }
 }

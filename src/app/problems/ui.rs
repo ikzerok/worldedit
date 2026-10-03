@@ -121,18 +121,10 @@ impl WorldeditApp {
             } else if ui.small_button("刷新检查").clicked() {
                 self.retry_problems(ui.ctx());
             }
-            if ui
-                .small_button("上一问题")
-                .on_hover_text("原生：Shift+F8")
-                .clicked()
-            {
+            if action_clicked(ui.small_button("上一问题").on_hover_text("原生：Shift+F8")) {
                 self.step_problem(ui.ctx(), true, true);
             }
-            if ui
-                .small_button("下一问题")
-                .on_hover_text("原生：F8")
-                .clicked()
-            {
+            if action_clicked(ui.small_button("下一问题").on_hover_text("原生：F8")) {
                 self.step_problem(ui.ctx(), false, true);
             }
             self.problem_coverage_menu(ui);
@@ -573,14 +565,13 @@ impl WorldeditApp {
         let full = format!("{content} · {text}");
         // 为保存状态与长回执保留真实宽度；窄窗只截断入口文字，完整信息仍可悬停或打开。
         let width = (ui.available_width() * 0.58).clamp(0., 540.);
-        if ui
-            .add_sized(
+        if action_clicked(
+            ui.add_sized(
                 [width, ui.spacing().interact_size.y],
                 egui::Button::new(&full).small().truncate(),
             )
-            .on_hover_text(full)
-            .clicked()
-        {
+            .on_hover_text(full),
+        ) {
             self.open_problems(ui.ctx());
         }
     }
