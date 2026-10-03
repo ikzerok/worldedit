@@ -1,13 +1,15 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.17.0 聚焦人物局部上下文、来源与时间问题定位、自适应布局，以及core提供的确定性安全源码整理。默认语言仍为 1.9，最高既有显式版本 1.13；旧作品不自动升级。
+worldline 的 Rust / egui 作者工作台。0.18.0 提供由 core 统一生成的全局工程问题工具，以及默认关闭、设备本地保存的源码自动换行；保留物理行、来源选区、搜索、Back 与草稿保护。默认语言仍为 1.9，最高既有显式版本 1.13；旧作品不自动升级。
 
-版本能力、升级边界与已执行验证见 [0.17 说明](docs/releases/v0.17.0.md)；是否已公开发行以正式 Release 记录为准。完整工作流与验收合同见 [人物焦点工作区](docs/focused-author-workbench.md)，完整变更见 [CHANGELOG](CHANGELOG.md)。静态渲染、egui事件测试与Node模型不会冒充真实浏览器、系统输入法或物理高DPI验收。
+版本能力、升级边界与实际验证见 [0.18 说明](docs/releases/v0.18.0.md)；是否已公开发行以正式 Release 记录为准。工作流见 [工程问题](docs/project-problems.md) 和 [源码自动换行](docs/source-wrap.md)，完整变更见 [CHANGELOG](CHANGELOG.md)。egui frame、WASM 构建和 Node Worker 协议验证不替代真实浏览器、系统输入法或高 DPI 验收。
 
-升级边界：0.16 的重放 trace 按既有 runtime_version 合同不能在0.17直接重放，不应手改版本字段绕过；普通存档与检查点分别按验证记录判断。
+升级边界：0.17 普通 Story save 在本轮同稿 fixture 中恢复成功；旧 trace 与 checkpoint 仍按 runtime_version 拒绝将0.17记录直接交给0.18重放，不要修改版本字段绕过。升级前保留完整工程和原记录。统一问题列表不改变故事运行或发布的既有门禁。
 
 ## 使用入口
 
+- [全局工程问题](docs/project-problems.md)：筛选、真实来源精度、部分覆盖、后台刷新与键盘定位
+- [源码自动换行](docs/source-wrap.md)：长行折行、物理行号与有效作者位置保持
 - [人物焦点与时间问题](docs/focused-author-workbench.md)：有类型局部关系、真实来源、闭环证据和键盘返回
 
 - [安全源码路径](docs/source-lifecycle.md)：预览正式引用与资源变化，整批应用、一次撤销，保存才落盘

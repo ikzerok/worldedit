@@ -193,7 +193,7 @@ impl WorldeditApp {
             });
     }
 
-    fn status_details(&self, ui: &mut egui::Ui) {
+    fn status_details(&mut self, ui: &mut egui::Ui) {
         let errors = self
             .diagnostics()
             .iter()
@@ -204,25 +204,23 @@ impl WorldeditApp {
             .iter()
             .filter(|d| d.severity == Severity::Warning)
             .count();
-        ui.colored_label(
-            if errors > 0 { ERROR() } else { ACCENT() },
-            if errors > 0 {
-                format!("● {errors} 个错误")
-            } else {
-                "● 编译通过".into()
-            },
-        );
-        if warnings > 0 {
-            ui.label(theme::muted(format!("{warnings} 个提醒")));
-        }
-        ui.separator();
-        ui.label(theme::muted(if self.has_open_authoring_form() {
-            "有未应用输入（尚未保存）"
-        } else if self.project.is_dirty() {
-            "有未保存修改"
+        let content = if errors > 0 {
+            format!("内容 {errors} 错误 · {warnings} 提醒")
         } else {
-            "全部文件已保存"
-        }));
+            format!("内容编译通过 · {warnings} 提醒")
+        };
+        let compact = ui.available_width() < 500.;
+        self.problems_status(ui, &content);
+        ui.separator();
+        let (short, full) = if self.has_open_authoring_form() {
+            ("未应用", "有未应用输入（尚未保存）")
+        } else if self.project.is_dirty() {
+            ("未保存", "有未保存修改")
+        } else {
+            ("已保存", "全部文件已保存")
+        };
+        ui.label(theme::muted(if compact { short } else { full }))
+            .on_hover_text(full);
         if let Some(message) = &self.message {
             ui.add_sized(
                 egui::vec2(ui.available_width().max(0.0), ui.spacing().interact_size.y),

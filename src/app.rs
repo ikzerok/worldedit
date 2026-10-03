@@ -41,6 +41,7 @@ mod play;
 #[cfg(test)]
 mod play_semantic_tests;
 mod presets;
+mod problems;
 mod reader_publish;
 mod reading;
 mod reading_state;
@@ -261,6 +262,7 @@ impl DirectoryDialog {
 }
 
 pub struct WorldeditApp {
+    problems: problems::ProblemsState,
     project: Project,
     personal: personal::PersonalState,
     command_palette: commands::CommandPalette,

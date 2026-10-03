@@ -1,6 +1,8 @@
 use super::super::super::WorldeditApp;
 use super::text::{active_mention, source_link_at_cursor, source_selection};
-use crate::{highlight, theme};
+use crate::app::personal::source_view::SourceFrame;
+use crate::theme;
+mod layout;
 use std::path::PathBuf;
 
 impl WorldeditApp {
@@ -87,8 +89,21 @@ impl WorldeditApp {
         let language_version = self.project.language_version_kind();
         let body_size = self.personal.settings.body_size;
         let line_height = body_size * self.personal.settings.line_spacing;
+        let wrap = self.personal.settings.source_wrap;
+        let previous_view = self
+            .personal
+            .source_view
+            .as_ref()
+            .filter(|(view_path, _)| view_path == &path)
+            .map(|(_, view)| view.clone());
+        let mut source_frame = None;
+        let mut search_navigation = false;
         let scroll_salt = egui::Id::new(("source-scroll", &path));
-        let mut scroll = egui::ScrollArea::both();
+        let mut scroll = if wrap {
+            egui::ScrollArea::vertical().horizontal_scroll_offset(0.0)
+        } else {
+            egui::ScrollArea::both()
+        };
         let restoring_scroll = self.personal.restore_source && target.is_none();
         if restoring_scroll {
             let offset = egui::vec2(
@@ -102,23 +117,26 @@ impl WorldeditApp {
             scroll = scroll.scroll_offset(offset).animated(false);
         }
         self.personal.restore_source = false;
-        let scroll_output = scroll
+        let mut scroll_output = scroll
             .id_salt(("source-scroll", &path))
             .auto_shrink([false, false])
-            .show(ui, |ui| {
+            .show_viewport(ui, |ui, viewport| {
                 ui.horizontal_top(|ui| {
-                    let gutter = super::gutter::reserve(ui, &text);
+                    let gutter = super::gutter::reserve(ui, &text, body_size);
                     ui.separator();
-                    let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, _: f32| {
-                        ui.fonts(|f| {
-                            let mut job =
-                                highlight::layout_job(buffer.as_str(), body_size, language_version);
-                            for section in &mut job.sections {
-                                section.format.line_height = Some(line_height);
-                            }
-                            f.layout_job(job)
-                        })
-                    };
+                    let mut layouter =
+                        |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, width: f32| {
+                            ui.fonts(|f| {
+                                f.layout_job(layout::job(
+                                    buffer.as_str(),
+                                    body_size,
+                                    line_height,
+                                    language_version,
+                                    wrap,
+                                    width,
+                                ))
+                            })
+                        };
                     let editor_state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
                     let editor_focused = ctx.memory(|memory| memory.has_focus(id));
                     if editor_focused && !self.ime_composing {
@@ -221,17 +239,23 @@ impl WorldeditApp {
                             }
                         }
                     }
-                    crate::app::search::restore_editor_selection(ui, id, &path, &text, 0, &text);
+                    search_navigation = crate::app::search::restore_editor_selection(
+                        ui, id, &path, &text, 0, &text,
+                    );
                     let mut output = egui::TextEdit::multiline(&mut text)
                         .id(id)
                         .code_editor()
                         .font(egui::FontId::monospace(body_size))
-                        .desired_width(ui.available_width().max(500.0))
+                        .desired_width(if wrap {
+                            ui.available_width().max(1.0)
+                        } else {
+                            ui.available_width().max(500.0)
+                        })
                         .desired_rows(36)
                         .frame(false)
                         .layouter(&mut layouter)
                         .show(ui);
-                    super::gutter::paint(ui, gutter, &output.galley, output.galley_pos);
+                    super::gutter::paint(ui, gutter, &output.galley, output.galley_pos, body_size);
                     crate::app::writing_workspace::remember_text_undo(ctx, id, &text);
                     crate::app::search::scroll_editor_selection(ui, &output);
                     if output.response.has_focus() {
@@ -368,7 +392,7 @@ impl WorldeditApp {
                             .state
                             .cursor
                             .set_char_range(Some(egui::text::CCursorRange::one(cursor)));
-                        output.state.store(ctx, id);
+                        output.state.clone().store(ctx, id);
                         output.response.request_focus();
                         let rect = output
                             .galley
@@ -376,11 +400,22 @@ impl WorldeditApp {
                             .translate(output.galley_pos.to_vec2());
                         ui.scroll_to_rect(rect, Some(egui::Align::Center));
                     }
+                    source_frame =
+                        Some(SourceFrame::new(&output, viewport, &self.personal.settings));
                 });
                 if restoring_scroll {
                     ui.scroll_to_rect(ui.clip_rect(), None);
                 }
             });
+        if let Some(frame) = source_frame {
+            let view = frame.finish(
+                ctx,
+                &mut scroll_output,
+                previous_view.as_ref(),
+                target.is_some() || search_navigation,
+            );
+            self.personal.source_view = Some((path.clone(), view));
+        }
         self.personal.source_scroll = [scroll_output.state.offset.x, scroll_output.state.offset.y];
         if let (Some((at_char, query, candidates, selected_index)), Some(anchor)) =
             (mention_popup.take(), mention_anchor)
@@ -426,6 +461,42 @@ impl WorldeditApp {
                     });
                 });
         }
+        let selection_area_id = egui::Id::new(("source-selection-action", &path));
+        // 点建议自身时TextEdit会因外部按下而暂失焦；保留这次明确的建档点击。
+        let pressed_on_suggestion = ctx
+            .input(|input| {
+                input
+                    .pointer
+                    .primary_pressed()
+                    .then(|| input.pointer.interact_pos())
+                    .flatten()
+            })
+            .is_some_and(|position| {
+                ctx.layer_id_at(position)
+                    == Some(egui::LayerId::new(
+                        egui::Order::Foreground,
+                        selection_area_id,
+                    ))
+            });
+        if source_focused && pressed_on_suggestion {
+            ctx.memory_mut(|memory| memory.request_focus(id));
+        }
+        // 选区建议属于源码编辑焦点，不能越过命令/搜索或受保护上层。
+        if !ctx.memory(|memory| memory.has_focus(id))
+            || self.ime_composing
+            || self.command_palette.ime
+            || self.command_palette.ime_frame
+            || self.command_palette.open
+            || self.search_open
+            || self.personal.preferences_open
+            || self
+                .command_palette
+                .focus_stack
+                .iter()
+                .any(|(kind, _)| *kind != "problems")
+        {
+            selected_source_text = None;
+        }
         if let (Some(selection), Some(anchor)) = (selected_source_text.take(), selection_anchor) {
             let screen = ctx.screen_rect();
             let pos = egui::pos2(
@@ -438,7 +509,7 @@ impl WorldeditApp {
                     (screen.bottom() - 44.0).max(screen.top() + 8.0),
                 ),
             );
-            egui::Area::new(egui::Id::new(("source-selection-action", &path)))
+            egui::Area::new(selection_area_id)
                 .order(egui::Order::Foreground)
                 .fixed_pos(pos)
                 .show(ctx, |ui| {
@@ -510,3 +581,12 @@ impl WorldeditApp {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod selection_tests;
+
+#[cfg(test)]
+mod scroll_tests;

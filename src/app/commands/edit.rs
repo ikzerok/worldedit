@@ -80,6 +80,16 @@ impl WorldeditApp {
                     self.character_focus.inspector_open = false;
                     true
                 }
+                Some("problems") => {
+                    if self.problems.narrow_detail {
+                        self.problems.narrow_detail = false;
+                        ctx.memory_mut(|m| m.request_focus(egui::Id::new("problems-list")));
+                        ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                        return;
+                    }
+                    self.personal.settings.diagnostics = false;
+                    true
+                }
                 Some("temporal-issues") => {
                     self.temporal_issues.open = false;
                     true

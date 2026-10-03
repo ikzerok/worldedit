@@ -323,3 +323,55 @@ fn reader_profile_plan_keeps_every_original_route_field_and_known_scope() {
         .accepts_lengths(&WorkOutput::ReaderProfileSavePlan { plan }, &[])
         .is_err());
 }
+
+#[test]
+fn problems_report_transport_binds_budget_baseline_observation_and_output_kind() {
+    use worldline_core::{problems::ProblemsOptions, project::Project};
+    let project = Project::new(
+        &std::env::temp_dir().join(format!("problems-protocol-{}", std::process::id())),
+    );
+    let options = ProblemsOptions {
+        max_report_bytes: 16 * 1024 * 1024,
+        ..Default::default()
+    };
+    let report = project.problems_report(&options).unwrap();
+    let mut req = request(WorkTask::ProblemsReport {
+        options,
+        source_observation: report.source_observation.clone(),
+    });
+    req.baseline = report.content_baseline.clone();
+    req.snapshot_state = Some(project.snapshot_state().unwrap());
+    assert!(req.validate().is_ok());
+    let output = WorkOutput::ProblemsReport {
+        report: report.clone(),
+    };
+    assert!(req.accepts(&output, &[]).is_ok());
+    assert!(req.accepts(&output, &[vec![1]]).is_err());
+    let json = serde_json::to_string(&output).unwrap();
+    let decoded: WorkOutput = serde_json::from_str(&json).unwrap();
+    assert!(req.accepts(&decoded, &[]).is_ok());
+    for field in ["schema", "baseline", "observation", "budget", "compiles"] {
+        let mut changed = report.clone();
+        match field {
+            "schema" => changed.schema_version += 1,
+            "baseline" => changed.content_baseline.push('x'),
+            "observation" => changed.source_observation.push('x'),
+            "budget" => changed.limits.max_report_bytes += 1,
+            "compiles" => changed.compile_count = 2,
+            _ => unreachable!(),
+        }
+        assert!(
+            req.accepts(&WorkOutput::ProblemsReport { report: changed }, &[])
+                .is_err(),
+            "{field}"
+        );
+    }
+    assert!(req
+        .accepts(
+            &WorkOutput::MapSvgExport {
+                source: "<svg/>".into()
+            },
+            &[]
+        )
+        .is_err());
+}

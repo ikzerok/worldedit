@@ -51,8 +51,10 @@ impl WorldeditApp {
             }
             ui.separator();
             ui.checkbox(&mut self.personal.settings.navigation, "显示导航");
-            ui.checkbox(&mut self.personal.settings.diagnostics, "显示诊断栏");
+            ui.checkbox(&mut self.personal.settings.diagnostics, "显示工程问题");
             ui.checkbox(&mut self.personal.settings.focus, "正文专注模式");
+            ui.checkbox(&mut self.personal.settings.source_wrap, "源码自动换行")
+                .on_hover_text("按编辑区宽度显示长段落；不修改源文件换行或内容");
             ui.checkbox(
                 &mut self.personal.settings.references_visible,
                 "显示固定参考",
@@ -81,22 +83,31 @@ impl WorldeditApp {
         });
     }
     pub(in crate::app) fn preferences_window(&mut self, ctx: &egui::Context) {
+        let focus_entry = egui::Id::new("preferences-focus-entry");
         if !self.personal.preferences_open {
+            ctx.data_mut(|data| data.remove::<bool>(focus_entry));
             return;
         }
+        let entering = ctx.data_mut(|data| {
+            let entering = data.get_temp::<bool>(focus_entry) != Some(true);
+            data.insert_temp(focus_entry, true);
+            entering
+        });
         let mut open = true;
         egui::Window::new("阅读与外观 · 仅此设备").open(&mut open).collapsible(false)
             .default_width(420.0).show(ctx,|ui| {
                 let s=&mut self.personal.settings;
                 ui.horizontal_wrapped(|ui| {
                     ui.label("主题");
-                    ui.selectable_value(&mut s.theme,crate::theme::ThemeMode::Dark,"暗色");
+                    let first = ui.selectable_value(&mut s.theme,crate::theme::ThemeMode::Dark,"暗色");
+                    if entering { first.request_focus(); }
                     ui.selectable_value(&mut s.theme,crate::theme::ThemeMode::Light,"亮色");
                     ui.selectable_value(&mut s.theme,crate::theme::ThemeMode::System,"跟随系统");
                 });
                 ui.add(egui::Slider::new(&mut s.body_size,12.0..=28.0).text("正文字号"));
                 ui.add(egui::Slider::new(&mut s.line_spacing,1.0..=2.0).text("行距倍数"));
                 ui.add(egui::Slider::new(&mut s.reading_width,480.0..=1400.0).text("阅读宽度"));
+                ui.checkbox(&mut s.source_wrap,"源码自动换行");
                 ui.separator();
                 ui.label(egui::RichText::new("潮水涨起时，留在纸上的名字仍然清晰。Aa 0123").size(s.body_size));
                 ui.label("仅影响显示，不写入作品或共享查询。Ctrl/Cmd+P 切换对象；Ctrl/Cmd+Shift+P 任务命令；Alt+← 返回。");
@@ -104,6 +115,9 @@ impl WorldeditApp {
             });
         if !open {
             self.personal.preferences_open = false;
+        }
+        if !self.personal.preferences_open {
+            ctx.data_mut(|data| data.remove::<bool>(focus_entry));
         }
     }
 }

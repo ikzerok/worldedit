@@ -17,6 +17,7 @@ impl WorldeditApp {
         theme::configure(&cc.egui_ctx, theme::ThemeMode::Dark);
         let project = Project::new(&draft_root());
         let mut app = Self {
+            problems: problems::ProblemsState::default(),
             active_file: project.entry.clone(),
             project,
             personal: personal::PersonalState::restore(cc.storage),
@@ -264,6 +265,7 @@ impl WorldeditApp {
         }
     }
     pub(super) fn reset_views(&mut self) {
+        self.problems.reset_for_workspace();
         self.personal.history.clear();
         self.personal.source_scroll = [0.0; 2];
         self.command_palette = commands::CommandPalette::default();

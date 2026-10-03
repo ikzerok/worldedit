@@ -1,4 +1,6 @@
 //! 设备个人状态；从不写入 Project、源码或展示文档。
+mod source_position;
+pub(super) mod source_view;
 mod ui;
 use super::{Tab, WorldeditApp};
 use serde::{Deserialize, Serialize};
@@ -16,6 +18,7 @@ pub(super) struct Settings {
     pub theme: crate::theme::ThemeMode,
     pub navigation: bool,
     pub diagnostics: bool,
+    pub source_wrap: bool,
     pub focus: bool,
     pub dock_references: bool,
     pub references_visible: bool,
@@ -31,6 +34,7 @@ impl Default for Settings {
             theme: crate::theme::ThemeMode::Dark,
             navigation: true,
             diagnostics: false,
+            source_wrap: false,
             focus: false,
             dock_references: true,
             references_visible: true,
@@ -64,6 +68,7 @@ pub(super) struct Location {
     pub source_scroll: [f32; 2],
     pub source_baseline: Option<String>,
     pub source_secondary: Option<usize>,
+    pub source_view: Option<source_view::SourceView>,
     pub target: Option<TargetRef>,
     pub editor: Option<TargetRef>,
     pub event: Option<String>,
@@ -91,6 +96,8 @@ pub(super) struct PersonalState {
     #[serde(skip)]
     pub source_cursor: Option<(PathBuf, usize)>,
     #[serde(skip)]
+    pub source_view: Option<(PathBuf, source_view::SourceView)>,
+    #[serde(skip)]
     pub preferences_open: bool,
     #[serde(skip)]
     pub catalog_drawer_open: bool,
@@ -111,6 +118,7 @@ impl Default for PersonalState {
             source_scroll: [0.0; 2],
             restore_source: false,
             source_cursor: None,
+            source_view: None,
             preferences_open: false,
             catalog_drawer_open: false,
             pending_restore: false,
@@ -210,35 +218,34 @@ impl WorldeditApp {
         }
     }
     pub(super) fn author_location(&self, ctx: Option<&egui::Context>) -> Location {
-        let cursor = ctx
-            .and_then(|ctx| {
-                egui::TextEdit::load_state(ctx, egui::Id::new(("source", &self.active_file)))
-            })
-            .and_then(|state| state.cursor.char_range())
-            .map(|range| range.primary.index)
-            .or_else(|| {
+        let source = self.source_position_document(&self.active_file);
+        let selection = source.and_then(|(id, _)| {
+            ctx.and_then(|ctx| egui::TextEdit::load_state(ctx, id))
+                .and_then(|state| state.cursor.char_range())
+        });
+        let cursor = selection.map(|range| range.primary.index).or_else(|| {
+            source.and_then(|_| {
                 self.personal
                     .source_cursor
                     .as_ref()
                     .filter(|(path, _)| path == &self.active_file)
                     .map(|(_, cursor)| *cursor)
-            });
+            })
+        });
         Location {
             tab: Some(self.tab),
             file: self.active_file.clone(),
             cursor,
             source_scroll: self.personal.source_scroll,
-            source_baseline: self
-                .project
-                .document(&self.active_file)
-                .ok()
-                .map(super::writing_workspace::fingerprint),
-            source_secondary: ctx
-                .and_then(|ctx| {
-                    egui::TextEdit::load_state(ctx, egui::Id::new(("source", &self.active_file)))
-                })
-                .and_then(|state| state.cursor.char_range())
-                .map(|range| range.secondary.index),
+            source_view: source.and_then(|_| {
+                self.personal
+                    .source_view
+                    .as_ref()
+                    .filter(|(path, _)| path == &self.active_file)
+                    .map(|(_, view)| view.clone())
+            }),
+            source_baseline: source.map(|(_, text)| super::writing_workspace::fingerprint(text)),
+            source_secondary: selection.map(|range| range.secondary.index),
             target: self
                 .open_object_identity()
                 .or_else(|| self.catalog_target.clone()),
@@ -361,9 +368,10 @@ impl WorldeditApp {
             let returning_to_current_file = self.active_file == location.file;
             self.active_file = location.file;
             let source_current = location.source_baseline.as_ref().is_some_and(|baseline| {
-                self.project
-                    .document(&self.active_file)
-                    .is_ok_and(|source| super::writing_workspace::fingerprint(source) == *baseline)
+                self.source_position_document(&self.active_file)
+                    .is_some_and(|(_, source)| {
+                        super::writing_workspace::fingerprint(source) == *baseline
+                    })
             });
             if location.tab == Some(Tab::Edit) && source_current {
                 self.personal.source_scroll =
@@ -371,15 +379,18 @@ impl WorldeditApp {
                         .source_scroll
                         .map(|v| if v.is_finite() { v.max(0.0) } else { 0.0 });
                 self.personal.restore_source = true;
+                self.personal.source_view = location
+                    .source_view
+                    .clone()
+                    .map(|view| (self.active_file.clone(), view));
                 if let Some(cursor) = location.cursor {
-                    let length = self
-                        .project
-                        .document(&self.active_file)
-                        .map(|text| text.chars().count())
-                        .unwrap_or(0);
+                    let Some((id, source)) = self.source_position_document(&self.active_file)
+                    else {
+                        return;
+                    };
+                    let length = source.chars().count();
                     let cursor = cursor.min(length);
                     self.personal.source_cursor = Some((self.active_file.clone(), cursor));
-                    let id = egui::Id::new(("source", &self.active_file));
                     let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
                     state.cursor.set_char_range(Some(egui::text::CCursorRange {
                         primary: egui::text::CCursor::new(cursor),
@@ -397,24 +408,33 @@ impl WorldeditApp {
                     && super::search::editor_selection(ctx).is_some_and(|selection| {
                         selection.path == self.active_file
                             && selection.target.is_none()
-                            && self.project.document(&self.active_file).ok()
+                            && self
+                                .source_position_document(&self.active_file)
+                                .map(|(_, text)| text)
                                 == Some(selection.source.as_str())
                     });
                 self.personal.restore_source = !current_selection;
+                self.personal.source_view = None;
                 if !current_selection {
                     self.personal.source_scroll = [0.0, 0.0];
-                    let id = egui::Id::new(("source", &self.active_file));
-                    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
-                    state
-                        .cursor
-                        .set_char_range(Some(egui::text::CCursorRange::one(
-                            egui::text::CCursor::new(0),
-                        )));
-                    state.store(ctx, id);
+                    if let Some((id, _)) = self.source_position_document(&self.active_file) {
+                        let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+                        state
+                            .cursor
+                            .set_char_range(Some(egui::text::CCursorRange::one(
+                                egui::text::CCursor::new(0),
+                            )));
+                        state.store(ctx, id);
+                    }
                 }
                 self.personal.source_cursor = None;
                 self.message = Some(
-                    "已返回源文件；来源版本已变化，未恢复旧选区和滚动，当前内容完整保留".into(),
+                    if self.source_position_document(&self.active_file).is_none() {
+                        "已返回原始文档；没有可定位的有效UTF-8原文，未恢复文本坐标，原字节完整保留"
+                            .into()
+                    } else {
+                        "已返回源文件；来源版本已变化，未恢复旧选区和滚动，当前内容完整保留".into()
+                    },
                 );
             }
         } else {
@@ -478,6 +498,20 @@ impl WorldeditApp {
 mod tests {
     use super::*;
     #[test]
+    fn source_wrap_preference_defaults_off_and_survives_device_restore() {
+        let old =
+            PersonalState::decode(r#"{"schema_version":1,"settings":{"body_size":20}}"#).unwrap();
+        assert!(!old.settings.source_wrap);
+        let mut state = old;
+        state.settings.source_wrap = true;
+        let json = serde_json::to_string(&state).unwrap();
+        let restored = PersonalState::decode(&json).unwrap();
+        assert!(restored.settings.source_wrap);
+        assert_eq!(restored.settings.body_size, 20.0);
+        assert!(!json.contains("source_view"));
+    }
+
+    #[test]
     fn personal_settings_are_bounded_versioned_and_content_free() {
         let state = PersonalState::decode(
             r#"{"schema_version":1,"settings":{"body_size":999,"line_spacing":0}}"#,
@@ -492,3 +526,9 @@ mod tests {
         assert!(!json.contains("draft"));
     }
 }
+
+#[cfg(test)]
+mod source_position_tests;
+
+#[cfg(test)]
+mod preferences_focus_tests;
