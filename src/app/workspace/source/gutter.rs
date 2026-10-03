@@ -1,11 +1,11 @@
 //! 行号跟随正文实际排版；物理行由换行符定义，不能以固定行高推算。
 use crate::theme::MUTED;
 
-pub(super) fn reserve(ui: &mut egui::Ui, text: &str) -> egui::Rect {
+pub(super) fn reserve(ui: &mut egui::Ui, text: &str, body_size: f32) -> egui::Rect {
     let last = text.split('\n').count().to_string();
     let width = ui.fonts(|fonts| {
         fonts
-            .layout_no_wrap(last, egui::FontId::monospace(14.0), MUTED())
+            .layout_no_wrap(last, egui::FontId::monospace(body_size), MUTED())
             .size()
             .x
     });
@@ -13,7 +13,13 @@ pub(super) fn reserve(ui: &mut egui::Ui, text: &str) -> egui::Rect {
         .0
 }
 
-pub(super) fn paint(ui: &egui::Ui, gutter: egui::Rect, galley: &egui::Galley, origin: egui::Pos2) {
+pub(super) fn paint(
+    ui: &egui::Ui,
+    gutter: egui::Rect,
+    galley: &egui::Galley,
+    origin: egui::Pos2,
+    body_size: f32,
+) {
     let mut physical_line = 1;
     let mut starts_line = true;
     for row in &galley.rows {
@@ -24,7 +30,7 @@ pub(super) fn paint(ui: &egui::Ui, gutter: egui::Rect, galley: &egui::Galley, or
                     egui::pos2(gutter.right(), y),
                     egui::Align2::RIGHT_CENTER,
                     physical_line.to_string(),
-                    egui::FontId::monospace(14.0),
+                    egui::FontId::monospace(body_size),
                     MUTED(),
                 );
             }
@@ -57,8 +63,8 @@ mod tests {
                     job.wrap.max_width = 60.0;
                     let galley = ui.fonts(|fonts| fonts.layout_job(job));
                     row_count = galley.rows.len();
-                    let gutter = reserve(ui, text);
-                    paint(ui, gutter, &galley, egui::pos2(40.0, 20.0));
+                    let gutter = reserve(ui, text, size);
+                    paint(ui, gutter, &galley, egui::pos2(40.0, 20.0), size);
                 });
             });
             for shape in output.shapes {

@@ -1,4 +1,5 @@
 //! 设备个人状态；从不写入 Project、源码或展示文档。
+pub(super) mod source_view;
 mod ui;
 use super::{Tab, WorldeditApp};
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ pub(super) struct Settings {
     pub theme: crate::theme::ThemeMode,
     pub navigation: bool,
     pub diagnostics: bool,
+    pub source_wrap: bool,
     pub focus: bool,
     pub dock_references: bool,
     pub references_visible: bool,
@@ -31,6 +33,7 @@ impl Default for Settings {
             theme: crate::theme::ThemeMode::Dark,
             navigation: true,
             diagnostics: false,
+            source_wrap: false,
             focus: false,
             dock_references: true,
             references_visible: true,
@@ -64,6 +67,7 @@ pub(super) struct Location {
     pub source_scroll: [f32; 2],
     pub source_baseline: Option<String>,
     pub source_secondary: Option<usize>,
+    pub source_view: Option<source_view::SourceView>,
     pub target: Option<TargetRef>,
     pub editor: Option<TargetRef>,
     pub event: Option<String>,
@@ -91,6 +95,8 @@ pub(super) struct PersonalState {
     #[serde(skip)]
     pub source_cursor: Option<(PathBuf, usize)>,
     #[serde(skip)]
+    pub source_view: Option<(PathBuf, source_view::SourceView)>,
+    #[serde(skip)]
     pub preferences_open: bool,
     #[serde(skip)]
     pub catalog_drawer_open: bool,
@@ -111,6 +117,7 @@ impl Default for PersonalState {
             source_scroll: [0.0; 2],
             restore_source: false,
             source_cursor: None,
+            source_view: None,
             preferences_open: false,
             catalog_drawer_open: false,
             pending_restore: false,
@@ -228,6 +235,12 @@ impl WorldeditApp {
             file: self.active_file.clone(),
             cursor,
             source_scroll: self.personal.source_scroll,
+            source_view: self
+                .personal
+                .source_view
+                .as_ref()
+                .filter(|(path, _)| path == &self.active_file)
+                .map(|(_, view)| view.clone()),
             source_baseline: self
                 .project
                 .document(&self.active_file)
@@ -371,6 +384,10 @@ impl WorldeditApp {
                         .source_scroll
                         .map(|v| if v.is_finite() { v.max(0.0) } else { 0.0 });
                 self.personal.restore_source = true;
+                self.personal.source_view = location
+                    .source_view
+                    .clone()
+                    .map(|view| (self.active_file.clone(), view));
                 if let Some(cursor) = location.cursor {
                     let length = self
                         .project
@@ -401,6 +418,7 @@ impl WorldeditApp {
                                 == Some(selection.source.as_str())
                     });
                 self.personal.restore_source = !current_selection;
+                self.personal.source_view = None;
                 if !current_selection {
                     self.personal.source_scroll = [0.0, 0.0];
                     let id = egui::Id::new(("source", &self.active_file));
@@ -477,6 +495,20 @@ impl WorldeditApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn source_wrap_preference_defaults_off_and_survives_device_restore() {
+        let old =
+            PersonalState::decode(r#"{"schema_version":1,"settings":{"body_size":20}}"#).unwrap();
+        assert!(!old.settings.source_wrap);
+        let mut state = old;
+        state.settings.source_wrap = true;
+        let json = serde_json::to_string(&state).unwrap();
+        let restored = PersonalState::decode(&json).unwrap();
+        assert!(restored.settings.source_wrap);
+        assert_eq!(restored.settings.body_size, 20.0);
+        assert!(!json.contains("source_view"));
+    }
+
     #[test]
     fn personal_settings_are_bounded_versioned_and_content_free() {
         let state = PersonalState::decode(
