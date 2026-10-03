@@ -294,6 +294,7 @@ pub struct WorldeditApp {
     play: Option<PlayState>,
     play_confirmation: Option<play::scope::PlayConfirmation>,
     replay_debugger: ReplayDebugger,
+    comparison: play::comparison::ComparisonState,
     play_scroll_bottom: bool,
     event_editor: Option<EventEditor>,
     character_editor: Option<CharacterEditor>,

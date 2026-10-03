@@ -77,6 +77,8 @@ pub(super) struct Location {
     pub editor: Option<TargetRef>,
     pub event: Option<String>,
     pub manuscript: serde_json::Value,
+    #[serde(skip)]
+    pub comparison: Option<super::play::comparison::ComparisonLocation>,
 }
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -260,6 +262,7 @@ impl WorldeditApp {
             editor: self.open_object_identity(),
             event: self.focus_event.clone(),
             manuscript: serde_json::to_value(self.manuscript_session()).unwrap_or_default(),
+            comparison: self.comparison_location(ctx),
         }
     }
     pub(super) fn remember_author_position(&mut self) {
@@ -458,6 +461,7 @@ impl WorldeditApp {
                 return;
             }
         }
+        self.restore_comparison_location(location.comparison);
         self.restore_problem_source(location.source_problem);
         if let Some(tab) = location.tab {
             self.tab = tab;

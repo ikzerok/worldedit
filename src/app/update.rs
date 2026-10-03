@@ -189,6 +189,7 @@ impl eframe::App for WorldeditApp {
         self.docked_reading(ctx);
         if self.tab != Tab::Play {
             self.poll_replay(ctx);
+            self.poll_comparison(ctx);
         }
         self.review_navigation_guard(ctx);
         object_picker::set_workspace_root(ctx, &self.project.root);

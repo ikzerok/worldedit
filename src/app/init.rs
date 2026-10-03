@@ -49,6 +49,7 @@ impl WorldeditApp {
             play: None,
             play_confirmation: None,
             replay_debugger: ReplayDebugger::default(),
+            comparison: play::comparison::ComparisonState::default(),
             play_scroll_bottom: false,
             event_editor: None,
             character_editor: None,
@@ -299,6 +300,7 @@ impl WorldeditApp {
         self.alias_input.clear();
         self.link_query.clear();
         self.play = None;
+        self.comparison = play::comparison::ComparisonState::default();
         self.replay_debugger.explanations = None;
         self.event_editor = None;
         self.character_editor = None;

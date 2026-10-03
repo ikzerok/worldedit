@@ -1,12 +1,14 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.19.0 复用全局工程问题工具，在来源页加入当前问题摘要、有界原文和独立来源强调；程序定位不自动弹出建档建议，真实手选及显式创作动作保持。原因与摘录跟随阅读字号，沿用源码换行、搜索、Back 和草稿保护。默认语言仍为 1.9，最高既有显式版本 1.13；旧作品不自动升级。
+worldline 的 Rust / egui 作者工作台。0.20.0 在试玩中加入主内容路线对照：清楚显示A/B真实结果、起点与有效性，从实际状态动作回到原稿，再返回相同阅读位置。core/runtime仍是唯一语义来源，普通试玩和现有作者能力保留。默认语言仍为1.9，最高既有显式版本1.13。
 
-版本能力、升级边界与实际验证见 [0.19 说明](docs/releases/v0.19.0.md)；是否已公开发行以正式 Release 记录为准。工作流见 [工程问题](docs/project-problems.md) 和 [源码自动换行](docs/source-wrap.md)，完整变更见 [CHANGELOG](CHANGELOG.md)。egui frame、WASM 构建和 Node Worker 协议验证不替代真实浏览器、系统输入法或高 DPI 验收。
+操作见 [路线对照](docs/route-comparison.md)，开发与验收合同见 [主内容工作台设计](docs/route-comparison-0.20.md)，完整变更见 [CHANGELOG](CHANGELOG.md)。是否已公开发行以正式 Release 记录为准。egui frame、WASM 构建和 Node Worker 验证不替代真实浏览器、系统输入法或高DPI验收。
 
-升级边界：0.18 普通 Story save 在本轮同稿样本中由0.19完整继续；旧 trace/checkpoint 按原 runtime_version 守卫拒绝，新0.19 trace 独立重放通过。普通save兼容不等于跨版本trace兼容，不要修改版本字段绕过。升级前保留完整工程和原记录。统一问题列表不改变故事运行或发布的既有门禁。
+升级边界：0.19 trace/checkpoint 按原 runtime_version 守卫拒绝在0.20重放或比较，应重新录制；普通Story Save继续独立的格式/能力/指纹规则。不要修改版本字段绕过。升级前保留完整工程和原记录；本轮真实样本及平台覆盖由验收记录说明。
 
 ## 使用入口
+
+- [真实路线对照](docs/route-comparison.md)：选择A/B → 验证当前稿 → 结果与动作 → 安全回源与返回
 
 - [全局工程问题](docs/project-problems.md)：筛选、真实来源精度、部分覆盖、后台刷新与键盘定位
 - [源码自动换行](docs/source-wrap.md)：长行折行、物理行号与有效作者位置保持

@@ -1,6 +1,6 @@
 # CLI 与编辑器功能覆盖
 
-CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令接受工作区目录（兼容根入口文件），没有 IPC、远程控制端口或编辑器命令队列。0.18 的 `wl` 与 `wl-agent` 已提供语言分析、资料编辑、独立演练、矢量场景事务和静态站点发布；它们读取磁盘作品或自身 Project 会话，不能访问编辑器窗口内的未应用稿或未保存缓冲。
+CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令接受工作区目录（兼容根入口文件），没有 IPC、远程控制端口或编辑器命令队列。0.20 的 `wl` 与 `wl-agent` 已提供语言分析、资料编辑、独立演练、矢量场景事务和静态站点发布；它们读取磁盘作品或自身 Project 会话，不能访问编辑器窗口内的未应用稿或未保存缓冲。
 
 | 功能 | wl | wl-agent | 编辑器 / AI 可行方式 |
 |---|---|---|---|
@@ -22,6 +22,7 @@ CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令
 | 关系类型及实例编辑 | relation-type / relation create、update、delete | relation.type.* / relation.create、update、delete | 1.10 Project 事务、基线与引用保护 |
 | 旧人物关系显式提升 | relations promote preview / commit | relation.promote.preview / commit | 预览新关系及旧项移除、保存兼容影响；提交时校验基线和预览一致性 |
 | 试玩、选择、当前状态 | play | session.* | 独立会话，不连接 UI 当前试玩 |
+| 当前稿真实双路线对照 | route-compare | project.compare_routes | 共用有界runtime DTO；只读各自工程，不遥控UI；对照source/back与取消仍由编辑器运行态处理 |
 | 演练存读档 | play --load/--save | session.open/save | 各自会话存档 |
 | 创建/修改人物、事件和设定 | 无写入命令 | 无写入方法 | 编辑 `.wl` 或 Rust Project API；桌面刷新 |
 | 新建/选择工作区 | 启动 worldedit DIR | 无 | 编辑器目录选择 |
