@@ -34,8 +34,7 @@ impl WorldeditApp {
         if source_focused && pressed_on_suggestion {
             ctx.memory_mut(|memory| memory.request_focus(id));
         }
-        let range = egui::TextEdit::load_state(ctx, id)
-            .and_then(|state| state.cursor.char_range());
+        let range = egui::TextEdit::load_state(ctx, id).and_then(|state| state.cursor.char_range());
         // 诊断抑制仅跟随本次程序选区，人工选择或显式Ctrl+Enter照常工作。
         if crate::app::search::selection_is_diagnostic(ctx, id, range) {
             selection = None;

@@ -43,7 +43,11 @@ impl ProblemsJob {
                             ctx.request_repaint();
                             !worker_cancel.load(Ordering::Acquire)
                         })
-                        .map_err(|error| error.to_string());
+                        .map_err(|error| error.to_string())
+                        .and_then(|report| {
+                            crate::json_budget::check_problem_report_output(&report)?;
+                            Ok(report)
+                        });
                     if !worker_cancel.load(Ordering::Acquire) {
                         let _ = sender.send(result);
                     }
@@ -176,7 +180,9 @@ impl ProblemsJob {
                 }
                 WorkEvent::Error(error) => Some(Err(error)),
                 WorkEvent::Done { output, binaries } if binaries.is_empty() => match *output {
-                    WorkOutput::ProblemsReport { report } => Some(Ok(report)),
+                    WorkOutput::ProblemsReport { report } => Some(
+                        crate::json_budget::check_problem_report_output(&report).map(|()| report),
+                    ),
                     _ => Some(Err("工程问题后台结果类型不匹配".into())),
                 },
                 _ => Some(Err("工程问题后台负载不匹配".into())),
@@ -190,7 +196,7 @@ impl Drop for ProblemsJob {
     }
 }
 
-fn report_options() -> ProblemsOptions {
+pub(super) fn report_options() -> ProblemsOptions {
     ProblemsOptions {
         max_report_bytes: 16 * 1024 * 1024,
         ..Default::default()

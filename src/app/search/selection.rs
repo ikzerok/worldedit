@@ -270,7 +270,10 @@ fn restore_selection(
             egui::text::CCursor::new(end),
         )));
     super::selection_origin::restore_origin(
-        ui.ctx(), id, state.cursor.char_range(), pending.diagnostic,
+        ui.ctx(),
+        id,
+        state.cursor.char_range(),
+        pending.diagnostic,
     );
     state.store(ui.ctx(), id);
     ui.memory_mut(|m| m.request_focus(id));

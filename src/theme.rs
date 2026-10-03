@@ -144,8 +144,11 @@ pub fn error_background() -> Color32 {
 
 /// 当前来源的温和强调，与用户TextEdit选区分别绘制。
 pub fn problem_source_background() -> Color32 {
-    if LIGHT.get() { Color32::from_rgb(233, 241, 251) }
-    else { Color32::from_rgb(34, 40, 47) }
+    if LIGHT.get() {
+        Color32::from_rgb(233, 241, 251)
+    } else {
+        Color32::from_rgb(34, 40, 47)
+    }
 }
 
 pub fn is_light() -> bool {

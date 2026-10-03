@@ -408,13 +408,17 @@ impl WorldeditApp {
                         h_pos: None,
                     }));
                     super::search::restore_origin(
-                        ctx, id, state.cursor.char_range(), location.source_selection_diagnostic,
+                        ctx,
+                        id,
+                        state.cursor.char_range(),
+                        location.source_selection_diagnostic,
                     );
                     egui::TextEdit::store_state(ctx, id, state);
                     ctx.memory_mut(|memory| memory.request_focus(id));
                     super::search::record_navigation_focus(ctx, id);
                 }
             } else if location.tab == Some(Tab::Edit) {
+                location.source_problem = None;
                 let current_selection = returning_to_current_file
                     && super::search::editor_selection(ctx).is_some_and(|selection| {
                         selection.path == self.active_file

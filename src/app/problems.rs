@@ -1,7 +1,7 @@
 //! 作者问题工具只消费 core 报告；不在 UI 推断诊断、位置或修复状态。
-mod job;
 mod details;
 mod excerpt;
+mod job;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod job_slot_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -15,7 +15,11 @@ mod schedule;
 mod source;
 pub(super) use source::SourceProblem;
 #[cfg(all(test, not(target_arch = "wasm32")))]
+mod source_history_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod source_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod state_visual_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
 mod ui;
@@ -61,6 +65,7 @@ pub(super) struct ProblemsState {
     rendered_rows: usize,
     source: Option<Arc<SourceProblem>>,
     source_collapsed: bool,
+    source_generation: u64,
     severity_counts: (usize, usize),
 }
 
@@ -69,6 +74,15 @@ impl ProblemsState {
         if self.job.as_mut().is_some_and(job::ProblemsJob::cancel) {
             self.job = None;
         }
+    }
+
+    fn reject_source_navigation(&mut self, error: String) {
+        self.invalidated = true;
+        self.source_generation = self.source_generation.wrapping_add(1);
+        self.cancel_job();
+        self.schedule.cancel();
+        self.error = Some(error);
+        self.notice = Some("来源尚未重新检查，已撤除位置强调；当前稿与返回历史已保留".into());
     }
 
     fn cancelling(&self) -> bool {
@@ -135,6 +149,9 @@ impl ProblemsState {
     }
 
     fn install(&mut self, report: ProblemsReport, version: u64) {
+        // 即使外部观测回到同一hash，旧导航也不得被重新接管。
+        self.source_generation = self.source_generation.wrapping_add(1);
+        self.source = None;
         let changed = self
             .report
             .as_ref()
@@ -152,10 +169,15 @@ impl ProblemsState {
             self.related = None;
             self.narrow_detail = false;
         }
-        self.severity_counts = report.entries.iter().fold((0, 0), |(errors, warnings), entry| {
-            (errors + usize::from(entry.severity == worldline_core::Severity::Error),
-             warnings + usize::from(entry.severity == worldline_core::Severity::Warning))
-        });
+        self.severity_counts = report
+            .entries
+            .iter()
+            .fold((0, 0), |(errors, warnings), entry| {
+                (
+                    errors + usize::from(entry.severity == worldline_core::Severity::Error),
+                    warnings + usize::from(entry.severity == worldline_core::Severity::Warning),
+                )
+            });
         self.invalidated = false;
         self.report = Some(Arc::new(report));
         self.report_version = Some(version);

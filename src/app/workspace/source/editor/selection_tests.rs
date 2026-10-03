@@ -166,7 +166,10 @@ fn diagnostic_program_selection_and_back_never_offer_passive_creation() {
     let start = source.find("手选").unwrap();
     let path = app.active_file.clone();
     crate::app::search::request_diagnostic_selection(
-        &ctx, path.clone(), source.clone(), start..start + "手选中".len(),
+        &ctx,
+        path.clone(),
+        source.clone(),
+        start..start + "手选中".len(),
     );
     for _ in 0..3 {
         assert!(text_position(&frame(&ctx, &mut app, vec![]), "从选中文本建档").is_none());
@@ -195,10 +198,86 @@ fn explicit_ctrl_enter_can_use_diagnostic_selection_without_passive_popup() {
     let (ctx, mut app, source) = selected_source();
     let start = source.find("手选").unwrap();
     crate::app::search::request_diagnostic_selection(
-        &ctx, app.active_file.clone(), source.clone(), start..start + "手选中".len(),
+        &ctx,
+        app.active_file.clone(),
+        source.clone(),
+        start..start + "手选中".len(),
     );
     assert!(text_position(&frame(&ctx, &mut app, vec![]), "从选中文本建档").is_none());
     frame(&ctx, &mut app, vec![key(Key::Enter, Modifiers::COMMAND)]);
     assert_eq!(app.entity_editor.as_ref().unwrap().draft.display, "手选中");
+    assert_eq!(app.project.document(&app.active_file).unwrap(), source);
+}
+
+#[test]
+fn manual_mouse_selection_after_diagnostic_selection_keeps_suggestion_and_comment() {
+    let (ctx, mut app, source) = selected_source();
+    let start = source.find("手选").unwrap();
+    crate::app::search::request_diagnostic_selection(
+        &ctx,
+        app.active_file.clone(),
+        source.clone(),
+        start..start + "手选中".len(),
+    );
+    let output = frame(&ctx, &mut app, vec![]);
+    assert!(text_position(&output, "从选中文本建档").is_none());
+    fn galley(
+        shape: &egui::Shape,
+        source: &str,
+    ) -> Option<(egui::Pos2, std::sync::Arc<egui::Galley>)> {
+        match shape {
+            egui::Shape::Text(text) if text.galley.text() == source => {
+                Some((text.pos, text.galley.clone()))
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| galley(shape, source)),
+            _ => None,
+        }
+    }
+    let (origin, text) = output
+        .shapes
+        .iter()
+        .find_map(|shape| galley(&shape.shape, &source))
+        .unwrap();
+    let at = source[..source.find("当前稿").unwrap()].chars().count();
+    let point = |index| {
+        origin
+            + text
+                .pos_from_cursor(egui::text::CCursor::new(index))
+                .center()
+                .to_vec2()
+    };
+    let (from, to) = (point(at), point(at + 2));
+    frame(
+        &ctx,
+        &mut app,
+        vec![
+            egui::Event::PointerMoved(from),
+            egui::Event::PointerButton {
+                pos: from,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: Modifiers::NONE,
+            },
+        ],
+    );
+    frame(&ctx, &mut app, vec![egui::Event::PointerMoved(to)]);
+    frame(
+        &ctx,
+        &mut app,
+        vec![egui::Event::PointerButton {
+            pos: to,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }],
+    );
+    assert!(text_position(&frame(&ctx, &mut app, vec![]), "从选中文本建档").is_some());
+    let selected = crate::app::search::editor_selection(&ctx).unwrap();
+    assert_eq!(&source[selected.range], "当前");
+    app.comment_current_selection(&ctx);
+    assert!(
+        app.review.comment_editor.is_some(),
+        "人工选择仍可建立待编辑批注"
+    );
     assert_eq!(app.project.document(&app.active_file).unwrap(), source);
 }

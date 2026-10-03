@@ -122,7 +122,11 @@ impl WorldeditApp {
                 }
             }
             ui.separator();
-            ui.label(theme::muted(format!("技术信息：{} · {}", domain_label(problem.domain), problem.code)));
+            ui.label(theme::muted(format!(
+                "技术信息：{} · {}",
+                domain_label(problem.domain),
+                problem.code
+            )));
         });
     }
 
@@ -162,5 +166,4 @@ impl WorldeditApp {
             Err(error) => self.problems.error = Some(error.to_string()),
         }
     }
-
 }

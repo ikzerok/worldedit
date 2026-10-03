@@ -5,12 +5,7 @@ fn origin_id(id: Id) -> Id {
     id.with("diagnostic-selection-origin")
 }
 
-pub(crate) fn restore_origin(
-    ctx: &Context,
-    id: Id,
-    range: Option<CCursorRange>,
-    diagnostic: bool,
-) {
+pub(crate) fn restore_origin(ctx: &Context, id: Id, range: Option<CCursorRange>, diagnostic: bool) {
     ctx.data_mut(|data| {
         data.remove::<CCursorRange>(origin_id(id));
         if diagnostic {
@@ -24,8 +19,7 @@ pub(crate) fn restore_origin(
 pub(crate) fn selection_is_diagnostic(ctx: &Context, id: Id, range: Option<CCursorRange>) -> bool {
     let saved = ctx.data(|data| data.get_temp::<CCursorRange>(origin_id(id)));
     saved.zip(range).is_some_and(|(saved, range)| {
-        saved.primary.index == range.primary.index
-            && saved.secondary.index == range.secondary.index
+        saved.primary.index == range.primary.index && saved.secondary.index == range.secondary.index
     })
 }
 
@@ -63,8 +57,16 @@ mod tests {
         let range = CCursorRange::two(egui::text::CCursor::new(2), egui::text::CCursor::new(7));
         restore_origin(&ctx, id, Some(range), true);
         assert!(selection_is_diagnostic(&ctx, id, Some(range)));
-        assert!(!selection_is_diagnostic(&ctx, Id::new("other"), Some(range)));
-        let reversed = CCursorRange { primary: range.secondary, secondary: range.primary, h_pos: None };
+        assert!(!selection_is_diagnostic(
+            &ctx,
+            Id::new("other"),
+            Some(range)
+        ));
+        let reversed = CCursorRange {
+            primary: range.secondary,
+            secondary: range.primary,
+            h_pos: None,
+        };
         assert!(!selection_is_diagnostic(&ctx, id, Some(reversed)));
         restore_origin(&ctx, id, Some(range), false);
         assert!(!selection_is_diagnostic(&ctx, id, Some(range)));

@@ -3,8 +3,8 @@ use super::text::{active_mention, source_link_at_cursor, source_selection};
 use crate::app::personal::source_view::SourceFrame;
 use crate::theme;
 mod layout;
-mod selection_action;
 mod problem_marker;
+mod selection_action;
 use std::path::PathBuf;
 
 impl WorldeditApp {
@@ -262,9 +262,16 @@ impl WorldeditApp {
                         .show(ui);
                     if !output.response.changed() {
                         if let Some(range) = problem_range.clone() {
-                            ui.painter().set(marker, egui::Shape::Vec(problem_marker::shapes(
-                                &output.galley, output.galley_pos, gutter, ui.clip_rect(), range,
-                            )));
+                            ui.painter().set(
+                                marker,
+                                egui::Shape::Vec(problem_marker::shapes(
+                                    &output.galley,
+                                    output.galley_pos,
+                                    gutter,
+                                    ui.clip_rect(),
+                                    range,
+                                )),
+                            );
                         }
                     }
                     super::gutter::paint(ui, gutter, &output.galley, output.galley_pos, body_size);
@@ -475,7 +482,12 @@ impl WorldeditApp {
                 });
         }
         if let Some(selection) = self.source_selection_suggestion(
-            ctx, id, &path, source_focused, selected_source_text.take(), selection_anchor,
+            ctx,
+            id,
+            &path,
+            source_focused,
+            selected_source_text.take(),
+            selection_anchor,
         ) {
             create_from_selection = Some(selection);
         }

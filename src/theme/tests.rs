@@ -214,3 +214,40 @@ fn disabled_checkbox_ignores_clicks_and_checked_state_has_noncolor_mark() {
         );
     }
 }
+
+#[test]
+fn problem_reading_text_and_focus_pass_actual_selected_hovered_active_surfaces() {
+    for (mode, system) in [
+        (ThemeMode::Dark, None),
+        (ThemeMode::Light, None),
+        (ThemeMode::System, Some(egui::Theme::Dark)),
+        (ThemeMode::System, Some(egui::Theme::Light)),
+    ] {
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                system_theme: system,
+                ..Default::default()
+            },
+            |ctx| {
+                configure(ctx, mode);
+                let visuals = ctx.style().visuals.clone();
+                for surface in [
+                    PANEL(),
+                    visuals.widgets.hovered.weak_bg_fill,
+                    visuals.selection.bg_fill,
+                    visuals.widgets.active.bg_fill,
+                    problem_source_background(),
+                ] {
+                    for foreground in [TEXT(), MUTED(), ERROR(), GOLD(), BLUE()] {
+                        assert!(
+                            contrast(foreground, surface) >= 4.5,
+                            "{mode:?}/{system:?}: {foreground:?} on {surface:?}"
+                        );
+                    }
+                    assert!(contrast(ACCENT(), surface) >= 3.0);
+                }
+            },
+        );
+    }
+}
