@@ -1,10 +1,11 @@
 # CLI 与编辑器功能覆盖
 
-CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令接受工作区目录（兼容根入口文件），没有 IPC、远程控制端口或编辑器命令队列。0.15 的 `wl` 与 `wl-agent` 已提供语言分析、资料编辑、独立演练、矢量场景事务和静态站点发布；它们读取磁盘作品或自身 Project 会话，不能访问编辑器窗口内的未应用稿或未保存缓冲。
+CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令接受工作区目录（兼容根入口文件），没有 IPC、远程控制端口或编辑器命令队列。0.18 的 `wl` 与 `wl-agent` 已提供语言分析、资料编辑、独立演练、矢量场景事务和静态站点发布；它们读取磁盘作品或自身 Project 会话，不能访问编辑器窗口内的未应用稿或未保存缓冲。
 
 | 功能 | wl | wl-agent | 编辑器 / AI 可行方式 |
 |---|---|---|---|
 | 编译、诊断、统计 | check | compile | 同一 core 分析 |
+| 当前工程问题、范围筛选、主/关联来源 | problems | project.problems | 同一 core 只读报告；CLI/RPC使用自己的工程/会话，不能读取运行中编辑器的未应用草稿；不改既有运行/发布门禁 |
 | 执行图与条件上下文 | graph | analyze / export | 共享结构数据；Mermaid 是文本输出 |
 | 时段与先后关系 | timeline | analyze | 同一 timeline 数据 |
 | 人物、标签、状态、锚点、素材、别名、正文链接 | catalog | analyze.catalog | 查找与源码定位 |
@@ -55,3 +56,9 @@ RPC 的 `scene.preview/apply/export` 必须且只能提供 `path` 或 `project_i
 持续schema诊断随check/workspace check/发布前检查生效；schema-index、schema-preview、schema-apply及RPC同名语义可独立使用。锁定choice通过CLI `--choice-presentation`与RPC session capability协商，旧choices索引不变。
 
 编辑器尚未应用的WritingBuffer属于当前桌面会话；独立CLI不能读取其窗口内草稿。Find/Replace、焦点、专注布局与当前稿预览由编辑器调用同一core API，不宣称外部CLI遥控全部UI。本地化只交换显式白名单，runtime不自动切语言。
+
+## 0.18 工程问题与源码视图
+
+`wl problems 工程 --json` 返回带报告身份、覆盖状态的有界问题页；严重性、域、路径、文本筛选由 core 完成，相关来源使用报告返回的 opaque ID。工程改变后的旧 ID／游标明确失效。RPC `project.problems` 支持自己的 Project 会话缓存与显式刷新，能力名为 `authoring.problems.v1`。详细参数和门禁边界见 [core问题指南](../../worldline/docs/problems.md)。
+
+编辑器提供同一报告的问题列表、完整证据详情、F8/Shift+F8（原生）、来源返回与源码自动换行。换行仅改变排版、保留源字节和物理行号；这些视图操作没有独立CLI遥控入口。
