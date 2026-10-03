@@ -6,6 +6,7 @@ use egui::{Pos2, Rect, RichText, Sense, Stroke, Vec2};
 use std::collections::{BTreeMap, HashMap};
 use worldline_core::timeline::{TemporalOrderScope, TimelineStatus};
 
+pub(super) mod issues;
 mod projection;
 #[cfg(test)]
 mod render_tests;
@@ -57,6 +58,16 @@ impl WorldeditApp {
                     ui.colored_label(GOLD(), projection::summary(&timeline));
                 } else {
                     ui.label(theme::muted(projection::summary(&timeline)));
+                }
+                if ui
+                    .button(format!(
+                        "时间问题与比较 · {} 个环 / {} 个受阻下游",
+                        timeline.cycles.len(),
+                        timeline.blocked.len()
+                    ))
+                    .clicked()
+                {
+                    self.open_temporal_issues(ctx);
                 }
                 ui.add_space(12.0);
                 ui.horizontal_wrapped(|ui| {

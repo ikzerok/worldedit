@@ -1,10 +1,14 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.16.0 开发候选新增安全源码路径整理、原生 SVG 虚线样式、内容优先地图布局、长表单固定操作区和对象快切来源层级。默认语言仍为 1.9，最高既有显式版本 1.13；旧作品不自动升级。
+worldline 的 Rust / egui 作者工作台。0.17.0 聚焦人物局部上下文、来源与时间问题定位、自适应布局，以及core提供的确定性安全源码整理。默认语言仍为 1.9，最高既有显式版本 1.13；旧作品不自动升级。
 
-本候选尚未公开发行。完整功能见 [CHANGELOG](CHANGELOG.md)，验证状态及真实平台边界见 [0.16 验证摘要](docs/verification-0.16.md)。静态渲染、egui事件测试与Node模型不会冒充真实浏览器、系统输入法或物理高DPI验收。
+版本能力、升级边界与已执行验证见 [0.17 说明](docs/releases/v0.17.0.md)；是否已公开发行以正式 Release 记录为准。完整工作流与验收合同见 [人物焦点工作区](docs/focused-author-workbench.md)，完整变更见 [CHANGELOG](CHANGELOG.md)。静态渲染、egui事件测试与Node模型不会冒充真实浏览器、系统输入法或物理高DPI验收。
+
+升级边界：0.16 的重放 trace 按既有 runtime_version 合同不能在0.17直接重放，不应手改版本字段绕过；普通存档与检查点分别按验证记录判断。
 
 ## 使用入口
+
+- [人物焦点与时间问题](docs/focused-author-workbench.md)：有类型局部关系、真实来源、闭环证据和键盘返回
 
 - [安全源码路径](docs/source-lifecycle.md)：预览正式引用与资源变化，整批应用、一次撤销，保存才落盘
 - [内容优先工作台](docs/content-first-workbench-0.16.md)：地图空间、固定操作区与对象来源层级

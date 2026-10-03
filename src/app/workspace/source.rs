@@ -24,6 +24,29 @@ impl WorldeditApp {
                     ui.label(theme::muted("检查工作区全部源码，点击定位"));
                     ui.separator();
                     let diagnostics = self.diagnostics().to_vec();
+                    let temporal_groups = self
+                        .snapshot
+                        .as_ref()
+                        .map(|s| {
+                            (
+                                s.result.analysis.timeline.cycles.len(),
+                                s.result.analysis.timeline.blocked.len(),
+                            )
+                        })
+                        .unwrap_or_default();
+                    if temporal_groups.0 > 0 {
+                        ui.colored_label(
+                            ERROR(),
+                            format!(
+                                "{} 个时间环 · {} 个受阻下游",
+                                temporal_groups.0, temporal_groups.1
+                            ),
+                        );
+                        if ui.button("查看时间环与来源证据").clicked() {
+                            self.open_temporal_issues(ctx);
+                        }
+                        ui.label(theme::muted("A213 按真正原因分组，下游不重复标为环成员"));
+                    }
                     if diagnostics.is_empty() {
                         ui.colored_label(ACCENT(), "✓ 所有文件校验通过");
                     }
@@ -31,6 +54,9 @@ impl WorldeditApp {
                         .id_salt("diagnostics-scroll")
                         .show(ui, |ui| {
                             for (i, d) in diagnostics.iter().enumerate() {
+                                if d.code == "A213" && temporal_groups.0 > 0 {
+                                    continue;
+                                }
                                 ui.push_id(i, |ui| {
                                     let color = match d.severity {
                                         Severity::Error => ERROR(),

@@ -18,6 +18,16 @@ SHA = "a" * 40
 
 
 class PairTests(unittest.TestCase):
+    def test_profile_evidence_records_only_allowed_build_overrides(self):
+        self.assertEqual(pair.cargo_environment({}), {})
+        values = {"CARGO_PROFILE_DEV_DEBUG": "0", "CARGO_PROFILE_TEST_DEBUG": "0",
+                  "CARGO_INCREMENTAL": "0", "CARGO_BUILD_JOBS": "2",
+                  "CARGO_TARGET_DIR": "/shared/target", "PRIVATE_TOKEN": "never-copy"}
+        recorded = pair.cargo_environment(values)
+        self.assertEqual(len(recorded), 5)
+        self.assertEqual(recorded["CARGO_PROFILE_DEV_DEBUG"], "0")
+        self.assertNotIn("PRIVATE_TOKEN", recorded)
+
     def test_pin_rejects_other_repository_short_or_mismatched_sha(self):
         good = {"worldline": {"repository": "ikzerok/worldline", "sha": SHA}}
         pair.validate_pair(good, SHA)

@@ -112,11 +112,27 @@ pub(super) fn object_picker(
     catalog: &Catalog,
     allowed: &[&str],
 ) -> bool {
+    object_picker_focused(ui, salt, label, current, catalog, allowed, false).0
+}
+/// 返回真实控件身份，供按需工具的进入/返回焦点使用，不推测egui内部ID。
+pub(super) fn object_picker_focused(
+    ui: &mut Ui,
+    salt: impl std::hash::Hash,
+    label: &str,
+    current: &mut Option<TargetRef>,
+    catalog: &Catalog,
+    allowed: &[&str],
+    request_focus: bool,
+) -> (bool, egui::Id) {
     let before = current.clone();
     let root = ui
         .ctx()
         .data(|data| data.get_temp::<PathBuf>(egui::Id::new("object-picker-workspace-root")));
     let id = ui.make_persistent_id(salt);
+    let was_open = ui
+        .data(|data| data.get_temp::<bool>(id.with("was-open")))
+        .unwrap_or(false);
+    let mut selected_by_keyboard = false;
     let caption = current
         .as_ref()
         .map(|target| {
@@ -144,11 +160,15 @@ pub(super) fn object_picker(
             let mut query = ui
                 .data_mut(|data| data.get_temp::<String>(id))
                 .unwrap_or_default();
-            ui.add(
+            let search = ui.add(
                 egui::TextEdit::singleline(&mut query)
+                    .id(id.with("query"))
                     .desired_width(ui.available_width())
                     .hint_text("搜索名称、类型、ID或来源"),
             );
+            if !was_open {
+                search.request_focus();
+            }
             ui.data_mut(|data| data.insert_temp(id, query.clone()));
             if ui
                 .selectable_label(current.is_none(), "不指定 / 清空")
@@ -158,6 +178,21 @@ pub(super) fn object_picker(
                 ui.close();
             }
             let candidates = candidates(catalog, &query, allowed);
+            if was_open
+                && (search.has_focus() || search.lost_focus())
+                && !ui.input(|i| {
+                    i.events
+                        .iter()
+                        .any(|event| matches!(event, egui::Event::Ime(_)))
+                })
+                && !query.trim().is_empty()
+                && candidates.len() == 1
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+            {
+                *current = Some(candidates[0].target.clone());
+                selected_by_keyboard = true;
+                ui.close();
+            }
             if candidates.is_empty() {
                 ui.label("没有可用候选；请调整搜索或先创建对象");
             }
@@ -182,6 +217,13 @@ pub(super) fn object_picker(
                 ui.label("匹配超过1000项，请继续输入缩小范围");
             }
         });
+    let focus_id = response.response.id;
+    let now_open = egui::ComboBox::is_open(ui.ctx(), focus_id);
+    ui.data_mut(|data| data.insert_temp(id.with("was-open"), now_open));
+    let escaped = was_open && !now_open && ui.input(|i| i.key_pressed(egui::Key::Escape));
+    if (request_focus && !now_open) || escaped || selected_by_keyboard {
+        response.response.request_focus();
+    }
     response.response.on_hover_text(selected_caption);
     if let Some(target) = current {
         if catalog.object(target).is_none()
@@ -193,7 +235,7 @@ pub(super) fn object_picker(
             );
         }
     }
-    *current != before
+    (*current != before, focus_id)
 }
 #[cfg(test)]
 mod tests {

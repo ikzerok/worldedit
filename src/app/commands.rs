@@ -29,12 +29,14 @@ enum Action {
     Back,
     Settings,
     Capabilities,
+    TemporalIssues,
 }
 fn commands() -> Vec<(&'static str, Action)> {
     vec![
         ("写作 · 书稿工作台", Action::Tab(Tab::Manuscript)),
         ("阅读 · 正文概览", Action::Tab(Tab::Overview)),
         ("世界 · 时间线", Action::Tab(Tab::Timeline)),
+        ("时间 · 问题与先后比较", Action::TemporalIssues),
         ("世界 · 人物", Action::Tab(Tab::Characters)),
         ("世界 · 资料与状态", Action::Tab(Tab::Catalog)),
         ("世界 · 世界观", Action::Tab(Tab::World)),
@@ -95,6 +97,7 @@ impl WorldeditApp {
             return;
         }
         self.edit_shortcuts(ctx);
+        self.character_region_shortcut(ctx);
         if ctx.input_mut(|i| {
             i.consume_key(
                 egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
@@ -278,6 +281,7 @@ impl WorldeditApp {
                 Action::Back => self.author_back(ctx),
                 Action::Settings => self.personal.preferences_open = true,
                 Action::Capabilities => self.open_capabilities(),
+                Action::TemporalIssues => self.open_temporal_issues(ctx),
             }
         }
     }

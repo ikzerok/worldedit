@@ -80,6 +80,15 @@ def isolated_environment():
     return root, environment
 
 
+def cargo_environment(environment):
+    """Record only non-secret build controls; never mislabel overrides as defaults."""
+    keys = (
+        "CARGO_PROFILE_DEV_DEBUG", "CARGO_PROFILE_TEST_DEBUG", "CARGO_INCREMENTAL",
+        "CARGO_BUILD_JOBS", "CARGO_TARGET_DIR",
+    )
+    return {key: environment[key] for key in keys if key in environment}
+
+
 def recorded(name, command, editor, evidence, environment=None):
     with (evidence / (name + ".log")).open("w", encoding="utf-8") as log:
         log.write(shlex.join(command) + "\n")
@@ -124,7 +133,8 @@ def run(editor, evidence):
             "worldedit": git(editor, "rev-parse", "HEAD"), "worldline": actual,
             "worldedit_working_tree": git(editor, "status", "--porcelain"),
             "worldline_working_tree": git(language, "status", "--porcelain"),
-            "profile": "dev/test (Cargo defaults)",
+            "profile": "dev/test (explicit environment controls recorded separately)",
+            "cargo_environment": cargo_environment(child_environment),
             "temporary_directory": str(temporary_root),
             "temporary_directory_policy": "unique per run; TMPDIR/TMP/TEMP; retained; path recorded in evidence",
             "gui_acceptance": "not performed; headless Cargo checks only",

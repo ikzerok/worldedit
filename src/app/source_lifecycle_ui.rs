@@ -2,7 +2,9 @@
 use super::{Tab, WorldeditApp};
 use crate::theme;
 use std::path::{Path, PathBuf};
-use worldline_core::source_lifecycle::{SourceLifecyclePlan, SourceLifecycleRequest};
+use worldline_core::source_lifecycle::{
+    SourceLifecycleFailureKind, SourceLifecyclePlan, SourceLifecycleRequest,
+};
 
 pub(super) struct SourceMoveForm {
     pub root: PathBuf,
@@ -10,6 +12,7 @@ pub(super) struct SourceMoveForm {
     pub destination: String,
     pub plan: Option<SourceLifecyclePlan>,
     error: Option<String>,
+    failure_kind: Option<SourceLifecycleFailureKind>,
 }
 
 impl SourceMoveForm {
@@ -70,11 +73,13 @@ impl WorldeditApp {
             source,
             plan: None,
             error: None,
+            failure_kind: None,
         });
     }
 
     fn preview_source_move(&self, form: &mut SourceMoveForm) {
         form.plan = None;
+        form.failure_kind = None;
         form.error = if form.root != self.project.root {
             Some("工作区已切换，旧路径输入保留；请取消后在当前工作区重新打开。".into())
         } else {
@@ -83,13 +88,20 @@ impl WorldeditApp {
         if form.error.is_some() {
             return;
         }
-        match self.project.preview_source_lifecycle(&form.request()) {
+        match self
+            .project
+            .preview_source_lifecycle_classified(&form.request())
+        {
             Ok(plan) => form.plan = Some(plan),
-            Err(error) => form.error = Some(error),
+            Err(error) => {
+                form.failure_kind = Some(error.kind);
+                form.error = Some(error.message);
+            }
         }
     }
 
     fn apply_source_move(&mut self, form: &mut SourceMoveForm) -> bool {
+        form.failure_kind = None;
         if form.root != self.project.root {
             form.error = Some("工作区已切换，未应用旧计划。".into());
             return false;
@@ -102,7 +114,7 @@ impl WorldeditApp {
             return false;
         };
         let before = self.project.clone();
-        let result = self.project.apply_source_lifecycle_plan(plan);
+        let result = self.project.apply_source_lifecycle_plan_classified(plan);
         match result {
             Ok(applied) => {
                 self.remember(before);
@@ -123,11 +135,12 @@ impl WorldeditApp {
                 self.recompile();
                 self.tab = Tab::Edit;
                 self.io_error = None;
-                self.message = Some("源码路径与正式引用已整批更新，语义与运行指纹不变；可一次撤销，保存全部后写入磁盘。".into());
+                self.message = Some("源码路径与正式引用已应用、尚未保存；语义与运行指纹不变，可一次撤销，保存全部后写入磁盘。".into());
                 true
             }
             Err(error) => {
-                form.error = Some(error);
+                form.failure_kind = Some(error.kind);
+                form.error = Some(error.message);
                 false
             }
         }
@@ -154,13 +167,21 @@ impl WorldeditApp {
                 if ui.add(egui::TextEdit::singleline(&mut form.destination).desired_width(f32::INFINITY)).changed() {
                     form.plan = None;
                     form.error = None;
+                    form.failure_kind = None;
                 }
                 ui.label(theme::muted("只移动一个非入口源码。归档不自动启用；无法证明引用、资源和加载顺序等价时拒绝。"));
                 ui.separator();
                 egui::ScrollArea::vertical().id_salt("source-move-preview")
                     .max_height((viewport.height() - 285.0).max(100.0))
                     .auto_shrink([false, false]).show(ui, |ui| {
-                        if let Some(error) = &form.error { ui.colored_label(theme::ERROR(), error); }
+                        if let Some(error) = &form.error {
+                            if let Some(kind) = form.failure_kind {
+                                let (title,action) = failure_guidance(kind);
+                                ui.colored_label(theme::ERROR(), title);
+                                ui.label(action);
+                                ui.collapsing("技术详情（core 原因）", |ui| { ui.label(error); });
+                            } else { ui.colored_label(theme::ERROR(), error); }
+                        }
                         if let Some(plan) = &form.plan { draw_plan(ui, plan, &form.root); }
                         else { ui.label("预览将列出每处正式路径修改、附件解析与运行指纹证明。"); }
                     });
@@ -181,6 +202,27 @@ impl WorldeditApp {
         if open && !cancel && !applied {
             self.source_move_form = Some(form);
         }
+    }
+}
+
+fn failure_guidance(kind: SourceLifecycleFailureKind) -> (&'static str, &'static str) {
+    match kind {
+        SourceLifecycleFailureKind::SourceChanged => (
+            "源码或计划已变化，未应用",
+            "保留当前输入；核对外部修改与冲突，再重新预览当前稿",
+        ),
+        SourceLifecycleFailureKind::IllegalPath => (
+            "路径不合法，未应用",
+            "选择工作区内、尚不存在的非入口 .wl 目标路径；不要跨越工作区边界",
+        ),
+        SourceLifecycleFailureKind::SemanticChange => (
+            "移动会改变作品语义，未应用",
+            "查看具体来源与加载顺序差异，调整目标或源码后重新预览",
+        ),
+        SourceLifecycleFailureKind::UnableToProve => (
+            "core 暂时无法证明安全，未应用",
+            "保留原文件与输入，先处理诊断或工作区安全问题；技术详情可用于排查",
+        ),
     }
 }
 

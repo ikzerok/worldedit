@@ -95,6 +95,8 @@ impl WorldeditApp {
             zoom: 1.0,
             graph_positions: HashMap::new(),
             character_positions: HashMap::new(),
+            character_focus: characters::CharacterFocus::default(),
+            temporal_issues: temporal::issues::TemporalIssues::default(),
             temporal_positions: HashMap::new(),
             link_from: None,
             dragging: None,
@@ -316,6 +318,8 @@ impl WorldeditApp {
         self.redo.clear();
         self.graph_positions.clear();
         self.character_positions.clear();
+        self.character_focus = characters::CharacterFocus::default();
+        self.temporal_issues = temporal::issues::TemporalIssues::default();
         self.temporal_positions.clear();
         self.character_link = None;
         self.new_period = None;

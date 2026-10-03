@@ -72,6 +72,18 @@ impl WorldeditApp {
                 return;
             }
             let closed = match top {
+                Some("character-index") => {
+                    self.character_focus.index_open = false;
+                    true
+                }
+                Some("character-details") => {
+                    self.character_focus.inspector_open = false;
+                    true
+                }
+                Some("temporal-issues") => {
+                    self.temporal_issues.open = false;
+                    true
+                }
                 Some("schema") => {
                     self.schema_ui.close(ctx);
                     true
