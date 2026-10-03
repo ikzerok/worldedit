@@ -461,6 +461,42 @@ impl WorldeditApp {
                     });
                 });
         }
+        let selection_area_id = egui::Id::new(("source-selection-action", &path));
+        // 点建议自身时TextEdit会因外部按下而暂失焦；保留这次明确的建档点击。
+        let pressed_on_suggestion = ctx
+            .input(|input| {
+                input
+                    .pointer
+                    .primary_pressed()
+                    .then(|| input.pointer.interact_pos())
+                    .flatten()
+            })
+            .is_some_and(|position| {
+                ctx.layer_id_at(position)
+                    == Some(egui::LayerId::new(
+                        egui::Order::Foreground,
+                        selection_area_id,
+                    ))
+            });
+        if source_focused && pressed_on_suggestion {
+            ctx.memory_mut(|memory| memory.request_focus(id));
+        }
+        // 选区建议属于源码编辑焦点，不能越过命令/搜索或受保护上层。
+        if !ctx.memory(|memory| memory.has_focus(id))
+            || self.ime_composing
+            || self.command_palette.ime
+            || self.command_palette.ime_frame
+            || self.command_palette.open
+            || self.search_open
+            || self.personal.preferences_open
+            || self
+                .command_palette
+                .focus_stack
+                .iter()
+                .any(|(kind, _)| *kind != "problems")
+        {
+            selected_source_text = None;
+        }
         if let (Some(selection), Some(anchor)) = (selected_source_text.take(), selection_anchor) {
             let screen = ctx.screen_rect();
             let pos = egui::pos2(
@@ -473,7 +509,7 @@ impl WorldeditApp {
                     (screen.bottom() - 44.0).max(screen.top() + 8.0),
                 ),
             );
-            egui::Area::new(egui::Id::new(("source-selection-action", &path)))
+            egui::Area::new(selection_area_id)
                 .order(egui::Order::Foreground)
                 .fixed_pos(pos)
                 .show(ctx, |ui| {
@@ -548,3 +584,6 @@ impl WorldeditApp {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod selection_tests;

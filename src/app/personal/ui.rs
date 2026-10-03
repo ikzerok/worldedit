@@ -83,16 +83,24 @@ impl WorldeditApp {
         });
     }
     pub(in crate::app) fn preferences_window(&mut self, ctx: &egui::Context) {
+        let focus_entry = egui::Id::new("preferences-focus-entry");
         if !self.personal.preferences_open {
+            ctx.data_mut(|data| data.remove::<bool>(focus_entry));
             return;
         }
+        let entering = ctx.data_mut(|data| {
+            let entering = data.get_temp::<bool>(focus_entry) != Some(true);
+            data.insert_temp(focus_entry, true);
+            entering
+        });
         let mut open = true;
         egui::Window::new("阅读与外观 · 仅此设备").open(&mut open).collapsible(false)
             .default_width(420.0).show(ctx,|ui| {
                 let s=&mut self.personal.settings;
                 ui.horizontal_wrapped(|ui| {
                     ui.label("主题");
-                    ui.selectable_value(&mut s.theme,crate::theme::ThemeMode::Dark,"暗色");
+                    let first = ui.selectable_value(&mut s.theme,crate::theme::ThemeMode::Dark,"暗色");
+                    if entering { first.request_focus(); }
                     ui.selectable_value(&mut s.theme,crate::theme::ThemeMode::Light,"亮色");
                     ui.selectable_value(&mut s.theme,crate::theme::ThemeMode::System,"跟随系统");
                 });
@@ -107,6 +115,9 @@ impl WorldeditApp {
             });
         if !open {
             self.personal.preferences_open = false;
+        }
+        if !self.personal.preferences_open {
+            ctx.data_mut(|data| data.remove::<bool>(focus_entry));
         }
     }
 }

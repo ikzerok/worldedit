@@ -7,7 +7,7 @@ use std::sync::{
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-fn app() -> (Context, WorldeditApp, String) {
+pub(super) fn app() -> (Context, WorldeditApp, String) {
     let ctx = Context::default();
     ctx.style_mut(|s| {
         s.animation_time = 0.0;
@@ -81,7 +81,7 @@ fn range(ctx: &Context, app: &WorldeditApp) -> CCursorRange {
         .unwrap()
 }
 
-fn select(ctx: &Context, app: &WorldeditApp, primary: usize, secondary: usize) {
+pub(super) fn select(ctx: &Context, app: &WorldeditApp, primary: usize, secondary: usize) {
     let id = egui::Id::new(("source", &app.active_file));
     let mut state = egui::TextEdit::load_state(ctx, id).unwrap();
     state.cursor.set_char_range(Some(CCursorRange {
