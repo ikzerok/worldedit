@@ -28,6 +28,10 @@ impl WorldeditApp {
                 "character-details",
                 self.tab == Tab::Characters && self.character_focus.inspector_open,
             ),
+            (
+                "problems",
+                self.personal.settings.diagnostics && !self.personal.settings.focus,
+            ),
             ("temporal-issues", self.temporal_issues.open),
             ("search", self.search_open),
             ("commands", self.command_palette.open),
@@ -76,6 +80,10 @@ impl WorldeditApp {
                 "commands" => self.command_palette.previous_focus,
                 "schema" => self.schema_ui.return_focus,
                 "temporal-issues" => self.temporal_issues.return_focus,
+                "problems" => self
+                    .problems
+                    .return_focus
+                    .or(self.command_palette.frame_focus),
                 // 命令执行后关闭自身并打开设置：新层应继承命令的返回目标，
                 // 不能记录本帧开始时已经消失的命令输入框。
                 _ => closed_focus.or(self.command_palette.frame_focus),

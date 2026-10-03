@@ -55,6 +55,25 @@ fn execute(request_json: &str, files: JsValue, retained: JsValue) -> Result<JsVa
             .ok_or_else(|| "后台任务缺少工程".to_owned())
     };
     let (output, binaries) = match &request.task {
+        WorkTask::ProblemsReport {
+            options,
+            source_observation,
+        } => {
+            if need_project()?
+                .problems_observation_key()
+                .map_err(|error| error.to_string())?
+                != *source_observation
+            {
+                return Err("后台工程来源范围不匹配".into());
+            }
+            let report = need_project()?
+                .problems_report_with_progress(options, &mut |domain| {
+                    progress(&request, &format!("检查 {domain:?}"), 0, 12);
+                    true
+                })
+                .map_err(|error| error.to_string())?;
+            (WorkOutput::ProblemsReport { report }, Vec::new())
+        }
         WorkTask::SvgPreview { source } => {
             let preview = worldline_core::svg_import::preview_scene_with_control(
                 source,

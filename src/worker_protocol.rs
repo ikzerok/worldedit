@@ -32,6 +32,10 @@ pub(crate) struct WorkRequest {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum WorkTask {
+    ProblemsReport {
+        options: worldline_core::problems::ProblemsOptions,
+        source_observation: String,
+    },
     SvgPreview {
         source: String,
     },
@@ -67,6 +71,9 @@ pub(crate) enum WorkTask {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum WorkOutput {
+    ProblemsReport {
+        report: worldline_core::problems::ProblemsReport,
+    },
     SvgPreview {
         preview: SvgScenePreview,
     },
@@ -116,7 +123,8 @@ impl WorkRequest {
         }
         let needs_project = matches!(
             self.task,
-            WorkTask::ScenePreview { .. }
+            WorkTask::ProblemsReport { .. }
+                | WorkTask::ScenePreview { .. }
                 | WorkTask::SceneEntityPreview { .. }
                 | WorkTask::ReaderPackage { .. }
                 | WorkTask::MapSvgExport { .. }
@@ -141,6 +149,21 @@ impl WorkRequest {
         binaries: &[usize],
     ) -> Result<(), String> {
         match (&self.task, output) {
+            (
+                WorkTask::ProblemsReport {
+                    options,
+                    source_observation,
+                },
+                WorkOutput::ProblemsReport { report },
+            ) if binaries.is_empty()
+                && report.schema_version == 1
+                && report.content_baseline == self.baseline
+                && &report.source_observation == source_observation
+                && &report.limits == options
+                && report.compile_count <= 1 =>
+            {
+                Ok(())
+            }
             (
                 WorkTask::ReaderProfileSavePlan {
                     selection,

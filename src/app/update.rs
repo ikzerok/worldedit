@@ -176,8 +176,10 @@ impl eframe::App for WorldeditApp {
         {
             self.open_dialog(ctx, false);
         }
+        self.poll_problems(ctx);
         self.top_bar(ctx);
         self.status_bar(ctx);
+        self.problems_panel(ctx);
         if self.personal.settings.navigation
             && !self.personal.settings.focus
             && !self.compact_reference_navigation(ctx)

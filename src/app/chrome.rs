@@ -193,7 +193,7 @@ impl WorldeditApp {
             });
     }
 
-    fn status_details(&self, ui: &mut egui::Ui) {
+    fn status_details(&mut self, ui: &mut egui::Ui) {
         let errors = self
             .diagnostics()
             .iter()
@@ -204,17 +204,17 @@ impl WorldeditApp {
             .iter()
             .filter(|d| d.severity == Severity::Warning)
             .count();
-        ui.colored_label(
-            if errors > 0 { ERROR() } else { ACCENT() },
-            if errors > 0 {
-                format!("● {errors} 个错误")
+        if ui
+            .small_button(if errors > 0 {
+                format!("内容 {errors} 错误 · {warnings} 提醒")
             } else {
-                "● 编译通过".into()
-            },
-        );
-        if warnings > 0 {
-            ui.label(theme::muted(format!("{warnings} 个提醒")));
+                format!("内容编译通过 · {warnings} 提醒")
+            })
+            .clicked()
+        {
+            self.open_problems(ui.ctx());
         }
+        self.problems_status(ui);
         ui.separator();
         ui.label(theme::muted(if self.has_open_authoring_form() {
             "有未应用输入（尚未保存）"
