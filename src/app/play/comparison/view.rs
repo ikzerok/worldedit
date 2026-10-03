@@ -100,8 +100,9 @@ fn first_difference(
                                 if display == 0 { "A" } else { "B" },
                                 input.choice.label
                             ))
-                            .wrap(),
-                        );
+                            .truncate(),
+                        )
+                        .on_hover_text(&input.choice.label);
                         source_button(
                             ui,
                             compared,
@@ -127,6 +128,10 @@ fn first_difference(
 
 impl WorldeditApp {
     pub(in crate::app::play) fn comparison_tab(&mut self, ctx: &egui::Context) {
+        let source_current =
+            self.comparison.result.as_ref().is_some_and(|compared| {
+                compared.scope.matches_project(&self.project, self.version)
+            });
         let blocked = self
             .comparison
             .result
@@ -161,6 +166,7 @@ impl WorldeditApp {
                             .unwrap_or("选择实际路径");
                         egui::ComboBox::from_id_salt(("comparison-path", i))
                             .width(ui.available_width().max(100.0))
+                            .truncate()
                             .selected_text(format!("{}  {label}", if i == 0 { "A" } else { "B" }))
                             .show_ui(ui, |ui| {
                                 for (index, path) in
@@ -224,11 +230,16 @@ impl WorldeditApp {
                         );
                     }
                 });
-                if !compared.scope.matches_project(&self.project, self.version) {
+                if !source_current {
                     ui.colored_label(
                         theme::WARNING(),
                         "结果已过期，仍属于旧稿；请重新比较。旧来源不可跳转",
                     );
+                }
+                if source_current {
+                    if let Some(reason) = blocked.as_deref() {
+                        ui.colored_label(theme::WARNING(), reason);
+                    }
                 }
                 if !compared.scope.excluded_inputs.is_empty() {
                     ui.colored_label(
@@ -268,6 +279,10 @@ impl WorldeditApp {
                         blocked.as_deref(),
                         &mut request,
                         &mut target,
+                        self.snapshot
+                            .as_ref()
+                            .filter(|_| source_current)
+                            .map(|snapshot| &snapshot.result.analysis.catalog),
                     );
                     self.comparison_technical(ui, Some(compared));
                 });

@@ -4,7 +4,7 @@ use crate::app::{SavedReplayPath, Tab};
 use worldline_core::{project::Project, TargetRef};
 use worldline_runtime::{ReplayTrace, Story};
 
-const SOURCE: &str = "entity lens as \"信号透镜\"\ntag returned as \"归还\"\ntag sold as \"售出\"\nstate lens_fate on entity lens with [] as \"透镜去向\"\nlet coins = 0\nevent start\n  choice \"归还透镜\"\n    become lens_fate with returned\n    -> finish\n  choice \"出售透镜\"\n    become lens_fate with sold\n    set coins = 10\n    -> finish\nevent finish\n  结果已记录。\n  -> END\n";
+const SOURCE: &str = "entity lens kind artifact as \"信号透镜\"\ntag returned as \"归还\"\ntag sold as \"售出\"\nstate lens_fate on entity lens with [] as \"透镜去向\"\nlet coins = 0\nevent start\n  choice \"归还透镜\"\n    become lens_fate with returned\n    -> finish\n  choice \"出售透镜\"\n    become lens_fate with sold\n    set coins = 10\n    -> finish\nevent finish\n  结果已记录。\n  -> END\n";
 
 fn setup() -> (egui::Context, WorldeditApp) {
     let ctx = egui::Context::default();
@@ -113,7 +113,21 @@ fn frame(ctx: &egui::Context, app: &mut WorldeditApp, size: egui::Vec2) -> egui:
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
             ..Default::default()
         },
-        |ctx| app.play_tab(ctx),
+        |ctx| {
+            egui::TopBottomPanel::top("test-app-toolbar")
+                .exact_height(38.0)
+                .show(ctx, |_| {});
+            egui::TopBottomPanel::bottom("test-app-status")
+                .exact_height(24.0)
+                .show(ctx, |_| {});
+            if !app.compact_reference_navigation(ctx) {
+                egui::SidePanel::left("test-app-navigation")
+                    .exact_width(212.0)
+                    .show(ctx, |_| {});
+            }
+            app.docked_reading(ctx);
+            app.play_tab(ctx);
+        },
     )
 }
 fn labels(shape: &egui::Shape, found: &mut Vec<(String, egui::Rect)>) {
@@ -311,7 +325,209 @@ fn comparison_history_is_session_only_and_stale_request_does_not_claim_success()
     assert_eq!(app.personal.history.len(), before);
     assert!(app.message.is_none());
     let location = app.author_location(Some(&ctx));
-    assert!(!serde_json::to_string(&location)
+    assert!(serde_json::to_value(&location)
         .unwrap()
-        .contains("comparison"));
+        .get("comparison")
+        .is_none());
+}
+
+#[test]
+fn pending_scope_compile_error_is_reported_in_comparison_and_keeps_draft() {
+    let (ctx, mut app) = setup();
+    let mut buffer = app
+        .project
+        .open_source_writing_buffer(&app.active_file)
+        .unwrap();
+    buffer.replace_source(format!("{SOURCE}\n# kept draft"));
+    app.manuscript.restore_writing_buffers(&[buffer]);
+    app.request_comparison(&ctx);
+    assert!(app.play_confirmation.is_some());
+    assert!(app.comparison.job.is_none());
+    app.snapshot
+        .as_mut()
+        .unwrap()
+        .result
+        .diagnostics
+        .push(worldline_core::Diagnostic::error(
+            "E_TEST",
+            "test.wl",
+            worldline_core::Span::new(1, 1, 1),
+            "test compile error",
+        ));
+    let _ = ctx.run(egui::RawInput::default(), |ctx| app.play_scope_dialog(ctx));
+    assert!(app.play_confirmation.is_none());
+    assert!(app
+        .comparison
+        .notice
+        .as_deref()
+        .unwrap()
+        .contains("编译错误"));
+    assert!(app.manuscript.writing_buffers()[0]
+        .source()
+        .contains("kept draft"));
+}
+
+#[test]
+fn partial_and_different_seed_results_have_honest_first_screen_risks() {
+    let (ctx, mut app) = setup();
+    let snapshot = &app.snapshot.as_ref().unwrap().result;
+    let mut partial = Story::new_with_seed(&snapshot.program, &snapshot.analysis, 42).unwrap();
+    partial.continue_story().unwrap();
+    app.replay_debugger.saved_paths[0].trace = partial.replay_trace();
+    compare(&ctx, &mut app);
+    let result = &app.comparison.result.as_ref().unwrap().result;
+    assert!(!result.left.complete);
+    assert!(view::status_text(&result.left).contains("非完整结局"));
+    frame(&ctx, &mut app, egui::vec2(1040.0, 660.0));
+    let output = frame(&ctx, &mut app, egui::vec2(1040.0, 660.0));
+    let mut found = Vec::new();
+    for shape in &output.shapes {
+        labels(&shape.shape, &mut found);
+    }
+    assert!(found
+        .iter()
+        .any(|(text, rect)| text.contains("非完整结局") && rect.bottom() < 660.0));
+
+    app.replay_debugger.saved_paths[0].trace = record(&app, 0, 7);
+    compare(&ctx, &mut app);
+    assert!(
+        !app.comparison
+            .result
+            .as_ref()
+            .unwrap()
+            .result
+            .alignment
+            .comparable
+    );
+    let reason = app
+        .comparison
+        .result
+        .as_ref()
+        .unwrap()
+        .result
+        .alignment
+        .reason
+        .clone()
+        .unwrap();
+    frame(&ctx, &mut app, egui::vec2(1040.0, 660.0));
+    let output = frame(&ctx, &mut app, egui::vec2(1040.0, 660.0));
+    let mut found = Vec::new();
+    for shape in &output.shapes {
+        labels(&shape.shape, &mut found);
+    }
+    assert!(found
+        .iter()
+        .any(|(text, rect)| text == &reason && rect.bottom() < 660.0));
+}
+
+#[test]
+fn workspace_reset_cancels_comparison_and_forgets_session_results() {
+    let (ctx, mut app) = setup();
+    app.request_comparison(&ctx);
+    let token = app.comparison.job.as_ref().unwrap().cancellation.clone();
+    app.reset_views();
+    assert!(token.is_cancelled());
+    assert!(app.comparison.job.is_none());
+    assert!(app.comparison.result.is_none());
+}
+
+#[test]
+fn long_route_names_keep_status_and_relative_source_on_first_screen() {
+    let (ctx, mut app) = setup();
+    let long = "这是一条带有很长中文标题以及long_identifier_的真实作者路线".repeat(12);
+    let source = SOURCE.replace("归还透镜", &format!("归还透镜 {long}"));
+    app.project
+        .set_text(&app.active_file.clone(), source)
+        .unwrap();
+    app.recompile();
+    app.replay_debugger.saved_paths[0].trace = record(&app, 0, 42);
+    app.replay_debugger.saved_paths[1].trace = record(&app, 1, 42);
+    app.replay_debugger.saved_paths[0].name = format!("归还 {long}");
+    app.replay_debugger.saved_paths[1].name = format!("出售 {long}");
+    compare(&ctx, &mut app);
+    let first = app
+        .comparison
+        .result
+        .as_ref()
+        .unwrap()
+        .result
+        .alignment
+        .first_difference
+        .as_ref()
+        .unwrap();
+    let source = first.left.source.as_ref().unwrap();
+    let expected = format!(
+        "{} · 第 {} 行",
+        crate::theme::relative_source(&app.project.root, std::path::Path::new(&source.file)),
+        source.line
+    );
+    assert!(!expected.starts_with("/tmp/"));
+    for mode in [
+        crate::theme::ThemeMode::Dark,
+        crate::theme::ThemeMode::Light,
+    ] {
+        crate::theme::configure(&ctx, mode);
+        for size in [
+            egui::vec2(1280.0, 800.0),
+            egui::vec2(1188.0, 848.0),
+            egui::vec2(1040.0, 660.0),
+        ] {
+            frame(&ctx, &mut app, size);
+            let output = frame(&ctx, &mut app, size);
+            let mut found = Vec::new();
+            for shape in &output.shapes {
+                labels(&shape.shape, &mut found);
+            }
+            for caption in ["首个不同选择", expected.as_str()] {
+                let (_, rect) = found
+                    .iter()
+                    .find(|(text, _)| text == caption)
+                    .unwrap_or_else(|| panic!("missing {caption}"));
+                assert!(
+                    rect.bottom() < size.y && rect.right() <= size.x,
+                    "long label displaced {caption}: {rect:?}"
+                );
+            }
+            assert_eq!(
+                found
+                    .iter()
+                    .filter(|(text, rect)| text.contains("完整结束并验证通过")
+                        && rect.bottom() < size.y)
+                    .count(),
+                2
+            );
+        }
+    }
+}
+
+#[test]
+fn stale_comparison_does_not_borrow_renamed_catalog_displays() {
+    let (ctx, mut app) = setup();
+    compare(&ctx, &mut app);
+    frame(&ctx, &mut app, egui::vec2(1040.0, 660.0));
+    let output = frame(&ctx, &mut app, egui::vec2(1040.0, 660.0));
+    let mut found = Vec::new();
+    for shape in &output.shapes {
+        labels(&shape.shape, &mut found);
+    }
+    assert!(found.iter().any(|(text, _)| text == "透镜去向 · 信号透镜"));
+    app.project
+        .set_text(
+            &app.active_file.clone(),
+            SOURCE.replace("信号透镜", "后来改名的对象"),
+        )
+        .unwrap();
+    app.recompile();
+    let output = frame(&ctx, &mut app, egui::vec2(1040.0, 660.0));
+    let mut found = Vec::new();
+    for shape in &output.shapes {
+        labels(&shape.shape, &mut found);
+    }
+    assert!(!found
+        .iter()
+        .any(|(text, _)| text.contains("后来改名的对象")));
+    assert!(found.iter().any(|(text, _)| text == "状态 · lens_fate"));
+    assert!(found
+        .iter()
+        .any(|(text, rect)| text.contains("结果已过期") && rect.bottom() < 660.0));
 }

@@ -112,12 +112,15 @@ impl ComparisonState {
         }
     }
     pub(super) fn signature(&self, paths: &[super::super::SavedReplayPath]) -> String {
+        let selected = [self.a, self.b].map(|index| {
+            index
+                .and_then(|index| paths.get(index))
+                .map(|path| serde_json::json!([path.name, path.trace]))
+        });
         serde_json::json!([
             self.a,
             self.b,
-            [self.a, self.b].map(|index| index
-                .and_then(|index| paths.get(index))
-                .map(|path| serde_json::json!([path.name, path.trace]))),
+            selected,
             self.max_steps,
             self.time_budget_ms
         ])

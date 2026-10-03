@@ -15,6 +15,10 @@ pub(in crate::app) struct AppliedPlayScope {
     baseline: String,
 }
 impl AppliedPlayScope {
+    pub(super) fn workspace_root(&self) -> &Path {
+        &self.root
+    }
+
     pub(in crate::app) fn source_matches(&self, path: &Path, source: &str) -> bool {
         self.sources.get(path).is_some_and(|saved| saved == source)
     }
@@ -345,10 +349,20 @@ impl WorldeditApp {
         Some(current)
     }
 
+    fn run_scope_notice(&mut self, action: RunAction, message: &str) {
+        if action == RunAction::Compare {
+            self.comparison.notice = Some(message.into());
+        } else {
+            self.replay_debugger.notice = Some(message.into());
+        }
+    }
+
     fn confirm_play_scope(&mut self, ctx: &egui::Context, shown: PlayConfirmation) {
         let Some(mut current) = self.refresh_play_confirmation(&shown) else {
-            self.replay_debugger.notice =
-                Some("已应用工程稿已变化且存在错误，请修复后重新运行".into());
+            self.run_scope_notice(
+                shown.action,
+                "已应用工程稿已变化且存在错误，请修复后重新运行",
+            );
             return;
         };
         if current.scope != shown.scope
@@ -371,8 +385,7 @@ impl WorldeditApp {
             return;
         };
         let Some(confirmation) = self.refresh_play_confirmation(&old) else {
-            self.replay_debugger.notice =
-                Some("已应用工程稿存在编译错误，运行已取消；草稿保留".into());
+            self.run_scope_notice(old.action, "已应用工程稿存在编译错误，运行已取消；草稿保留");
             return;
         };
         let changed = confirmation.scope != old.scope

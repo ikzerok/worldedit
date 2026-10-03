@@ -33,10 +33,11 @@ pub(super) fn source_button(
     blocked: Option<&str>,
     label: &str,
     request: &mut Option<ComparisonSourceRequest>,
-) {
-    let reason = blocked.or_else(|| source.is_none().then_some("此证据没有可确认的作者来源"));
+) -> bool {
+    let reason = blocked.or(source.is_none().then_some("此证据没有可确认的作者来源"));
     let response = ui.add_enabled(reason.is_none(), egui::Button::new(label));
-    if response.clicked() {
+    let clicked = response.clicked();
+    if clicked {
         *request = source.map(|source| ComparisonSourceRequest {
             result_id: compared.id,
             source: source.clone(),
@@ -46,11 +47,16 @@ pub(super) fn source_button(
         response.on_disabled_hover_text(reason);
     }
     if let Some(source) = source {
-        ui.add(egui::Label::new(format!("{} · 第 {} 行", source.file, source.line)).truncate())
-            .on_hover_text(&source.file);
+        let relative = crate::theme::relative_source(
+            compared.scope.workspace_root(),
+            std::path::Path::new(&source.file),
+        );
+        ui.add(egui::Label::new(format!("{relative} · 第 {} 行", source.line)).truncate())
+            .on_hover_text(format!("{} · 第 {} 行", source.file, source.line));
     } else {
         ui.label(crate::theme::muted("没有可确认来源；不按同名或标签猜测"));
     }
+    clicked
 }
 
 impl WorldeditApp {

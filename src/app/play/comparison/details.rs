@@ -4,7 +4,7 @@ use super::{
     ComparedRoutes, ComparisonState,
 };
 use crate::theme;
-use worldline_core::{ast::ChangeKind, TargetRef};
+use worldline_core::{ast::ChangeKind, catalog::Catalog, TargetRef};
 use worldline_runtime::RouteValueDifference;
 
 fn value(value: Option<&serde_json::Value>) -> String {
@@ -29,12 +29,24 @@ fn value_label(ui: &mut egui::Ui, text: String) {
     )
     .on_hover_text(text);
 }
+fn state_caption(catalog: Option<&Catalog>, id: &str) -> String {
+    let Some(state) = catalog.and_then(|catalog| catalog.states.get(id)) else {
+        return format!("状态 · {id}");
+    };
+    let owner = catalog.and_then(|catalog| catalog.object(&state.target));
+    owner.map_or_else(
+        || state.display.clone(),
+        |owner| format!("{} · {}", state.display, owner.display),
+    )
+}
+
 fn difference(
     ui: &mut egui::Ui,
     compared: &ComparedRoutes,
     difference: &RouteValueDifference,
     select: bool,
     selected: &mut Option<String>,
+    catalog: Option<&Catalog>,
 ) {
     ui.push_id(("result-value", select, &difference.id), |ui| {
         egui::Frame::group(ui.style())
@@ -44,12 +56,24 @@ fn difference(
                     if ui
                         .selectable_label(
                             selected.as_ref() == Some(&difference.id),
-                            format!("状态 · {}", difference.id),
+                            state_caption(catalog, &difference.id),
                         )
                         .clicked()
                     {
                         *selected = Some(difference.id.clone());
                     }
+                    let identity = catalog
+                        .and_then(|catalog| catalog.states.get(&difference.id))
+                        .map_or_else(
+                            || format!("state {}", difference.id),
+                            |state| {
+                                format!(
+                                    "state {} → {} {}",
+                                    difference.id, state.target.kind, state.target.id
+                                )
+                            },
+                        );
+                    ui.label(theme::muted(identity));
                 } else {
                     ui.strong(format!("变量 · {}", difference.id));
                 }
@@ -84,6 +108,7 @@ pub(super) fn render(
     blocked: Option<&str>,
     request: &mut Option<ComparisonSourceRequest>,
     target: &mut Option<TargetRef>,
+    catalog: Option<&Catalog>,
 ) {
     ui.heading("实际停止状态差异");
     if compared.result.state_differences.is_empty()
@@ -102,6 +127,7 @@ pub(super) fn render(
             difference_value,
             true,
             &mut state.selected_state,
+            catalog,
         );
     }
     for difference_value in &compared.result.variable_differences {
@@ -111,6 +137,7 @@ pub(super) fn render(
             difference_value,
             false,
             &mut state.selected_state,
+            catalog,
         );
     }
     ui.add_space(theme::SPACE_MD);
@@ -209,23 +236,27 @@ pub(super) fn render(
                         value_label(ui, note.clone());
                     }
                     if let Some(owner) = &record.target {
-                        if ui
-                            .button(format!("查看所属对象 · {} {}", owner.kind, owner.id))
-                            .clicked()
-                        {
+                        let display = catalog
+                            .and_then(|catalog| catalog.object(owner))
+                            .map(|object| object.display.as_str())
+                            .unwrap_or(&owner.id);
+                        if ui.button(format!("查看所属对象 · {display}")).clicked() {
                             *target = Some(owner.clone());
                         }
+                        ui.label(theme::muted(format!("{} {}", owner.kind, owner.id)));
                     } else {
                         ui.label(theme::muted("没有可确认的所属世界对象"));
                     }
-                    source_button(
+                    if source_button(
                         ui,
                         compared,
                         record.source.as_ref(),
                         blocked,
                         "打开实际动作来源",
                         request,
-                    );
+                    ) {
+                        state.selected_action = Some((actual_right, record.sequence));
+                    }
                 });
             });
         }
