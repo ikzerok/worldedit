@@ -190,3 +190,61 @@ fn actual_report_and_ui_combined_memory_budget() {
     assert!(delta <= 128 * 1024, "同进程实际报告+UI增量超过128MiB");
     assert!(app.problems.rendered_rows < 40);
 }
+
+#[test]
+#[ignore = "同轮冻结fixture；设置WORLDEDIT_PROBLEM_FIXTURE为入口路径，独占cargo票执行"]
+fn current_source_workbench_on_frozen_3072_problem_fixture() {
+    let entry = std::env::var_os("WORLDEDIT_PROBLEM_FIXTURE")
+        .expect("请提供同轮129源码/2076104字节fixture入口；不生成替代样本");
+    let (ctx, mut app) = app();
+    app.project = worldline_core::project::Project::open(std::path::Path::new(&entry)).unwrap();
+    app.active_file = app.project.entry.clone();
+    app.recompile();
+    let report = app
+        .project
+        .problems_report(&super::job::report_options())
+        .unwrap();
+    assert_eq!(report.entries.len(), 3072);
+    assert_eq!(report.compile_count, 1);
+    crate::json_budget::check_problem_report_output(&report).unwrap();
+    let selected = report
+        .entries
+        .iter()
+        .find(|entry| entry.primary.precision == worldline_core::problems::ProblemPrecision::Span)
+        .unwrap()
+        .id
+        .clone();
+    app.problems.observation = Some(report.source_observation.clone());
+    app.problems.install(report, app.version);
+    app.open_problems(&ctx);
+    app.problems.select(selected);
+    app.locate_problem(&ctx, None);
+    let source = app.problems.source.take().expect("实际core位置必须可导航");
+    for _ in 0..60 {
+        frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+    }
+    let baseline = app.project.content_baseline();
+    let version = app.version;
+    let baseline_rss = rss_kib();
+    let sampler = RssSampler::start(baseline_rss);
+    app.problems.source = Some(source);
+    for _ in 0..60 {
+        frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+    }
+    let mut frame_ms = Vec::new();
+    for _ in 0..60 {
+        let started = std::time::Instant::now();
+        frame(&ctx, &mut app, egui::vec2(1280., 800.), vec![]);
+        frame_ms.push(started.elapsed().as_secs_f64() * 1000.);
+        assert!(app.problems.rendered_rows < 40);
+        assert_eq!(app.version, version);
+    }
+    let p95 = percentile(&mut frame_ms, 95);
+    let peak = sampler.peak().max(rss_kib());
+    let delta = peak.saturating_sub(baseline_rss);
+    println!("SOURCE_WORKBENCH_BUDGET {{\"problem_count\":3072,\"warmup_frames\":60,\"measured_frames\":60,\"layout_p95_ms\":{p95},\"without_decoration_rss_kib\":{baseline_rss},\"decoration_peak_rss_kib\":{peak},\"decoration_delta_kib\":{delta},\"compile_count\":1}}");
+    assert!(baseline_rss > 0 && peak > 0, "RSS无法读取不能冒认通过");
+    assert!(p95 <= 40., "实际当前来源布局p95超过40ms");
+    assert!(delta <= 32 * 1024, "装饰相对无装饰新增RSS超过32MiB");
+    assert_eq!(app.project.content_baseline(), baseline);
+}

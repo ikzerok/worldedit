@@ -35,6 +35,7 @@ impl WorldeditApp {
             self.step_problem(ctx, previous, false);
         }
         if ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Enter)) {
+            super::view::consume_activation(ctx, egui::Key::Enter);
             self.locate_problem(ctx, None);
         }
     }
@@ -45,6 +46,7 @@ impl WorldeditApp {
         previous: bool,
         locate: bool,
     ) {
+        let origin = locate.then(|| self.author_location(Some(ctx)));
         let Some(page) = &self.problems.page else {
             return;
         };
@@ -86,7 +88,7 @@ impl WorldeditApp {
         {
             self.problems.select(id);
             if locate {
-                self.locate_problem(ctx, None);
+                self.locate_problem_from(ctx, None, origin);
             }
         }
     }
@@ -115,6 +117,15 @@ impl WorldeditApp {
     }
 
     pub(super) fn locate_problem(&mut self, ctx: &egui::Context, related: Option<usize>) {
+        self.locate_problem_from(ctx, related, None);
+    }
+
+    fn locate_problem_from(
+        &mut self,
+        ctx: &egui::Context,
+        related: Option<usize>,
+        origin: Option<crate::app::personal::Location>,
+    ) {
         if self.ime_composing || self.command_palette.ime || self.command_palette.ime_frame {
             self.problems.notice = Some("输入法草稿尚未提交，未离开当前位置".into());
             return;
@@ -133,6 +144,7 @@ impl WorldeditApp {
         match self.project.problem_location(&report, &id, related) {
             Err(error) => self.problems.error = Some(error.to_string()),
             Ok(location) => {
+                let source_location = location.clone();
                 let Some(relative) = &location.path else {
                     return;
                 };
@@ -142,7 +154,7 @@ impl WorldeditApp {
                     return;
                 }
                 let path = self.project.root.join(relative);
-                let position = self.author_location(Some(ctx));
+                let position = origin.unwrap_or_else(|| self.author_location(Some(ctx)));
                 if location.precision == ProblemPrecision::Span {
                     let Some(range) = location.byte_range else {
                         return;
@@ -152,7 +164,11 @@ impl WorldeditApp {
                         self.problems.notice = Some("来源当前无法读取，未沿用旧选区".into());
                         return;
                     };
-                    crate::app::search::request_selection(
+                    if let Err(error) = self.project.verify_source_navigation(&path, &source) {
+                        self.problems.reject_source_navigation(error);
+                        return;
+                    }
+                    crate::app::search::request_diagnostic_selection(
                         ctx,
                         path.clone(),
                         source,
@@ -178,6 +194,7 @@ impl WorldeditApp {
                 }
                 self.remember_author_location(position);
                 self.personal.restore_source = false;
+                self.remember_problem_source(&report, &id, related, path.clone(), source_location);
                 self.active_file = path;
                 self.tab = Tab::Edit;
                 self.jump = None;

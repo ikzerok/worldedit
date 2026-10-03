@@ -7,6 +7,7 @@ mod chrome;
 mod eds11_prototype;
 mod fonts;
 mod highlight;
+mod json_budget;
 mod media;
 mod reader_zip;
 #[cfg(any(target_arch = "wasm32", test))]

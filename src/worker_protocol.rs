@@ -1,5 +1,5 @@
 //! 浏览器后台计算的 typed 传输合同；所有提交仍由当前 Project 复核。
-use crate::scene_raster::RasterSpec;
+use crate::{json_budget::serialized_within, scene_raster::RasterSpec};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -148,6 +148,9 @@ impl WorkRequest {
         output: &WorkOutput,
         binaries: &[usize],
     ) -> Result<(), String> {
+        if !serialized_within(output, MAX_JSON_BYTES) {
+            return Err("后台结果完整JSON超过32MiB预算".into());
+        }
         match (&self.task, output) {
             (
                 WorkTask::ProblemsReport {
@@ -160,7 +163,8 @@ impl WorkRequest {
                 && report.content_baseline == self.baseline
                 && &report.source_observation == source_observation
                 && &report.limits == options
-                && report.compile_count <= 1 =>
+                && report.compile_count <= 1
+                && serialized_within(report, options.max_report_bytes) =>
             {
                 Ok(())
             }
@@ -361,6 +365,8 @@ pub(crate) fn restore_retained(
     Ok(())
 }
 
+#[cfg(test)]
+mod problems_tests;
 #[cfg(test)]
 mod tests;
 

@@ -17,6 +17,7 @@ struct Pending {
     source: String,
     range: Range<usize>,
     generation: Option<u64>,
+    diagnostic: bool,
 }
 fn selection_id() -> egui::Id {
     egui::Id::new("search-editor-selection")
@@ -160,10 +161,27 @@ pub(crate) fn request_selection(
                 source,
                 range,
                 generation: None,
+                diagnostic: false,
             },
         )
     });
 }
+/// 诊断定位仍选择原文，但不把程序选区当作作者建档意图。
+pub(crate) fn request_diagnostic_selection(
+    ctx: &egui::Context,
+    path: PathBuf,
+    source: String,
+    range: Range<usize>,
+) {
+    request_selection(ctx, path, source, range);
+    ctx.data_mut(|data| {
+        if let Some(mut pending) = data.get_temp::<Pending>(pending_id()) {
+            pending.diagnostic = true;
+            data.insert_temp(pending_id(), pending);
+        }
+    });
+}
+
 pub(crate) fn request_writing_selection(
     ctx: &egui::Context,
     path: PathBuf,
@@ -179,6 +197,7 @@ pub(crate) fn request_writing_selection(
                 source,
                 range,
                 generation: Some(generation),
+                diagnostic: false,
             },
         )
     });
@@ -250,6 +269,12 @@ fn restore_selection(
             egui::text::CCursor::new(start),
             egui::text::CCursor::new(end),
         )));
+    super::selection_origin::restore_origin(
+        ui.ctx(),
+        id,
+        state.cursor.char_range(),
+        pending.diagnostic,
+    );
     state.store(ui.ctx(), id);
     ui.memory_mut(|m| m.request_focus(id));
     ui.ctx().data_mut(|d| {

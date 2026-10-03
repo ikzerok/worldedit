@@ -54,12 +54,65 @@ pub(super) fn location_label(location: &ProblemLocation) -> String {
     }
 }
 
+pub(super) fn precision_label(location: &ProblemLocation) -> &'static str {
+    match location.precision {
+        ProblemPrecision::Span => location
+            .context
+            .as_ref()
+            .filter(|context| context.version == 1)
+            .map_or("原文范围（旧报告）", |context| {
+                role_label(context.role)
+            }),
+        ProblemPrecision::Document => "仅文档位置",
+        ProblemPrecision::Unavailable => "位置不可用",
+    }
+}
+
+pub(super) fn role_label(role: worldline_core::problems::ProblemSourceRole) -> &'static str {
+    use worldline_core::problems::ProblemSourceRole;
+    match role {
+        ProblemSourceRole::Target => "具体目标",
+        ProblemSourceRole::Expression => "完整表达式",
+        ProblemSourceRole::Statement => "语句上下文",
+        ProblemSourceRole::Declaration => "声明上下文",
+        ProblemSourceRole::Document => "文档上下文",
+        ProblemSourceRole::Unavailable => "来源不可用",
+    }
+}
+
+pub(super) fn reading_job(
+    text: &str,
+    settings: &crate::app::personal::Settings,
+    monospace: bool,
+) -> egui::text::LayoutJob {
+    let font = if monospace {
+        egui::FontId::monospace(settings.body_size)
+    } else {
+        egui::FontId::proportional(settings.body_size)
+    };
+    let mut job = egui::text::LayoutJob::simple(text.into(), font, theme::TEXT(), f32::INFINITY);
+    for section in &mut job.sections {
+        section.format.line_height = Some(settings.body_size * settings.line_spacing);
+    }
+    job
+}
+
+pub(super) fn reading_label(
+    ui: &mut egui::Ui,
+    text: &str,
+    settings: &crate::app::personal::Settings,
+    monospace: bool,
+) {
+    ui.add(egui::Label::new(reading_job(text, settings, monospace)).wrap());
+}
+
 pub(super) fn location_ui(
     ui: &mut egui::Ui,
     label: &str,
     scope: egui::Id,
     location: &ProblemLocation,
     current: bool,
+    settings: &crate::app::personal::Settings,
 ) -> bool {
     ui.strong(label);
     let text = location_label(location);
@@ -70,7 +123,7 @@ pub(super) fn location_ui(
         }
     });
     if let Some(reason) = &location.reason {
-        ui.label(theme::muted(reason));
+        reading_label(ui, reason, settings, false);
     }
     let enabled =
         current && location.precision != ProblemPrecision::Unavailable && location.path.is_some();
@@ -85,12 +138,7 @@ pub(super) fn location_ui(
         enabled,
     );
     let clicked = focus_action(response);
-    if let Some(excerpt) = &location.excerpt {
-        ui.add(egui::Label::new(egui::RichText::new(excerpt).monospace().size(13.)).wrap());
-    }
-    if location.excerpt_truncated {
-        ui.label(theme::muted("摘录已限长，完整原文请打开来源"));
-    }
+    super::excerpt::source_excerpt(ui, scope, location, settings);
     clicked
 }
 
@@ -119,6 +167,16 @@ pub(super) fn problem_row(
         egui::Color32::TRANSPARENT
     };
     ui.painter().rect_filled(rect, 3., background);
+    if selected {
+        ui.painter().rect_filled(
+            egui::Rect::from_min_size(
+                rect.left_top() + egui::vec2(0., 4.),
+                egui::vec2(3., (rect.height() - 8.).max(0.)),
+            ),
+            1.,
+            theme::ACCENT(),
+        );
+    }
     let source = format!(
         "{} · {}",
         location_label(&problem.primary),
@@ -183,28 +241,40 @@ pub(super) fn focus_action(response: egui::Response) -> bool {
 pub(super) fn action_clicked(response: egui::Response) -> bool {
     let clicked = response.clicked();
     if clicked && !response.clicked_by(egui::PointerButton::Primary) {
-        response.ctx.input_mut(|input| {
-            let enter = input.key_pressed(egui::Key::Enter);
-            let space = input.key_pressed(egui::Key::Space);
-            input.events.retain(|event| match event {
-                egui::Event::Key {
-                    key: egui::Key::Enter,
-                    pressed: true,
-                    ..
-                } => !enter,
-                egui::Event::Key {
-                    key: egui::Key::Space,
-                    pressed: true,
-                    ..
-                } => !space,
-                egui::Event::Text(text) => {
-                    !(enter && matches!(text.as_str(), "\n" | "\r") || space && text == " ")
-                }
-                _ => true,
-            });
+        let (enter, space) = response.ctx.input(|input| {
+            (
+                input.key_pressed(egui::Key::Enter),
+                input.key_pressed(egui::Key::Space),
+            )
         });
+        if enter {
+            consume_activation(&response.ctx, egui::Key::Enter);
+        }
+        if space {
+            consume_activation(&response.ctx, egui::Key::Space);
+        }
     }
     clicked
+}
+
+/// 消费已确认的动作键和该键对应文本，保留普通文本与IME事件。
+/// 调用方可先consume_key；因此不能依赖已经被消费的key_pressed状态。
+pub(super) fn consume_activation(ctx: &egui::Context, activation: egui::Key) {
+    if !matches!(activation, egui::Key::Enter | egui::Key::Space) {
+        return;
+    }
+    ctx.input_mut(|input| {
+        input.events.retain(|event| match event {
+            egui::Event::Key {
+                key, pressed: true, ..
+            } => *key != activation,
+            egui::Event::Text(text) => {
+                !(activation == egui::Key::Enter && matches!(text.as_str(), "\n" | "\r")
+                    || activation == egui::Key::Space && text == " ")
+            }
+            _ => true,
+        })
+    });
 }
 
 /// 动态段落折行不得改变键盘动作的身份；外观复用Button，交互绑定稳定问题/来源ID。
