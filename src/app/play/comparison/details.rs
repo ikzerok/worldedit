@@ -7,14 +7,49 @@ use crate::theme;
 use worldline_core::{ast::ChangeKind, catalog::Catalog, TargetRef};
 use worldline_runtime::RouteValueDifference;
 
-fn value(value: Option<&serde_json::Value>) -> String {
-    value.map_or_else(
-        || "∅ 此侧没有此值".into(),
-        |value| match value {
-            serde_json::Value::String(text) => text.clone(),
-            _ => value.to_string(),
-        },
-    )
+fn tags_text(tags: &[String], catalog: Option<&Catalog>) -> String {
+    if tags.is_empty() {
+        return "空标签集".into();
+    }
+    tags.iter()
+        .map(|id| {
+            catalog
+                .and_then(|catalog| catalog.tags.get(id))
+                .map(|tag| tag.display.as_str())
+                .filter(|display| !display.is_empty())
+                .unwrap_or(id)
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+fn tag_ids(tags: &[String]) -> String {
+    if tags.is_empty() {
+        "空标签集".into()
+    } else {
+        tags.join(", ")
+    }
+}
+fn value(
+    value: Option<&serde_json::Value>,
+    state: bool,
+    catalog: Option<&Catalog>,
+) -> (String, Option<String>) {
+    let Some(value) = value else {
+        return ("∅ 此侧没有此值".into(), None);
+    };
+    if state {
+        return match serde_json::from_value::<Vec<String>>(value.clone()) {
+            Ok(tags) => (
+                tags_text(&tags, catalog),
+                catalog.map(|_| format!("标签 ID：{}", tag_ids(&tags))),
+            ),
+            Err(_) => ("无法按当前状态格式展示".into(), Some(value.to_string())),
+        };
+    }
+    match serde_json::from_value::<worldline_runtime::Value>(value.clone()) {
+        Ok(value) => (value.display(), Some(value.kind_label().into())),
+        Err(_) => ("无法按当前变量格式展示".into(), Some(value.to_string())),
+    }
 }
 fn value_label(ui: &mut egui::Ui, text: String) {
     let short: String = text.chars().take(200).collect();
@@ -82,10 +117,15 @@ fn difference(
                     for (index, ui) in columns.iter_mut().enumerate() {
                         ui.horizontal_wrapped(|ui| {
                             ui.strong(if index == 0 { "A" } else { "B" });
-                            value_label(
-                                ui,
-                                value(values[compared.display_index(index == 1)].as_ref()),
+                            let (text, hint) = value(
+                                values[compared.display_index(index == 1)].as_ref(),
+                                select,
+                                catalog,
                             );
+                            value_label(ui, text);
+                            if let Some(hint) = hint {
+                                ui.label(theme::muted(hint));
+                            }
                         });
                     }
                 });
@@ -215,18 +255,17 @@ pub(super) fn render(
                         ui,
                         format!(
                             "{} → {}",
-                            if record.before.is_empty() {
-                                "空".into()
-                            } else {
-                                record.before.join(" · ")
-                            },
-                            if record.after.is_empty() {
-                                "空".into()
-                            } else {
-                                record.after.join(" · ")
-                            }
+                            tags_text(&record.before, catalog),
+                            tags_text(&record.after, catalog)
                         ),
                     );
+                    if catalog.is_some() {
+                        ui.label(theme::muted(format!(
+                            "标签 ID：{} → {}",
+                            tag_ids(&record.before),
+                            tag_ids(&record.after)
+                        )));
+                    }
                     ui.label(theme::muted(format!(
                         "{} · 回合 {}",
                         record.node.as_deref().unwrap_or("无节点"),
@@ -300,3 +339,7 @@ pub(super) fn render(
             });
     }
 }
+
+#[cfg(test)]
+#[path = "display_tests.rs"]
+mod tests;

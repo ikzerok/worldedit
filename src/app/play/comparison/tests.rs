@@ -108,9 +108,18 @@ fn action_request(app: &WorldeditApp) -> navigation::ComparisonSourceRequest {
     }
 }
 fn frame(ctx: &egui::Context, app: &mut WorldeditApp, size: egui::Vec2) -> egui::FullOutput {
+    frame_events(ctx, app, size, Vec::new())
+}
+fn frame_events(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    size: egui::Vec2,
+    events: Vec<egui::Event>,
+) -> egui::FullOutput {
     ctx.run(
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            events,
             ..Default::default()
         },
         |ctx| {
@@ -180,7 +189,20 @@ fn comparison_uses_real_routes_and_is_read_only_across_frames_swap_and_source_ba
     let request = action_request(&app);
     app.jump_to_comparison_source(&ctx, &request);
     assert_eq!(app.tab, Tab::Edit);
-    app.author_back(&ctx);
+    let _ = ctx.run(
+        egui::RawInput {
+            modifiers: egui::Modifiers::ALT,
+            events: vec![egui::Event::Key {
+                key: egui::Key::ArrowLeft,
+                physical_key: Some(egui::Key::ArrowLeft),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::ALT,
+            }],
+            ..Default::default()
+        },
+        |ctx| app.author_shortcuts(ctx),
+    );
     assert_eq!(app.tab, Tab::Play);
     assert_eq!(
         app.comparison_location(Some(&ctx)).as_ref().map(|l| (
@@ -531,3 +553,6 @@ fn stale_comparison_does_not_borrow_renamed_catalog_displays() {
         .iter()
         .any(|(text, rect)| text.contains("结果已过期") && rect.bottom() < 660.0));
 }
+
+#[path = "interaction_tests.rs"]
+mod interaction;

@@ -17,6 +17,9 @@ impl WorldeditApp {
             .unwrap_or(true);
         if !has_story {
             egui::CentralPanel::default().show(ctx, |ui| {
+                if self.play_mode_switch(ui) {
+                    return;
+                }
                 ui.centered_and_justified(|ui| {
                     ui.vertical_centered(|ui| {
                         if errors {
@@ -350,6 +353,9 @@ impl WorldeditApp {
         }
         let awaiting_scope = self.play_confirmation.is_some();
         egui::CentralPanel::default().show(ctx, |ui| {
+            if self.play_mode_switch(ui) {
+                return;
+            }
             let Some(play) = &mut self.play else { return };
             if !narrow || self.replay_debugger.pane == PlayPane::Story {
                 super::scope::render_scope(ui, &play.scope);
