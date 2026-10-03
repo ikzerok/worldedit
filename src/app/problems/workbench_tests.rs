@@ -190,18 +190,44 @@ fn old_context_missing_report_stays_readable_but_cannot_navigate_or_decorate() {
     app.problems.select(id.clone());
     app.open_problems(&ctx);
     app.problems.narrow_detail = true;
+    app.problems.focus_detail = true;
+    ctx.style_mut(|style| style.scroll_animation = egui::style::ScrollAnimation::none());
     frame(&ctx, &mut app, egui::vec2(1040., 660.), vec![]);
     let copy = egui::Id::new(("problem-detail", &id))
         .with("primary")
         .with("copy-excerpt");
-    ctx.memory_mut(|memory| memory.request_focus(copy));
-    // 窄工具区的证据在首屏下面；实际焦点滚入后核对可见的只读说明。
-    for _ in 0..16 {
-        frame(&ctx, &mut app, egui::vec2(1040., 660.), vec![]);
+    // 必须经真实Tab获得焦点。帧外request_focus会被egui当成“上帧已有焦点”，
+    // gained_focus永远false，也就不会触发focus_action的滚入。
+    for _ in 0..40 {
+        frame(
+            &ctx,
+            &mut app,
+            egui::vec2(1040., 660.),
+            vec![key(egui::Key::Tab)],
+        );
+        let mut released = key(egui::Key::Tab);
+        if let egui::Event::Key { pressed, .. } = &mut released {
+            *pressed = false;
+        }
+        frame(&ctx, &mut app, egui::vec2(1040., 660.), vec![released]);
+        if ctx.memory(|memory| memory.focused()) == Some(copy) {
+            break;
+        }
     }
     let output = frame(&ctx, &mut app, egui::vec2(1040., 660.), vec![]);
     assert_eq!(ctx.memory(|memory| memory.focused()), Some(copy));
     assert!(texts(&output).contains("旧版或未知上下文仅供阅读"));
+    assert!(
+        output.shapes.iter().any(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.text().contains("旧版或未知上下文仅供阅读") =>
+                shape
+                    .clip_rect
+                    .expand(1.)
+                    .contains_rect(text.galley.rect.translate(text.pos.to_vec2())),
+            _ => false,
+        }),
+        "只读说明必须在最终帧完整可见，不能只存在于离屏布局"
+    );
     let before = app.author_location(Some(&ctx));
     app.locate_problem(&ctx, None);
     assert!(app
