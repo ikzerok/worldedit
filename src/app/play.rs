@@ -6,6 +6,7 @@ mod evidence_navigation;
 mod replay;
 mod replay_location;
 pub(in crate::app) mod scope;
+mod source_guard;
 mod story;
 
 use super::WorldeditApp;
