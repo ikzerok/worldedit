@@ -32,7 +32,11 @@ try {
         "worldline: $actual"
         "worldedit working tree: $(git status --porcelain)"
         "worldline working tree: $(git -C $languageRoot status --porcelain)"
-        "profile: dev/test (Cargo defaults)"
+        "profile: dev/test (explicit environment controls recorded separately)"
+        foreach ($name in @('CARGO_PROFILE_DEV_DEBUG', 'CARGO_PROFILE_TEST_DEBUG', 'CARGO_INCREMENTAL', 'CARGO_BUILD_JOBS', 'CARGO_TARGET_DIR')) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ($null -ne $value) { "${name}: $value" }
+        }
         "temporary directory: $temporaryRoot (unique TMPDIR/TMP/TEMP; retained)"
         "CPU: $((Get-CimInstance Win32_Processor).Name -join '; ')"
         "Memory bytes: $((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory)"
