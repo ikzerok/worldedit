@@ -9,6 +9,8 @@ pub(in crate::app) struct TemporalIssues {
     pub focus: bool,
     pub return_focus: Option<egui::Id>,
     pub entry_focus: Option<egui::Id>,
+    pub viewport_height: Option<f32>,
+    pub window_height: f32,
 }
 pub(super) fn relation_label(relation: TemporalRelation) -> &'static str {
     match relation {
@@ -65,17 +67,29 @@ impl WorldeditApp {
         let mut close = false;
         let mut source = None;
         let viewport = ctx.screen_rect().shrink(16.0);
+        let height_limit = (viewport.height() - 100.0).max(250.0);
+        // 仅恢复被旧viewport上限压缩的窗口；主动缩小的尺寸继续保留。
+        let restore_height = self
+            .temporal_issues
+            .viewport_height
+            .is_some_and(|previous| {
+                viewport.height() > previous + 1.0
+                    && self.temporal_issues.window_height >= (previous - 100.0).max(250.0) - 2.0
+            });
+        self.temporal_issues.viewport_height = Some(viewport.height());
         egui::Window::new("时间问题与先后比较")
             .id(egui::Id::new("temporal-issues"))
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
             .default_width(700.0)
-            .default_height((viewport.height() - 100.0).max(250.0))
+            .default_height(height_limit)
+            .min_height(if restore_height { height_limit } else { 32.0 })
             .max_width((viewport.width() - 30.0).max(280.0))
-            .max_height((viewport.height() - 100.0).max(250.0))
+            .max_height(height_limit)
             .constrain_to(viewport)
             .show(ctx, |ui| {
+                self.temporal_issues.window_height = ui.max_rect().height();
                 ui.label(theme::muted(format!(
                     "当前编译快照 · {} 个真正时间环 · {} 个受阻下游",
                     timeline.cycles.len(),
@@ -186,13 +200,16 @@ impl WorldeditApp {
                                         if let Some(object) = catalog
                                             .object(&worldline_core::TargetRef::new("event", id))
                                         {
-                                            if ui
-                                                .small_button("定位事件")
-                                                .on_hover_text(format!(
-                                                    "{}:{} · {id}",
-                                                    object.file, object.line
-                                                ))
-                                                .clicked()
+                                            if source_button(
+                                                ui,
+                                                (&cycle.id, "member", id),
+                                                "定位事件",
+                                            )
+                                            .on_hover_text(format!(
+                                                "{}:{} · {id}",
+                                                object.file, object.line
+                                            ))
+                                            .clicked()
                                             {
                                                 source = Some((object.file.clone(), object.line));
                                             }
@@ -214,13 +231,16 @@ impl WorldeditApp {
                                         if let Some(object) = catalog.object(
                                             &worldline_core::TargetRef::new("event", &item.event),
                                         ) {
-                                            if ui
-                                                .small_button("定位受阻事件")
-                                                .on_hover_text(format!(
-                                                    "{}:{} · {}",
-                                                    object.file, object.line, item.event
-                                                ))
-                                                .clicked()
+                                            if source_button(
+                                                ui,
+                                                (&cycle.id, "blocked", &item.event),
+                                                "定位受阻事件",
+                                            )
+                                            .on_hover_text(format!(
+                                                "{}:{} · {}",
+                                                object.file, object.line, item.event
+                                            ))
+                                            .clicked()
                                             {
                                                 source = Some((object.file.clone(), object.line));
                                             }
@@ -233,21 +253,25 @@ impl WorldeditApp {
                                         }
                                     });
                                 }
-                                egui::CollapsingHeader::new("闭环证据 · 每一条都来自真实 follows")
-                                    .id_salt((&cycle.id, "witness"))
-                                    .default_open(true)
-                                    .show(ui, |ui| {
-                                        draw_edges(
-                                            ui,
-                                            &cycle.witness,
-                                            &display,
-                                            &mut source,
-                                            &self.project.root,
-                                        )
-                                    });
-                                ui.collapsing("技术详情", |ui| {
+                                let witness = egui::CollapsingHeader::new(
+                                    "闭环证据 · 每一条都来自真实 follows",
+                                )
+                                .id_salt((&cycle.id, "witness"))
+                                .default_open(true)
+                                .show(ui, |ui| {
+                                    draw_edges(
+                                        ui,
+                                        &cycle.witness,
+                                        &display,
+                                        &mut source,
+                                        &self.project.root,
+                                    )
+                                });
+                                reveal_focus(&witness.header_response);
+                                let technical = ui.collapsing("技术详情", |ui| {
                                     ui.label(format!("A213 · 环标识 {} · 稳定最短闭环", cycle.id));
                                 });
+                                reveal_focus(&technical.header_response);
                             });
                         }
                     });
@@ -282,7 +306,13 @@ fn draw_edges(
                     display(&edge.before),
                     display(&edge.after)
                 ));
-                if ui.small_button("定位 follows").clicked() {
+                if source_button(
+                    ui,
+                    (&edge.file, edge.line, &edge.before, &edge.after),
+                    "定位 follows",
+                )
+                .clicked()
+                {
                     *source = Some((edge.file.clone(), edge.line));
                 }
             });
@@ -298,4 +328,16 @@ fn draw_edges(
                 ));
         });
     }
+}
+
+// egui允许裁切控件收到Tab焦点，但普通按钮和展开头不会自动滚入视口。
+fn reveal_focus(response: &egui::Response) {
+    if response.has_focus() {
+        response.scroll_to_me(Some(egui::Align::Center));
+    }
+}
+fn source_button(ui: &mut egui::Ui, id: impl std::hash::Hash, label: &str) -> egui::Response {
+    let response = ui.push_id(id, |ui| ui.small_button(label)).inner;
+    reveal_focus(&response);
+    response
 }
