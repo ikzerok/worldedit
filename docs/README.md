@@ -1,6 +1,6 @@
 # worldedit 使用文档
 
-当前产品为 0.15.0 开发候选，完整功能与验证状态见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+当前产品版本为 0.19.0，最终配对验收待完成；完整功能与验证状态见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
 
 ## 开始创作
 
@@ -8,6 +8,13 @@
 - [作者工作区](author-workspace.md)、[正文与书稿](manuscript-workspace.md)：写作、结构、源码、布局和草稿保护
 - [显式创作与能力](explicit-authoring-0.14.md)：已应用稿、未应用稿、试玩与能力确认
 - [查找与作者位置](search-author-context.md)、[资料旁查](reading-panels.md)、[作者反馈](author-feedback.md)
+
+## 当前稿里的工程问题
+
+- [工程问题工作台](project-problems.md)：筛选、详情、主/相关来源、当前问题摘要和作者返回
+- [源码自动换行](source-wrap.md)：真实排版、物理行号、选区和阅读位置
+- [0.19 版本说明](releases/v0.19.0.md)：可信来源、有界上下文、兼容和最终验收边界
+- [上下文实现合同](diagnostic-source-workbench.md)：core 真源、装饰与选择、阅读字号和验收目标
 
 ## 0.15 矢量地图
 
@@ -39,4 +46,4 @@ v3 对象包含其别名与受限类型结构；属性、地图图元、章节�
 - [配对构建](paired-ci.md)、[发布流程](release.md)、[性能目标与探针](performance.md)
 - [worldline 规范索引](../../worldline/spec/README.md)：语言、地图、机器协议和公开选择的共同真源
 
-当前最终原生、Windows 与性能验收仍在进行；真实 `file://` 离线浏览受工具安全策略限制，尚未验证。自动测试、静态资源审计、headless CPU 探针与真实交互分别记录，不互相替代。
+当前 0.19 的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。
