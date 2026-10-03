@@ -33,7 +33,8 @@ impl WorldeditApp {
     ) -> Result<SearchMatch, String> {
         let snapshot = self.snapshot.as_ref().ok_or("编译来源不存在")?;
         let target = resolve_evidence_source(&snapshot.result, source)?;
-        let path = worldline_core::file_access::within(&self.project.root, Path::new(&source.file))?;
+        let path =
+            worldline_core::file_access::within(&self.project.root, Path::new(&source.file))?;
         if path != target.path {
             return Err("证据文件身份已变化，无法确认来源".into());
         }
@@ -41,7 +42,10 @@ impl WorldeditApp {
         if !scope.source_matches(&path, text) {
             return Err("证据来源内容与实际运行基线不符".into());
         }
-        let preview = text.get(target.range.clone()).ok_or("声明范围已变化")?.into();
+        let preview = text
+            .get(target.range.clone())
+            .ok_or("声明范围已变化")?
+            .into();
         Ok(SearchMatch {
             path,
             range: target.range,

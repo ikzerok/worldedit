@@ -32,6 +32,7 @@ impl AppliedPlayScope {
 enum RunAction {
     Start,
     Replay,
+    Compare,
 }
 
 pub(in crate::app) struct PlayConfirmation {
@@ -252,6 +253,7 @@ impl WorldeditApp {
                 self.replay_debugger.live_max_steps,
                 self.replay_debugger.live_time_budget_ms
             ),
+            RunAction::Compare => self.comparison.signature(&self.replay_debugger.saved_paths),
             RunAction::Replay => serde_json::json!([
                 self.replay_debugger.selected_path,
                 self.replay_debugger.selected_path.and_then(|index| {
@@ -312,6 +314,28 @@ impl WorldeditApp {
         }
     }
 
+    pub(super) fn request_comparison(&mut self, ctx: &egui::Context) {
+        if self.comparison.running() {
+            return;
+        }
+        if !self
+            .comparison
+            .has_paths(self.replay_debugger.saved_paths.len())
+        {
+            self.comparison.notice = Some("请先为 A、B 选择或导入真实路径".into());
+            return;
+        }
+        let Some(confirmation) = self.play_confirmation_for(RunAction::Compare) else {
+            self.comparison.notice = Some("已应用工程稿没有可用的编译快照".into());
+            return;
+        };
+        if confirmation.scope.excluded_inputs.is_empty() {
+            self.begin_comparison_applied(ctx, confirmation.scope);
+        } else {
+            self.play_confirmation = Some(confirmation);
+        }
+    }
+
     fn refresh_play_confirmation(&self, old: &PlayConfirmation) -> Option<PlayConfirmation> {
         let mut current = self.play_confirmation_for(old.action)?;
         current.refreshed = old.refreshed
@@ -338,6 +362,7 @@ impl WorldeditApp {
         match shown.action {
             RunAction::Start => self.start_play_inner(shown.scope),
             RunAction::Replay => self.begin_replay_applied(ctx, shown.scope),
+            RunAction::Compare => self.begin_comparison_applied(ctx, shown.scope),
         }
     }
 
@@ -361,6 +386,11 @@ impl WorldeditApp {
             ui.heading("运行已应用工程稿");
             ui.label(match confirmation.action {
                 RunAction::Start => format!("开始 / 重新开始 · seed {}", self.replay_debugger.seed),
+                RunAction::Compare => format!(
+                    "共同已应用稿路线对照 · {}",
+                    self.comparison
+                        .path_names(&self.replay_debugger.saved_paths)
+                ),
                 RunAction::Replay => format!(
                     "严格重放 · {}",
                     self.replay_debugger
