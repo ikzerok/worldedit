@@ -14,9 +14,9 @@
 
 - 默认语言 1.9、最高既有 1.13，无新 DSL、自动修复、永久问题 ID 或统一阻断策略；保存、运行、导出与发布各用原门禁
 - 0.18 普通 Story save 的同源码样本在 0.19 完整继续，当前 0.19 新 trace 重放测试通过；旧 trace/checkpoint 的 runtime_version 守卫不放宽
-- 最终完整测试、性能和 Linux native 有限实际尺寸记录待回填；Win/macOS GUI、真实浏览器、系统 IME、读屏与高 DPI 不以编译、合成输入或 offscreen 代验
+- 普通657/0失败/7 ignored、prototype672/0失败/8 ignored；两套native/WASM严格Clippy与构建通过，固定3072问题布局p95为2.079ms、装饰增量RSS320KiB。Linux native仅1188×848有限路径实测；Win/macOS GUI、真实浏览器、系统 IME、读屏与高 DPI 不以编译、合成输入或 offscreen 代验
 
-操作见 [工程问题工作台](docs/project-problems.md)，完整能力、负面边界、语义兼容与待验状态见 [0.19 说明](docs/releases/v0.19.0.md)。文档更新不等于正式发行。
+操作见 [工程问题工作台](docs/project-problems.md)，完整能力、负面边界、语义兼容与实际验收边界见 [0.19 说明](docs/releases/v0.19.0.md)。文档更新不等于正式发行。
 
 ## 0.18.0
 

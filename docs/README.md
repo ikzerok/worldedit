@@ -1,6 +1,6 @@
 # worldedit 使用文档
 
-当前产品版本为 0.19.0，最终配对验收待完成；完整功能与验证状态见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+当前产品版本为 0.19.0；完整功能与验证状态见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
 
 ## 开始创作
 
