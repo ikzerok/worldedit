@@ -1,7 +1,13 @@
 //! 作者问题工具只消费 core 报告；不在 UI 推断诊断、位置或修复状态。
 mod job;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod lifecycle_tests;
 mod navigation;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod performance_tests;
 mod schedule;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod source_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
 mod ui;
@@ -21,6 +27,7 @@ pub(super) struct ProblemsState {
     observation: Option<String>,
     observation_at: f64,
     observation_failed: bool,
+    invalidated: bool,
     schedule: ReportSchedule,
     job: Option<job::ProblemsJob>,
     query: ProblemQuery,
@@ -104,13 +111,15 @@ impl ProblemsState {
             self.related = None;
             self.narrow_detail = false;
         }
+        self.invalidated = false;
         self.report = Some(Arc::new(report));
         self.report_version = Some(version);
         self.refresh_query();
     }
 
     fn stale(&self, version: u64) -> bool {
-        self.report_version != Some(version)
+        self.invalidated
+            || self.report_version != Some(version)
             || self.observation_failed
             || self
                 .report
@@ -133,6 +142,7 @@ impl WorldeditApp {
     pub(in crate::app) fn poll_problems(&mut self, ctx: &egui::Context) {
         let now = ctx.input(|input| input.time);
         if self.problems.schedule.observe(self.version, now) {
+            self.problems.invalidated = true;
             self.problems.job = None;
             self.problems.error = None;
         }
@@ -145,6 +155,7 @@ impl WorldeditApp {
                     if self.problems.observation.as_ref() != Some(&key)
                         || self.problems.observation_failed
                     {
+                        self.problems.invalidated = true;
                         self.problems.schedule.invalidate(self.version, now);
                         self.problems.job = None;
                         self.problems.error = None;
@@ -202,6 +213,7 @@ impl WorldeditApp {
                 }
             } else if let Some(observation) = observation {
                 self.problems.observation = Some(observation);
+                self.problems.invalidated = true;
                 self.problems.schedule.invalidate(self.version, now);
                 self.problems.notice =
                     Some("来源范围在检查期间变化，已丢弃旧结果并等待重检".into());
@@ -232,6 +244,7 @@ impl WorldeditApp {
     }
 
     fn retry_problems(&mut self, ctx: &egui::Context) {
+        self.problems.invalidated = true;
         self.problems.job = None;
         self.problems.error = None;
         self.problems.schedule.retry(ctx.input(|input| input.time));
@@ -239,6 +252,7 @@ impl WorldeditApp {
     }
 
     fn cancel_problems(&mut self) {
+        self.problems.invalidated = true;
         self.problems.job = None;
         self.problems.schedule.cancel();
         self.problems.error = Some("检查已取消；现有结果未重新检查，请显式刷新".into());

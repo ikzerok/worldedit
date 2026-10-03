@@ -328,7 +328,7 @@ impl WorldeditApp {
                     ui.painter().rect_stroke(
                         response.rect.shrink(1.),
                         2.,
-                        egui::Stroke::new(1., theme::ACCENT()),
+                        egui::Stroke::new(1_f32, theme::ACCENT()),
                         egui::StrokeKind::Inside,
                     );
                 }

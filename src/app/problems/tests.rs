@@ -1,9 +1,9 @@
 //! 真实 egui offscreen 帧与 core DTO 测试；不是物理键盘/桌面/IME 验收。
 use super::*;
 use crate::app::Tab;
-use worldline_core::{problems::*, project::Project, Severity};
+use worldline_core::{project::Project, Severity};
 
-fn app() -> (egui::Context, WorldeditApp) {
+pub(super) fn app() -> (egui::Context, WorldeditApp) {
     let ctx = egui::Context::default();
     ctx.style_mut(|style| style.animation_time = 0.);
     let mut app = WorldeditApp::new(&eframe::CreationContext::_new_kittest(ctx.clone()), None);
@@ -36,7 +36,7 @@ fn app() -> (egui::Context, WorldeditApp) {
     app.problems.schedule.cancel();
     (ctx, app)
 }
-fn frame(
+pub(super) fn frame(
     ctx: &egui::Context,
     app: &mut WorldeditApp,
     size: egui::Vec2,
@@ -51,6 +51,10 @@ fn frame(
         |ctx| {
             app.author_shortcuts(ctx);
             app.problems_panel(ctx);
+            let remaining = ctx.available_rect().height();
+            ctx.data_mut(|data| {
+                data.insert_temp(egui::Id::new("problems-test-content-height"), remaining)
+            });
             if app.tab == Tab::Edit {
                 app.source_tab(ctx);
             } else {
@@ -62,7 +66,7 @@ fn frame(
         },
     )
 }
-fn key(key: egui::Key) -> egui::Event {
+pub(super) fn key(key: egui::Key) -> egui::Event {
     egui::Event::Key {
         key,
         physical_key: Some(key),
@@ -223,7 +227,11 @@ fn five_thousand_rows_are_paginated_and_only_visible_rows_are_laid_out() {
                 assert!(rendered.contains("总计 5000 · 匹配 5000"));
                 assert_eq!(app.problems.page.as_ref().unwrap().entries.len(), 200);
                 assert!(
-                    ctx.available_rect().height() >= 230.,
+                    ctx.data(
+                        |data| data.get_temp::<f32>(egui::Id::new("problems-test-content-height"))
+                    )
+                    .unwrap()
+                        >= 230.,
                     "正文需要保留可用高度：{size:?}"
                 );
             }
