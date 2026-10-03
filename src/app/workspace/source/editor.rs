@@ -587,3 +587,6 @@ mod tests;
 
 #[cfg(test)]
 mod selection_tests;
+
+#[cfg(test)]
+mod scroll_tests;

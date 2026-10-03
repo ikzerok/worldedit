@@ -52,7 +52,7 @@ impl SourceFrame {
 
     /// ScrollArea结束后使用其真实视口与限位。布局变化只重定位，不碰TextEdit状态。
     pub(in crate::app) fn finish(
-        self,
+        mut self,
         ctx: &egui::Context,
         scroll: &mut egui::scroll_area::ScrollAreaOutput<()>,
         previous: Option<&SourceView>,
@@ -60,6 +60,10 @@ impl SourceFrame {
     ) -> SourceView {
         let source = super::super::writing_workspace::fingerprint(&self.galley.job.text);
         let viewport = scroll.inner_rect;
+        // show_viewport的Rect含scroll offset；大偏移相减会产生f32抖动。
+        // 重排签名只用屏幕上的真实视口尺寸，不能把动画误判成窗口缩放。
+        self.layout.width = viewport.width();
+        self.layout.height = viewport.height();
         let mut offset = scroll.state.offset;
         if let Some(previous) = previous.filter(|previous| {
             !explicit_navigation
