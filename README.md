@@ -4,6 +4,8 @@ worldline 的 Rust / egui 作者工作台。0.17.0 开发候选聚焦人物局�
 
 本候选尚在开发验收，未公开发行。完整工作流与验收合同见 [人物焦点工作区](docs/focused-author-workbench.md)，完整变更见 [CHANGELOG](CHANGELOG.md)。静态渲染、egui事件测试与Node模型不会冒充真实浏览器、系统输入法或物理高DPI验收。
 
+升级边界：0.16 的重放 trace 按既有 runtime_version 合同不能在0.17直接重放，不应手改版本字段绕过；普通存档与检查点分别按验证记录判断。
+
 ## 使用入口
 
 - [人物焦点与时间问题](docs/focused-author-workbench.md)：有类型局部关系、真实来源、闭环证据和键盘返回

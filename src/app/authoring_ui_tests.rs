@@ -47,3 +47,5 @@ mod keyboard;
 mod visual_layout;
 
 mod workspace_personal;
+
+mod focused_workbench;

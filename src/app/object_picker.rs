@@ -112,6 +112,18 @@ pub(super) fn object_picker(
     catalog: &Catalog,
     allowed: &[&str],
 ) -> bool {
+    object_picker_focused(ui, salt, label, current, catalog, allowed, false).0
+}
+/// 返回真实控件身份，供按需工具的进入/返回焦点使用，不推测egui内部ID。
+pub(super) fn object_picker_focused(
+    ui: &mut Ui,
+    salt: impl std::hash::Hash,
+    label: &str,
+    current: &mut Option<TargetRef>,
+    catalog: &Catalog,
+    allowed: &[&str],
+    request_focus: bool,
+) -> (bool, egui::Id) {
     let before = current.clone();
     let root = ui
         .ctx()
@@ -182,6 +194,10 @@ pub(super) fn object_picker(
                 ui.label("匹配超过1000项，请继续输入缩小范围");
             }
         });
+    let focus_id = response.response.id;
+    if request_focus {
+        response.response.request_focus();
+    }
     response.response.on_hover_text(selected_caption);
     if let Some(target) = current {
         if catalog.object(target).is_none()
@@ -193,7 +209,7 @@ pub(super) fn object_picker(
             );
         }
     }
-    *current != before
+    (*current != before, focus_id)
 }
 #[cfg(test)]
 mod tests {

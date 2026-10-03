@@ -339,6 +339,8 @@ pub struct WorldeditApp {
     zoom: f32,
     graph_positions: HashMap<String, Pos2>,
     character_positions: HashMap<String, Pos2>,
+    character_focus: characters::CharacterFocus,
+    temporal_issues: temporal::issues::TemporalIssues,
     temporal_positions: HashMap<String, Pos2>,
     link_from: Option<String>,
     link_label: String,

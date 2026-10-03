@@ -107,6 +107,7 @@ fn nested_native_source_path_becomes_portable_lifecycle_request() {
         destination: "drafts/new.wl".into(),
         plan: None,
         error: None,
+        failure_kind: None,
     };
     assert_eq!(
         form.request(),
@@ -115,4 +116,31 @@ fn nested_native_source_path_becomes_portable_lifecycle_request() {
             to: PathBuf::from("drafts/new.wl"),
         }
     );
+}
+
+#[test]
+fn classified_receipts_preserve_raw_detail_and_separate_recovery_steps() {
+    for kind in [
+        SourceLifecycleFailureKind::SourceChanged,
+        SourceLifecycleFailureKind::IllegalPath,
+        SourceLifecycleFailureKind::SemanticChange,
+        SourceLifecycleFailureKind::UnableToProve,
+    ] {
+        let (title, action) = failure_guidance(kind);
+        assert!(title.contains("未应用"));
+        assert!(!action.is_empty());
+    }
+    let (_, mut app, source) = app();
+    app.begin_source_move(source);
+    let mut form = app.source_move_form.take().unwrap();
+    form.destination = "../outside.wl".into();
+    let baseline = app.project.content_baseline();
+    app.preview_source_move(&mut form);
+    assert_eq!(
+        form.failure_kind,
+        Some(SourceLifecycleFailureKind::IllegalPath)
+    );
+    assert!(form.error.is_some());
+    assert_eq!(app.project.content_baseline(), baseline);
+    let _ = std::fs::remove_dir_all(app.project.root);
 }
