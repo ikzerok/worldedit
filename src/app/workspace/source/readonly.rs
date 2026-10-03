@@ -49,6 +49,7 @@ impl WorldeditApp {
             relative,
             "展示文档原文 · 可修复损坏 JSON；Ctrl+S 保存全部文件",
         );
+        self.problem_source_summary(ui, path);
         ui.label(theme::muted(
             "地图和其他展示文档由 core 保留原始字节；结构化命令仍从地图画布提交。",
         ));

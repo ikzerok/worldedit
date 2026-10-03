@@ -4,6 +4,7 @@ use crate::app::personal::source_view::SourceFrame;
 use crate::theme;
 mod layout;
 mod selection_action;
+mod problem_marker;
 use std::path::PathBuf;
 
 impl WorldeditApp {
@@ -92,6 +93,7 @@ impl WorldeditApp {
         let body_size = self.personal.settings.body_size;
         let line_height = body_size * self.personal.settings.line_spacing;
         let wrap = self.personal.settings.source_wrap;
+        let problem_range = self.problem_source_range(&path);
         let previous_view = self
             .personal
             .source_view
@@ -244,6 +246,7 @@ impl WorldeditApp {
                     search_navigation = crate::app::search::restore_editor_selection(
                         ui, id, &path, &text, 0, &text,
                     );
+                    let marker = ui.painter().add(egui::Shape::Noop);
                     let mut output = egui::TextEdit::multiline(&mut text)
                         .id(id)
                         .code_editor()
@@ -257,6 +260,13 @@ impl WorldeditApp {
                         .frame(false)
                         .layouter(&mut layouter)
                         .show(ui);
+                    if !output.response.changed() {
+                        if let Some(range) = problem_range.clone() {
+                            ui.painter().set(marker, egui::Shape::Vec(problem_marker::shapes(
+                                &output.galley, output.galley_pos, gutter, ui.clip_rect(), range,
+                            )));
+                        }
+                    }
                     super::gutter::paint(ui, gutter, &output.galley, output.galley_pos, body_size);
                     crate::app::search::observe_manual_selection(ctx, &output, search_navigation);
                     crate::app::writing_workspace::remember_text_undo(ctx, id, &text);

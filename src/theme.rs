@@ -142,6 +142,12 @@ pub fn error_background() -> Color32 {
     }
 }
 
+/// 当前来源的温和强调，与用户TextEdit选区分别绘制。
+pub fn problem_source_background() -> Color32 {
+    if LIGHT.get() { Color32::from_rgb(233, 241, 251) }
+    else { Color32::from_rgb(34, 40, 47) }
+}
+
 pub fn is_light() -> bool {
     LIGHT.get()
 }
@@ -184,7 +190,7 @@ pub fn install(ctx: &egui::Context) {
     style.visuals.selection.bg_fill = if light {
         Color32::from_rgb(207, 224, 249)
     } else {
-        Color32::from_rgb(49, 66, 92)
+        Color32::from_rgb(39, 51, 70)
     };
     style.visuals.selection.stroke = Stroke::new(1.0_f32, ACCENT());
     for widget in [
@@ -219,7 +225,7 @@ pub fn install(ctx: &egui::Context) {
     style.visuals.widgets.active.bg_fill = if light {
         Color32::from_rgb(208, 222, 245)
     } else {
-        Color32::from_rgb(51, 64, 84)
+        Color32::from_rgb(39, 51, 70)
     };
     style.visuals.widgets.active.weak_bg_fill = style.visuals.widgets.active.bg_fill;
     style.visuals.widgets.active.bg_stroke = Stroke::new(2.0_f32, ACCENT());

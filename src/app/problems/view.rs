@@ -54,12 +54,57 @@ pub(super) fn location_label(location: &ProblemLocation) -> String {
     }
 }
 
+pub(super) fn precision_label(location: &ProblemLocation) -> &'static str {
+    match location.precision {
+        ProblemPrecision::Span => location.context.as_ref().filter(|context| context.version == 1)
+            .map_or("原文范围（旧报告）", |context| role_label(context.role)),
+        ProblemPrecision::Document => "仅文档位置",
+        ProblemPrecision::Unavailable => "位置不可用",
+    }
+}
+
+pub(super) fn role_label(role: worldline_core::problems::ProblemSourceRole) -> &'static str {
+    use worldline_core::problems::ProblemSourceRole;
+    match role {
+        ProblemSourceRole::Target => "具体目标",
+        ProblemSourceRole::Expression => "完整表达式",
+        ProblemSourceRole::Statement => "语句上下文",
+        ProblemSourceRole::Declaration => "声明上下文",
+        ProblemSourceRole::Document => "文档上下文",
+        ProblemSourceRole::Unavailable => "来源不可用",
+    }
+}
+
+pub(super) fn reading_job(
+    text: &str,
+    settings: &crate::app::personal::Settings,
+    monospace: bool,
+) -> egui::text::LayoutJob {
+    let font = if monospace { egui::FontId::monospace(settings.body_size) }
+        else { egui::FontId::proportional(settings.body_size) };
+    let mut job = egui::text::LayoutJob::simple(text.into(), font, theme::TEXT(), f32::INFINITY);
+    for section in &mut job.sections {
+        section.format.line_height = Some(settings.body_size * settings.line_spacing);
+    }
+    job
+}
+
+pub(super) fn reading_label(
+    ui: &mut egui::Ui,
+    text: &str,
+    settings: &crate::app::personal::Settings,
+    monospace: bool,
+) {
+    ui.add(egui::Label::new(reading_job(text, settings, monospace)).wrap());
+}
+
 pub(super) fn location_ui(
     ui: &mut egui::Ui,
     label: &str,
     scope: egui::Id,
     location: &ProblemLocation,
     current: bool,
+    settings: &crate::app::personal::Settings,
 ) -> bool {
     ui.strong(label);
     let text = location_label(location);
@@ -70,7 +115,7 @@ pub(super) fn location_ui(
         }
     });
     if let Some(reason) = &location.reason {
-        ui.label(theme::muted(reason));
+        reading_label(ui, reason, settings, false);
     }
     let enabled =
         current && location.precision != ProblemPrecision::Unavailable && location.path.is_some();
@@ -85,12 +130,7 @@ pub(super) fn location_ui(
         enabled,
     );
     let clicked = focus_action(response);
-    if let Some(excerpt) = &location.excerpt {
-        ui.add(egui::Label::new(egui::RichText::new(excerpt).monospace().size(13.)).wrap());
-    }
-    if location.excerpt_truncated {
-        ui.label(theme::muted("摘录已限长，完整原文请打开来源"));
-    }
+    super::excerpt::source_excerpt(ui, scope, location, settings);
     clicked
 }
 
