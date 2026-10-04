@@ -8,6 +8,7 @@ impl super::super::WorldeditApp {
             self.manuscript_creation_tab(ctx);
             return;
         }
+        self.manuscript_review_shortcut(ctx);
         let baseline = self.project.content_baseline();
         if self
             .manuscript
@@ -104,6 +105,14 @@ impl super::super::WorldeditApp {
                             0.0
                         },
                     );
+                    self.manuscript.pending_review_scroll = Some(
+                        if session.restore_offsets.unwrap_or(false) {
+                            session.review_scroll_y.unwrap_or(0.0).clamp(0.0, 1_000_000.0)
+                        } else {
+                            0.0
+                        },
+                    );
+                    self.manuscript.review_page_offset = session.review_page_offset.unwrap_or(0);
                     self.manuscript.reader_open = session.preview_open.unwrap_or(true);
                     self.manuscript.reader_whole_book = session.preview_whole_book.unwrap_or(false);
                     self.manuscript.narrow_preview = session.preview_tab.unwrap_or(false);
@@ -274,6 +283,7 @@ impl super::super::WorldeditApp {
         if apply_book {
             self.apply_manuscript_book(&book_id);
         }
+        self.finish_review_navigation(ctx);
     }
 
     pub(super) fn draw_manuscript_writing(

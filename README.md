@@ -1,12 +1,14 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.21.0 新增主内容区的世界资料批量导入与修订：选择 CSV 快照、明确每列用途、查看逐行差异与存档影响，再一次应用、撤销和保存。解析、匹配、字段补丁和整批验证全部来自 core。默认语言仍为1.9，最高既有显式版本1.13。
+worldline 的 Rust / egui 作者工作台。0.22.0 将书稿阅读升级为可信的全分支审稿：条件与选择保留层次，台词用人物显示名并保留稳定身份，读到需要修改的段落可核验当前稿后返回原文。全部语义和来源来自 core，正文没有第二份可写副本。默认语言仍为1.9，最高既有显式版本1.13。
 
-操作见[资料表工作台](docs/catalog-import.md)，配对工具提供[港口与人物示例](../worldline/examples/catalog-import/README.md)。实际公开发行以正式 Release 记录为准。egui 合成输入、WASM 构建和 Node Worker 验证不替代真实浏览器、系统输入法或高DPI验收。
+操作见[全分支审稿](docs/manuscript-review.md)与[配对核心契约](https://github.com/ikzerok/worldline/blob/main/spec/manuscript-review.md)。它是作者侧静态全稿，不执行条件、不推定任何分支可达；真实路线继续使用试玩与路线对照。公开静态读者站的选择和权限不变。实际公开发行以正式 Release 记录为准。
 
-升级边界：0.20 trace/checkpoint 按原 runtime_version 守卫拒绝在0.21重放或比较，应重新录制；普通 Story Save 继续独立的格式/能力/指纹规则。人物资料变更的真实指纹影响会在导入预览中明确显示，不能概括为所有资料改动均不影响旧存档。升级前保留完整工程和原记录。
+升级边界：0.21 trace/checkpoint 按既有 runtime_version 守卫拒绝在0.22重放或比较，应重新录制；普通 Story Save 继续独立的格式/能力/指纹规则。升级前保留完整工程和原记录。原生合成输入、WASM/Node验证不替代真实浏览器、系统输入法或跨平台原生验收。
 
 ## 使用入口
+
+- [可信全分支审稿](docs/manuscript-review.md)：静态条件与选择边界、人物身份、当前稿回源和完整性提示
 
 - [世界资料批量导入与修订](docs/catalog-import.md)：文件快照、列映射、逐行审阅、原子应用、一次撤销与回源
 

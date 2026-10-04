@@ -59,6 +59,9 @@ impl ViewState {
         self.pending_cursor = None;
         self.pending_focus = true;
     }
+    pub(in crate::app) fn focus_existing_editor(&mut self) {
+        self.pending_focus = true;
+    }
     pub(in crate::app) fn restore_cursor(&mut self, cursor: Option<WritingCursor>) {
         self.pending_cursor = cursor.filter(|cursor| cursor.mode == self.mode.key());
     }

@@ -13,6 +13,13 @@ pub(in crate::app) struct WritingMatchNavigation {
     pub reason: Option<String>,
 }
 
+impl WritingMatchNavigation {
+    pub(super) fn into_source(mut self) -> Self {
+        self.mode = Mode::Source;
+        self
+    }
+}
+
 impl WorkbenchState {
     pub(in crate::app) fn plan_writing_match(
         &self,

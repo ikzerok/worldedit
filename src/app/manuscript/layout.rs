@@ -76,6 +76,14 @@ impl super::super::WorldeditApp {
         preview: &ManuscriptIndex,
         selected: Option<&ManuscriptEntryDraft>,
     ) -> BodyAction {
+        if self.review_return_available() {
+            let blocked = self.review_input_blocker(ui.ctx());
+            if ui.add_enabled(blocked.is_none(), egui::Button::new("返回审稿"))
+                .on_hover_text(blocked.as_deref().unwrap_or("Alt+Left · 返回原章节、模式、光标和审稿滚动；不丢草稿"))
+                .clicked() {
+                self.manuscript.review_navigation.back = true;
+            }
+        }
         let mut action = None;
         let scroll_salt = egui::Id::new(("manuscript-main", book, &local.selected_entry));
         let mut scroll = egui::ScrollArea::vertical()

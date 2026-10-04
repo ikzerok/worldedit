@@ -9,7 +9,7 @@ use super::WorldeditApp;
 pub(crate) use selection::{
     clear_pending_selection, editor_selection, mark_pending_selection_programmatic,
     record_editor_selection, record_navigation_focus, request_diagnostic_selection,
-    request_selection, restore_editor_selection, restore_writing_selection,
+    request_selection, request_writing_selection, restore_editor_selection, restore_writing_selection,
     scroll_editor_selection, selection_is_representable,
 };
 pub(crate) use selection_origin::{
