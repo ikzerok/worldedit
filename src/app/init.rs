@@ -59,6 +59,7 @@ impl WorldeditApp {
             catalog_query: String::new(),
             catalog_recursive: true,
             catalog_workbench: catalog_query::WorkbenchState::default(),
+            catalog_import: catalog_import::ImportState::default(),
             tag_editor: None,
             state_editor: None,
             anchor_editor: None,
@@ -314,6 +315,7 @@ impl WorldeditApp {
         self.preset_editor = None;
         self.catalog_target = None;
         self.catalog_workbench.reset_for_workspace();
+        self.catalog_import.discard();
         self.tag_editor = None;
         self.state_editor = None;
         self.anchor_editor = None;

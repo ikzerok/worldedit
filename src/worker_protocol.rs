@@ -30,8 +30,14 @@ pub(crate) struct WorkRequest {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WorkTask {
+    CatalogCsvParse {
+        csv: String,
+    },
+    CatalogImportPreview {
+        request: worldline_core::catalog_import::CatalogImportRequest,
+    },
     ProblemsReport {
         options: worldline_core::problems::ProblemsOptions,
         source_observation: String,
@@ -69,8 +75,14 @@ pub(crate) enum WorkTask {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WorkOutput {
+    CatalogCsvParse {
+        table: worldline_core::catalog_import::CatalogCsvTable,
+    },
+    CatalogImportPreview {
+        plan: worldline_core::catalog_import::CatalogImportPlan,
+    },
     ProblemsReport {
         report: worldline_core::problems::ProblemsReport,
     },
@@ -112,6 +124,22 @@ pub(crate) enum WorkEvent {
     Error(String),
 }
 
+pub(crate) fn parse_request_json(json: &str) -> Result<WorkRequest, String> {
+    if json.len() > MAX_JSON_BYTES {
+        return Err("后台请求JSON超过32MiB预算".into());
+    }
+    let value = worldline_core::workspace_documents::parse_unique_json(json.as_bytes())?;
+    serde_json::from_value(value).map_err(|error| error.to_string())
+}
+
+pub(crate) fn parse_output_json(json: &str) -> Result<WorkOutput, String> {
+    if json.len() > MAX_JSON_BYTES {
+        return Err("后台结果JSON超过32MiB预算".into());
+    }
+    let value = worldline_core::workspace_documents::parse_unique_json(json.as_bytes())?;
+    serde_json::from_value(value).map_err(|error| error.to_string())
+}
+
 impl WorkRequest {
     pub(crate) fn validate(&self) -> Result<(), String> {
         if self.schema_version != SCHEMA_VERSION
@@ -124,6 +152,7 @@ impl WorkRequest {
         let needs_project = matches!(
             self.task,
             WorkTask::ProblemsReport { .. }
+                | WorkTask::CatalogImportPreview { .. }
                 | WorkTask::ScenePreview { .. }
                 | WorkTask::SceneEntityPreview { .. }
                 | WorkTask::ReaderPackage { .. }
@@ -152,6 +181,31 @@ impl WorkRequest {
             return Err("后台结果完整JSON超过32MiB预算".into());
         }
         match (&self.task, output) {
+            (WorkTask::CatalogCsvParse { .. }, WorkOutput::CatalogCsvParse { table })
+                if binaries.is_empty()
+                    && table.headers.len() <= 64
+                    && table.rows.len() <= 500
+                    && table
+                        .rows
+                        .iter()
+                        .all(|row| row.cells.len() == table.headers.len()) =>
+            {
+                Ok(())
+            }
+            (
+                WorkTask::CatalogImportPreview { request },
+                WorkOutput::CatalogImportPreview { plan },
+            ) if binaries.is_empty()
+                && plan.schema_version == 1
+                && plan.baseline == self.baseline
+                && plan.baseline == request.expected_baseline
+                && plan.destination == request.destination
+                && plan.rows.len() <= 500
+                && plan.diagnostics.len() <= 100
+                && (!plan.can_apply || plan.error_count == 0) =>
+            {
+                Ok(())
+            }
             (
                 WorkTask::ProblemsReport {
                     options,
@@ -365,6 +419,8 @@ pub(crate) fn restore_retained(
     Ok(())
 }
 
+#[cfg(test)]
+mod catalog_import_tests;
 #[cfg(test)]
 mod problems_tests;
 #[cfg(test)]

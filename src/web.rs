@@ -13,6 +13,7 @@ pub enum FileAction {
     Open,
     MarkdownImport,
     LocalizationImport,
+    CatalogImport,
     Include,
     Attach(TargetRef),
     Replace(AssetDraft),
@@ -174,7 +175,7 @@ pub fn select_files(ctx: &egui::Context, folder: bool, accept: &str, action: Fil
         input.set_type("file");
         input.set_multiple(!matches!(
             action,
-            FileAction::Replace(_) | FileAction::LocalizationImport
+            FileAction::Replace(_) | FileAction::LocalizationImport | FileAction::CatalogImport
         ));
         input.set_accept(accept);
         input.set_attribute("style", "display:none")?;

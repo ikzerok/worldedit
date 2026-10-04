@@ -61,6 +61,10 @@ impl WorldeditApp {
                                 self.directory_dialog(false);
                                 ui.close();
                             }
+                            if ui.button("世界资料导入…").clicked() {
+                                self.open_catalog_import();
+                                ui.close();
+                            }
                             if ui.button("导入 Markdown…").clicked() {
                                 ui.close();
                                 self.markdown_import_wizard =

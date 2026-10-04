@@ -45,6 +45,7 @@ fn commands() -> Vec<(&'static str, Action)> {
         ("工程 · 上一问题", Action::PreviousProblem),
         ("世界 · 人物", Action::Tab(Tab::Characters)),
         ("世界 · 资料与状态", Action::Tab(Tab::Catalog)),
+        ("资料 · 世界资料导入", Action::Tab(Tab::CatalogImport)),
         ("世界 · 世界观", Action::Tab(Tab::World)),
         ("结构 · 事件关系图", Action::Tab(Tab::Graph)),
         ("资料 · Wiki词条", Action::Tab(Tab::Wiki)),

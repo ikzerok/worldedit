@@ -6,7 +6,7 @@ use crate::theme::{self, *};
 use crate::visual::{bezier_points, draw_arrow, truncated};
 use egui::{Pos2, Rect, RichText, Sense, Stroke, Vec2};
 use std::collections::HashMap;
-use worldline_core::EdgeKind;
+use worldline_core::{EdgeKind, GraphNode};
 
 impl WorldeditApp {
     pub(in crate::app) fn canvas_tab(&mut self, ctx: &egui::Context) {
@@ -350,17 +350,12 @@ impl WorldeditApp {
                                 },
                                 &self.search,
                             );
-                            if let Some(count) = visit_coverage
+                            let visit_count = visit_coverage
                                 .as_ref()
                                 .and_then(|coverage| coverage.get(&node.name))
-                            {
-                                painter.text(
-                                    rect.right_top() + Vec2::new(-12.0, 10.0) * zoom,
-                                    egui::Align2::RIGHT_TOP,
-                                    format!("访问 ×{count}"),
-                                    egui::FontId::proportional(9.0 * zoom),
-                                    egui::Color32::from_rgb(130, 220, 150),
-                                );
+                                .copied();
+                            if let Some(count) = visit_count {
+                                draw_visit_marker(&painter, *rect, zoom, count);
                             }
                             if anchors.iter().any(|a| a.node == node.name) {
                                 painter.text(
@@ -371,12 +366,9 @@ impl WorldeditApp {
                                     ACCENT(),
                                 );
                             }
-                            response.clone().on_hover_text(format!(
-                                "{}\n{}:{}\n拖动卡片调整位置,右侧圆点用于连线",
-                                node.summary.as_deref().unwrap_or(&node.name),
-                                node.file,
-                                node.line
-                            ));
+                            response.clone().on_hover_ui(|ui| {
+                                node_hover_ui(ui, node, visit_count);
+                            });
                             if response.clicked() {
                                 if let Some(from) = self.link_from.clone() {
                                     if node.is_event && from != node.name {
@@ -536,3 +528,33 @@ impl WorldeditApp {
             });
     }
 }
+
+fn draw_visit_marker(painter: &egui::Painter, rect: Rect, zoom: f32, count: u32) {
+    painter.text(
+        rect.right_top() + Vec2::new(-12.0, 10.0) * zoom,
+        egui::Align2::RIGHT_TOP,
+        format!("访问 ×{count}"),
+        egui::FontId::proportional(9.0 * zoom),
+        SUCCESS(),
+    );
+}
+
+fn node_hover_ui(ui: &mut egui::Ui, node: &GraphNode, visit_count: Option<u32>) {
+    ui.label(format!(
+        "{}\n{}:{}\n拖动卡片调整位置,右侧圆点用于连线",
+        node.summary.as_deref().unwrap_or(&node.name),
+        node.file,
+        node.line
+    ));
+    if let Some(count) = visit_count {
+        // 覆盖数保留文字标识；缩小画布后仍可按正常字号查看。
+        ui.label(
+            RichText::new(format!("访问 ×{count}"))
+                .color(SUCCESS())
+                .size(META_SIZE),
+        );
+    }
+}
+
+#[cfg(test)]
+mod visit_tests;

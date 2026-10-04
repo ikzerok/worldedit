@@ -205,6 +205,7 @@ impl eframe::App for WorldeditApp {
             Tab::Edit => self.source_tab(ctx),
             Tab::Characters => self.characters_tab(ctx),
             Tab::Catalog => self.catalog_tab(ctx),
+            Tab::CatalogImport => self.catalog_import_tab(ctx),
             Tab::Wiki => self.wiki_tab(ctx),
             Tab::World => self.world_tab(ctx),
             Tab::Play => self.play_tab(ctx),

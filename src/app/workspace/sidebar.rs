@@ -124,6 +124,7 @@ impl WorldeditApp {
                                     Tab::World,
                                     Tab::Characters,
                                     Tab::Catalog,
+                                    Tab::CatalogImport,
                                     Tab::Wiki,
                                     Tab::Map,
                                     Tab::Network,

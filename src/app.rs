@@ -8,6 +8,7 @@ mod authoring_ui_tests;
 mod browser;
 mod capability_ui;
 mod catalog;
+mod catalog_import;
 mod catalog_query;
 mod characters;
 mod checkpoint_history;
@@ -98,6 +99,7 @@ enum Tab {
     Manuscript,
     Templates,
     CheckpointHistory,
+    CatalogImport,
 }
 impl Tab {
     fn title(self) -> &'static str {
@@ -118,6 +120,7 @@ impl Tab {
             Self::Manuscript => "书稿工作台",
             Self::Templates => "工程模板",
             Self::CheckpointHistory => "检查点历史",
+            Self::CatalogImport => "世界资料导入",
         }
     }
 }
@@ -304,6 +307,7 @@ pub struct WorldeditApp {
     catalog_query: String,
     catalog_recursive: bool,
     catalog_workbench: catalog_query::WorkbenchState,
+    catalog_import: catalog_import::ImportState,
     tag_editor: Option<(Option<String>, WorldDraft)>,
     anchor_editor: Option<(Option<String>, worldline_core::anchors::AnchorDraft)>,
     overview_storyline: String,

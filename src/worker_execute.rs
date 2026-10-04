@@ -22,7 +22,7 @@ fn execute(request_json: &str, files: JsValue, retained: JsValue) -> Result<JsVa
     if request_json.len() > MAX_JSON_BYTES {
         return Err("后台请求JSON超过32MiB预算".into());
     }
-    let mut request: WorkRequest = serde_json::from_str(request_json).map_err(|e| e.to_string())?;
+    let mut request = parse_request_json(request_json)?;
     request.validate()?;
     let mut total = 0usize;
     let files = read_files(files, &mut total)?;
@@ -55,6 +55,17 @@ fn execute(request_json: &str, files: JsValue, retained: JsValue) -> Result<JsVa
             .ok_or_else(|| "后台任务缺少工程".to_owned())
     };
     let (output, binaries) = match &request.task {
+        WorkTask::CatalogCsvParse { csv } => {
+            progress(&request, "读取世界资料 CSV", 0, 1);
+            let table = worldline_core::catalog_import::parse_catalog_csv(csv)
+                .map_err(|error| format!("{}：{}", error.code, error.message))?;
+            (WorkOutput::CatalogCsvParse { table }, Vec::new())
+        }
+        WorkTask::CatalogImportPreview { request: import } => {
+            progress(&request, "检查整批世界资料", 0, 1);
+            let plan = need_project()?.preview_catalog_import(import)?;
+            (WorkOutput::CatalogImportPreview { plan }, Vec::new())
+        }
         WorkTask::ProblemsReport {
             options,
             source_observation,
