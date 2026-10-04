@@ -49,23 +49,27 @@ impl FocusReveal {
     }
 }
 
-/// egui 在 begin_pass 已记录方向键导航，consume_key 不能撤回 end_pass 的空间换焦点。
-/// AltLeft 返回时若来源编辑器已失焦，把明确焦点交接留到紧邻下一帧一次完成。
+/// 在明确返回意图发生时记录交接帧，不依赖帧末按键是否仍按住。
+pub(super) fn queue_restore(ctx: &egui::Context, id: Option<egui::Id>) {
+    let stamp = egui::Id::new("route-comparison-return-focus-frame");
+    let frame = ctx.cumulative_frame_nr();
+    ctx.data_mut(|data| {
+        data.remove::<(egui::Id, u64)>(stamp);
+        if let Some(id) = id {
+            data.insert_temp(stamp, (id, frame));
+        }
+    });
+}
+
+/// 跨过返回帧的 end_pass 空间导航后，只完成一次明确的焦点交接。
 pub(super) fn restore(ctx: &egui::Context, pending: &mut Option<egui::Id>) {
     let stamp = egui::Id::new("route-comparison-return-focus-frame");
     let Some(id) = *pending else {
         ctx.data_mut(|data| data.remove::<(egui::Id, u64)>(stamp));
         return;
     };
-    let frame = ctx.cumulative_frame_nr();
-    let first = ctx
-        .data(|data| data.get_temp::<(egui::Id, u64)>(stamp))
-        .filter(|(saved, first)| *saved == id && frame.saturating_sub(*first) <= 1)
-        .map(|(_, first)| first);
-    let arrow_return =
-        ctx.input(|input| input.modifiers.alt && input.key_down(egui::Key::ArrowLeft));
-    if first == Some(frame) || (first.is_none() && arrow_return) {
-        ctx.data_mut(|data| data.insert_temp(stamp, (id, frame)));
+    let requested = ctx.data(|data| data.get_temp::<(egui::Id, u64)>(stamp));
+    if requested == Some((id, ctx.cumulative_frame_nr())) {
         ctx.request_repaint();
         return;
     }

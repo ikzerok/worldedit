@@ -164,6 +164,7 @@ impl WorldeditApp {
     }
     pub(in crate::app) fn restore_comparison_location(
         &mut self,
+        ctx: &egui::Context,
         location: Option<ComparisonLocation>,
     ) {
         let Some(location) = location else { return };
@@ -182,6 +183,7 @@ impl WorldeditApp {
         self.comparison.scroll = location.scroll.max(0.0);
         self.comparison.restore_scroll = true;
         self.comparison.restore_focus = location.focus;
+        focus::queue_restore(ctx, location.focus);
     }
 }
 

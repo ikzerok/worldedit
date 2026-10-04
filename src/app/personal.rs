@@ -461,7 +461,7 @@ impl WorldeditApp {
                 return;
             }
         }
-        self.restore_comparison_location(location.comparison);
+        self.restore_comparison_location(ctx, location.comparison);
         self.restore_problem_source(location.source_problem);
         if let Some(tab) = location.tab {
             self.tab = tab;

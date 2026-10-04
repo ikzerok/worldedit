@@ -92,6 +92,7 @@ impl WorldeditApp {
             Ok(hit) => {
                 match self.go_author_source_position(ctx, &hit, true) {
                     Ok(()) => {
+                        crate::app::search::mark_pending_selection_programmatic(ctx);
                         self.comparison.notice = None;
                         self.message = Some("已定位本次实际证据的语句头；Alt+Left 返回同一路线对照、选中项与阅读位置".into());
                     }

@@ -174,6 +174,11 @@ pub(crate) fn request_diagnostic_selection(
     range: Range<usize>,
 ) {
     request_selection(ctx, path, source, range);
+    mark_pending_selection_programmatic(ctx);
+}
+
+/// 复用精确程序选区 origin；人工重新选区会清除，显式 CtrlEnter 不受抑制。
+pub(crate) fn mark_pending_selection_programmatic(ctx: &egui::Context) {
     ctx.data_mut(|data| {
         if let Some(mut pending) = data.get_temp::<Pending>(pending_id()) {
             pending.diagnostic = true;
