@@ -174,7 +174,9 @@ impl WorldeditApp {
                 Ok(files) if files.is_empty() => continue,
                 Ok(files) => files,
                 Err(e) => {
-                    if matches!(&action, FileAction::LocalizationImport) {
+                    if matches!(&action, FileAction::CatalogImport) {
+                        self.catalog_import.set_failure(e);
+                    } else if matches!(&action, FileAction::LocalizationImport) {
                         self.localization_ui.set_import_failure(e);
                     } else {
                         self.io_error = Some(e);
@@ -182,6 +184,10 @@ impl WorldeditApp {
                     continue;
                 }
             };
+            if matches!(&action, FileAction::CatalogImport) {
+                self.catalog_import.load_browser_files(files, ctx);
+                continue;
+            }
             if matches!(&action, FileAction::MarkdownImport) {
                 if let Some(wizard) = self.markdown_import_wizard.as_mut() {
                     wizard.set_source_files(files);
@@ -245,6 +251,7 @@ impl WorldeditApp {
                 FileAction::Open => unreachable!(),
                 FileAction::MarkdownImport => unreachable!(),
                 FileAction::LocalizationImport => unreachable!(),
+                FileAction::CatalogImport => unreachable!(),
             }
         }
     }

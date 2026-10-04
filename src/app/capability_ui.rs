@@ -39,6 +39,7 @@ impl WorldeditApp {
         let mut blockers: Vec<String> = self
             .unapplied_export_inputs()
             .into_iter()
+            .filter(|input| input.kind != "世界资料导入")
             .map(|input| format!("{} · {}", input.kind, input.source))
             .collect();
         if self.stale_form {
@@ -67,6 +68,9 @@ impl WorldeditApp {
                 egui::ScrollArea::vertical().id_salt("capability-preview-scroll")
                     .max_height((ctx.available_rect().height() - 270.0).clamp(140.0, 420.0)).show(ui, |ui| {
                 ui.heading(format!("当前语言 {}", self.project.language_version()));
+                if self.catalog_import.has_unsubmitted_work() {
+                    ui.label("世界资料导入快照与列映射会保留；启用能力后须重新预览，不能沿用旧确认。");
+                }
                 ui.label("保留当前设置即可继续传统作品。启用能力须先检查全文，再明确确认；打开旧工程不会自动升级。");
                 let before = state.target;
                 let mut selected_language = false;

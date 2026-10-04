@@ -242,6 +242,9 @@ impl WorldeditApp {
         if self.localization_ui.has_unsubmitted_work() {
             names.push("本地化草稿");
         }
+        if self.catalog_import.has_unsubmitted_work() {
+            names.push("世界资料导入");
+        }
         names.retain(|kind| !self.pristine_new_draft(kind));
         names
     }
@@ -294,6 +297,7 @@ impl WorldeditApp {
         self.manuscript = manuscript::WorkbenchState::default();
         self.schema_ui = schema_ui::SchemaUiState::default();
         self.localization_ui = localization_ui::LocalizationUiState::default();
+        self.catalog_import.discard();
         self.stale_form = false;
     }
     pub(super) fn draft_exit_dialog(&mut self, ctx: &egui::Context) {
@@ -345,6 +349,7 @@ impl WorldeditApp {
                 "事件正文与分支" => Tab::Timeline,
                 "书稿 / 正文草稿" => Tab::Manuscript,
                 "本地化草稿" => Tab::Localization,
+                "世界资料导入" => Tab::CatalogImport,
                 "审阅批注" => Tab::Review,
                 "地图草稿" | "新建地图" => Tab::Map,
                 "时段资料" => Tab::Timeline,

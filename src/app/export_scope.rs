@@ -89,6 +89,7 @@ impl WorldeditApp {
             "书稿 / 正文草稿" => Tab::Manuscript,
             "地图草稿" | "新建地图" => Tab::Map,
             "本地化草稿" => Tab::Localization,
+            "世界资料导入" => Tab::CatalogImport,
             "审阅批注" | "审阅提案" => Tab::Review,
             "工程模板草稿" => Tab::Templates,
             "共享网络布局" => Tab::Network,

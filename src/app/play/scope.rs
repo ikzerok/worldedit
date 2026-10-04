@@ -148,6 +148,7 @@ impl WorldeditApp {
         let mut values = BTreeMap::new();
         for input in self.unapplied_play_inputs() {
             let signature = match input.kind {
+                "世界资料导入" => Some(self.catalog_import.input_signature()),
                 "事件正文与分支" => self.event_editor.as_ref().map(|f| {
                     let d = &f.draft;
                     serde_json::json!([

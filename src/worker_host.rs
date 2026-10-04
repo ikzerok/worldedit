@@ -215,7 +215,7 @@ fn receive(value: &JsValue, request: &WorkRequest) -> Result<Option<WorkEvent>, 
             if json.len() > MAX_JSON_BYTES {
                 return Err("后台返回JSON超额".into());
             }
-            let output: WorkOutput = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+            let output = parse_output_json(&json)?;
             let array = Reflect::get(value, &"binaries".into()).map_err(js_error)?;
             if !Array::is_array(&array) {
                 return Err("后台二进制负载不是数组".into());

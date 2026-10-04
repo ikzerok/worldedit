@@ -1,0 +1,3 @@
+对象种类,稳定ID,显示名,年龄,备注（明确忽略）
+character,import_traveler,雾港旅人,21,此列不会写入 .wl 资料字段
+character,import_guide,灯塔向导,35,同一份快照再次预览应无变化

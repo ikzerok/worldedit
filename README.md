@@ -1,12 +1,15 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.20.0 在试玩中加入主内容路线对照：清楚显示A/B真实结果、起点与有效性，从实际状态动作回到原稿，再返回相同阅读位置。core/runtime仍是唯一语义来源，普通试玩和现有作者能力保留。默认语言仍为1.9，最高既有显式版本1.13。
+worldline 的 Rust / egui 作者工作台。0.21.0 新增主内容区的世界资料批量导入与修订：选择 CSV 快照、明确每列用途、查看逐行差异与存档影响，再一次应用、撤销和保存。解析、匹配、字段补丁和整批验证全部来自 core。默认语言仍为1.9，最高既有显式版本1.13。
 
-操作见 [路线对照](docs/route-comparison.md)，开发与验收合同见 [主内容工作台设计](docs/route-comparison-0.20.md)，完整变更见 [CHANGELOG](CHANGELOG.md)。是否已公开发行以正式 Release 记录为准。egui frame、WASM 构建和 Node Worker 验证不替代真实浏览器、系统输入法或高DPI验收。
+操作见[资料表工作台](docs/catalog-import.md)，配对工具提供[港口与人物示例](../worldline/examples/catalog-import/README.md)。实际公开发行以正式 Release 记录为准。egui 合成输入、WASM 构建和 Node Worker 验证不替代真实浏览器、系统输入法或高DPI验收。
 
-升级边界：0.19 trace/checkpoint 按原 runtime_version 守卫拒绝在0.20重放或比较，应重新录制；普通Story Save继续独立的格式/能力/指纹规则。不要修改版本字段绕过。升级前保留完整工程和原记录；本轮真实样本及平台覆盖由验收记录说明。
+升级边界：0.20 trace/checkpoint 按原 runtime_version 守卫拒绝在0.21重放或比较，应重新录制；普通 Story Save 继续独立的格式/能力/指纹规则。人物资料变更的真实指纹影响会在导入预览中明确显示，不能概括为所有资料改动均不影响旧存档。升级前保留完整工程和原记录。
 
 ## 使用入口
+
+- [世界资料批量导入与修订](docs/catalog-import.md)：文件快照、列映射、逐行审阅、原子应用、一次撤销与回源
+
 
 - [真实路线对照](docs/route-comparison.md)：选择A/B → 验证当前稿 → 结果与动作 → 安全回源与返回
 

@@ -32,6 +32,7 @@ impl WorldeditApp {
         let mut add = |kind, source| result.push(UnappliedInput { kind, source });
         for kind in self.dirty_draft_names() {
             let source = match kind {
+                "世界资料导入" => self.catalog_import.source_name.clone(),
                 "正在输入的源码 / 输入法" => self.export_source_path(
                     self.ime_source_draft
                         .as_ref()
