@@ -6,6 +6,7 @@ use worldline_core::evidence_source::EvidenceSource;
 pub(super) struct NavigationAccess<'a> {
     pub blocked: Option<&'a str>,
     pub focus: super::focus::FocusReveal,
+    pub ime_focus: super::focus::ImeFocus,
 }
 
 pub(super) struct ComparisonSourceRequest {
@@ -34,6 +35,7 @@ fn contains_source(compared: &ComparedRoutes, source: &EvidenceSource) -> bool {
 pub(super) fn source_button(
     ui: &mut egui::Ui,
     compared: &ComparedRoutes,
+    source_key: egui::Id,
     source: Option<&EvidenceSource>,
     access: &NavigationAccess<'_>,
     label: &str,
@@ -42,7 +44,17 @@ pub(super) fn source_button(
     let reason = access
         .blocked
         .or(source.is_none().then_some("此证据没有可确认的作者来源"));
-    let response = ui.add_enabled(reason.is_none(), egui::Button::new(label));
+    let before = ui.memory(|memory| memory.focused());
+    let id = egui::Id::new((
+        "comparison-source",
+        compared.scope.workspace_root(),
+        compared.id,
+        source_key,
+    ));
+    let response = super::focus::widget(ui, id, |ui| {
+        ui.add_enabled(reason.is_none(), egui::Button::new(label))
+    });
+    access.ime_focus.observe(ui.ctx(), before, &response);
     access.focus.reveal(ui, &response);
     let clicked = response.clicked();
     if clicked {

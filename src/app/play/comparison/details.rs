@@ -89,10 +89,18 @@ fn difference(
             .fill(theme::CARD())
             .show(ui, |ui| {
                 if select {
-                    let response = ui.selectable_label(
-                        selected.as_ref() == Some(&difference.id),
-                        state_caption(catalog, &difference.id),
-                    );
+                    let id = egui::Id::new((
+                        "comparison-state",
+                        compared.scope.workspace_root(),
+                        compared.id,
+                        &difference.id,
+                    ));
+                    let response = super::focus::widget(ui, id, |ui| {
+                        ui.selectable_label(
+                            selected.as_ref() == Some(&difference.id),
+                            state_caption(catalog, &difference.id),
+                        )
+                    });
                     focus.reveal(ui, &response);
                     if response.clicked() {
                         *selected = Some(difference.id.clone());
@@ -240,15 +248,24 @@ pub(super) fn render(
             ui.push_id(("actual-action", actual_right, record.sequence), |ui| {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     let selected = state.selected_action == Some((actual_right, record.sequence));
-                    let response = ui.selectable_label(
-                        selected,
-                        format!(
-                            "动作 #{} · {} · {}",
-                            record.sequence,
-                            kind(&record.kind),
-                            record.state
-                        ),
-                    );
+                    let id = egui::Id::new((
+                        "comparison-action",
+                        compared.scope.workspace_root(),
+                        compared.id,
+                        actual_right,
+                        record.sequence,
+                    ));
+                    let response = super::focus::widget(ui, id, |ui| {
+                        ui.selectable_label(
+                            selected,
+                            format!(
+                                "动作 #{} · {} · {}",
+                                record.sequence,
+                                kind(&record.kind),
+                                record.state
+                            ),
+                        )
+                    });
                     access.focus.reveal(ui, &response);
                     if response.clicked() {
                         state.selected_action = Some((actual_right, record.sequence));
@@ -281,7 +298,16 @@ pub(super) fn render(
                             .and_then(|catalog| catalog.object(owner))
                             .map(|object| object.display.as_str())
                             .unwrap_or(&owner.id);
-                        let response = ui.button(format!("查看所属对象 · {display}"));
+                        let id = egui::Id::new((
+                            "comparison-owner",
+                            compared.scope.workspace_root(),
+                            compared.id,
+                            actual_right,
+                            record.sequence,
+                        ));
+                        let response = super::focus::widget(ui, id, |ui| {
+                            ui.button(format!("查看所属对象 · {display}"))
+                        });
                         access.focus.reveal(ui, &response);
                         if response.clicked() {
                             *target = Some(owner.clone());
@@ -293,6 +319,7 @@ pub(super) fn render(
                     if source_button(
                         ui,
                         compared,
+                        egui::Id::new(("action", actual_right, record.sequence)),
                         record.source.as_ref(),
                         access,
                         "打开实际动作来源",

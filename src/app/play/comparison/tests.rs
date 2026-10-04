@@ -565,3 +565,6 @@ mod return_focus;
 
 #[path = "saltbell_focus_tests.rs"]
 mod saltbell_focus;
+
+#[path = "ime_focus_tests.rs"]
+mod ime_focus;

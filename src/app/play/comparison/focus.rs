@@ -77,3 +77,108 @@ pub(super) fn restore(ctx: &egui::Context, pending: &mut Option<egui::Id>) {
     ctx.memory_mut(|memory| memory.request_focus(id));
     *pending = None;
 }
+
+/// Button 的默认自动 ID 会随上方警告行变化；独立语义 Ui 保留标准 egui 控件外观。
+pub(super) fn widget(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    add: impl FnOnce(&mut egui::Ui) -> egui::Response,
+) -> egui::Response {
+    let mut builder = egui::UiBuilder::new()
+        .layer_id(ui.layer_id())
+        .max_rect(ui.available_rect_before_wrap())
+        .layout(*ui.layout())
+        .style(ui.style().clone());
+    if !ui.is_enabled() {
+        builder = builder.disabled();
+    }
+    if !ui.is_visible() {
+        builder = builder.invisible();
+    }
+    let mut child = egui::Ui::new(ui.ctx().clone(), id, builder);
+    child.set_clip_rect(ui.clip_rect());
+    let response = add(&mut child);
+    ui.advance_cursor_after_rect(child.min_rect());
+    response
+}
+
+#[derive(Clone, Copy)]
+struct SuspendedSource {
+    context: egui::Id,
+    widget: egui::Id,
+    frame: u64,
+}
+#[derive(Clone, Copy)]
+pub(super) struct ImeFocus {
+    context: egui::Id,
+    blocked: bool,
+}
+impl ImeFocus {
+    pub(super) fn prepare(
+        ctx: &egui::Context,
+        context: egui::Id,
+        ime: bool,
+        blocked: bool,
+        restoring: bool,
+    ) -> Self {
+        let key = egui::Id::new("route-comparison-ime-source-focus");
+        let frame = ctx.cumulative_frame_nr();
+        if let Some(mut saved) = ctx.data(|d| d.get_temp::<SuspendedSource>(key)) {
+            let moved = ctx.input(|i| {
+                !i.focused
+                    || i.events.iter().any(|event| {
+                        matches!(
+                            event,
+                            egui::Event::WindowFocused(false)
+                                | egui::Event::PointerButton { .. }
+                                | egui::Event::MouseWheel { .. }
+                                | egui::Event::Key {
+                                    key: egui::Key::Tab | egui::Key::Escape,
+                                    pressed: true,
+                                    ..
+                                }
+                        )
+                    })
+            });
+            let other_focus = ctx
+                .memory(|m| m.focused())
+                .is_some_and(|id| id != saved.widget);
+            if saved.context != context
+                || frame.saturating_sub(saved.frame) > 1
+                || restoring
+                || (blocked && !ime)
+                || moved
+                || other_focus
+            {
+                ctx.data_mut(|d| d.remove::<SuspendedSource>(key));
+            } else if ime {
+                saved.frame = frame;
+                ctx.data_mut(|d| d.insert_temp(key, saved));
+            } else {
+                ctx.memory_mut(|m| m.request_focus(saved.widget));
+                ctx.data_mut(|d| d.remove::<SuspendedSource>(key));
+            }
+        }
+        Self {
+            context,
+            blocked: ime && ctx.input(|i| i.focused),
+        }
+    }
+    pub(super) fn observe(
+        self,
+        ctx: &egui::Context,
+        before: Option<egui::Id>,
+        response: &egui::Response,
+    ) {
+        if self.blocked && before == Some(response.id) && !response.enabled() {
+            let saved = SuspendedSource {
+                context: self.context,
+                widget: response.id,
+                frame: ctx.cumulative_frame_nr(),
+            };
+            ctx.data_mut(|d| {
+                d.insert_temp(egui::Id::new("route-comparison-ime-source-focus"), saved)
+            });
+        }
+    }
+}

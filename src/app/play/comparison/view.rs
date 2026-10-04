@@ -106,6 +106,7 @@ fn first_difference(
                         source_button(
                             ui,
                             compared,
+                            egui::Id::new(("choice", actual, difference.index)),
                             input.source.as_ref(),
                             access,
                             "打开选择声明",
@@ -138,9 +139,28 @@ impl WorldeditApp {
             .as_ref()
             .and_then(|result| self.play_source_guard(&result.scope).err());
         let restoring = self.comparison.restore_scroll || self.comparison.restore_focus.is_some();
+        let ime = source_current
+            && (self.ime_composing || self.command_palette.ime || self.command_palette.ime_frame);
+        let context = egui::Id::new((
+            "comparison-focus-context",
+            &self.project.root,
+            self.version,
+            self.comparison.result.as_ref().map(|r| (r.id, r.reversed)),
+            self.comparison.a,
+            self.comparison.b,
+            &self.comparison.selected_state,
+            self.comparison.selected_action,
+        ));
         let access = NavigationAccess {
             blocked: blocked.as_deref(),
             focus: super::focus::FocusReveal::for_frame(ctx, restoring),
+            ime_focus: super::focus::ImeFocus::prepare(
+                ctx,
+                context,
+                ime,
+                blocked.is_some(),
+                restoring,
+            ),
         };
         let mut request = None;
         let mut target = None;

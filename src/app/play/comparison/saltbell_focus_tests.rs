@@ -4,7 +4,7 @@ const SIZE: egui::Vec2 = egui::vec2(1188.0, 848.0);
 const SOURCE_BUTTON: &str = "打开实际动作来源";
 const SUGGESTION: &str = "从选中文本建档";
 
-fn setup_saltbell() -> (egui::Context, WorldeditApp) {
+pub(super) fn setup_saltbell() -> (egui::Context, WorldeditApp) {
     let (ctx, mut app) = setup();
     let root = app.project.root.clone();
     std::fs::create_dir_all(root.join(".world")).unwrap();
@@ -62,7 +62,7 @@ fn setup_saltbell() -> (egui::Context, WorldeditApp) {
     (ctx, app)
 }
 
-fn frame_full(
+pub(super) fn frame_full(
     ctx: &egui::Context,
     app: &mut WorldeditApp,
     events: Vec<egui::Event>,
@@ -116,7 +116,7 @@ fn key_event(key: egui::Key, pressed: bool, modifiers: egui::Modifiers) -> egui:
         modifiers,
     }
 }
-fn key(
+pub(super) fn key(
     ctx: &egui::Context,
     app: &mut WorldeditApp,
     key: egui::Key,
