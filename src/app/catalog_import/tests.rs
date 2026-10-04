@@ -14,6 +14,7 @@ mod native_path;
 mod paths;
 mod safety;
 mod snapshot;
+mod viewport;
 use interaction::*;
 
 const CSV: &str = "kind,id,display,age,notes\ncharacter,traveler,远行旅人,21,明确忽略的原始列\ncharacter,guide,向导,35,另一个备注\n";

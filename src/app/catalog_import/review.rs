@@ -116,16 +116,21 @@ impl ImportState {
         }
         self.selected_row = self.selected_row.min(plan.rows.len() - 1);
         ui.separator();
+        let remaining = remaining_height(ui);
         if ui.available_width() >= 780.0 {
             ui.columns(2, |columns| {
                 egui::ScrollArea::vertical()
                     .id_salt("catalog-import-rows-wide")
+                    .max_height(remaining)
+                    .min_scrolled_height(0.0)
                     .auto_shrink([false, false])
                     .show(&mut columns[0], |ui| {
                         rows_ui(plan, &mut self.selected_row, ui)
                     });
                 egui::ScrollArea::vertical()
                     .id_salt("catalog-import-field-details-wide")
+                    .max_height(remaining)
+                    .min_scrolled_height(0.0)
                     .auto_shrink([false, false])
                     .show(&mut columns[1], |ui| {
                         row_detail(plan, self.selected_row, app, ui)
@@ -134,12 +139,15 @@ impl ImportState {
         } else {
             egui::ScrollArea::vertical()
                 .id_salt("catalog-import-rows-narrow")
-                .max_height((ui.available_height() * 0.38).max(48.0))
+                .max_height(remaining * 0.38)
+                .min_scrolled_height(0.0)
                 .auto_shrink([false, false])
                 .show(ui, |ui| rows_ui(plan, &mut self.selected_row, ui));
             ui.separator();
             egui::ScrollArea::vertical()
                 .id_salt("catalog-import-field-details-narrow")
+                .max_height(remaining_height(ui))
+                .min_scrolled_height(0.0)
                 .auto_shrink([false, false])
                 .show(ui, |ui| row_detail(plan, self.selected_row, app, ui));
         }
@@ -227,4 +235,12 @@ fn value_label(value: Option<&PropertyValue>) -> String {
         Some(PropertyValue::Bool(value)) => value.to_string(),
         Some(PropertyValue::Ref(target)) => format!("{}:{}", target.kind, target.id),
     }
+}
+
+fn remaining_height(ui: &egui::Ui) -> f32 {
+    // The clip bottom is captured immediately after the fixed footer is drawn;
+    // unlike max_rect, it cannot grow as a taller child lays out its content.
+    (ui.clip_rect().bottom() - ui.cursor().min.y)
+        .min(ui.available_height())
+        .max(0.0)
 }

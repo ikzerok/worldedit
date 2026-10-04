@@ -31,6 +31,9 @@ impl ImportState {
         egui::CentralPanel::default().frame(theme::panel()).show(ctx, |ui| {
             egui::TopBottomPanel::bottom("catalog-import-actions").resizable(false)
                 .show_inside(ui, |ui| self.footer(app, ui, ime, &mut action));
+            // show_inside reserves layout space, but columns can inherit the
+            // parent's expanded max_rect. Keep all content paint above footer.
+            ui.set_clip_rect(ui.clip_rect().intersect(ui.available_rect_before_wrap()));
             ui.heading("世界资料导入");
             ui.horizontal_wrapped(|ui| {
                 ui.selectable_value(&mut self.step, Step::Mapping, "1 · 来源与列映射");

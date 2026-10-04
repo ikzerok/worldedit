@@ -114,12 +114,16 @@ fn object_entry(h: &Harness, index: usize) -> (String, TargetRef) {
 }
 
 #[test]
-fn all_27_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
-    assert_eq!(commands().len(), 27);
+fn all_28_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
+    assert_eq!(commands().len(), 28);
     let review_index = commands()
         .iter()
         .position(|(_, action)| matches!(action, Action::Tab(Tab::Review)))
         .unwrap();
+    let import_index = commands()
+        .iter()
+        .position(|(_, action)| matches!(action, Action::Tab(Tab::CatalogImport)))
+        .expect("CSV import must have an explicit author command");
     for theme in [
         crate::theme::ThemeMode::Dark,
         crate::theme::ThemeMode::Light,
@@ -148,6 +152,17 @@ fn all_27_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
             h.press(Key::Enter, 1);
             assert!(!h.app.command_palette.open);
             assert_eq!(h.app.tab, Tab::Review);
+            assert_eq!(h.app.project.content_baseline(), baseline);
+            // The added command is a new entry point, not merely a count change:
+            // prove it is visible and activates the import workbench by keyboard.
+            h.open(true);
+            h.press(Key::ArrowDown, import_index);
+            let output = h.settle();
+            assert_eq!(h.app.command_palette.selected, import_index);
+            assert!(visible(&output, commands()[import_index].0, size).is_some());
+            h.press(Key::Enter, 1);
+            assert!(!h.app.command_palette.open);
+            assert_eq!(h.app.tab, Tab::CatalogImport);
             assert_eq!(h.app.project.content_baseline(), baseline);
         }
     }
