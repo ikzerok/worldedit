@@ -14,7 +14,9 @@ impl WorldeditApp {
             let drafts = self.manuscript.writing_buffers();
             if selected_only {
                 self.project.preview_search_replace_selected(
-                    &request, &drafts, &self.search_state.chosen,
+                    &request,
+                    &drafts,
+                    &self.search_state.chosen,
                 )
             } else {
                 self.project.preview_search_replace(&request, &drafts)
@@ -85,7 +87,9 @@ impl WorldeditApp {
                 // Establish the post-transaction basis before showing its completion count.
                 let hits = self.current_search_hits().unwrap_or_default();
                 self.refresh_search_navigation(&hits);
+                self.search_state.focus_review_tab = true;
                 self.search_state.applied_count = Some(count);
+                self.search_state.applied_signature = Some(self.search_source_signature());
                 self.message = Some(format!("已应用 {count} 处替换，可一次撤销；尚未保存工程"));
             }
             Err(error) => self.search_state.error = Some(error),

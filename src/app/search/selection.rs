@@ -295,7 +295,13 @@ pub(crate) fn scroll_editor_selection(ui: &mut egui::Ui, output: &egui::text_edi
         .data_mut(|d| d.remove_temp::<bool>(output.response.id.with("search-scroll")))
         .unwrap_or(false)
     {
-        if let Some(range) = output.cursor_range {
+        // A modal review keeps keyboard focus in the query field. TextEdit then omits
+        // cursor_range, but the source-bound programmatic selection is in its state.
+        // The one-shot marker is set only after restore_selection validates that source.
+        if let Some(range) = output
+            .cursor_range
+            .or_else(|| output.state.cursor.char_range())
+        {
             let rect = output
                 .galley
                 .pos_from_cursor(range.primary)

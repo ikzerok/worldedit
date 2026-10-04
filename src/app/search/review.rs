@@ -9,6 +9,7 @@ pub(super) fn query_id() -> egui::Id {
 impl WorldeditApp {
     pub(in crate::app) fn search_navigation_has_focus(&self, ctx: &egui::Context) -> bool {
         !self.search_state.source_view
+            && !ctx.input(|input| input.key_pressed(egui::Key::Tab) || input.pointer.any_pressed())
             && (self.search_focus || ctx.memory(|memory| memory.has_focus(query_id())))
     }
 
@@ -17,7 +18,6 @@ impl WorldeditApp {
             self.search_state.review_notice = Some(reason.into());
         }
         self.search_state.chosen.clear();
-        self.search_state.applied_count = None;
         self.search_state.plan = None;
         self.search_state.review_preview = false;
         self.search_state.preview_page = 0;
@@ -30,14 +30,23 @@ impl WorldeditApp {
         self.search_state.review_preview = false;
         self.search_state.preview_page = 0;
         self.search_state.applied_count = None;
+        self.search_state.applied_signature = None;
     }
 
     pub(super) fn reconcile_search_review(&mut self, hits: &[SearchMatch]) {
+        if self.search_state.applied_count.is_some()
+            && self.search_state.applied_signature.as_deref()
+                != Some(self.search_source_signature().as_str())
+        {
+            self.search_state.applied_count = None;
+            self.search_state.applied_signature = None;
+        }
         self.refresh_search_navigation(hits);
         match reconcile_search_selection(hits, &self.search_state.chosen) {
             Ok(chosen) => self.search_state.chosen = chosen,
-            Err(_) => self.invalidate_search_review(
-                "来源快照已变化；旧选择与预览已清空，请重新勾选"),
+            Err(_) => {
+                self.invalidate_search_review("来源快照已变化；旧选择与预览已清空，请重新勾选")
+            }
         }
         if self.search_state.plan.as_ref().is_some_and(|plan| {
             self.search_request().as_ref().ok() != Some(plan.request())
@@ -53,20 +62,25 @@ impl WorldeditApp {
             return;
         };
         self.reconcile_search_review(&hits);
-        if !hit.replaceable
-            || reconcile_search_selection(&hits, std::slice::from_ref(hit)).is_err()
+        if !hit.replaceable || reconcile_search_selection(&hits, std::slice::from_ref(hit)).is_err()
         {
             self.search_state.error = Some("此命中受保护或已过期，未加入待改集合".into());
             return;
         }
         self.invalidate_search_preview("待改集合已变化，请重新预览");
-        self.search_state.chosen.retain(|chosen| chosen.path != hit.path || chosen.range != hit.range);
+        self.search_state
+            .chosen
+            .retain(|chosen| chosen.path != hit.path || chosen.range != hit.range);
         if selected {
             self.search_state.chosen.push(hit.clone());
             self.search_state.chosen = reconcile_search_selection(&hits, &self.search_state.chosen)
                 .expect("choices were validated against these same core results");
         }
         self.search_state.error = None;
+        self.search_state.review_notice = Some(format!(
+            "已选 {} 处；请预览确认后应用",
+            self.search_state.chosen.len()
+        ));
     }
 
     pub(super) fn choose_all_search_hits(&mut self) {
@@ -76,6 +90,10 @@ impl WorldeditApp {
                 self.invalidate_search_preview("待改集合已变化，请重新预览");
                 self.search_state.chosen = hits.into_iter().filter(|hit| hit.replaceable).collect();
                 self.search_state.error = None;
+                self.search_state.review_notice = Some(format!(
+                    "已选本范围 {} 处可替换命中；保护项未加入",
+                    self.search_state.chosen.len()
+                ));
             }
             Err(error) => {
                 self.invalidate_search_review("查找依据已失效，请重新查找并勾选");
@@ -85,35 +103,76 @@ impl WorldeditApp {
     }
 
     pub(super) fn search_hit_is_chosen(&self, hit: &SearchMatch) -> bool {
-        self.search_state.chosen.iter().any(|chosen| chosen.path == hit.path && chosen.range == hit.range)
+        self.search_state
+            .chosen
+            .iter()
+            .any(|chosen| chosen.path == hit.path && chosen.range == hit.range)
     }
 
     pub(super) fn clear_search_choices(&mut self) {
+        self.search_state.focus_review_tab = true;
         self.invalidate_search_preview("已清空待改集合；尚未修改原文");
         self.search_state.chosen.clear();
         self.search_state.review_notice = Some("已清空待改集合；尚未修改原文".into());
     }
 
     pub(super) fn cancel_search_preview(&mut self) {
+        self.search_state.focus_review_tab = true;
         self.search_state.plan = None;
         self.search_state.review_preview = false;
         self.search_state.review_notice = Some("已取消预览；原文未改，勾选仍保留".into());
     }
 
     pub(super) fn show_search_source(&mut self, ctx: &egui::Context, hit: &SearchMatch) {
-        let Ok(hits) = self.current_search_hits() else { return; };
+        let Ok(hits) = self.current_search_hits() else {
+            return;
+        };
         self.reconcile_search_review(&hits);
+        let origin = self.author_location(Some(ctx));
         if reconcile_search_selection(&hits, std::slice::from_ref(hit)).is_ok()
-            && self.go_author_source_position(ctx, hit, false).is_ok() {
+            && self.go_author_source_position(ctx, hit, false).is_ok()
+        {
             self.search_state.source_view = true;
+            self.search_state.source_return = Some(origin);
         }
     }
 
+    pub(in crate::app) fn return_search_source_if_open(&mut self, ctx: &egui::Context) -> bool {
+        if !self.search_open || !self.search_state.source_view {
+            return false;
+        }
+        self.return_to_search_review(ctx);
+        true
+    }
+
     pub(super) fn return_to_search_review(&mut self, ctx: &egui::Context) {
-        self.author_back(ctx);
+        if let Some(origin) = self.search_state.source_return.take() {
+            if self.personal.history.last() == Some(&origin) {
+                self.personal.history.pop();
+            }
+            self.restore_author_location(origin, ctx);
+        }
         self.search_state.source_view = false;
         self.search_focus = true;
         self.search_state.scroll_current = true;
+    }
+
+    pub(super) fn search_source_signature(&self) -> String {
+        let buffers = self.manuscript.writing_buffers();
+        let mut sources: Vec<_> = buffers
+            .iter()
+            .filter(|buffer| buffer.is_changed() || buffer.generation() != 0)
+            .map(|buffer| {
+                (
+                    buffer.path().to_owned(),
+                    buffer.baseline().to_owned(),
+                    buffer.generation(),
+                    crate::app::writing_workspace::fingerprint(buffer.source()),
+                )
+            })
+            .collect();
+        sources.sort();
+        format!("{}:{sources:?}", self.project.content_baseline())
     }
 
     pub(super) fn search_result_page(&self) -> usize {
@@ -129,5 +188,8 @@ impl WorldeditApp {
 
 // Only display-state comparison; core validates exact source identities before mutation.
 pub(super) fn same_choice_keys(a: &[SearchMatch], b: &[SearchMatch]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).all(|(a, b)| a.path == b.path && a.range == b.range)
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|(a, b)| a.path == b.path && a.range == b.range)
 }

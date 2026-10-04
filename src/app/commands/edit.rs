@@ -138,6 +138,7 @@ impl WorldeditApp {
     pub(in crate::app) fn capture_edit_focus(&mut self, ctx: &egui::Context) {
         self.refresh_search_return_focus(ctx);
         self.sync_edit_layers(ctx);
+        self.finish_search_close_focus(ctx);
         if ctx.input(|i| {
             i.events
                 .iter()

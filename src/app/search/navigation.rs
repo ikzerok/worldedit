@@ -28,15 +28,23 @@ impl WorldeditApp {
                     (
                         file.path.clone(),
                         crate::app::writing_workspace::fingerprint(source),
-                        buffer.filter(|buffer| buffer.is_changed() || buffer.generation() != 0).map(WritingBuffer::generation),
+                        buffer
+                            .filter(|buffer| buffer.is_changed() || buffer.generation() != 0)
+                            .map(WritingBuffer::generation),
                         self.project.content_baseline(),
                     )
                 })
                 .collect();
-            NavigationBasis { request, scope: self.search_state.scope, sources }
+            NavigationBasis {
+                request,
+                scope: self.search_state.scope,
+                sources,
+            }
         });
         if self.search_state.navigation_basis != basis {
-            self.invalidate_search_review("查询、范围、选项或来源已变化；旧选择与预览已清空，请重新勾选");
+            self.invalidate_search_review(
+                "查询、范围、选项或来源已变化；旧选择与预览已清空，请重新勾选",
+            );
             self.search_state.navigation_basis = basis;
             self.search_state.selected = 0;
             self.search_state.scroll_current = true;
@@ -130,8 +138,10 @@ impl WorldeditApp {
                 });
                 if let Ok(hits) = self.current_search_hits() {
                     self.refresh_search_navigation(&hits);
-                    self.search_state.selected =
-                        hits.iter().position(|current| current.path == hit.path && current.range == hit.range).unwrap_or(0);
+                    self.search_state.selected = hits
+                        .iter()
+                        .position(|current| current.path == hit.path && current.range == hit.range)
+                        .unwrap_or(0);
                 }
                 self.search_state.scroll_current = true;
                 self.search_state.located = Some(hit.clone());
@@ -152,8 +162,10 @@ impl WorldeditApp {
         self.search_state.error = None;
         if let Ok(hits) = self.current_search_hits() {
             self.refresh_search_navigation(&hits);
-            self.search_state.selected =
-                hits.iter().position(|current| current.path == hit.path && current.range == hit.range).unwrap_or(0);
+            self.search_state.selected = hits
+                .iter()
+                .position(|current| current.path == hit.path && current.range == hit.range)
+                .unwrap_or(0);
         }
         self.search_state.scroll_current = true;
         self.search_state.located = Some(hit.clone());
@@ -161,11 +173,13 @@ impl WorldeditApp {
     }
 
     pub(in crate::app) fn navigate_search(&mut self, ctx: &egui::Context, previous: bool) {
+        self.search_state.review_preview = false;
         if let Ok(hits) = self.current_search_hits() {
             self.refresh_search_navigation(&hits);
             if !hits.is_empty() {
                 self.search_state.selected = self.next_search_index(hits.len(), previous);
                 self.go_search_hit(ctx, &hits[self.search_state.selected]);
+                self.search_focus = true;
             }
         }
     }
