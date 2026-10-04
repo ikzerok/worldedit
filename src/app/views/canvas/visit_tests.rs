@@ -139,13 +139,12 @@ fn zoomed_visit_marker_has_exact_count_in_unscaled_hover_text() {
                     .filter(|text| text.galley.job.text == label)
                     .collect();
                 assert_eq!(labels.len(), 2, "标记与悬浮文字均保留完整次数");
-                assert!(labels[1]
-                    .galley
-                    .job
-                    .sections
-                    .iter()
-                    .all(|section| section.format.font_id.size >= META_SIZE
-                        && contrast(section.format.color, rgb(PANEL())) >= 4.5));
+                assert!(labels[1].galley.job.sections.iter().all(|section| section
+                    .format
+                    .font_id
+                    .size
+                    >= META_SIZE
+                    && contrast(section.format.color, rgb(PANEL())) >= 4.5));
                 assert!(texts
                     .iter()
                     .any(|text| text.galley.job.text.contains("world.wl:3")));

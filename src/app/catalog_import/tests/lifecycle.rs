@@ -122,6 +122,14 @@ fn input_is_preserved_for_exit_export_play_and_file_replacement_cancel() {
             &ctx,
         )
         .unwrap();
+    click(&ctx, &mut app, "完整路径");
+    let output = frame(&ctx, &mut app, egui::vec2(1188.0, 848.0), vec![]);
+    assert!(output
+        .shapes
+        .iter()
+        .any(|shape| point(&shape.shape, "replacement.csv")
+            .is_some_and(|p| shape.clip_rect.contains(p))));
+    click(&ctx, &mut app, "完整路径");
     click(&ctx, &mut app, "保留当前快照");
     assert_eq!(app.catalog_import.input_signature(), signature);
     assert!(app.dirty_draft_names().contains(&"世界资料导入"));
@@ -178,4 +186,34 @@ fn cancelled_and_superseded_background_results_do_not_replace_current_input() {
     assert!(app.catalog_import.plan.is_none());
     assert!(app.catalog_import.status.as_ref().unwrap().contains("丢弃"));
     assert!(app.history.is_empty());
+}
+
+#[test]
+fn footer_apply_waits_for_same_frame_mapping_changes_before_using_a_plan() {
+    let (ctx, mut app) = app();
+    load(&ctx, &mut app, CSV);
+    map(&mut app);
+    preview(&ctx, &mut app);
+    let before = app.project.sources();
+    let mut state = std::mem::take(&mut app.catalog_import);
+    state.acknowledged = true;
+    assert!(state.can_apply(&app));
+    // Reproduce the real render boundary: the fixed footer records the click,
+    // then a lower mapping control supplies new input in the same frame.
+    let action = super::super::view::FooterAction::Apply;
+    state.columns[3].as_mut().unwrap().field = Field::Property {
+        key: "new_age_input".into(),
+        value_type: Type::Number,
+    };
+    state.invalidate();
+    state.finish_action(action, &mut app, &ctx);
+    assert_eq!(app.project.sources(), before);
+    assert!(app.history.is_empty());
+    assert!(state.stale);
+    assert!(!state.acknowledged);
+    assert!(state.error.as_ref().unwrap().contains("不可应用"));
+    assert!(
+        matches!(&state.columns[3].as_ref().unwrap().field, Field::Property { key, .. } if key == "new_age_input")
+    );
+    app.catalog_import = state;
 }

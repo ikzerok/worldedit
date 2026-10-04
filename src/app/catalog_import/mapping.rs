@@ -28,7 +28,8 @@ impl ImportState {
             "请选择已有活动源码文件；更新对象仍留在原声明文件，不移动。未选择时整批不可应用。",
         );
         let old_destination = self.destination.clone();
-        egui::ComboBox::from_id_salt("catalog-import-destination")
+        let mut destination_selected = false;
+        let destination = egui::ComboBox::from_id_salt("catalog-import-destination")
             .width(ui.available_width().min(440.0))
             .selected_text(if self.destination.as_os_str().is_empty() {
                 "选择新对象的源码文件…".into()
@@ -42,14 +43,25 @@ impl ImportState {
                         .unwrap_or(path)
                         .to_path_buf();
                     let label = relative.display().to_string();
-                    if ui
-                        .selectable_value(&mut self.destination, relative, label)
-                        .clicked()
-                    {
+                    let Ok(portable) = portable_destination(&relative) else {
+                        ui.add_enabled(
+                            false,
+                            egui::Button::new(format!("{label}（路径不可传输）")).wrap(),
+                        );
+                        continue;
+                    };
+                    let option = ui.selectable_value(&mut self.destination, portable, label);
+                    scroll_popup_focus(&option);
+                    if option.clicked() {
+                        destination_selected = true;
                         ui.close();
                     }
                 }
             });
+        if destination_selected {
+            destination.response.request_focus();
+        }
+        scroll_new_focus(&destination.response);
         if self.destination != old_destination {
             self.invalidate();
         }
@@ -71,20 +83,26 @@ impl ImportState {
                         let mapping = &mut self.columns[column];
                         let previous = field_choice(mapping.as_ref().map(|m| &m.field));
                         let mut choice = previous;
-                        egui::ComboBox::from_id_salt("field")
+                        let mut field_selected = false;
+                        let field = egui::ComboBox::from_id_salt("field")
                             .selected_text(field_label(choice))
                             .width(ui.available_width().min(270.0))
                             .height(380.0)
                             .show_ui(ui, |ui| {
                                 for value in 0..=12 {
-                                    if ui
-                                        .selectable_value(&mut choice, value, field_label(value))
-                                        .clicked()
-                                    {
+                                    let option =
+                                        ui.selectable_value(&mut choice, value, field_label(value));
+                                    scroll_popup_focus(&option);
+                                    if option.clicked() {
+                                        field_selected = true;
                                         ui.close();
                                     }
                                 }
                             });
+                        if field_selected {
+                            field.response.request_focus();
+                        }
+                        scroll_new_focus(&field.response);
                         if choice != previous {
                             let key = mapping
                                 .as_ref()
@@ -102,39 +120,45 @@ impl ImportState {
                         }
                         if let Some(mapping) = mapping {
                             if let Field::Property { key, .. } = &mut mapping.field {
-                                ui.add(
+                                let input = ui.add(
                                     egui::TextEdit::singleline(key)
                                         .hint_text("属性键（明确填写，例如 age）")
                                         .desired_width(ui.available_width()),
                                 );
+                                scroll_new_focus(&input);
                             }
                             if mapping.field != Field::Ignore {
                                 ui.horizontal_wrapped(|ui| {
                                     ui.label("空单元格");
-                                    egui::ComboBox::from_id_salt("blank")
+                                    let mut blank_selected = false;
+                                    let blank = egui::ComboBox::from_id_salt("blank")
                                         .selected_text(blank_label(mapping.blank))
                                         .show_ui(ui, |ui| {
                                             for blank in
                                                 [Blank::Error, Blank::Keep, Blank::EmptyText]
                                             {
-                                                if ui
-                                                    .selectable_value(
-                                                        &mut mapping.blank,
-                                                        blank,
-                                                        blank_label(blank),
-                                                    )
-                                                    .clicked()
-                                                {
+                                                let option = ui.selectable_value(
+                                                    &mut mapping.blank,
+                                                    blank,
+                                                    blank_label(blank),
+                                                );
+                                                scroll_popup_focus(&option);
+                                                if option.clicked() {
+                                                    blank_selected = true;
                                                     ui.close();
                                                 }
                                             }
                                         });
+                                    if blank_selected {
+                                        blank.response.request_focus();
+                                    }
+                                    scroll_new_focus(&blank.response);
                                 });
                                 ui.label(theme::muted(
                                     "保留 = 跳过空值；空文本只适用于文本字段。空格不是空单元格。",
                                 ));
                             } else {
-                                ui.label("此列不写入工程；预览会明确列出忽略列。");
+                                ui.label("此列不写入 .wl 资料字段；预览会明确列出忽略列。");
                             }
                         }
                         if let Some(sample) = self
@@ -143,9 +167,11 @@ impl ImportState {
                             .and_then(|t| t.rows.first())
                             .and_then(|r| r.cells.get(column))
                         {
-                            ui.collapsing("查看第一个数据行的原始单元格", |ui| {
-                                ui.add(egui::Label::new(format!("{sample:?}")).wrap());
-                            });
+                            let sample =
+                                ui.collapsing("查看第一个数据行的原始单元格", |ui| {
+                                    ui.add(egui::Label::new(format!("{sample:?}")).wrap());
+                                });
+                            scroll_new_focus(&sample.header_response);
                         }
                     });
             });
@@ -228,4 +254,37 @@ fn blank_label(blank: Blank) -> &'static str {
         Blank::Keep => "保留现值 / 跳过",
         Blank::EmptyText => "设置为空文本",
     }
+}
+
+// Only a new keyboard focus moves the mapping viewport. A held focus never
+// snaps the author's manual scroll, and an open menu retains its anchor.
+fn scroll_new_focus(response: &egui::Response) {
+    if response.gained_focus() && !egui::Popup::is_any_open(&response.ctx) {
+        response.scroll_to_me(Some(egui::Align::Center));
+    }
+}
+fn scroll_popup_focus(response: &egui::Response) {
+    if response.gained_focus() {
+        response.scroll_to_me(None);
+    }
+}
+
+// A typed native path must cross the portable core DTO boundary losslessly.
+// Never replace a literal Unix backslash with a separator to another file.
+pub(super) fn portable_destination(path: &std::path::Path) -> Result<PathBuf, String> {
+    let mut parts = Vec::new();
+    for component in path.components() {
+        let std::path::Component::Normal(part) = component else {
+            return Err("导入目标必须是相对来源路径".into());
+        };
+        let part = part.to_str().ok_or("导入目标路径必须为 UTF-8")?;
+        if part.contains('\\') {
+            return Err("导入目标文件名不能含字面反斜杠".into());
+        }
+        parts.push(part);
+    }
+    if parts.is_empty() {
+        return Err("尚未选择导入目标".into());
+    }
+    Ok(PathBuf::from(parts.join("/")))
 }

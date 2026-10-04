@@ -1,0 +1,3 @@
+对象种类,稳定ID,显示名,年龄,备注（明确忽略）
+character,import_traveler,雾港旅人,21,有效行也不能部分应用
+character,import_guide,灯塔向导,NaN,这一行阻断整批

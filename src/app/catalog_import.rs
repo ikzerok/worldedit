@@ -22,6 +22,8 @@ enum Step {
 pub(super) struct ImportState {
     pub(super) source_name: String,
     csv: String,
+    #[cfg(not(target_arch = "wasm32"))]
+    native_path: String,
     table: Option<CatalogCsvTable>,
     columns: Vec<Option<CatalogColumnMapping>>,
     destination: PathBuf,
@@ -43,12 +45,25 @@ pub(super) struct ImportState {
 
 impl ImportState {
     pub(super) fn has_unsubmitted_work(&self) -> bool {
-        (!self.source_name.is_empty() || self.table.is_some()) && !self.submitted
-            || self.replacement.is_some()
+        let input = !self.source_name.is_empty() || self.table.is_some();
+        #[cfg(not(target_arch = "wasm32"))]
+        let input = input || !self.native_path.is_empty();
+        input && !self.submitted || self.replacement.is_some()
     }
 
     pub(super) fn input_signature(&self) -> String {
-        serde_json::json!([self.csv, self.columns, self.destination, self.generation]).to_string()
+        #[cfg(not(target_arch = "wasm32"))]
+        let path = self.native_path.as_str();
+        #[cfg(target_arch = "wasm32")]
+        let path = "";
+        serde_json::json!([
+            self.csv,
+            self.columns,
+            self.destination,
+            self.generation,
+            path
+        ])
+        .to_string()
     }
 
     pub(super) fn discard(&mut self) {

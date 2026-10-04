@@ -192,13 +192,16 @@ pub fn select_files(ctx: &egui::Context, folder: bool, accept: &str, action: Fil
             let context = context.clone();
             let action = picked_action.clone();
             spawn_local(async move {
-                let result = read_files(list, folder).await.and_then(|files| {
-                    if generation == GENERATION.get() {
-                        Ok(files)
-                    } else {
-                        Err("工程已切换，请重新选择文件".into())
-                    }
-                });
+                let catalog_csv = matches!(&action, FileAction::CatalogImport);
+                let result = read_files(list, folder, catalog_csv)
+                    .await
+                    .and_then(|files| {
+                        if generation == GENERATION.get() {
+                            Ok(files)
+                        } else {
+                            Err("工程已切换，请重新选择文件".into())
+                        }
+                    });
                 EVENTS.with(|events| events.borrow_mut().push_back((action, result)));
                 PICKER.with(|picker| picker.borrow_mut().take());
                 context.request_repaint();
@@ -226,8 +229,15 @@ pub fn select_files(ctx: &egui::Context, folder: bool, accept: &str, action: Fil
     }
 }
 
-async fn read_files(list: Option<web_sys::FileList>, folder: bool) -> Result<Files, String> {
+async fn read_files(
+    list: Option<web_sys::FileList>,
+    folder: bool,
+    catalog_csv: bool,
+) -> Result<Files, String> {
     let list = list.ok_or("未选择文件")?;
+    if catalog_csv && list.length() != 1 {
+        return Err("请选择单个 UTF-8 CSV 快照".into());
+    }
     if list.length() > 4096 {
         return Err("工程最多包含 4096 个文件".into());
     }
@@ -236,7 +246,9 @@ async fn read_files(list: Option<web_sys::FileList>, folder: bool) -> Result<Fil
     for index in 0..list.length() {
         let file = list.get(index).ok_or("选中的文件无法读取")?;
         total += file.size() as u64;
-        let max_total = if !folder
+        let max_total = if catalog_csv {
+            worldline_core::catalog_import::MAX_CSV_BYTES as u64
+        } else if !folder
             && list.length() == 1
             && file.name().to_ascii_lowercase().ends_with(".zip")
         {
@@ -245,7 +257,12 @@ async fn read_files(list: Option<web_sys::FileList>, folder: bool) -> Result<Fil
             MAX_BYTES
         };
         if total > max_total {
-            return Err("所选工程包或恢复副本超过大小上限".into());
+            return Err(if catalog_csv {
+                "CSV 超过 2 MiB 上限；未读取文件内容"
+            } else {
+                "所选工程包或恢复副本超过大小上限"
+            }
+            .into());
         }
         let name = if folder {
             let relative = js_sys::Reflect::get(&file, &JsValue::from_str("webkitRelativePath"))

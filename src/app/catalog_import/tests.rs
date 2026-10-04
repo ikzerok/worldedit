@@ -10,6 +10,8 @@ use worldline_core::project::Project;
 mod interaction;
 mod layout;
 mod lifecycle;
+mod native_path;
+mod paths;
 mod safety;
 mod snapshot;
 use interaction::*;

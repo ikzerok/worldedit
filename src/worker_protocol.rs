@@ -128,7 +128,7 @@ pub(crate) fn parse_request_json(json: &str) -> Result<WorkRequest, String> {
     if json.len() > MAX_JSON_BYTES {
         return Err("后台请求JSON超过32MiB预算".into());
     }
-    let value = worldline_core::workspace_documents::parse_unique_json(json.as_bytes())?;
+    let value = worldline_core::parse_unique_json(json.as_bytes())?;
     serde_json::from_value(value).map_err(|error| error.to_string())
 }
 
@@ -136,7 +136,7 @@ pub(crate) fn parse_output_json(json: &str) -> Result<WorkOutput, String> {
     if json.len() > MAX_JSON_BYTES {
         return Err("后台结果JSON超过32MiB预算".into());
     }
-    let value = worldline_core::workspace_documents::parse_unique_json(json.as_bytes())?;
+    let value = worldline_core::parse_unique_json(json.as_bytes())?;
     serde_json::from_value(value).map_err(|error| error.to_string())
 }
 

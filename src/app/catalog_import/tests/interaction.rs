@@ -6,7 +6,7 @@ pub(super) fn frame(
     size: Vec2,
     events: Vec<Event>,
 ) -> egui::FullOutput {
-    ctx.run(
+    let output = ctx.run(
         RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)),
             events,
@@ -20,7 +20,41 @@ pub(super) fn frame(
             app.sidebar(ctx);
             app.catalog_import_tab(ctx);
         },
-    )
+    );
+    // Record emitted widget metadata only. Scroll containers can own focus too,
+    // so their large rectangle must never count as a focused child control.
+    for event in &output.platform_output.events {
+        if let egui::output::OutputEvent::FocusGained(info) = event {
+            if let Some(id) = ctx.memory(|memory| memory.focused()) {
+                ctx.data_mut(|data| {
+                    data.insert_temp(egui::Id::new("catalog-test-focus-info"), (id, info.clone()))
+                });
+            }
+        }
+    }
+    output
+}
+pub(super) fn focused_widget(ctx: &egui::Context, label: &str) -> bool {
+    // TextEdit can emit TextSelectionChanged instead of FocusGained when Tab
+    // selects its contents. Its actual persisted editor state proves the type;
+    // tab_to still requires this field's exact visible hint inside its response.
+    if ctx
+        .memory(|memory| memory.focused())
+        .is_some_and(|id| egui::TextEdit::load_state(ctx, id).is_some())
+    {
+        return true;
+    }
+    ctx.data(|data| {
+        data.get_temp::<(egui::Id, egui::WidgetInfo)>(egui::Id::new("catalog-test-focus-info"))
+    })
+    .is_some_and(|(id, info)| {
+        ctx.memory(|memory| memory.focused()) == Some(id)
+            && info.enabled
+            && (info.label.as_deref() == Some(label)
+                || info.typ == egui::WidgetType::ComboBox
+                || (info.typ == egui::WidgetType::TextEdit
+                    && info.hint_text.as_deref() == Some(label)))
+    })
 }
 pub(super) fn point(shape: &egui::Shape, label: &str) -> Option<Pos2> {
     match shape {
@@ -81,16 +115,14 @@ pub(super) fn click(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) {
     }
 }
 pub(super) fn key(ctx: &egui::Context, app: &mut WorldeditApp, key: Key) -> egui::FullOutput {
-    frame(
-        ctx,
-        app,
-        egui::vec2(1188.0, 848.0),
-        vec![Event::Key {
-            key,
-            physical_key: Some(key),
-            pressed: true,
-            repeat: false,
-            modifiers: Default::default(),
-        }],
-    )
+    let event = |pressed| Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed,
+        repeat: false,
+        modifiers: Default::default(),
+    };
+    let output = frame(ctx, app, egui::vec2(1188.0, 848.0), vec![event(true)]);
+    frame(ctx, app, egui::vec2(1188.0, 848.0), vec![event(false)]);
+    output
 }
