@@ -111,6 +111,7 @@ impl super::super::WorldeditApp {
                                 catalog,
                                 preview,
                                 &mut self.manuscript.pending_remove,
+                                &self.project.root,
                             );
                         });
                     });

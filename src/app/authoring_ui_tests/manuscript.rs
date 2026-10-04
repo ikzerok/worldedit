@@ -1,3 +1,4 @@
+mod geometry;
 use super::*;
 
 fn rendered(output: &egui::FullOutput) -> String {
@@ -228,13 +229,25 @@ fn manuscript_explicit_source_selection_applies_saves_and_reopens() {
 
 #[test]
 fn manuscript_moves_chapter_to_explicit_section_without_touching_source() {
-    let (ctx, mut app) = manuscript_app();
+    let (ctx, app) = manuscript_app();
+    assert_chapter_moves_without_source_changes(ctx, app);
+}
+
+#[test]
+fn manuscript_deep_source_path_keeps_move_section_control_clickable() {
+    let directory = std::env::temp_dir().join("worldedit-deep-source-move/Users/author/AppData/Local/long-workspace-title/another-deep-directory/来源文件夹/世界资料");
+    let (ctx, app) = manuscript_app_in_directory(&directory);
+    assert_chapter_moves_without_source_changes(ctx, app);
+}
+
+fn assert_chapter_moves_without_source_changes(ctx: egui::Context, mut app: WorldeditApp) {
     let source = app.project.document(&app.active_file).unwrap().to_owned();
     let fingerprint = app.snapshot.as_ref().unwrap().result.analysis.fingerprint;
     click(&ctx, &mut app, 13, "插入分节");
     click(&ctx, &mut app, 13, "应用书稿");
     click(&ctx, &mut app, 13, "抵达");
     click(&ctx, &mut app, 13, "编排与来源");
+    geometry::settle_label(&ctx, &mut app, "移动到分节：根目录");
     click(&ctx, &mut app, 13, "移动到分节：根目录");
     click(&ctx, &mut app, 13, "新分节 · section");
     click(&ctx, &mut app, 13, "应用书稿");
@@ -253,6 +266,18 @@ fn manuscript_moves_chapter_to_explicit_section_without_touching_source() {
         fingerprint
     );
     assert_eq!(app.history.len(), 2);
+    geometry::settle_label(&ctx, &mut app, "移动到分节：section");
+    let output = frame(&ctx, &mut app, Vec::new(), 13);
+    assert!(
+        visible_text_position(&output, "来源：world.wl:2").is_some(),
+        "{}",
+        rendered(&output)
+    );
+    assert!(
+        visible_text_position(&output, "移动到分节：section").is_some(),
+        "{}",
+        rendered(&output)
+    );
 }
 
 #[test]

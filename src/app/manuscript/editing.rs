@@ -25,6 +25,7 @@ pub(super) fn draw_entry_editor(
     catalog: &worldline_core::catalog::Catalog,
     index: &ManuscriptIndex,
     pending_remove: &mut Option<String>,
+    root: &std::path::Path,
 ) {
     let Some(id) = local.selected_entry.clone() else {
         ui.label("选择章节或分节以编辑编排。");
@@ -86,10 +87,12 @@ pub(super) fn draw_entry_editor(
         {
             ui.label(source_status_text(source.status));
             if let Some(location) = &source.location {
-                ui.label(theme::muted(format!(
-                    "来源：{}:{}",
-                    location.file, location.line
-                )));
+                let relative = theme::relative_source(root, std::path::Path::new(&location.file));
+                ui.add(
+                    egui::Label::new(theme::muted(format!("来源：{relative}:{}", location.line)))
+                        .truncate(),
+                )
+                .on_hover_text(format!("{}:{}", location.file, location.line));
             }
             if let Some(stats) = source.stats {
                 ui.label(format!(
