@@ -2,11 +2,31 @@
 use super::*;
 use crate::theme;
 use std::sync::Arc;
-use worldline_core::manuscript::{review_projection_with_snapshot, ManuscriptIndex, ReviewProjection, ReviewSnapshot};
+use worldline_core::manuscript::{
+    review_projection_with_snapshot, ManuscriptIndex, ReviewProjection, ReviewSnapshot,
+};
 
 const REVIEW_CHAPTERS_PER_PAGE: usize = 8;
 const REVIEW_PAGE_NODES: usize = 12_000;
 const REVIEW_PAGE_BYTES: usize = 4 * 1024 * 1024;
+
+#[derive(Default)]
+pub(super) struct PageBudget {
+    nodes: usize,
+    bytes: usize,
+}
+impl PageBudget {
+    pub(super) fn admit(&mut self, nodes: usize, bytes: usize) -> bool {
+        let next_nodes = self.nodes.saturating_add(nodes);
+        let next_bytes = self.bytes.saturating_add(bytes);
+        if next_nodes > REVIEW_PAGE_NODES || next_bytes > REVIEW_PAGE_BYTES {
+            return false;
+        }
+        self.nodes = next_nodes;
+        self.bytes = next_bytes;
+        true
+    }
+}
 
 #[derive(Default)]
 pub(super) struct PreviewCache {
@@ -14,6 +34,7 @@ pub(super) struct PreviewCache {
     targets: Vec<TargetRef>,
     pub current: HashMap<TargetRef, Arc<ReviewProjection>>,
     last_valid: HashMap<TargetRef, Arc<ReviewProjection>>,
+    sizes: HashMap<TargetRef, usize>,
     errors: HashMap<TargetRef, String>,
     error: Option<String>,
 }
@@ -24,15 +45,24 @@ impl PreviewCache {
         buffers: &[WritingBuffer],
         targets: &[TargetRef],
     ) -> String {
-        let mut drafts: Vec<_> = buffers.iter().filter(|buffer| buffer.is_changed()).collect();
+        let mut drafts: Vec<_> = buffers
+            .iter()
+            .filter(|buffer| buffer.is_changed())
+            .collect();
         drafts.sort_by_key(|buffer| buffer.path());
         format!(
             "{}|{:?}|{:?}",
-            project.content_baseline(), targets,
-            drafts.iter().map(|buffer| (
-                buffer.path(), buffer.baseline(), buffer.generation(),
-                crate::app::writing_workspace::fingerprint(buffer.source())
-            )).collect::<Vec<_>>()
+            project.content_baseline(),
+            targets,
+            drafts
+                .iter()
+                .map(|buffer| (
+                    buffer.path(),
+                    buffer.baseline(),
+                    buffer.generation(),
+                    crate::app::writing_workspace::fingerprint(buffer.source())
+                ))
+                .collect::<Vec<_>>()
         )
     }
 
@@ -51,41 +81,51 @@ impl PreviewCache {
         targets: &[TargetRef],
     ) {
         let key = Self::basis(project, buffers, targets);
-        if self.key == key { return; }
+        if self.key == key {
+            return;
+        }
         self.key = key;
         self.targets = targets.to_vec();
         self.current.clear();
         self.errors.clear();
         self.error = None;
         self.last_valid.retain(|target, _| targets.contains(target));
+        self.sizes.retain(|target, _| targets.contains(target));
         match project.compile_writing_drafts(buffers) {
             Ok(result) => {
                 let snapshot = match ReviewSnapshot::new(&result) {
                     Ok(snapshot) => snapshot,
-                    Err(error) => { self.error = Some(error.to_string()); return; }
+                    Err(error) => {
+                        self.error = Some(error.to_string());
+                        return;
+                    }
                 };
-                let mut nodes = 0usize;
-                let mut bytes = 0usize;
+                let mut budget = PageBudget::default();
                 for target in targets {
-                    if self.current.contains_key(target) || self.errors.contains_key(target) { continue; }
+                    if self.current.contains_key(target) || self.errors.contains_key(target) {
+                        continue;
+                    }
                     match review_projection_with_snapshot(&result, target, &snapshot) {
                         Ok(projection) if projection.complete => {
-                            let size = serde_json::to_vec(&projection).map_or(REVIEW_PAGE_BYTES + 1, |json| json.len());
-                            if nodes.saturating_add(projection.node_count) > REVIEW_PAGE_NODES || bytes.saturating_add(size) > REVIEW_PAGE_BYTES {
+                            let size = serde_json::to_vec(&projection)
+                                .map_or(REVIEW_PAGE_BYTES + 1, |json| json.len());
+                            if !budget.admit(projection.node_count, size) {
                                 self.last_valid.remove(target);
                                 self.errors.insert(target.clone(), "本页累计审稿预算已满；请选择本章单独审稿。此章未展示，整书尚未审完".into());
                                 continue;
                             }
-                            nodes += projection.node_count;
-                            bytes += size;
+                            self.sizes.insert(target.clone(), size);
                             let projection = Arc::new(projection);
                             self.last_valid.insert(target.clone(), projection.clone());
                             self.current.insert(target.clone(), projection);
                         }
                         Ok(_) => {
-                            self.errors.insert(target.clone(), "审稿未完整生成，未展示残稿".into());
+                            self.errors
+                                .insert(target.clone(), "审稿未完整生成，未展示残稿".into());
                         }
-                        Err(error) => { self.errors.insert(target.clone(), error.to_string()); }
+                        Err(error) => {
+                            self.errors.insert(target.clone(), error.to_string());
+                        }
                     }
                 }
             }
@@ -113,43 +153,79 @@ pub(super) fn draw_reader_preview(
     let entries: Vec<_> = if app.manuscript.reader_whole_book {
         let mut page = index.page(app.manuscript.review_page_offset, REVIEW_CHAPTERS_PER_PAGE);
         if page.offset >= page.total && page.total > 0 {
-            app.manuscript.review_page_offset = (page.total - 1) / REVIEW_CHAPTERS_PER_PAGE * REVIEW_CHAPTERS_PER_PAGE;
+            app.manuscript.review_page_offset =
+                (page.total - 1) / REVIEW_CHAPTERS_PER_PAGE * REVIEW_CHAPTERS_PER_PAGE;
             page = index.page(app.manuscript.review_page_offset, REVIEW_CHAPTERS_PER_PAGE);
         }
         let old_offset = app.manuscript.review_page_offset;
         ui.horizontal_wrapped(|ui| {
-            if ui.add_enabled(page.offset > 0, egui::Button::new("上一批章节")).clicked() {
-                app.manuscript.review_page_offset = page.offset.saturating_sub(REVIEW_CHAPTERS_PER_PAGE);
+            if ui
+                .add_enabled(page.offset > 0, egui::Button::new("上一批章节"))
+                .clicked()
+            {
+                app.manuscript.review_page_offset =
+                    page.offset.saturating_sub(REVIEW_CHAPTERS_PER_PAGE);
             }
-            if ui.add_enabled(page.next_offset.is_some(), egui::Button::new("下一批章节")).clicked() {
+            if ui
+                .add_enabled(page.next_offset.is_some(), egui::Button::new("下一批章节"))
+                .clicked()
+            {
                 app.manuscript.review_page_offset = page.next_offset.unwrap_or(page.offset);
             }
-            ui.label(format!("整书分批 · 第 {}–{} / {} 章", if page.total == 0 { 0 } else { page.offset + 1 }, page.offset + page.chapters.len(), page.total));
+            ui.label(format!(
+                "整书分批 · 第 {}–{} / {} 章",
+                if page.total == 0 { 0 } else { page.offset + 1 },
+                page.offset + page.chapters.len(),
+                page.total
+            ));
         });
         if old_offset != app.manuscript.review_page_offset {
             page = index.page(app.manuscript.review_page_offset, REVIEW_CHAPTERS_PER_PAGE);
             app.manuscript.pending_review_scroll = Some(0.0);
         }
         if page.total > REVIEW_CHAPTERS_PER_PAGE {
-            ui.label(theme::muted("仅当前批次正文已加载；其他章节请翻页审阅，不代表整书已审完。"));
+            ui.label(theme::muted(
+                "仅当前批次正文已加载；其他章节请翻页审阅，不代表整书已审完。",
+            ));
         }
-        page.chapters.into_iter().map(|entry| (entry.id, entry.title, entry.target_ref)).collect()
+        page.chapters
+            .into_iter()
+            .map(|entry| (entry.id, entry.title, entry.target_ref))
+            .collect()
     } else {
-        selected.filter(|entry| entry.kind == ManuscriptEntryKind::Chapter)
-            .map(|entry| vec![(entry.id.clone(), entry.title.clone(), entry.target_ref.clone())])
+        selected
+            .filter(|entry| entry.kind == ManuscriptEntryKind::Chapter)
+            .map(|entry| {
+                vec![(
+                    entry.id.clone(),
+                    entry.title.clone(),
+                    entry.target_ref.clone(),
+                )]
+            })
             .unwrap_or_default()
     };
-    let targets: Vec<_> = entries.iter().filter_map(|(_, _, target)| target.clone()).collect();
+    let targets: Vec<_> = entries
+        .iter()
+        .filter_map(|(_, _, target)| target.clone())
+        .collect();
     let buffers = app.manuscript.writing_buffers();
-    app.manuscript.preview_cache.refresh(&app.project, &buffers, &targets);
+    app.manuscript
+        .preview_cache
+        .refresh(&app.project, &buffers, &targets);
     let cache = &app.manuscript.preview_cache;
     if let Some(error) = &cache.error {
         ui.colored_label(theme::ERROR(), format!("预览过期 · {error}"));
-        ui.label(theme::muted("以下仅显示同一章节的上次有效预览；全部当前输入仍保留，旧来源跳转已停用。"));
+        ui.label(theme::muted(
+            "以下仅显示同一章节的上次有效预览；全部当前输入仍保留，旧来源跳转已停用。",
+        ));
     } else {
-        ui.label(theme::muted(if buffers.iter().any(WritingBuffer::is_changed) {
-            "当前稿 · 包含未应用输入；只读静态预览"
-        } else { "当前工程稿 · 只读静态预览" }));
+        ui.label(theme::muted(
+            if buffers.iter().any(WritingBuffer::is_changed) {
+                "当前稿 · 包含未应用输入；只读静态预览"
+            } else {
+                "当前工程稿 · 只读静态预览"
+            },
+        ));
     }
     egui::CollapsingHeader::new("预览范围说明").show(ui, |ui| {
         ui.label("条件不求值，互斥分支和各个选择按源码顺序分别呈现；合流仅指控制流继续的情况。动态文字保留标记，call 不展开。整书按书稿编排顺序读取，不会执行、应用、保存或改变发布范围。");
@@ -158,10 +234,15 @@ pub(super) fn draw_reader_preview(
     if let Some(notice) = &app.manuscript.review_navigation.notice {
         ui.colored_label(theme::ERROR(), notice);
     }
+    let mut display_budget = PageBudget::default();
     let lines: Vec<_> = entries.into_iter().map(|(id, title, target)| {
         let current = target.as_ref().and_then(|target| cache.current.get(target)).cloned();
-        let projection = current.clone().or_else(|| target.as_ref().and_then(|target| cache.last_valid.get(target)).cloned());
-        let error = target.as_ref().and_then(|target| cache.errors.get(target)).cloned();
+        let mut projection = current.clone().or_else(|| target.as_ref().and_then(|target| cache.last_valid.get(target)).cloned());
+        let mut error = target.as_ref().and_then(|target| cache.errors.get(target)).cloned();
+        if projection.as_ref().is_some_and(|review| !display_budget.admit(review.node_count, cache.sizes.get(&review.target).copied().unwrap_or(REVIEW_PAGE_BYTES + 1))) {
+            projection = None;
+            error = Some("本批累计显示预算已满；重复引用和旧稿也计入预算。请选择本章单独审稿，整书尚未审完".into());
+        }
         (id, title, target, projection, current.is_some(), error)
     }).collect();
     let key = cache.key.clone();
@@ -173,8 +254,18 @@ pub(super) fn draw_reader_preview(
     };
     let blocked = app.review_input_blocker(ui.ctx());
     let mut actions = super::review_render::Actions::default();
-    let id = ui.make_persistent_id(("manuscript-preview-scroll", &index.id, app.manuscript.reader_whole_book));
-    let mut scroll = egui::ScrollArea::vertical().id_salt(("manuscript-preview-scroll", &index.id, app.manuscript.reader_whole_book)).auto_shrink([false, false]);
+    let id = ui.make_persistent_id((
+        "manuscript-preview-scroll",
+        &index.id,
+        app.manuscript.reader_whole_book,
+    ));
+    let mut scroll = egui::ScrollArea::vertical()
+        .id_salt((
+            "manuscript-preview-scroll",
+            &index.id,
+            app.manuscript.reader_whole_book,
+        ))
+        .auto_shrink([false, false]);
     if let Some(offset) = app.manuscript.pending_review_scroll.take() {
         let mut state = egui::scroll_area::State::default();
         state.offset.y = offset;
@@ -192,21 +283,47 @@ pub(super) fn draw_reader_preview(
                         ui.label(egui::RichText::new(title).strong());
                         if let Some(error) = &error {
                             ui.colored_label(theme::ERROR(), format!("本章审稿未完成 · {error}"));
-                            if projection.is_some() { ui.label("下方是上次有效预览，已停用来源跳转。"); }
+                            if projection.is_some() {
+                                ui.label("下方是上次有效预览，已停用来源跳转。");
+                            }
                         }
                         let Some(projection) = projection else {
-                            ui.colored_label(theme::ERROR(), if target.is_none() { "章节尚未选择正文来源。" } else { "当前章节没有完整审稿；请保留草稿并修复来源。" });
+                            ui.colored_label(
+                                theme::ERROR(),
+                                if target.is_none() {
+                                    "章节尚未选择正文来源。"
+                                } else {
+                                    "当前章节没有完整审稿；请保留草稿并修复来源。"
+                                },
+                            );
                             return;
                         };
-                        let reason = if !current { Some("预览已过期，请修复当前稿后再定位") } else { blocked.as_deref() };
-                        super::review_render::draw(ui, &projection, &key, typography, reason, &mut actions);
+                        let reason = if !current {
+                            Some("预览已过期，请修复当前稿后再定位")
+                        } else {
+                            blocked.as_deref()
+                        };
+                        super::review_render::draw(
+                            ui,
+                            &projection,
+                            &key,
+                            typography,
+                            reason,
+                            &mut actions,
+                        );
                     });
                 }
-                if targets.is_empty() { ui.label(theme::muted("请选择带正文来源的章节。")); }
+                if targets.is_empty() {
+                    ui.label(theme::muted("请选择带正文来源的章节。"));
+                }
             });
         });
     });
     app.manuscript.review_scroll_y = output.state.offset.y;
-    if let Some(request) = actions.source { app.manuscript.review_navigation.pending = Some(request); }
-    if let Some(target) = actions.reference { app.open_reading(target); }
+    if let Some(request) = actions.source {
+        app.manuscript.review_navigation.pending = Some(request);
+    }
+    if let Some(target) = actions.reference {
+        app.open_reading(target);
+    }
 }

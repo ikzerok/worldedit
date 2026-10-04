@@ -96,6 +96,14 @@ impl super::super::WorldeditApp {
                     .clone()
                     .filter(|id| local.draft.entries.iter().any(|entry| &entry.id == id))
                 {
+                    if session.restore_offsets.unwrap_or(false) {
+                        if let Some(anchor) = &session.anchor {
+                            self.manuscript.chapter_sources.insert(
+                                (book_id.clone(), id.clone()),
+                                (anchor.target.clone(), anchor.path.clone()),
+                            );
+                        }
+                    }
                     local.selected_entry = Some(id);
                     self.manuscript.pending_scroll = Some(
                         if session.restore_offsets.unwrap_or(false) && session.scroll_y.is_finite()
@@ -105,17 +113,21 @@ impl super::super::WorldeditApp {
                             0.0
                         },
                     );
-                    self.manuscript.pending_review_scroll = Some(
-                        if session.restore_offsets.unwrap_or(false) {
-                            session.review_scroll_y.unwrap_or(0.0).clamp(0.0, 1_000_000.0)
+                    self.manuscript.pending_review_scroll =
+                        Some(if session.restore_offsets.unwrap_or(false) {
+                            session
+                                .review_scroll_y
+                                .filter(|offset| offset.is_finite())
+                                .unwrap_or(0.0)
+                                .clamp(0.0, 1_000_000.0)
                         } else {
                             0.0
-                        },
-                    );
+                        });
                     self.manuscript.review_page_offset = session.review_page_offset.unwrap_or(0);
                     self.manuscript.reader_open = session.preview_open.unwrap_or(true);
                     self.manuscript.reader_whole_book = session.preview_whole_book.unwrap_or(false);
                     self.manuscript.narrow_preview = session.preview_tab.unwrap_or(false);
+                    self.manuscript.review_focus = self.manuscript.narrow_preview;
                     self.manuscript.writing_view.restore_mode(session.mode);
                     self.manuscript.writing_view.restore_cursor(session.cursor);
                 } else if session.selected_id.is_some() {
@@ -147,6 +159,10 @@ impl super::super::WorldeditApp {
             .frame(theme::panel())
             .show(ctx, |ui| {
                 if self.personal.settings.focus {
+                    let compact_preview = !layout::parallel_review(
+                        ui.available_width(),
+                        self.personal.settings.body_size,
+                    );
                     ui.horizontal_wrapped(|ui| {
                         ui.label(
                             egui::RichText::new(index.title.as_deref().unwrap_or(&book_id))
@@ -154,6 +170,10 @@ impl super::super::WorldeditApp {
                         );
                         ui.checkbox(&mut self.manuscript.reader_open, "阅读预览");
                         ui.toggle_value(&mut self.manuscript.focus_management, "书稿管理");
+                        if self.manuscript.reader_open && compact_preview {
+                            ui.selectable_value(&mut self.manuscript.narrow_preview, false, "编辑");
+                            ui.selectable_value(&mut self.manuscript.narrow_preview, true, "预览");
+                        }
                     });
                 }
                 if !self.personal.settings.focus || self.manuscript.focus_management {
