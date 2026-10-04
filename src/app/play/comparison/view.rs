@@ -1,6 +1,6 @@
 //! 主内容对照；首屏身份、有效性与首差异不依赖技术抽屉。
 use super::{
-    navigation::{source_button, ComparisonSourceRequest},
+    navigation::{source_button, ComparisonSourceRequest, NavigationAccess},
     ComparedRoutes,
 };
 use crate::{app::WorldeditApp, theme};
@@ -63,7 +63,7 @@ fn route_header(
 fn first_difference(
     ui: &mut egui::Ui,
     compared: &ComparedRoutes,
-    blocked: Option<&str>,
+    access: &NavigationAccess<'_>,
     request: &mut Option<ComparisonSourceRequest>,
 ) {
     ui.strong("首个不同选择");
@@ -107,7 +107,7 @@ fn first_difference(
                             ui,
                             compared,
                             input.source.as_ref(),
-                            blocked,
+                            access,
                             "打开选择声明",
                             request,
                         );
@@ -137,6 +137,11 @@ impl WorldeditApp {
             .result
             .as_ref()
             .and_then(|result| self.play_source_guard(&result.scope).err());
+        let restoring = self.comparison.restore_scroll || self.comparison.restore_focus.is_some();
+        let access = NavigationAccess {
+            blocked: blocked.as_deref(),
+            focus: super::focus::FocusReveal::for_frame(ctx, restoring),
+        };
         let mut request = None;
         let mut target = None;
         let mut run = false;
@@ -257,7 +262,7 @@ impl WorldeditApp {
                     );
                 }
                 ui.add_space(theme::SPACE_SM);
-                first_difference(ui, compared, blocked.as_deref(), &mut request);
+                first_difference(ui, compared, &access, &mut request);
                 ui.separator();
                 if let Some(focus) = self.comparison.restore_focus.take() {
                     ui.memory_mut(|memory| memory.request_focus(focus));
@@ -266,6 +271,13 @@ impl WorldeditApp {
                     .id_salt("route-comparison-body")
                     .auto_shrink([false, false]);
                 if self.comparison.restore_scroll {
+                    // 与作者书稿返回相同：旧焦点目标和惯性不能覆盖明确保存的位置。
+                    let mut state = egui::scroll_area::State::default();
+                    state.offset.y = self.comparison.scroll;
+                    state.store(
+                        ctx,
+                        ui.make_persistent_id(egui::Id::new("route-comparison-body")),
+                    );
                     scroll = scroll
                         .vertical_scroll_offset(self.comparison.scroll)
                         .animated(false);
@@ -276,7 +288,7 @@ impl WorldeditApp {
                         ui,
                         compared,
                         &mut self.comparison,
-                        blocked.as_deref(),
+                        &access,
                         &mut request,
                         &mut target,
                         self.snapshot
@@ -285,6 +297,9 @@ impl WorldeditApp {
                             .map(|snapshot| &snapshot.result.analysis.catalog),
                     );
                     self.comparison_technical(ui, Some(compared));
+                    if restoring {
+                        ui.scroll_to_rect(ui.clip_rect(), None);
+                    }
                 });
                 self.comparison.scroll = output.state.offset.y;
             } else {

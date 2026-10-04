@@ -556,3 +556,6 @@ fn stale_comparison_does_not_borrow_renamed_catalog_displays() {
 
 #[path = "interaction_tests.rs"]
 mod interaction;
+
+#[path = "keyboard_tests.rs"]
+mod keyboard;

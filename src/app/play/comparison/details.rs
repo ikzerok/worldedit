@@ -1,6 +1,6 @@
 //! 结果值、当次动作和覆盖分层展示，不把静态声明当成执行因果。
 use super::{
-    navigation::{source_button, ComparisonSourceRequest},
+    navigation::{source_button, ComparisonSourceRequest, NavigationAccess},
     ComparedRoutes, ComparisonState,
 };
 use crate::theme;
@@ -82,19 +82,19 @@ fn difference(
     select: bool,
     selected: &mut Option<String>,
     catalog: Option<&Catalog>,
+    focus: super::focus::FocusReveal,
 ) {
     ui.push_id(("result-value", select, &difference.id), |ui| {
         egui::Frame::group(ui.style())
             .fill(theme::CARD())
             .show(ui, |ui| {
                 if select {
-                    if ui
-                        .selectable_label(
-                            selected.as_ref() == Some(&difference.id),
-                            state_caption(catalog, &difference.id),
-                        )
-                        .clicked()
-                    {
+                    let response = ui.selectable_label(
+                        selected.as_ref() == Some(&difference.id),
+                        state_caption(catalog, &difference.id),
+                    );
+                    focus.reveal(ui, &response);
+                    if response.clicked() {
                         *selected = Some(difference.id.clone());
                     }
                     let identity = catalog
@@ -145,7 +145,7 @@ pub(super) fn render(
     ui: &mut egui::Ui,
     compared: &ComparedRoutes,
     state: &mut ComparisonState,
-    blocked: Option<&str>,
+    access: &NavigationAccess<'_>,
     request: &mut Option<ComparisonSourceRequest>,
     target: &mut Option<TargetRef>,
     catalog: Option<&Catalog>,
@@ -168,6 +168,7 @@ pub(super) fn render(
             true,
             &mut state.selected_state,
             catalog,
+            access.focus,
         );
     }
     for difference_value in &compared.result.variable_differences {
@@ -178,6 +179,7 @@ pub(super) fn render(
             false,
             &mut state.selected_state,
             catalog,
+            access.focus,
         );
     }
     ui.add_space(theme::SPACE_MD);
@@ -194,7 +196,7 @@ pub(super) fn render(
     if ids.is_empty() {
         ui.label("当前没有可展示的实际动作证据；不会回填检查点旧历史或静态候选来源");
     }
-    egui::ComboBox::from_id_salt("comparison-state-actions")
+    let state_picker = egui::ComboBox::from_id_salt("comparison-state-actions")
         .selected_text(
             state
                 .selected_state
@@ -206,6 +208,7 @@ pub(super) fn render(
                 ui.selectable_value(&mut state.selected_state, Some(id.to_owned()), id);
             }
         });
+    access.focus.reveal(ui, &state_picker.response);
     for display_right in [false, true] {
         let side = compared.side(display_right);
         let actual_right = compared.display_index(display_right) == 1;
@@ -237,18 +240,17 @@ pub(super) fn render(
             ui.push_id(("actual-action", actual_right, record.sequence), |ui| {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     let selected = state.selected_action == Some((actual_right, record.sequence));
-                    if ui
-                        .selectable_label(
-                            selected,
-                            format!(
-                                "动作 #{} · {} · {}",
-                                record.sequence,
-                                kind(&record.kind),
-                                record.state
-                            ),
-                        )
-                        .clicked()
-                    {
+                    let response = ui.selectable_label(
+                        selected,
+                        format!(
+                            "动作 #{} · {} · {}",
+                            record.sequence,
+                            kind(&record.kind),
+                            record.state
+                        ),
+                    );
+                    access.focus.reveal(ui, &response);
+                    if response.clicked() {
                         state.selected_action = Some((actual_right, record.sequence));
                     }
                     value_label(
@@ -279,7 +281,9 @@ pub(super) fn render(
                             .and_then(|catalog| catalog.object(owner))
                             .map(|object| object.display.as_str())
                             .unwrap_or(&owner.id);
-                        if ui.button(format!("查看所属对象 · {display}")).clicked() {
+                        let response = ui.button(format!("查看所属对象 · {display}"));
+                        access.focus.reveal(ui, &response);
+                        if response.clicked() {
                             *target = Some(owner.clone());
                         }
                         ui.label(theme::muted(format!("{} {}", owner.kind, owner.id)));
@@ -290,7 +294,7 @@ pub(super) fn render(
                         ui,
                         compared,
                         record.source.as_ref(),
-                        blocked,
+                        access,
                         "打开实际动作来源",
                         request,
                     ) {

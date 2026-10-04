@@ -3,6 +3,11 @@ use super::ComparedRoutes;
 use crate::app::WorldeditApp;
 use worldline_core::evidence_source::EvidenceSource;
 
+pub(super) struct NavigationAccess<'a> {
+    pub blocked: Option<&'a str>,
+    pub focus: super::focus::FocusReveal,
+}
+
 pub(super) struct ComparisonSourceRequest {
     pub result_id: u64,
     pub source: EvidenceSource,
@@ -30,12 +35,15 @@ pub(super) fn source_button(
     ui: &mut egui::Ui,
     compared: &ComparedRoutes,
     source: Option<&EvidenceSource>,
-    blocked: Option<&str>,
+    access: &NavigationAccess<'_>,
     label: &str,
     request: &mut Option<ComparisonSourceRequest>,
 ) -> bool {
-    let reason = blocked.or(source.is_none().then_some("此证据没有可确认的作者来源"));
+    let reason = access
+        .blocked
+        .or(source.is_none().then_some("此证据没有可确认的作者来源"));
     let response = ui.add_enabled(reason.is_none(), egui::Button::new(label));
+    access.focus.reveal(ui, &response);
     let clicked = response.clicked();
     if clicked {
         *request = source.map(|source| ComparisonSourceRequest {

@@ -1,5 +1,6 @@
 //! 两条真实路径的只读主内容对照；运行与含义由 runtime 统一提供。
 mod details;
+mod focus;
 mod job;
 mod navigation;
 mod view;
