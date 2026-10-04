@@ -10,7 +10,7 @@
 - 名称与稳定ID分层，技术详情渐进披露；不把来源与核心结果挤入普通试玩的窄调试栏
 - native后台与WASM合作式执行共用runtime契约；不增加新DSL、永久路径库、导出、协作或通用因果调试器
 
-操作见[路线对照](docs/route-comparison.md)，合同见[0.20工作台](docs/route-comparison-0.20.md)。工作分支记录不表示已发行；本轮真实原生/浏览器边界与自动化门禁在最终报告独立列明。
+操作见[路线对照](docs/route-comparison.md)，合同见[0.20工作台](docs/route-comparison-0.20.md)。完整范围、兼容、性能与验收边界见[0.20说明](docs/releases/v0.20.0.md)；实际执行记录见[PR #62](https://github.com/ikzerok/worldedit/pull/62)。工作分支记录不表示已发行。
 
 ## 0.19.0
 

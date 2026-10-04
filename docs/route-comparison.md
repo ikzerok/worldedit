@@ -37,4 +37,4 @@
 
 0.19 trace/checkpoint不能直接交给0.20比较，应重新录制；普通Story Save继续原有独立兼容规则。不要手改版本字段。新功能没有增加独立CLI遥控编辑器窗口的能力：CLI/RPC使用各自工程与会话。
 
-正式语义见配对[core规范](../../worldline/spec/route-comparison.md)，开发与验收合同见[编辑器设计](route-comparison-0.20.md)。真实平台操作、offscreen测试与构建检查分开记录，不能用其中一种代替其他平台GUI、IME、读屏或高DPI验证。
+正式语义见配对[core规范](https://github.com/ikzerok/worldline/blob/011e6bca42779cb93ad6cf3424a5a4d8b6bada04/spec/route-comparison.md)，开发与验收合同见[编辑器设计](route-comparison-0.20.md)。真实平台操作、offscreen测试与构建检查分开记录，不能用其中一种代替其他平台GUI、IME、读屏或高DPI验证。
