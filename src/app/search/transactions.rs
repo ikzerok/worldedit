@@ -1,13 +1,33 @@
 use super::*;
 impl WorldeditApp {
     pub(super) fn preview_search_replacement(&mut self) {
+        self.prepare_search_replacement(false);
+    }
+    pub(super) fn preview_selected_search_replacement(&mut self) {
+        self.prepare_search_replacement(true);
+    }
+    fn prepare_search_replacement(&mut self, selected_only: bool) {
+        if let Ok(hits) = self.current_search_hits() {
+            self.reconcile_search_review(&hits);
+        }
         let result = self.search_request().and_then(|request| {
-            self.project
-                .preview_search_replace(&request, &self.manuscript.writing_buffers())
+            let drafts = self.manuscript.writing_buffers();
+            if selected_only {
+                self.project.preview_search_replace_selected(
+                    &request, &drafts, &self.search_state.chosen,
+                )
+            } else {
+                self.project.preview_search_replace(&request, &drafts)
+            }
         });
         match result {
             Ok(plan) => {
+                self.search_state.chosen = plan.hits.clone();
                 self.search_state.plan = Some(plan);
+                self.search_state.review_preview = true;
+                self.search_state.preview_page = 0;
+                self.search_state.review_notice = None;
+                self.search_state.applied_count = None;
                 self.search_state.error = None;
             }
             Err(error) => {
@@ -20,8 +40,12 @@ impl WorldeditApp {
         let Some(plan) = self.search_state.plan.clone() else {
             return;
         };
-        if self.search_request().as_ref().ok() != Some(plan.request()) {
-            self.search_state.error = Some("查找范围或替换选项已变化，请重新预览".into());
+        if self.search_request().as_ref().ok() != Some(plan.request())
+            || !review::same_choice_keys(&plan.hits, &self.search_state.chosen)
+        {
+            self.search_state.plan = None;
+            self.search_state.review_preview = false;
+            self.search_state.error = Some("查找范围、替换文字或待改集合已变化，请重新预览".into());
             return;
         }
         let drafts = self.manuscript.writing_buffers();
@@ -54,7 +78,15 @@ impl WorldeditApp {
             Ok(()) => {
                 self.search_state.plan = None;
                 self.search_state.error = None;
-                self.message = Some("替换已应用，可撤销；尚未保存工程".into());
+                let count: usize = plan.changes.iter().map(|change| change.count).sum();
+                self.search_state.chosen.clear();
+                self.search_state.review_preview = false;
+                self.search_state.review_notice = None;
+                // Establish the post-transaction basis before showing its completion count.
+                let hits = self.current_search_hits().unwrap_or_default();
+                self.refresh_search_navigation(&hits);
+                self.search_state.applied_count = Some(count);
+                self.message = Some(format!("已应用 {count} 处替换，可一次撤销；尚未保存工程"));
             }
             Err(error) => self.search_state.error = Some(error),
         }
@@ -125,6 +157,8 @@ impl WorldeditApp {
             }
         }
         self.message = None;
+        self.search_state.applied_count = None;
+        self.search_state.plan = None;
         true
     }
     pub(in crate::app) fn search_draft_undo(&mut self, forward: bool) -> bool {
@@ -158,6 +192,7 @@ impl WorldeditApp {
             self.search_state.redo.push(entry);
         }
         self.message = None;
+        self.search_state.applied_count = None;
         self.search_state.plan = None;
         true
     }

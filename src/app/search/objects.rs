@@ -75,6 +75,8 @@ impl WorldeditApp {
                     line: object.line,
                     column: 1,
                     preview: String::new(),
+                    context: None,
+                    identity: None,
                     replaceable: false,
                     draft: true,
                 },

@@ -1,5 +1,7 @@
 //! 当前稿感知查找、受控替换及字节位置到编辑选区的统一入口。
 mod navigation;
+mod review;
+mod review_view;
 mod objects;
 mod selection;
 mod selection_origin;
@@ -35,7 +37,15 @@ pub(super) struct SearchState {
     current: Option<selection::EditorSelection>,
     current_version: Option<(String, u64)>,
     previous_focus: Option<egui::Id>,
+    // Navigation cursor; never the replacement set.
     selected: usize,
+    chosen: Vec<SearchMatch>,
+    review_notice: Option<String>,
+    review_preview: bool,
+    preview_page: usize,
+    scroll_current: bool,
+    source_view: bool,
+    applied_count: Option<usize>,
     located: Option<SearchMatch>,
     navigation_basis: Option<navigation::NavigationBasis>,
     plan: Option<ReplacePlan>,
@@ -65,7 +75,8 @@ impl WorldeditApp {
                 &state.plan,
                 &state.options,
                 &state.replacement,
-                &state.files
+                &state.files,
+                &state.chosen
             )
         )
     }
@@ -177,6 +188,13 @@ impl WorldeditApp {
         self.search_state.plan = None;
         self.search_state.error = None;
         self.search_state.selected = 0;
+        self.search_state.chosen.clear();
+        self.search_state.review_notice = None;
+        self.search_state.review_preview = false;
+        self.search_state.preview_page = 0;
+        self.search_state.scroll_current = true;
+        self.search_state.source_view = false;
+        self.search_state.applied_count = None;
         self.search_state.located = None;
         self.search_state.navigation_basis = None;
         self.search_open = true;
@@ -273,6 +291,7 @@ impl WorldeditApp {
     pub(super) fn close_search(&mut self, ctx: &egui::Context) {
         self.refresh_search_return_focus(ctx);
         self.search_open = false;
+        self.search_state.source_view = false;
         self.search_state.plan = None;
         if let Some(id) = self.search_state.previous_focus {
             ctx.memory_mut(|m| m.request_focus(id));

@@ -52,6 +52,8 @@ impl WorldeditApp {
             line: target.line,
             column: target.column,
             preview,
+            context: None,
+            identity: None,
             replaceable: false,
             draft: false,
         })

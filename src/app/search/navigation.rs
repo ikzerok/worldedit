@@ -5,12 +5,15 @@ use crate::app::{personal::Location, Tab};
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct NavigationBasis {
     request: SearchRequest,
+    scope: Scope,
     sources: Vec<(PathBuf, String, Option<u64>, String)>,
 }
 
 impl WorldeditApp {
     pub(super) fn refresh_search_navigation(&mut self, hits: &[SearchMatch]) {
-        let basis = self.search_request().ok().map(|request| {
+        let basis = self.search_request().ok().map(|mut request| {
+            // Replacement text is not a matching/navigation input.
+            request.replacement.clear();
             let buffers = self.manuscript.writing_buffers();
             let sources = request
                 .files
@@ -25,16 +28,18 @@ impl WorldeditApp {
                     (
                         file.path.clone(),
                         crate::app::writing_workspace::fingerprint(source),
-                        buffer.map(WritingBuffer::generation),
+                        buffer.filter(|buffer| buffer.is_changed() || buffer.generation() != 0).map(WritingBuffer::generation),
                         self.project.content_baseline(),
                     )
                 })
                 .collect();
-            NavigationBasis { request, sources }
+            NavigationBasis { request, scope: self.search_state.scope, sources }
         });
         if self.search_state.navigation_basis != basis {
+            self.invalidate_search_review("查询、范围、选项或来源已变化；旧选择与预览已清空，请重新勾选");
             self.search_state.navigation_basis = basis;
             self.search_state.selected = 0;
+            self.search_state.scroll_current = true;
             self.search_state.located = None;
         }
         self.search_state.selected = self.search_state.selected.min(hits.len().saturating_sub(1));
@@ -42,7 +47,7 @@ impl WorldeditApp {
             .search_state
             .located
             .as_ref()
-            .is_some_and(|hit| !hits.contains(hit))
+            .is_some_and(|hit| reconcile_search_selection(hits, std::slice::from_ref(hit)).is_err())
         {
             self.search_state.located = None;
         }
@@ -67,7 +72,7 @@ impl WorldeditApp {
                 Some("当前查找依据已变化，请重新查找；当前位置与草稿已保留".into());
             return;
         };
-        if !hits.contains(hit) {
+        if reconcile_search_selection(&hits, std::slice::from_ref(hit)).is_err() {
             self.search_state.error = Some("此命中已过期，请重新查找；当前位置与草稿已保留".into());
             return;
         }
@@ -126,8 +131,9 @@ impl WorldeditApp {
                 if let Ok(hits) = self.current_search_hits() {
                     self.refresh_search_navigation(&hits);
                     self.search_state.selected =
-                        hits.iter().position(|current| current == hit).unwrap_or(0);
+                        hits.iter().position(|current| current.path == hit.path && current.range == hit.range).unwrap_or(0);
                 }
+                self.search_state.scroll_current = true;
                 self.search_state.located = Some(hit.clone());
                 return Ok(());
             }
@@ -147,8 +153,9 @@ impl WorldeditApp {
         if let Ok(hits) = self.current_search_hits() {
             self.refresh_search_navigation(&hits);
             self.search_state.selected =
-                hits.iter().position(|current| current == hit).unwrap_or(0);
+                hits.iter().position(|current| current.path == hit.path && current.range == hit.range).unwrap_or(0);
         }
+        self.search_state.scroll_current = true;
         self.search_state.located = Some(hit.clone());
         Ok(())
     }
