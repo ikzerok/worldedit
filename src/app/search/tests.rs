@@ -493,3 +493,8 @@ fn search_linux_replacement_shortcut_opens_replacement_ui() {
 
 #[path = "author_context_tests.rs"]
 mod author_context_tests;
+
+#[path = "review_keyboard_tests.rs"]
+mod review_keyboard_tests;
+#[path = "selective_tests.rs"]
+mod selective_tests;

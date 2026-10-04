@@ -114,6 +114,8 @@ impl WorldeditApp {
             line: request.source.line,
             column: request.source.column,
             preview: excerpt.into(),
+            context: None,
+            identity: None,
             replaceable: false,
             draft: draft.is_some(),
         })

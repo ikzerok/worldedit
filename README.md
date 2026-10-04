@@ -1,12 +1,14 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.22.0 将书稿阅读升级为可信的全分支审稿：条件与选择保留层次，台词用人物显示名并保留稳定身份，读到需要修改的段落可核验当前稿后返回原文。全部语义和来源来自 core，正文没有第二份可写副本。默认语言仍为1.9，最高既有显式版本1.13。
+worldline 的 Rust / egui 作者工作台。0.23.0 在现有查找与替换中加入逐处审阅：阅读匹配附近原文，明确选中要改的命中，核对前后差异后一次应用。导航的当前项与待替换集合分别显示；人物证词、正文和设定中的相同文字由作者逐处判断，不自动推断真假。
 
-操作见[全分支审稿](docs/manuscript-review.md)与[配对核心契约](https://github.com/ikzerok/worldline/blob/main/spec/manuscript-review.md)。它是作者侧静态全稿，不执行条件、不推定任何分支可达；真实路线继续使用试玩与路线对照。公开静态读者站的选择和权限不变。实际公开发行以正式 Release 记录为准。
+操作见[逐处审阅与替换](docs/selective-replace.md)与[配对核心契约](https://github.com/ikzerok/worldline/blob/main/spec/search-replace.md)。命中、保护标记、上下文和替换事务均来自 core，正文没有第二份可写副本。默认语言1.9、最高既有显式版本1.13不变。
 
-升级边界：0.21 trace/checkpoint 按既有 runtime_version 守卫拒绝在0.22重放或比较，应重新录制；普通 Story Save 继续独立的格式/能力/指纹规则。升级前保留完整工程和原记录。原生合成输入、WASM/Node验证不替代真实浏览器、系统输入法或跨平台原生验收。
+升级边界：0.22 trace/checkpoint 按既有 runtime_version 守卫拒绝在0.23重放或比较，应重新录制；普通 Story Save 继续独立的格式/能力/指纹规则。正文替换可能使旧存档指纹不再相符。升级前保留完整工程和原记录。原生合成输入、WASM/Node验证不替代真实浏览器、系统输入法或跨平台原生验收。
 
 ## 使用入口
+
+- [逐处审阅后安全改稿](docs/selective-replace.md)：当前项与勾选集合、命中上下文、前后预览、一次撤销与保存
 
 - [可信全分支审稿](docs/manuscript-review.md)：静态条件与选择边界、人物身份、当前稿回源和完整性提示
 

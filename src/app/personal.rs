@@ -284,6 +284,9 @@ impl WorldeditApp {
         }
     }
     pub(super) fn author_back(&mut self, ctx: &egui::Context) {
+        if self.return_search_source_if_open(ctx) {
+            return;
+        }
         if let Some(location) = self.personal.history.pop() {
             self.restore_author_location(location, ctx);
         }
@@ -344,7 +347,11 @@ impl WorldeditApp {
             }
         }
     }
-    fn restore_author_location(&mut self, mut location: Location, ctx: &egui::Context) {
+    pub(in crate::app) fn restore_author_location(
+        &mut self,
+        mut location: Location,
+        ctx: &egui::Context,
+    ) {
         if location.tab == Some(Tab::Manuscript) {
             if let Ok(mut session) = serde_json::from_value::<super::manuscript::ManuscriptSession>(
                 location.manuscript.clone(),

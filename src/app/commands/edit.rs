@@ -39,7 +39,10 @@ impl WorldeditApp {
         } else if ctx.input_mut(|i| i.consume_key(replace_modifiers, replace_key)) {
             self.open_search(ctx, false, true);
         }
-        if self.search_open && self.edit_layer_is_top("search") {
+        if self.search_open
+            && self.edit_layer_is_top("search")
+            && self.search_navigation_has_focus(ctx)
+        {
             let previous =
                 ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Enter));
             let next = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
@@ -135,6 +138,7 @@ impl WorldeditApp {
     pub(in crate::app) fn capture_edit_focus(&mut self, ctx: &egui::Context) {
         self.refresh_search_return_focus(ctx);
         self.sync_edit_layers(ctx);
+        self.finish_search_close_focus(ctx);
         if ctx.input(|i| {
             i.events
                 .iter()

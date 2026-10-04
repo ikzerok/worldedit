@@ -7,7 +7,7 @@
 - [安装与启动](../README.md#安装与启动)、[工作区](workspace.md)：目录、素材、保存、冲突与完整备份
 - [作者工作区](author-workspace.md)、[正文与书稿](manuscript-workspace.md)：写作、结构、源码、布局和草稿保护
 - [显式创作与能力](explicit-authoring-0.14.md)：已应用稿、未应用稿、试玩与能力确认
-- [查找与作者位置](search-author-context.md)、[资料旁查](reading-panels.md)、[作者反馈](author-feedback.md)
+- [查找与作者位置](search-author-context.md)、[逐处审阅后替换](selective-replace.md)、[资料旁查](reading-panels.md)、[作者反馈](author-feedback.md)
 
 ## 真实路线对照
 

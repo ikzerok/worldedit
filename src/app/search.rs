@@ -1,6 +1,8 @@
 //! 当前稿感知查找、受控替换及字节位置到编辑选区的统一入口。
 mod navigation;
 mod objects;
+mod review;
+mod review_view;
 mod selection;
 mod selection_origin;
 mod transactions;
@@ -35,7 +37,19 @@ pub(super) struct SearchState {
     current: Option<selection::EditorSelection>,
     current_version: Option<(String, u64)>,
     previous_focus: Option<egui::Id>,
+    restore_focus_after_close: bool,
+    // Navigation cursor; never the replacement set.
     selected: usize,
+    chosen: Vec<SearchMatch>,
+    review_notice: Option<String>,
+    review_preview: bool,
+    focus_review_tab: bool,
+    preview_page: usize,
+    scroll_current: bool,
+    source_view: bool,
+    source_return: Option<super::personal::Location>,
+    applied_count: Option<usize>,
+    applied_signature: Option<String>,
     located: Option<SearchMatch>,
     navigation_basis: Option<navigation::NavigationBasis>,
     plan: Option<ReplacePlan>,
@@ -65,7 +79,8 @@ impl WorldeditApp {
                 &state.plan,
                 &state.options,
                 &state.replacement,
-                &state.files
+                &state.files,
+                &state.chosen
             )
         )
     }
@@ -173,10 +188,21 @@ impl WorldeditApp {
                 .map(|(path, _)| path.clone())
                 .collect();
         }
+        self.search_state.restore_focus_after_close = false;
         self.search_state.replace = replace;
         self.search_state.plan = None;
         self.search_state.error = None;
         self.search_state.selected = 0;
+        self.search_state.chosen.clear();
+        self.search_state.review_notice = None;
+        self.search_state.review_preview = false;
+        self.search_state.focus_review_tab = false;
+        self.search_state.preview_page = 0;
+        self.search_state.scroll_current = true;
+        self.search_state.source_view = false;
+        self.search_state.source_return = None;
+        self.search_state.applied_count = None;
+        self.search_state.applied_signature = None;
         self.search_state.located = None;
         self.search_state.navigation_basis = None;
         self.search_open = true;
@@ -260,6 +286,11 @@ impl WorldeditApp {
     pub(in crate::app) fn refresh_search_return_focus(&mut self, ctx: &egui::Context) {
         if let Some(id) = selection::take_restored_focus(ctx) {
             self.search_state.previous_focus = Some(id);
+            if self.search_state.source_view {
+                // The previous-frame modal layer can reject focus while the source widget draws.
+                // Reapply its verified restoration after drawing, when entering explicit source view.
+                ctx.memory_mut(|memory| memory.request_focus(id));
+            }
             if let Some((_, focus)) = self
                 .command_palette
                 .focus_stack
@@ -270,9 +301,21 @@ impl WorldeditApp {
             }
         }
     }
+    pub(in crate::app) fn finish_search_close_focus(&mut self, ctx: &egui::Context) {
+        if !self.search_open && std::mem::take(&mut self.search_state.restore_focus_after_close) {
+            if let Some(id) = self.search_state.previous_focus {
+                // egui releases a modal layer at frame end. The source has now been drawn;
+                // restore focus here so its earlier disabled response cannot clear it again.
+                ctx.memory_mut(|memory| memory.request_focus(id));
+            }
+        }
+    }
     pub(super) fn close_search(&mut self, ctx: &egui::Context) {
         self.refresh_search_return_focus(ctx);
         self.search_open = false;
+        self.search_state.restore_focus_after_close = true;
+        self.search_state.source_view = false;
+        self.search_state.source_return = None;
         self.search_state.plan = None;
         if let Some(id) = self.search_state.previous_focus {
             ctx.memory_mut(|m| m.request_focus(id));
