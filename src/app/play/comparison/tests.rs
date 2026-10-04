@@ -559,3 +559,6 @@ mod interaction;
 
 #[path = "keyboard_tests.rs"]
 mod keyboard;
+
+#[path = "return_focus_tests.rs"]
+mod return_focus;

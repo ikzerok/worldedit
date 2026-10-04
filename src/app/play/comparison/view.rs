@@ -264,9 +264,7 @@ impl WorldeditApp {
                 ui.add_space(theme::SPACE_SM);
                 first_difference(ui, compared, &access, &mut request);
                 ui.separator();
-                if let Some(focus) = self.comparison.restore_focus.take() {
-                    ui.memory_mut(|memory| memory.request_focus(focus));
-                }
+                super::focus::restore(ctx, &mut self.comparison.restore_focus);
                 let mut scroll = egui::ScrollArea::vertical()
                     .id_salt("route-comparison-body")
                     .auto_shrink([false, false]);
