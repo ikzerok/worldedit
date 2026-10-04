@@ -1,6 +1,6 @@
 # worldedit 使用文档
 
-当前产品版本为 0.19.0；完整功能与验证状态见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+当前产品版本为 0.20.0；完整功能与验证状态见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
 
 ## 开始创作
 
@@ -8,6 +8,10 @@
 - [作者工作区](author-workspace.md)、[正文与书稿](manuscript-workspace.md)：写作、结构、源码、布局和草稿保护
 - [显式创作与能力](explicit-authoring-0.14.md)：已应用稿、未应用稿、试玩与能力确认
 - [查找与作者位置](search-author-context.md)、[资料旁查](reading-panels.md)、[作者反馈](author-feedback.md)
+
+## 真实路线对照
+
+- [作者操作](route-comparison.md)：同稿验证两条实际路径、停止状态、动作来源与边界
 
 ## 当前稿里的工程问题
 
@@ -46,4 +50,4 @@ v3 对象包含其别名与受限类型结构；属性、地图图元、章节�
 - [配对构建](paired-ci.md)、[发布流程](release.md)、[性能目标与探针](performance.md)
 - [worldline 规范索引](../../worldline/spec/README.md)：语言、地图、机器协议和公开选择的共同真源
 
-当前 0.19 的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。
+当前 0.20 的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。

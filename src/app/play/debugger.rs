@@ -210,52 +210,7 @@ pub(super) fn render_debugger_controls(
                 .unwrap_or_else(|error| format!("JSON 序列化失败：{error}"));
         }
     }
-    egui::CollapsingHeader::new("导入路径 JSON（最多 1 MiB / 20,000 步）")
-        .default_open(false)
-        .show(ui, |ui| {
-            if debugger.import_json.len() > MAX_IMPORTED_TRACE_BYTES {
-                ui.colored_label(
-                    theme::ERROR(),
-                    "轨迹 JSON 超过 1 MiB 边界；内容已拒绝导入。",
-                );
-                if ui.button("清除超限输入").clicked() {
-                    debugger.import_json.clear();
-                }
-                if ui.button("拒绝超限轨迹").clicked() {
-                    debugger.notice = Some("轨迹 JSON 超过 1 MiB 边界".into());
-                }
-            } else {
-                egui::ScrollArea::vertical()
-                    .id_salt("debugger-import-json")
-                    .max_height(120.0)
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::multiline(&mut debugger.import_json)
-                                .code_editor()
-                                .desired_rows(3)
-                                .desired_width(f32::INFINITY),
-                        );
-                    });
-                if ui.button("检查并导入路径").clicked() {
-                    match validate_imported_trace(&debugger.import_json) {
-                        Ok(trace) => {
-                            if debugger.saved_paths.len() >= MAX_SAVED_REPLAY_PATHS {
-                                debugger.notice = Some(format!(
-                                    "当前会话最多保留 {MAX_SAVED_REPLAY_PATHS} 条路径"
-                                ));
-                            } else {
-                                let name = format!("导入路径 {}", debugger.saved_paths.len() + 1);
-                                debugger.saved_paths.push(SavedReplayPath { name, trace });
-                                debugger.selected_path = Some(debugger.saved_paths.len() - 1);
-                                debugger.notice =
-                                    Some("路径格式通过检查，已加入当前调试会话".into());
-                            }
-                        }
-                        Err(error) => debugger.notice = Some(error),
-                    }
-                }
-            }
-        });
+    render_trace_import(ui, debugger);
     if !debugger.export_json.is_empty() {
         egui::ScrollArea::vertical()
             .id_salt("debugger-export-json")
@@ -383,6 +338,55 @@ pub(super) fn render_debugger_compact(ui: &mut egui::Ui, debugger: &ReplayDebugg
     if let Some(notice) = &debugger.notice {
         ui.colored_label(theme::WARNING(), notice);
     }
+}
+
+pub(super) fn render_trace_import(ui: &mut egui::Ui, debugger: &mut ReplayDebugger) {
+    egui::CollapsingHeader::new("导入路径 JSON（最多 1 MiB / 20,000 步）")
+        .default_open(false)
+        .show(ui, |ui| {
+            if debugger.import_json.len() > MAX_IMPORTED_TRACE_BYTES {
+                ui.colored_label(
+                    theme::ERROR(),
+                    "轨迹 JSON 超过 1 MiB 边界；内容已拒绝导入。",
+                );
+                if ui.button("清除超限输入").clicked() {
+                    debugger.import_json.clear();
+                }
+                if ui.button("拒绝超限轨迹").clicked() {
+                    debugger.notice = Some("轨迹 JSON 超过 1 MiB 边界".into());
+                }
+            } else {
+                egui::ScrollArea::vertical()
+                    .id_salt("debugger-import-json")
+                    .max_height(120.0)
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(&mut debugger.import_json)
+                                .code_editor()
+                                .desired_rows(3)
+                                .desired_width(f32::INFINITY),
+                        );
+                    });
+                if ui.button("检查并导入路径").clicked() {
+                    match validate_imported_trace(&debugger.import_json) {
+                        Ok(trace) => {
+                            if debugger.saved_paths.len() >= MAX_SAVED_REPLAY_PATHS {
+                                debugger.notice = Some(format!(
+                                    "当前会话最多保留 {MAX_SAVED_REPLAY_PATHS} 条路径"
+                                ));
+                            } else {
+                                let name = format!("导入路径 {}", debugger.saved_paths.len() + 1);
+                                debugger.saved_paths.push(SavedReplayPath { name, trace });
+                                debugger.selected_path = Some(debugger.saved_paths.len() - 1);
+                                debugger.notice =
+                                    Some("路径格式通过检查，已加入当前调试会话".into());
+                            }
+                        }
+                        Err(error) => debugger.notice = Some(error),
+                    }
+                }
+            }
+        });
 }
 
 fn trace_seed(trace: &ReplayTrace) -> Option<u64> {

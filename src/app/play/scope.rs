@@ -15,6 +15,10 @@ pub(in crate::app) struct AppliedPlayScope {
     baseline: String,
 }
 impl AppliedPlayScope {
+    pub(super) fn workspace_root(&self) -> &Path {
+        &self.root
+    }
+
     pub(in crate::app) fn source_matches(&self, path: &Path, source: &str) -> bool {
         self.sources.get(path).is_some_and(|saved| saved == source)
     }
@@ -32,6 +36,7 @@ impl AppliedPlayScope {
 enum RunAction {
     Start,
     Replay,
+    Compare,
 }
 
 pub(in crate::app) struct PlayConfirmation {
@@ -252,6 +257,7 @@ impl WorldeditApp {
                 self.replay_debugger.live_max_steps,
                 self.replay_debugger.live_time_budget_ms
             ),
+            RunAction::Compare => self.comparison.signature(&self.replay_debugger.saved_paths),
             RunAction::Replay => serde_json::json!([
                 self.replay_debugger.selected_path,
                 self.replay_debugger.selected_path.and_then(|index| {
@@ -312,6 +318,28 @@ impl WorldeditApp {
         }
     }
 
+    pub(super) fn request_comparison(&mut self, ctx: &egui::Context) {
+        if self.comparison.running() {
+            return;
+        }
+        if !self
+            .comparison
+            .has_paths(self.replay_debugger.saved_paths.len())
+        {
+            self.comparison.notice = Some("请先为 A、B 选择或导入真实路径".into());
+            return;
+        }
+        let Some(confirmation) = self.play_confirmation_for(RunAction::Compare) else {
+            self.comparison.notice = Some("已应用工程稿没有可用的编译快照".into());
+            return;
+        };
+        if confirmation.scope.excluded_inputs.is_empty() {
+            self.begin_comparison_applied(ctx, confirmation.scope);
+        } else {
+            self.play_confirmation = Some(confirmation);
+        }
+    }
+
     fn refresh_play_confirmation(&self, old: &PlayConfirmation) -> Option<PlayConfirmation> {
         let mut current = self.play_confirmation_for(old.action)?;
         current.refreshed = old.refreshed
@@ -321,10 +349,20 @@ impl WorldeditApp {
         Some(current)
     }
 
+    fn run_scope_notice(&mut self, action: RunAction, message: &str) {
+        if action == RunAction::Compare {
+            self.comparison.notice = Some(message.into());
+        } else {
+            self.replay_debugger.notice = Some(message.into());
+        }
+    }
+
     fn confirm_play_scope(&mut self, ctx: &egui::Context, shown: PlayConfirmation) {
         let Some(mut current) = self.refresh_play_confirmation(&shown) else {
-            self.replay_debugger.notice =
-                Some("已应用工程稿已变化且存在错误，请修复后重新运行".into());
+            self.run_scope_notice(
+                shown.action,
+                "已应用工程稿已变化且存在错误，请修复后重新运行",
+            );
             return;
         };
         if current.scope != shown.scope
@@ -338,6 +376,7 @@ impl WorldeditApp {
         match shown.action {
             RunAction::Start => self.start_play_inner(shown.scope),
             RunAction::Replay => self.begin_replay_applied(ctx, shown.scope),
+            RunAction::Compare => self.begin_comparison_applied(ctx, shown.scope),
         }
     }
 
@@ -346,8 +385,7 @@ impl WorldeditApp {
             return;
         };
         let Some(confirmation) = self.refresh_play_confirmation(&old) else {
-            self.replay_debugger.notice =
-                Some("已应用工程稿存在编译错误，运行已取消；草稿保留".into());
+            self.run_scope_notice(old.action, "已应用工程稿存在编译错误，运行已取消；草稿保留");
             return;
         };
         let changed = confirmation.scope != old.scope
@@ -361,6 +399,11 @@ impl WorldeditApp {
             ui.heading("运行已应用工程稿");
             ui.label(match confirmation.action {
                 RunAction::Start => format!("开始 / 重新开始 · seed {}", self.replay_debugger.seed),
+                RunAction::Compare => format!(
+                    "共同已应用稿路线对照 · {}",
+                    self.comparison
+                        .path_names(&self.replay_debugger.saved_paths)
+                ),
                 RunAction::Replay => format!(
                     "严格重放 · {}",
                     self.replay_debugger
