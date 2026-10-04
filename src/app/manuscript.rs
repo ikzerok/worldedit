@@ -3,6 +3,8 @@ mod editing;
 mod layout;
 mod outline;
 mod preview;
+mod review_navigation;
+mod review_render;
 mod search_navigation;
 mod session;
 mod transactions;
@@ -54,6 +56,11 @@ pub(super) struct WorkbenchState {
     narrow_preview: bool,
     focus_management: bool,
     preview_cache: preview::PreviewCache,
+    review_navigation: review_navigation::ReviewNavigation,
+    review_scroll_y: f32,
+    review_page_offset: usize,
+    pending_review_scroll: Option<f32>,
+    review_focus: bool,
     new_id: String,
     new_title: String,
     create_touched: bool,
@@ -80,6 +87,11 @@ impl Default for WorkbenchState {
             narrow_preview: false,
             focus_management: false,
             preview_cache: Default::default(),
+            review_navigation: Default::default(),
+            review_scroll_y: 0.0,
+            review_page_offset: 0,
+            pending_review_scroll: None,
+            review_focus: false,
             new_id: String::new(),
             new_title: String::new(),
             create_touched: false,
@@ -256,3 +268,6 @@ fn source_status_text(status: ManuscriptReferenceStatus) -> &'static str {
 }
 
 pub(in crate::app) use session::ManuscriptSession;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod review_tests;

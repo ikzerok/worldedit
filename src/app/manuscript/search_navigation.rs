@@ -14,6 +14,49 @@ pub(in crate::app) struct WritingMatchNavigation {
 }
 
 impl WorkbenchState {
+    /// root 与 path 已由 core 的当前审稿来源验证；允许未应用稿把声明移到另一文件。
+    pub(super) fn plan_review_match(
+        &self,
+        root: &TargetRef,
+        path: &Path,
+        project: &Project,
+    ) -> Option<WritingMatchNavigation> {
+        let mut drafts: BTreeMap<_, _> = project
+            .manuscript_indices()
+            .into_iter()
+            .map(|(id, index)| (id, ManuscriptDraft::from_index(&index)))
+            .collect();
+        for (id, local) in &self.books {
+            if local.changed || local.baseline == project.content_baseline() {
+                drafts.insert(id.clone(), local.draft.clone());
+            }
+        }
+        let mut matches = Vec::new();
+        for (book, draft) in drafts {
+            for chapter in draft.entries {
+                if chapter.target_ref.as_ref() == Some(root) {
+                    let current = self.selected_book.as_ref() == Some(&book)
+                        && self
+                            .books
+                            .get(&book)
+                            .and_then(|local| local.selected_entry.as_ref())
+                            == Some(&chapter.id);
+                    matches.push((!current, book.clone(), chapter.id));
+                }
+            }
+        }
+        matches.sort();
+        let (_, book, chapter) = matches.into_iter().next()?;
+        Some(WritingMatchNavigation {
+            book,
+            chapter,
+            target: root.clone(),
+            path: path.into(),
+            mode: Mode::Source,
+            reason: None,
+        })
+    }
+
     pub(in crate::app) fn plan_writing_match(
         &self,
         path: &Path,

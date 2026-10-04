@@ -4,6 +4,10 @@ use worldline_core::manuscript::ManuscriptIndex;
 
 type BodyAction = Option<(PathBuf, super::super::writing_workspace::Action)>;
 
+pub(super) fn parallel_review(width: f32, body_size: f32) -> bool {
+    width >= 960.0_f32.max(body_size * 48.0 + 96.0)
+}
+
 impl super::super::WorldeditApp {
     pub(super) fn draw_manuscript_content(
         &mut self,
@@ -23,8 +27,9 @@ impl super::super::WorldeditApp {
             ui.add(egui::Label::new(egui::RichText::new(&entry.title).heading()).truncate())
                 .on_hover_text(&entry.title);
         }
-        let wide = ui.available_width() >= 960.0;
-        if self.manuscript.reader_open && !wide {
+        // 常规字号保留已有并排入口；大字号需要足够的每栏正文宽度。
+        let wide = parallel_review(ui.available_width(), self.personal.settings.body_size);
+        if self.manuscript.reader_open && !wide && !self.personal.settings.focus {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.manuscript.narrow_preview, false, "编辑");
                 ui.selectable_value(&mut self.manuscript.narrow_preview, true, "预览");
@@ -76,6 +81,20 @@ impl super::super::WorldeditApp {
         preview: &ManuscriptIndex,
         selected: Option<&ManuscriptEntryDraft>,
     ) -> BodyAction {
+        if self.review_return_available() {
+            let blocked = self.review_input_blocker(ui.ctx());
+            if ui
+                .add_enabled(blocked.is_none(), egui::Button::new("返回审稿"))
+                .on_hover_text(
+                    blocked
+                        .as_deref()
+                        .unwrap_or("Alt+Left · 返回原章节、模式、光标和审稿滚动；不丢草稿"),
+                )
+                .clicked()
+            {
+                self.manuscript.review_navigation.back = true;
+            }
+        }
         let mut action = None;
         let scroll_salt = egui::Id::new(("manuscript-main", book, &local.selected_entry));
         let mut scroll = egui::ScrollArea::vertical()
