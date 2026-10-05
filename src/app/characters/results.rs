@@ -31,6 +31,10 @@ impl WorldeditApp {
             ui.colored_label(
                 theme::WARNING(),
                 match reason {
+                    WorldContextLimit::ExecutableIndexBudget => {
+                        "静态使用处索引预算已耗尽，当前结果不完整"
+                    }
+                    WorldContextLimit::SourceUnavailable => "部分来源无法确认，未提供猜测位置",
                     WorldContextLimit::InvalidSource => {
                         "稿件有错误：只读结果可能不完整，请先处理诊断"
                     }

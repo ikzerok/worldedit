@@ -3,10 +3,10 @@ use super::canvas_controls;
 use super::node::{draw_node, NodeHeading};
 use super::{CELL, HEIGHT, LANE, LEFT, WIDTH};
 use crate::theme::{self, *};
-use crate::visual::{bezier_points, draw_arrow, truncated};
+use crate::visual::truncated;
 use egui::{Pos2, Rect, RichText, Sense, Stroke, Vec2};
 use std::collections::HashMap;
-use worldline_core::{EdgeKind, GraphNode};
+use worldline_core::GraphNode;
 
 impl WorldeditApp {
     pub(in crate::app) fn canvas_tab(&mut self, ctx: &egui::Context) {
@@ -221,106 +221,12 @@ impl WorldeditApp {
                                 }
                             }
                         }
-                        let root = |id: usize| -> usize {
-                            if !timeline || graph.nodes[id].is_event {
-                                return id;
-                            }
-                            let name = graph.nodes[id].name.split('.').next().unwrap_or("");
-                            graph
-                                .ids
-                                .get(name)
-                                .copied()
-                                .map(|n| n as usize)
-                                .unwrap_or(id)
-                        };
-                        for (edge_index, edge) in graph.edges.iter().enumerate() {
-                            let (f, t) = (root(edge.from as usize), root(edge.to as usize));
-                            if timeline && (edge.kind == EdgeKind::Enter || f == t) {
-                                continue;
-                            }
-                            let (Some(from), Some(to)) = (rects.get(&f), rects.get(&t)) else {
-                                continue;
-                            };
-                            let color = match edge.kind {
-                                EdgeKind::Drift => BLUE(),
-                                EdgeKind::Choice => ACCENT(),
-                                EdgeKind::Divert => GOLD(),
-                                EdgeKind::Enter => MUTED(),
-                            };
-                            let start = from.right_center();
-                            let end = to.left_center();
-                            let bend = (end.x - start.x)
-                                .abs()
-                                .mul_add(0.45, 40.0 * zoom)
-                                .min(180.0 * zoom);
-                            let c0 = start + Vec2::new(bend, 0.0);
-                            let c1 = end - Vec2::new(bend, 0.0);
-                            let points = bezier_points(start, c0, c1, end, 30);
-                            painter.add(egui::Shape::line(
-                                points,
-                                Stroke::new(
-                                    if edge.kind == EdgeKind::Drift {
-                                        2.3_f32
-                                    } else {
-                                        1.5_f32
-                                    },
-                                    color.gamma_multiply(0.65),
-                                ),
-                            ));
-                            draw_arrow(&painter, c1, end, color);
-                            if edge.target_requirement.is_some()
-                                || edge
-                                    .contexts
-                                    .iter()
-                                    .any(|c| !c.conditions.is_empty() || !c.choices.is_empty())
-                            {
-                                let middle = bezier_points(start, c0, c1, end, 2)[1];
-                                let response = ui
-                                    .push_id(("edge-condition", edge_index), |ui| {
-                                        ui.put(
-                                            Rect::from_center_size(
-                                                middle + Vec2::new(0.0, 8.0),
-                                                Vec2::new(42.0, 20.0),
-                                            ),
-                                            egui::Button::new(RichText::new("条件").size(10.0))
-                                                .small(),
-                                        )
-                                    })
-                                    .inner;
-                                if response.clicked() {
-                                    source = Some((edge.file.clone(), edge.line));
-                                }
-                                response.on_hover_ui(|ui| {
-                                    ui.label(RichText::new("显式条件上下文").strong());
-                                    for (index, context) in edge.contexts.iter().enumerate() {
-                                        if edge.contexts.len() > 1 {
-                                            ui.label(format!("可能分支 {}", index + 1));
-                                        }
-                                        for choice in &context.choices {
-                                            ui.label(format!("选择：{choice}"));
-                                        }
-                                        for condition in &context.conditions {
-                                            ui.label(condition);
-                                        }
-                                    }
-                                    if let Some(requirement) = &edge.target_requirement {
-                                        ui.separator();
-                                        ui.label(format!("目标准入：{requirement}"));
-                                    }
-                                    ui.label(theme::muted("不推演运行必然性。点击定位源文件。"));
-                                });
-                            }
-                            if let Some(label) = &edge.label {
-                                let middle = bezier_points(start, c0, c1, end, 2)[1];
-                                painter.text(
-                                    middle + Vec2::new(0.0, -9.0),
-                                    egui::Align2::CENTER_BOTTOM,
-                                    truncated(label, 14),
-                                    egui::FontId::proportional(10.0 * zoom),
-                                    color,
-                                );
-                            }
-                        }
+                        super::parallel_edges::draw_groups(
+                            self, ui, &graph, &rects, canvas, zoom, timeline,
+                        );
+                        // 分组按钮先处理键盘/鼠标打开，当前帧即停用底层提示。
+                        let show_node_tooltips = !self.command_palette.open
+                            && !super::parallel_edges::details_visible(self, ctx);
                         let mut over_node = false;
                         for (&i, rect) in &rects {
                             if !ui.is_rect_visible(*rect) {
@@ -366,9 +272,11 @@ impl WorldeditApp {
                                     ACCENT(),
                                 );
                             }
-                            response.clone().on_hover_ui(|ui| {
-                                node_hover_ui(ui, node, visit_count);
-                            });
+                            if show_node_tooltips {
+                                response.clone().on_hover_ui(|ui| {
+                                    node_hover_ui(ui, node, visit_count);
+                                });
+                            }
                             if response.clicked() {
                                 if let Some(from) = self.link_from.clone() {
                                     if node.is_event && from != node.name {
@@ -526,6 +434,7 @@ impl WorldeditApp {
                     }
                 }
             });
+        self.graph_edge_details(ctx);
     }
 }
 

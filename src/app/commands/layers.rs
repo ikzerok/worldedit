@@ -40,6 +40,7 @@ impl WorldeditApp {
             ("commands", self.command_palette.open),
             ("preferences", self.personal.preferences_open),
             ("reader", self.reader_publish.open),
+            ("playthrough-report", self.playthrough_report.open),
             ("schema", self.schema_ui.open),
             ("guard-export", self.export_confirmation.is_some()),
             ("guard-play", self.play_confirmation.is_some()),

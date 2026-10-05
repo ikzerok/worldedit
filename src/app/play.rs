@@ -7,6 +7,7 @@ mod evidence_navigation;
 pub(in crate::app) mod keyboard;
 mod replay;
 mod replay_location;
+pub(in crate::app) mod report;
 pub(in crate::app) mod scope;
 mod source_guard;
 mod start;
@@ -35,6 +36,10 @@ impl WorldeditApp {
             let comparison = ui.selectable_value(&mut self.comparison.active, true, "路线对照");
             entering_comparison = comparison.is_pointer_button_down_on() || self.comparison.active;
             ui.label(crate::theme::muted("路径仅保留于当前会话"));
+            if ui.button("试玩路径报告…").clicked() {
+                self.playthrough_report.open = true;
+                self.playthrough_report.focus_on_open = true;
+            }
         });
         entering_comparison
     }

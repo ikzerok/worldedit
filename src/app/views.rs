@@ -2,6 +2,7 @@
 mod canvas;
 mod canvas_controls;
 mod node;
+mod parallel_edges;
 
 pub(super) use node::{draw_node, NodeHeading};
 

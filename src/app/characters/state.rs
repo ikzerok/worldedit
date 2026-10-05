@@ -120,6 +120,10 @@ pub(super) fn provenance_label(
         PropertyReference { property } => format!("属性强引用 · {property}"),
         EventParticipation { event } => format!("事件参与 · {event}"),
         ExplicitBodyLink { label } => format!("正文显式链接 · {label}"),
+        Executable {
+            context,
+            occurrence,
+        } => format!("静态使用处 · {} · 第 {occurrence} 处", context.label()),
         TextMention { preview } => format!("可选文字提及，非正式事实 · {preview}"),
     }
 }

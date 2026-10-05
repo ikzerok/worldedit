@@ -170,3 +170,13 @@ fn history_is_capped_without_deduplicating_recent_path() {
         Some("map-99")
     );
 }
+
+#[test]
+fn author_return_prunes_unavailable_submap_history() {
+    let mut controller = MapNavigationController::new("root", "原地图", CameraState::default());
+    controller.enter(&target("child", true), "子地图", CameraState::default());
+    assert_eq!(controller.history_len(), 1);
+    controller.validate_history(&worldline_core::presentation::MapIndex::default());
+    assert_eq!(controller.history_len(), 0);
+    assert_eq!(controller.current().map_id, "child");
+}

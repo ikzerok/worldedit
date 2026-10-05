@@ -1,5 +1,7 @@
 //! 完整对象的聚合资料页，只消费核心快照和来源导航。
 mod content;
+mod context;
+pub(super) use context::ContextCache;
 mod dock;
 use super::catalog::kind_label;
 use super::WorldeditApp;
@@ -30,7 +32,20 @@ impl WorldeditApp {
 
     /// 所有资料入口共用的地图引用定位；显隐确认由地图视图处理。
     pub(super) fn locate_reference(&mut self, map_id: &str, placement_id: &str) {
+        self.locate_reference_from(map_id, placement_id, self.author_location(None));
+    }
+
+    pub(super) fn locate_reference_from(
+        &mut self,
+        map_id: &str,
+        placement_id: &str,
+        origin: super::personal::Location,
+    ) {
         if self.map_navigation_blocked() {
+            return;
+        }
+        if let Err(error) = self.project.verify_review_navigation() {
+            self.message = Some(format!("地图来源尚未确认，未离开当前位置：{error}"));
             return;
         }
         let layer_id = self.snapshot.as_ref().and_then(|snapshot| {
@@ -50,6 +65,7 @@ impl WorldeditApp {
             self.message = Some("该地图标记已不存在，请刷新资料后重试".into());
             return;
         };
+        self.remember_author_location(origin);
         self.map_selection = Some(map_id.into());
         self.map_locate_request = Some(super::maps::LocateRequest {
             map_id: map_id.into(),

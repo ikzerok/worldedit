@@ -3,11 +3,12 @@
 //! 该模块只保存地图浏览路径、镜头快照和 core 提供的导航 DTO。它不读取或写入
 //! Project，也不建立地图之间的语义关系。
 
+use serde::{Deserialize, Serialize};
 use worldline_core::presentation::{MapNavigation, MapPlacement};
 
 pub const MAX_HISTORY: usize = 64;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CameraState {
     pub zoom: f32,
     pub pan: [f32; 2],
@@ -49,13 +50,14 @@ impl Breadcrumb {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MapViewState {
     pub map_id: String,
     pub title: String,
     pub camera: CameraState,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MapNavigationController {
     current: MapViewState,
     history: Vec<MapViewState>,
@@ -70,6 +72,21 @@ impl MapNavigationController {
                 camera,
             },
             history: Vec::new(),
+        }
+    }
+
+    pub(super) fn validate_history(&mut self, maps: &worldline_core::presentation::MapIndex) {
+        self.history
+            .retain(|view| maps.maps.contains_key(&view.map_id));
+        self.history.truncate(MAX_HISTORY);
+        for view in self
+            .history
+            .iter_mut()
+            .chain(std::iter::once(&mut self.current))
+        {
+            if let Some(map) = maps.maps.get(&view.map_id) {
+                view.title = map.title.clone();
+            }
         }
     }
 

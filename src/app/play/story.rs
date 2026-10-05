@@ -182,7 +182,8 @@ impl WorldeditApp {
                                         }
                                         let response = self.play_keyboard.button(ui, "choice",
                                             Some(Target::Choice(i)), *enabled && !play.paused
-                                                && self.play_confirmation.is_none(),
+                                                && self.play_confirmation.is_none()
+                                                && !self.playthrough_report.open,
                                             format!("选择：{label}"));
                                         choose = self.play_keyboard.activation(&response);
                                         if let Some(reason) = reason {
@@ -358,7 +359,7 @@ impl WorldeditApp {
         if let Some(source) = evidence_jump {
             self.jump_to_evidence_source(ctx, &source);
         }
-        let awaiting_scope = self.play_confirmation.is_some();
+        let awaiting_scope = self.play_confirmation.is_some() || self.playthrough_report.open;
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.play_mode_switch(ui) {
                 return;

@@ -1,4 +1,5 @@
 //! 设备个人状态；从不写入 Project、源码或展示文档。
+mod reading_position;
 mod source_position;
 pub(super) mod source_view;
 mod ui;
@@ -80,6 +81,9 @@ pub(super) struct Location {
     pub editor: Option<TargetRef>,
     pub event: Option<String>,
     pub manuscript: serde_json::Value,
+    pub map: Option<super::maps::AuthorMapPosition>,
+    #[serde(skip)]
+    pub reading: Option<reading_position::ReadingPosition>,
     #[serde(skip)]
     pub comparison: Option<super::play::comparison::ComparisonLocation>,
 }
@@ -272,6 +276,8 @@ impl WorldeditApp {
             event: self.focus_event.clone(),
             manuscript: serde_json::to_value(self.manuscript_session()).unwrap_or_default(),
             comparison: self.comparison_location(ctx),
+            map: self.capture_map_position(),
+            reading: self.capture_reading_position(),
         }
     }
     pub(super) fn remember_author_position(&mut self) {
@@ -287,6 +293,9 @@ impl WorldeditApp {
     }
     pub(super) fn switch_tab(&mut self, tab: Tab) {
         if self.tab != tab {
+            if self.tab == Tab::Map && self.map_navigation_blocked() {
+                return;
+            }
             self.remember_author_position();
             self.personal.catalog_drawer_open = false;
             self.tab = tab;
@@ -296,6 +305,16 @@ impl WorldeditApp {
         if self.tab == Tab::Edit && (self.ime_composing || self.ime_source_draft.is_some()) {
             self.message =
                 Some("输入法组合或未提交稿仍待处理，未恢复旧源码位置；当前输入已保留".into());
+            return;
+        }
+        if (self.tab == Tab::Map
+            || self
+                .personal
+                .history
+                .last()
+                .is_some_and(|location| location.tab == Some(Tab::Map)))
+            && self.map_navigation_blocked()
+        {
             return;
         }
         if self.return_search_source_if_open(ctx) {
@@ -366,6 +385,9 @@ impl WorldeditApp {
         mut location: Location,
         ctx: &egui::Context,
     ) {
+        if location.tab == Some(Tab::Map) && !self.restore_map_position(location.map.as_ref()) {
+            return;
+        }
         let entity_source = self.rebase_entity_source_location(&mut location);
         if location.tab == Some(Tab::Manuscript) {
             if let Ok(mut session) = serde_json::from_value::<super::manuscript::ManuscriptSession>(
@@ -539,43 +561,14 @@ impl WorldeditApp {
         if let Ok(session) = serde_json::from_value(location.manuscript) {
             self.restore_manuscript_session(session);
         }
+        self.restore_reading_position(location.reading, location.source_baseline.as_deref());
         if let Some(id) = entity_source {
             self.focus_entity_source(&id);
         }
     }
 }
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn source_wrap_preference_defaults_off_and_survives_device_restore() {
-        let old =
-            PersonalState::decode(r#"{"schema_version":1,"settings":{"body_size":20}}"#).unwrap();
-        assert!(!old.settings.source_wrap);
-        let mut state = old;
-        state.settings.source_wrap = true;
-        let json = serde_json::to_string(&state).unwrap();
-        let restored = PersonalState::decode(&json).unwrap();
-        assert!(restored.settings.source_wrap);
-        assert_eq!(restored.settings.body_size, 20.0);
-        assert!(!json.contains("source_view"));
-    }
-
-    #[test]
-    fn personal_settings_are_bounded_versioned_and_content_free() {
-        let state = PersonalState::decode(
-            r#"{"schema_version":1,"settings":{"body_size":999,"line_spacing":0}}"#,
-        )
-        .unwrap();
-        assert_eq!(state.settings.body_size, 28.0);
-        assert_eq!(state.settings.line_spacing, 1.0);
-        assert!(PersonalState::decode(r#"{"schema_version":2}"#).is_none());
-        assert!(PersonalState::decode("broken").is_none());
-        let json = serde_json::to_string(&state).unwrap();
-        assert!(!json.contains("history"));
-        assert!(!json.contains("draft"));
-    }
-}
+mod settings_tests;
 
 #[cfg(test)]
 mod source_position_tests;
