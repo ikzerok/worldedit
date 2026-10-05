@@ -52,6 +52,7 @@ impl WorldeditApp {
             play_confirmation: None,
             replay_debugger: ReplayDebugger::default(),
             comparison: play::comparison::ComparisonState::default(),
+            playthrough_report: play::report::PlaythroughReportState::default(),
             play_scroll_bottom: false,
             play_keyboard: play::keyboard::PlayKeyboard::default(),
             event_editor: None,
@@ -70,6 +71,7 @@ impl WorldeditApp {
             overview_query: String::new(),
             overview_cache: None,
             reading_target: None,
+            reading_context: reading::ContextCache::default(),
             reading_history: Vec::new(),
             reading_return: None,
             ime_composing: false,
@@ -293,6 +295,7 @@ impl WorldeditApp {
         self.play_confirmation = None;
         self.stale_form = false;
         self.reading_target = None;
+        self.reading_context = reading::ContextCache::default();
         self.reading_history.clear();
         self.ime_composing = false;
         self.ime_source_baseline = None;
@@ -310,6 +313,7 @@ impl WorldeditApp {
         self.play = None;
         self.play_keyboard.new_session();
         self.comparison = play::comparison::ComparisonState::default();
+        self.playthrough_report = play::report::PlaythroughReportState::default();
         self.replay_debugger.explanations = None;
         self.event_editor = None;
         self.character_editor = None;

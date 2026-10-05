@@ -132,7 +132,7 @@ impl WorldeditApp {
         inputs
     }
 
-    fn applied_play_scope(&self) -> Option<AppliedPlayScope> {
+    pub(in crate::app::play) fn applied_play_scope(&self) -> Option<AppliedPlayScope> {
         let snapshot = self.snapshot.as_ref()?;
         (!snapshot.result.has_errors()).then(|| AppliedPlayScope {
             version: self.version,

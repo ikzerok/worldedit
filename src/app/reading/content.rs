@@ -100,6 +100,7 @@ impl WorldeditApp {
             ui.label(theme::muted(
                 "按当前工程内容汇总；表单修改应用后会更新此页。",
             ));
+            self.reading_object_context(ui, &target);
             let placements = self
                 .snapshot
                 .as_ref()
@@ -110,15 +111,7 @@ impl WorldeditApp {
                     ui.label(theme::muted("未放置在地图上"));
                 }
                 for placement in placements {
-                    if ui
-                        .button(format!(
-                            "定位 {} / {}",
-                            placement.map_id, placement.placement_id
-                        ))
-                        .clicked()
-                    {
-                        self.locate_reference(&placement.map_id, &placement.placement_id);
-                    }
+                    self.map_reference_button(ui, &placement.map_id, &placement.placement_id);
                 }
             });
             ui.separator();

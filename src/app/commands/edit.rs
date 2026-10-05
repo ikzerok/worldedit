@@ -105,6 +105,10 @@ impl WorldeditApp {
                     self.schema_ui.close(ctx);
                     true
                 }
+                Some("playthrough-report") => {
+                    self.close_playthrough_report();
+                    true
+                }
                 Some("reader") => {
                     self.reader_publish.open = false;
                     true

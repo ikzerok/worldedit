@@ -225,6 +225,7 @@ impl WorldeditApp {
             || self.comparison.active
             || self.command_palette.open
             || self.play_confirmation.is_some()
+            || self.playthrough_report.open
             || self.has_open_authoring_form()
             || self
                 .play

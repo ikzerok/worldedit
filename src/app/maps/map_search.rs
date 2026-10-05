@@ -43,15 +43,7 @@ impl super::super::WorldeditApp {
                         ui.label(crate::theme::muted("  未放置在地图上"));
                     }
                     for placement in placements {
-                        if ui
-                            .small_button(format!(
-                                "  定位 {} / {}",
-                                placement.map_id, placement.placement_id
-                            ))
-                            .clicked()
-                        {
-                            self.locate_reference(&placement.map_id, &placement.placement_id);
-                        }
+                        self.map_reference_button(ui, &placement.map_id, &placement.placement_id);
                     }
                 }
             }

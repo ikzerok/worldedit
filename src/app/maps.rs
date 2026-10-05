@@ -1,5 +1,6 @@
 //! 地图画布与展示编辑。
 
+mod author_position;
 mod camera;
 mod canvas;
 mod canvas_interaction;
@@ -47,6 +48,7 @@ mod svg_picker;
 mod text_labels;
 mod toolbar;
 
+pub(super) use author_position::AuthorMapPosition;
 use camera::Camera2D;
 use egui::{Color32, Pos2, Rect, Vec2};
 use geometry::{GeometryHit, MapGeometry, NormalizedPoint};
@@ -506,3 +508,7 @@ mod tests_scene_pointer;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "maps/tests/performance.rs"]
 mod tests_performance;
+
+#[cfg(test)]
+#[path = "maps/tests/author_position.rs"]
+mod tests_author_position;

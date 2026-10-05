@@ -64,3 +64,20 @@ RPC 的 `scene.preview/apply/export` 必须且只能提供 `path` 或 `project_i
 `wl problems 工程 --json` 返回带报告身份、覆盖状态的有界问题页；严重性、域、路径、文本筛选由 core 完成，相关来源使用报告返回的 opaque ID。工程改变后的旧 ID／游标明确失效。RPC `project.problems` 支持自己的 Project 会话缓存与显式刷新，能力名为 `authoring.problems.v1`。详细参数和门禁边界见 [core问题指南](../../worldline/docs/problems.md)。
 
 编辑器提供同一报告的问题列表、完整证据详情、F8/Shift+F8（原生）、来源返回与源码自动换行。换行仅改变排版、保留源字节和物理行号；这些视图操作没有独立CLI遥控入口。
+
+### 0.28 通用对象使用处
+
+通用对象阅读页的“使用处与相关上下文”消费同快照 core world-context，主动启用
+静态规则/片段调用及全局读写，支持一/二跳与方向。结果披露未知总量、索引/候选/
+显示预算和错误来源；未应用草稿不计入。来源定位重验当前稿，再复用作者返回历史。
+CLI 的 `world-context --options-json '{"include_executable":true}'` 与 RPC
+`world.context.options` 为同一投影；旧请求默认仍仅返回旧六类。静态写入不等于
+试玩已实际执行的变量写入，不改变重命名/删除引用计数。
+
+## 0.28 已验证试玩报告
+
+编辑器“试玩路径报告…”、`wl playthrough-report` 与 RPC `project.playthrough_report`
+共用 runtime 的真实重放验证及 Markdown 生产者。UI额外提供当前/已录制路径选择、预览、
+未应用输入与作者私密范围确认、取消、复制、桌面新文件保存/Web下载、当前稿与外部观察守卫。
+CLI/RPC维持同步有界查询，不替代UI确认，也不改变live session或保存基线。完整路径见
+[试玩路径报告](playthrough-report.md) 与 worldline/spec/playthrough-report.md。

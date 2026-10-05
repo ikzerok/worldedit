@@ -178,6 +178,7 @@ impl eframe::App for WorldeditApp {
             self.open_dialog(ctx, false);
         }
         self.poll_problems(ctx);
+        self.poll_playthrough_report(ctx);
         self.top_bar(ctx);
         self.status_bar(ctx);
         self.problems_panel(ctx);
@@ -251,6 +252,7 @@ impl eframe::App for WorldeditApp {
         self.schema_editor_window(ctx);
         self.export_scope_dialog(ctx);
         self.play_scope_dialog(ctx);
+        self.playthrough_report_window(ctx);
         self.capability_window(ctx);
         self.capture_edit_focus(ctx);
         #[cfg(not(target_arch = "wasm32"))]

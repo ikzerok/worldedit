@@ -29,6 +29,9 @@ impl WorldeditApp {
                 .authoring_document(&path)
                 .is_ok_and(|document| !document.is_deleted());
         if known_source {
+            if self.tab == Tab::Map && self.map_navigation_blocked() {
+                return;
+            }
             self.remember_author_position();
             self.entity_source_navigation = None;
             self.active_file = path;
