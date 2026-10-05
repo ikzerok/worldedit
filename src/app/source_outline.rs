@@ -17,6 +17,8 @@ pub(super) struct OutlineState {
     focus_query: bool,
     scroll_selected: bool,
     notice: Option<String>,
+    projection_serial: u64,
+    rendered_serial: u64,
     cache: Option<CachedOutline>,
 }
 struct CachedOutline {
@@ -83,6 +85,9 @@ impl WorldeditApp {
                     || cache.source != source
             });
         if changed {
+            self.source_outline.projection_serial =
+                self.source_outline.projection_serial.wrapping_add(1);
+            self.source_outline.notice = None;
             self.source_outline.cache = Some(CachedOutline {
                 version: self.version,
                 source: source.to_owned(),
@@ -104,11 +109,11 @@ impl WorldeditApp {
         {
             return None;
         }
-        let cursor = egui::TextEdit::load_state(ctx, egui::Id::new(("source", &self.active_file)))?
+        let range = egui::TextEdit::load_state(ctx, egui::Id::new(("source", &self.active_file)))?
             .cursor
-            .char_range()?
-            .primary
-            .index;
+            .char_range()?;
+        // 非空选区的末端是半开边界；用选区内紧邻活动端的字符确认归属。
+        let cursor = range.primary.index - usize::from(range.primary.index > range.secondary.index);
         let byte = cache
             .source
             .char_indices()
@@ -192,6 +197,7 @@ impl WorldeditApp {
         let range = match range {
             Ok(range) => range,
             Err(error) => {
+                self.refresh_source_outline(true);
                 self.source_outline.notice = Some(error);
                 return false;
             }
@@ -234,7 +240,19 @@ impl WorldeditApp {
         } else {
             "编辑位置 · 当前稿结构暂不可用".into()
         };
-        self.page_heading(ui, relative, &subtitle);
+        ui.heading(relative);
+        // 光标变动只更新提示文字，不能把源码的鼠标坐标和滚动视口挤走。
+        // 提示区保持两行预算；完整长名与身份始终可用下方按钮/快捷键打开查看。
+        let context_height = ui.text_style_height(&egui::TextStyle::Body) * 2.0;
+        egui::ScrollArea::vertical()
+            .id_salt(("source-outline-context", path))
+            .max_height(context_height)
+            .min_scrolled_height(context_height)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.add(egui::Label::new(crate::theme::muted(&subtitle)).wrap());
+            });
+        ui.add_space(crate::theme::SPACE_SM);
         ui.horizontal_wrapped(|ui| {
             let shortcut = if ctx.os() == egui::os::OperatingSystem::Mac {
                 "⌘⇧O"
@@ -260,7 +278,8 @@ impl WorldeditApp {
             {
                 self.comment_current_selection(ctx);
             }
-            ui.label(crate::theme::muted("Ctrl+S 保存"));
+            ui.label(crate::theme::muted("Ctrl+S 保存"))
+                .on_hover_text("当前缓冲区与整个工程一起编译；Ctrl+Enter 打开源码引用或按选中文本建档；Ctrl+S 保存全部文件");
         });
         // 当前对象仅是声明归属；不依赖目录选择、试玩或上一轮运行状态。
         debug_assert_eq!(path, self.active_file);

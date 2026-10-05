@@ -66,7 +66,7 @@ impl Harness {
         )
     }
     fn settle(&mut self) -> egui::FullOutput {
-        for _ in 0..4 {
+        for _ in 0..24 {
             self.frame(vec![]);
         }
         self.frame(vec![])
@@ -278,6 +278,8 @@ fn source_outline_current_tracks_source_cursor_not_selected_row_or_runtime() {
         .count()
         + 1;
     h.select(cursor, cursor);
+    h.app.focus_event = Some("second".into());
+    h.app.catalog_target = Some(worldline_core::TargetRef::new("entity", "keeper"));
     assert_eq!(h.app.source_outline_current(&h.ctx), Some(4));
     h.open();
     h.press(Key::End, Modifiers::NONE);
@@ -288,4 +290,27 @@ fn source_outline_current_tracks_source_cursor_not_selected_row_or_runtime() {
     assert_eq!(h.app.source_outline_current(&h.ctx), None);
     h.select(source().chars().count(), source().chars().count());
     assert_eq!(h.app.source_outline_current(&h.ctx), None);
+}
+
+#[test]
+fn source_outline_task_command_opens_the_same_source_without_changing_bytes() {
+    let mut h = Harness::new(source());
+    h.select(8, 3);
+    let before = h.range();
+    h.press(Key::P, Modifiers::COMMAND | Modifiers::SHIFT);
+    h.settle();
+    assert!(h.app.command_palette.open);
+    h.frame(vec![Event::Text("本文件结构".into())]);
+    h.settle();
+    h.press(Key::Enter, Modifiers::NONE);
+    h.settle();
+    assert!(!h.app.command_palette.open);
+    assert!(h.app.source_outline.open);
+    assert_eq!(h.app.tab, Tab::Edit);
+    assert_eq!(h.ctx.memory(|memory| memory.focused()), Some(query_id()));
+    h.press(Key::Escape, Modifiers::NONE);
+    h.settle();
+    assert_eq!(h.range(), before);
+    assert_eq!(h.ctx.memory(|memory| memory.focused()), Some(h.source_id()));
+    assert_eq!(h.source(), source());
 }

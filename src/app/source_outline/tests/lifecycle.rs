@@ -53,7 +53,7 @@ fn source_outline_draft_rebuild_invalid_source_empty_and_undo_redo() {
 }
 
 #[test]
-fn source_outline_external_changes_inactive_files_and_changed_identity_never_jump() {
+fn source_outline_external_changes_and_changed_identity_never_jump() {
     let mut h = Harness::new(source());
     h.select(8, 3);
     h.open();
@@ -180,4 +180,44 @@ fn source_outline_unapplied_draft_blocks_old_coordinates_even_after_composition_
     assert_eq!(h.app.source_outline_current(&h.ctx), None);
     assert_eq!(h.app.ime_source_draft.as_ref().unwrap().1, draft);
     assert_eq!(h.source(), source());
+}
+
+#[test]
+fn source_outline_and_find_keep_top_layer_cancel_and_source_focus_independent() {
+    let mut h = Harness::new(source());
+    h.select(7, 3);
+    h.open();
+    h.press(Key::F, Modifiers::COMMAND);
+    h.settle();
+    assert!(h.app.search_open);
+    assert!(h.app.source_outline.open);
+    assert!(h.app.edit_layer_is_top("search"));
+    h.press(Key::Escape, Modifiers::NONE);
+    h.settle();
+    assert!(!h.app.search_open);
+    assert!(h.app.source_outline.open);
+    assert!(h.app.edit_layer_is_top("source-outline"));
+    h.press(Key::Escape, Modifiers::NONE);
+    h.settle();
+    assert!(!h.app.source_outline.open);
+    assert_eq!(h.ctx.memory(|memory| memory.focused()), Some(h.source_id()));
+    assert_eq!(h.source(), source());
+}
+
+#[test]
+fn source_outline_rebuild_before_window_cannot_execute_same_frame_enter() {
+    let mut h = Harness::new(source());
+    h.open();
+    h.press(Key::End, Modifiers::NONE);
+    h.change("event entirely_new as \"全新声明\"\n  新正文\n  -> END\n");
+    h.frame(vec![key_event(Key::Enter, Modifiers::NONE, true)]);
+    assert!(h.app.source_outline.open);
+    assert!(h.app.personal.history.is_empty());
+    h.settle();
+    assert_eq!(
+        h.app.source_outline.cache.as_ref().unwrap().outline.entries[0].id,
+        "entirely_new"
+    );
+    h.press(Key::Enter, Modifiers::NONE);
+    assert!(!h.app.source_outline.open);
 }

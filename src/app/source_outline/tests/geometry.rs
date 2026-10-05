@@ -23,6 +23,14 @@ fn source_outline_narrow_large_type_two_themes_wrap_and_close_without_squeezing_
             let before = h.settle();
             let source_before = text_rect(&before, h.source()).unwrap();
             h.open();
+            let opened = h.settle();
+            assert!(
+                all_text(&opened).contains("当前位置"),
+                "current={:?}, selection={:?}, text={}",
+                h.app.source_outline_current(&h.ctx),
+                h.range(),
+                all_text(&opened)
+            );
             h.press(Key::End, Modifiers::NONE);
             let output = h.settle();
             assert_eq!(h.app.source_outline.selected, 59);
@@ -38,7 +46,6 @@ fn source_outline_narrow_large_type_two_themes_wrap_and_close_without_squeezing_
             assert!(rect.height() >= font * 2.0);
             let close = text_rect(&output, "收起并回到源码").unwrap();
             assert!(screen.contains_rect(close));
-            assert!(all_text(&output).contains("当前位置"));
             h.press(Key::Escape, Modifiers::NONE);
             let after = h.settle();
             let source_after = text_rect(&after, h.source()).unwrap();
@@ -106,5 +113,47 @@ fn source_outline_hidden_selection_does_not_jump_and_keyboard_reveals_it() {
     h.press(Key::ArrowUp, Modifiers::NONE);
     h.settle();
     h.press(Key::Enter, Modifiers::NONE);
-    assert!(!h.app.source_outline.open);
+    let final_output = h.settle();
+    assert!(
+        !h.app.source_outline.open,
+        "selected={} focus={:?} notice={:?} text={}",
+        h.app.source_outline.selected,
+        h.ctx.memory(|memory| memory.focused()),
+        h.app.source_outline.notice,
+        all_text(&final_output)
+    );
+}
+
+#[test]
+fn source_outline_caret_context_keeps_source_origin_and_viewport_stable_each_frame() {
+    let mut h = Harness::new(source());
+    fn geometry(output: &egui::FullOutput, source: &str) -> (egui::Pos2, Rect) {
+        output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text == source => {
+                    Some((text.pos, shape.clip_rect))
+                }
+                _ => None,
+            })
+            .expect("普通源码必须仍在同一个真实视口绘制")
+    }
+    h.select(4, 4); // 文件注释，没有所属声明。
+    let before = geometry(&h.frame(vec![]), source());
+    let at = source()[..source().find("中文🌊正文").unwrap()]
+        .chars()
+        .count();
+    for index in [at, 4, source().chars().count(), at + 1] {
+        h.select(index, index);
+        for _ in 0..2 {
+            let actual = geometry(&h.frame(vec![]), source());
+            assert_eq!(
+                actual, before,
+                "每个caret帧都必须保持源码起点和可用视口，不靠settle掩盖位移"
+            );
+        }
+    }
+    h.app.ime_composing = true;
+    assert_eq!(geometry(&h.frame(vec![]), source()), before);
 }

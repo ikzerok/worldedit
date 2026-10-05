@@ -1,13 +1,12 @@
 use super::*;
 use crate::theme;
 
-fn row(
-    ui: &mut egui::Ui,
+fn row_text(
+    ui: &egui::Ui,
     entry: &SourceOutlineEntry,
     current: bool,
-    focused: bool,
     size: f32,
-) -> egui::Response {
+) -> egui::text::LayoutJob {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         &entry.display,
@@ -31,21 +30,39 @@ fn row(
             ..Default::default()
         },
     );
+    job
+}
+
+fn row(
+    ui: &mut egui::Ui,
+    entry: &SourceOutlineEntry,
+    current: bool,
+    focused: bool,
+    size: f32,
+) -> egui::Response {
+    let job = row_text(ui, entry, current, size);
     let indent = (entry.depth.min(4) as f32) * 12.0;
     let response = ui
-        .horizontal(|ui| {
-            ui.add_space(indent);
-            ui.add_sized(
-                [ui.available_width(), 0.0],
-                egui::Button::selectable(current, job).wrap(),
-            )
-        })
+        .allocate_ui_with_layout(
+            egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
+            egui::Layout::left_to_right(egui::Align::Center).with_main_align(egui::Align::Min),
+            |ui| {
+                ui.add_space(indent);
+                // add_sized 会把 Button 的内容居中；用最小尺寸保留全宽点击区，
+                // 水平布局默认也居中，因此显式设 main_align，缩进不受文字长度影响。
+                ui.add(
+                    egui::Button::selectable(current, job)
+                        .wrap()
+                        .min_size(egui::vec2(ui.available_width(), 0.0)),
+                )
+            },
+        )
         .inner;
     if focused {
         ui.painter().rect_stroke(
             response.rect.shrink(0.5),
             4,
-            egui::Stroke::new(1.5, theme::ACCENT()),
+            egui::Stroke::new(1.5_f32, theme::ACCENT()),
             egui::StrokeKind::Inside,
         );
     }
@@ -60,7 +77,8 @@ impl WorldeditApp {
             self.source_outline.open = false;
             return;
         }
-        let refreshed = self.refresh_source_outline(false);
+        let refreshed = self.refresh_source_outline(false)
+            || self.source_outline.projection_serial != self.source_outline.rendered_serial;
         let current = self.source_outline_current(ctx);
         let top = self.edit_layer_is_top("source-outline");
         let blocked = self.source_outline_blocked(ctx);
@@ -76,7 +94,10 @@ impl WorldeditApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .fixed_size(egui::vec2(width, 0.0))
+            .default_width(width)
+            .min_width(width)
+            .max_width(width)
+            .max_height((screen.height() - 96.0).max(100.0))
             .anchor(egui::Align2::CENTER_TOP, [0.0, 48.0])
             .show(ctx, |ui| {
                 ui.set_width(width);
@@ -87,10 +108,8 @@ impl WorldeditApp {
                     )))
                     .wrap(),
                 );
-                let keys_enabled = top
-                    && !blocked
-                    && !refreshed
-                    && ctx.memory(|memory| memory.has_focus(query_id()));
+                let keys_enabled =
+                    top && !blocked && ctx.memory(|memory| memory.has_focus(query_id()));
                 let (down, up, first, last, enter) = if keys_enabled {
                     ui.input_mut(|input| {
                         (
@@ -199,7 +218,7 @@ impl WorldeditApp {
                                 ui,
                                 entry,
                                 current == Some(*occurrence),
-                                focused && top,
+                                focused && top && ctx.memory(|memory| memory.has_focus(query_id())),
                                 self.personal.settings.body_size,
                             );
                             if navigation && response.clicked() {
@@ -221,6 +240,7 @@ impl WorldeditApp {
                     action = entries.get(state.selected).copied();
                 }
             });
+        state.rendered_serial = state.projection_serial;
         self.source_outline = state;
         if refresh {
             self.refresh_source_outline(true);
@@ -233,3 +253,6 @@ impl WorldeditApp {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
