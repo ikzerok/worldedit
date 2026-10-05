@@ -364,3 +364,86 @@ fn single_edges_retain_readable_label_and_palette_hides_lower_edge_details() {
     assert!(!text.contains("拖动卡片调整位置,右侧圆点用于连线"));
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn keyboard_opened_details_suppress_existing_background_tooltip_until_closed() {
+    const HOVER: &str = "拖动卡片调整位置,右侧圆点用于连线";
+    let (ctx, mut app, root) = setup();
+    ctx.style_mut(|style| {
+        style.interaction.tooltip_delay = 0.0;
+        style.interaction.tooltip_grace_time = 0.0;
+        style.interaction.show_tooltips_only_when_still = false;
+    });
+    let before = app.project.sources();
+    // 先关闭一次真实打开的详情，Esc 把键盘焦点留在可重新展开的数量按钮。
+    click_text(&ctx, &mut app, "6 条连接");
+    let trigger = ctx
+        .data(|data| data.get_temp::<Details>(state_id()))
+        .unwrap()
+        .trigger;
+    frame(&ctx, &mut app, key(Key::Escape, Modifiers::NONE), 1188.0);
+    let output = settle(&ctx, &mut app);
+    let pointer = output
+        .shapes
+        .iter()
+        .find_map(|shape| text_point(&shape.shape, "重逢"))
+        .unwrap();
+    let mut hovered = false;
+    for _ in 0..8 {
+        let output = frame(&ctx, &mut app, vec![Event::PointerMoved(pointer)], 1188.0);
+        hovered |= rendered(&output).contains(HOVER);
+    }
+    assert!(hovered, "应先真实显示背景节点提示，避免空洞的遮挡断言");
+    assert_eq!(ctx.memory(|memory| memory.focused()), Some(trigger));
+    let mut events = vec![Event::PointerMoved(pointer)];
+    events.extend(key(Key::Enter, Modifiers::NONE));
+    let output = frame(&ctx, &mut app, events, 1188.0);
+    assert!(details_visible(&app, &ctx));
+    assert!(
+        !rendered(&output).contains(HOVER),
+        "打开帧也不能画底层 tooltip"
+    );
+    let mut full_context_visible = false;
+    for index in 0..6 {
+        let mut events = vec![Event::PointerMoved(pointer)];
+        if index == 3 {
+            events.extend(key(Key::Tab, Modifiers::NONE));
+        }
+        let output = frame(&ctx, &mut app, events, 1188.0);
+        let visible = rendered(&output);
+        assert!(!visible.contains(HOVER), "{visible}");
+        full_context_visible |= visible.contains(LONG)
+            && visible.contains("条件：")
+            && visible.contains("定位第 1 条来源");
+    }
+    assert!(full_context_visible, "详情正文、完整选择上下文和来源应可读");
+    let mut events = vec![Event::PointerMoved(pointer)];
+    events.extend(key(Key::Escape, Modifiers::NONE));
+    frame(&ctx, &mut app, events, 1188.0);
+    assert!(!details_visible(&app, &ctx));
+    let mut restored = false;
+    for _ in 0..8 {
+        let output = frame(&ctx, &mut app, vec![Event::PointerMoved(pointer)], 1188.0);
+        restored |= rendered(&output).contains(HOVER);
+    }
+    assert!(restored, "详情关闭后应恢复正常节点悬停");
+    assert_eq!(app.project.sources(), before);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn tooltip_suppression_tracks_visible_detail_workspace_and_view_even_when_stale() {
+    let (ctx, mut app, root) = setup();
+    ctx.data_mut(|data| data.insert_temp(state_id(), details(&app)));
+    assert!(details_visible(&app, &ctx));
+    app.version += 1;
+    assert!(details_visible(&app, &ctx), "过期提示窗口同样在前景");
+    app.tab = Tab::Graph;
+    assert!(!details_visible(&app, &ctx));
+    app.tab = Tab::Edit;
+    assert!(!details_visible(&app, &ctx));
+    app.tab = Tab::Timeline;
+    app.project.root = root.join("another-workspace");
+    assert!(!details_visible(&app, &ctx));
+    let _ = std::fs::remove_dir_all(root);
+}

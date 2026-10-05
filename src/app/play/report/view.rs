@@ -23,6 +23,11 @@ impl WorldeditApp {
         if !self.playthrough_report.open {
             return;
         }
+        // 仅显式打开时交接一次；后续Tab、指针或输入法导航不被旧请求拉回。
+        let focus_on_open = std::mem::take(&mut self.playthrough_report.focus_on_open)
+            && !self.ime_composing
+            && !self.command_palette.ime
+            && !self.command_palette.ime_frame;
         let inputs = self.unapplied_play_inputs();
         if self.playthrough_report.confirmed_inputs != inputs {
             self.playthrough_report.scope_confirmed = false;
@@ -57,7 +62,7 @@ impl WorldeditApp {
                             .map(|path| format!("已录制：{}", path.name))
                             .unwrap_or_else(|| "已录制路径已失效".into()),
                     };
-                    egui::ComboBox::from_id_salt("report-route")
+                    let route = egui::ComboBox::from_id_salt("report-route")
                         .selected_text(route_name)
                         .width(330.0)
                         .show_ui(ui, |ui| {
@@ -66,6 +71,10 @@ impl WorldeditApp {
                                 ui.selectable_value(&mut state.route, ReportRoute::Saved(index), &path.name);
                             }
                         });
+                    if focus_on_open {
+                        route.response.request_focus();
+                        route.response.scroll_to_me_animation(Some(egui::Align::Min), egui::style::ScrollAnimation::none());
+                    }
                     ui.horizontal_wrapped(|ui| {
                         ui.label("步数上限");
                         ui.add(egui::DragValue::new(&mut state.max_steps).range(0..=100_000));

@@ -38,6 +38,7 @@ impl WorldeditApp {
             ui.label(crate::theme::muted("路径仅保留于当前会话"));
             if ui.button("试玩路径报告…").clicked() {
                 self.playthrough_report.open = true;
+                self.playthrough_report.focus_on_open = true;
             }
         });
         entering_comparison

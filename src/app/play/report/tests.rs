@@ -276,3 +276,6 @@ fn copy_and_save_recheck_external_disk_changes_without_refresh_or_overwrite() {
     assert_eq!(invariant(&app), before);
     std::fs::remove_dir_all(&app.project.root).unwrap();
 }
+
+#[path = "keyboard_tests.rs"]
+mod keyboard;

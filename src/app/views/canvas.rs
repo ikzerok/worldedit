@@ -224,6 +224,9 @@ impl WorldeditApp {
                         super::parallel_edges::draw_groups(
                             self, ui, &graph, &rects, canvas, zoom, timeline,
                         );
+                        // 分组按钮先处理键盘/鼠标打开，当前帧即停用底层提示。
+                        let show_node_tooltips = !self.command_palette.open
+                            && !super::parallel_edges::details_visible(self, ctx);
                         let mut over_node = false;
                         for (&i, rect) in &rects {
                             if !ui.is_rect_visible(*rect) {
@@ -269,7 +272,7 @@ impl WorldeditApp {
                                     ACCENT(),
                                 );
                             }
-                            if !self.command_palette.open {
+                            if show_node_tooltips {
                                 response.clone().on_hover_ui(|ui| {
                                     node_hover_ui(ui, node, visit_count);
                                 });

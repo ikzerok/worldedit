@@ -42,6 +42,7 @@ impl Drop for ReportJob {
 
 pub(in crate::app) struct PlaythroughReportState {
     pub(in crate::app) open: bool,
+    pub(in crate::app::play) focus_on_open: bool,
     route: ReportRoute,
     job: Option<ReportJob>,
     reviewed: Option<ReviewedReport>,
@@ -58,6 +59,7 @@ impl Default for PlaythroughReportState {
     fn default() -> Self {
         Self {
             open: false,
+            focus_on_open: false,
             route: ReportRoute::Live,
             job: None,
             reviewed: None,
@@ -76,6 +78,7 @@ impl Default for PlaythroughReportState {
 impl crate::app::WorldeditApp {
     pub(in crate::app) fn close_playthrough_report(&mut self) {
         self.playthrough_report.open = false;
+        self.playthrough_report.focus_on_open = false;
         self.playthrough_report.job = None;
         self.playthrough_report.privacy_confirmed = false;
         self.playthrough_report.scope_confirmed = false;

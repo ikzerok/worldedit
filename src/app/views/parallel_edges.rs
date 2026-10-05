@@ -110,6 +110,18 @@ struct Details {
     first_focus: bool,
 }
 
+/// 包括过期但仍在屏幕上的详情；不能让底层 Tooltip 层盖过前景审阅。
+/// 其他视图或工程中保留的返回状态不算当前可见窗口。
+pub(super) fn details_visible(app: &WorldeditApp, ctx: &egui::Context) -> bool {
+    matches!(app.tab, Tab::Timeline | Tab::Graph)
+        && ctx.data(|data| {
+            data.get_temp::<Details>(state_id()).is_some_and(|details| {
+                details.workspace == app.project.root
+                    && details.timeline == (app.tab == Tab::Timeline)
+            })
+        })
+}
+
 pub(super) fn draw_groups(
     app: &mut WorldeditApp,
     ui: &mut egui::Ui,
