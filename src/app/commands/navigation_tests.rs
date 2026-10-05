@@ -114,8 +114,8 @@ fn object_entry(h: &Harness, index: usize) -> (String, TargetRef) {
 }
 
 #[test]
-fn all_29_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
-    assert_eq!(commands().len(), 29);
+fn all_30_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
+    assert_eq!(commands().len(), 30);
     let review_index = commands()
         .iter()
         .position(|(_, action)| matches!(action, Action::Tab(Tab::Review)))

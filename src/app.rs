@@ -52,6 +52,7 @@ mod relation_editor;
 mod schema_ui;
 mod search;
 mod source_lifecycle_ui;
+mod source_outline;
 #[cfg(not(target_arch = "wasm32"))]
 mod startup;
 mod states;
@@ -270,6 +271,7 @@ pub struct WorldeditApp {
     project: Project,
     personal: personal::PersonalState,
     command_palette: commands::CommandPalette,
+    source_outline: source_outline::OutlineState,
     draft_action: Option<Pending>,
     new_draft_baselines: HashMap<&'static str, String>,
     frame_dirty_drafts: Vec<&'static str>,

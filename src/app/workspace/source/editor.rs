@@ -21,18 +21,8 @@ impl WorldeditApp {
                 text = ime_text.clone();
             }
         }
-        self.page_heading(
-                    ui,
-                    &relative,
-                    "当前缓冲区与整个工程一起编译 · Ctrl+Enter 打开源码引用或按选中文本建档 · Ctrl+S 保存全部文件",
-                );
+        self.source_outline_heading(ctx, ui, &path, &relative);
         self.problem_source_summary(ui, &path);
-        if ui
-            .add_enabled(!self.ime_composing, egui::Button::new("为当前选区添加批注"))
-            .clicked()
-        {
-            self.comment_current_selection(ctx);
-        }
         let stale_ime_draft = self
             .ime_source_draft
             .as_ref()

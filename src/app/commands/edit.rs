@@ -117,6 +117,10 @@ impl WorldeditApp {
                     self.command_palette.open = false;
                     true
                 }
+                Some("source-outline") => {
+                    self.close_source_outline(ctx);
+                    true
+                }
                 Some("search") => {
                     self.close_search(ctx);
                     true
@@ -191,6 +195,10 @@ impl WorldeditApp {
                 }
             }
             ui.separator();
+            if ui.button(format!("本文件结构  {command}Shift+O")).clicked() {
+                self.open_source_outline(ui.ctx());
+                ui.close();
+            }
             if ui.button(format!("查找当前稿  {command}F")).clicked() {
                 self.open_search(ui.ctx(), false, false);
                 ui.close();
