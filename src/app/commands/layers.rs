@@ -35,6 +35,7 @@ impl WorldeditApp {
             ),
             ("temporal-issues", self.temporal_issues.open),
             ("source-outline", self.source_outline.open),
+            ("source-jump", self.source_jump.open),
             ("search", self.search_open),
             ("commands", self.command_palette.open),
             ("preferences", self.personal.preferences_open),
@@ -80,6 +81,7 @@ impl WorldeditApp {
             let focus = match kind {
                 "search" => self.search_return_focus(),
                 "source-outline" => self.source_outline.return_focus,
+                "source-jump" => self.source_jump.return_focus,
                 "commands" => self.command_palette.previous_focus,
                 "schema" => self.schema_ui.return_focus,
                 "temporal-issues" => self.temporal_issues.return_focus,

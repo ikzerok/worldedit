@@ -114,8 +114,8 @@ fn object_entry(h: &Harness, index: usize) -> (String, TargetRef) {
 }
 
 #[test]
-fn all_30_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
-    assert_eq!(commands().len(), 30);
+fn all_31_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
+    assert_eq!(commands().len(), 31);
     let review_index = commands()
         .iter()
         .position(|(_, action)| matches!(action, Action::Tab(Tab::Review)))
@@ -124,6 +124,10 @@ fn all_30_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
         .iter()
         .position(|(_, action)| matches!(action, Action::Tab(Tab::CatalogImport)))
         .expect("CSV import must have an explicit author command");
+    let source_jump_index = commands()
+        .iter()
+        .position(|(_, action)| matches!(action, Action::SourceJump))
+        .expect("source coordinates must have an explicit author command");
     let move_entity_index = commands()
         .iter()
         .position(|(_, action)| matches!(action, Action::MoveEntitySource))
@@ -193,6 +197,20 @@ fn all_30_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
             assert_eq!(h.app.project.content_baseline(), baseline);
             h.press(Key::Escape, 1);
             assert!(h.app.entity_source_move_form.is_none());
+            assert_eq!(h.app.project.content_baseline(), baseline);
+            h.app.tab = Tab::Edit;
+            h.open(true);
+            h.press(Key::ArrowDown, source_jump_index);
+            let output = h.settle();
+            assert_eq!(h.app.command_palette.selected, source_jump_index);
+            assert!(visible(&output, commands()[source_jump_index].0, size).is_some());
+            h.press(Key::Enter, 1);
+            h.settle();
+            assert!(!h.app.command_palette.open);
+            assert!(h.app.source_jump.open);
+            assert_eq!(h.app.project.content_baseline(), baseline);
+            h.press(Key::Escape, 1);
+            assert!(!h.app.source_jump.open);
             assert_eq!(h.app.project.content_baseline(), baseline);
         }
     }

@@ -229,6 +229,7 @@ impl eframe::App for WorldeditApp {
         self.dialogs(ctx);
         object_picker::set_workspace_root(ctx, &self.project.root);
         self.source_outline_window(ctx);
+        self.source_jump_window(ctx);
         self.project_search(ctx);
         self.temporal_issues_window(ctx);
         self.command_window(ctx);
