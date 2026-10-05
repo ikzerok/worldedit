@@ -297,6 +297,7 @@ impl WorldeditApp {
                                     if response.clicked() {
                                         if self.project.documents.contains_key(path) {
                                             self.remember_author_position();
+                                            self.entity_source_navigation = None;
                                             self.active_file = path.clone();
                                             self.tab = Tab::Edit;
                                         } else if let Err(error) =

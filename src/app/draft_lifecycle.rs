@@ -215,6 +215,13 @@ impl WorldeditApp {
         {
             names.push("源码路径");
         }
+        if self
+            .entity_source_move_form
+            .as_ref()
+            .is_some_and(|form| form.changed())
+        {
+            names.push("实体移源");
+        }
         if self.new_file.is_some() {
             names.push("文件名称");
         }
@@ -285,6 +292,7 @@ impl WorldeditApp {
         self.preset_editor = None;
         self.rename_form = None;
         self.source_move_form = None;
+        self.entity_source_move_form = None;
         self.delete_form = None;
         self.new_file = None;
         self.new_period = None;

@@ -175,6 +175,11 @@ impl WorldeditApp {
             self.history.pop()
         };
         if let Some(previous) = previous {
+            let entity_navigation = self
+                .entity_source_navigation
+                .as_ref()
+                .filter(|(_, path)| *path == self.active_file && self.tab == Tab::Edit)
+                .map(|(id, _)| id.clone());
             let current = self.project.clone();
             let source_before = self.project.sources();
             let options_before = self.project.compile_options();
@@ -204,6 +209,7 @@ impl WorldeditApp {
             self.delete_form = None;
             self.rename_form = None;
             self.source_move_form = None;
+            self.entity_source_move_form = None;
             self.map_failed_command = None;
             self.map_canvas.reset_for_history();
             if source_before == self.project.sources()
@@ -215,6 +221,9 @@ impl WorldeditApp {
                 self.recompile();
             }
             self.manuscript.rebase_clean(&self.project);
+            if let Some(id) = entity_navigation {
+                self.focus_entity_source(&id);
+            }
             self.io_error = None;
         }
     }

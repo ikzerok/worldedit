@@ -30,6 +30,7 @@ impl WorldeditApp {
                 .is_ok_and(|document| !document.is_deleted());
         if known_source {
             self.remember_author_position();
+            self.entity_source_navigation = None;
             self.active_file = path;
             self.tab = Tab::Edit;
             self.jump = Some((line, column));

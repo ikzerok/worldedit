@@ -241,6 +241,7 @@ impl eframe::App for WorldeditApp {
         self.content_deletion_window(ctx);
         self.target_rename_window(ctx);
         self.source_move_window(ctx);
+        self.entity_source_move_window(ctx);
         self.markdown_import_window(ctx);
         self.reader_publish_window(ctx);
         self.preset_editor_window(ctx);

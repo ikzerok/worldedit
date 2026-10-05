@@ -114,8 +114,8 @@ fn object_entry(h: &Harness, index: usize) -> (String, TargetRef) {
 }
 
 #[test]
-fn all_28_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
-    assert_eq!(commands().len(), 28);
+fn all_29_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
+    assert_eq!(commands().len(), 29);
     let review_index = commands()
         .iter()
         .position(|(_, action)| matches!(action, Action::Tab(Tab::Review)))
@@ -124,6 +124,10 @@ fn all_28_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
         .iter()
         .position(|(_, action)| matches!(action, Action::Tab(Tab::CatalogImport)))
         .expect("CSV import must have an explicit author command");
+    let move_entity_index = commands()
+        .iter()
+        .position(|(_, action)| matches!(action, Action::MoveEntitySource))
+        .expect("entity source move must have an explicit author command");
     for theme in [
         crate::theme::ThemeMode::Dark,
         crate::theme::ThemeMode::Light,
@@ -145,7 +149,16 @@ fn all_28_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
                     "{theme:?} {size:?}: command {index} hidden"
                 );
             }
-            h.press(Key::ArrowUp, commands().len() - 1 - review_index);
+            for index in (0..commands().len() - 1).rev() {
+                h.press(Key::ArrowUp, 1);
+                let output = h.settle();
+                assert_eq!(h.app.command_palette.selected, index);
+                assert!(
+                    visible(&output, commands()[index].0, size).is_some(),
+                    "{theme:?} {size:?}: upward command {index} hidden"
+                );
+            }
+            h.press(Key::ArrowDown, review_index);
             let output = h.settle();
             assert_eq!(h.app.command_palette.selected, review_index);
             assert!(visible(&output, commands()[review_index].0, size).is_some());
@@ -163,6 +176,23 @@ fn all_28_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
             h.press(Key::Enter, 1);
             assert!(!h.app.command_palette.open);
             assert_eq!(h.app.tab, Tab::CatalogImport);
+            assert_eq!(h.app.project.content_baseline(), baseline);
+            // 每种主题和尺寸均实际执行新增命令，不能只增长计数。
+            h.app.catalog_target = Some(TargetRef::new("entity", "item_0000"));
+            h.open(true);
+            h.press(Key::ArrowDown, move_entity_index);
+            let output = h.settle();
+            assert_eq!(h.app.command_palette.selected, move_entity_index);
+            assert!(visible(&output, commands()[move_entity_index].0, size).is_some());
+            h.press(Key::Enter, 1);
+            assert!(!h.app.command_palette.open);
+            assert_eq!(
+                h.app.entity_source_move_form.as_ref().unwrap().id,
+                "item_0000"
+            );
+            assert_eq!(h.app.project.content_baseline(), baseline);
+            h.press(Key::Escape, 1);
+            assert!(h.app.entity_source_move_form.is_none());
             assert_eq!(h.app.project.content_baseline(), baseline);
         }
     }

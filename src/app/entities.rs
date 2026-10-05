@@ -75,6 +75,7 @@ impl WorldeditApp {
         let mut applied = false;
         let mut cancelled = false;
         let mut apply_requested = false;
+        let mut move_requested = None;
         let template_index = self
             .snapshot
             .as_ref()
@@ -151,6 +152,9 @@ impl WorldeditApp {
                             cancelled = true;
                         }
                         if let Some(id) = &form.original {
+                            if ui.button("移到其他源码…").clicked() {
+                                move_requested = Some(id.clone());
+                            }
                             if ui.button("删除此资料…").clicked() {
                                 self.plan_content_deletion(TargetRef::new("entity", id));
                             }
@@ -296,6 +300,9 @@ impl WorldeditApp {
         }
         if open && !applied && !cancelled {
             self.entity_editor = Some(form);
+        }
+        if let Some(id) = move_requested {
+            self.begin_entity_source_move(&id);
         }
     }
 }

@@ -75,6 +75,10 @@ impl WorldeditApp {
                 return;
             }
             let closed = match top {
+                Some("entity-source-move") => {
+                    self.entity_source_move_form = None;
+                    true
+                }
                 Some("character-index") => {
                     self.character_focus.index_open = false;
                     true
