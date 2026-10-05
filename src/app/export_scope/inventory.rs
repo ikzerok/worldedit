@@ -163,6 +163,18 @@ impl WorldeditApp {
                     .as_ref()
                     .map(|f| format!("{} → {}", self.export_source_path(&f.source), f.destination))
                     .unwrap_or_default(),
+                "实体移源" => self
+                    .entity_source_move_form
+                    .as_ref()
+                    .map(|f| {
+                        format!(
+                            "entity:{} · {} → {}",
+                            f.id,
+                            self.export_source_path(&f.source),
+                            self.export_source_path(&f.destination)
+                        )
+                    })
+                    .unwrap_or_default(),
                 "文件名称" => self.new_file.clone().unwrap_or_default(),
                 "时段资料" => self
                     .new_period

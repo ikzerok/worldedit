@@ -86,6 +86,8 @@ impl WorldeditApp {
             delete_form: None,
             rename_form: None,
             source_move_form: None,
+            entity_source_move_form: None,
+            entity_source_navigation: None,
             preset_editor: None,
             alias_input: String::new(),
             link_query: String::new(),
@@ -312,6 +314,8 @@ impl WorldeditApp {
         self.delete_form = None;
         self.rename_form = None;
         self.source_move_form = None;
+        self.entity_source_move_form = None;
+        self.entity_source_navigation = None;
         self.preset_editor = None;
         self.catalog_target = None;
         self.catalog_workbench.reset_for_workspace();

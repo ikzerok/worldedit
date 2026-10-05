@@ -18,6 +18,7 @@ impl WorldeditApp {
             ("guard-delete", self.delete_form.is_some()),
             ("guard-rename", self.rename_form.is_some()),
             ("guard-source-move", self.source_move_form.is_some()),
+            ("entity-source-move", self.entity_source_move_form.is_some()),
             ("guard-preset", self.preset_editor.is_some()),
             ("guard-markdown", self.markdown_import_wizard.is_some()),
             (

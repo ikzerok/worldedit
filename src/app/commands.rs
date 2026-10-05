@@ -33,6 +33,7 @@ enum Action {
     Problems,
     NextProblem,
     PreviousProblem,
+    MoveEntitySource,
 }
 fn commands() -> Vec<(&'static str, Action)> {
     vec![
@@ -52,6 +53,7 @@ fn commands() -> Vec<(&'static str, Action)> {
         ("空间 · 地图画布", Action::Tab(Tab::Map)),
         ("关系 · 世界关联", Action::Tab(Tab::Network)),
         ("编辑 · 源文件", Action::Tab(Tab::Edit)),
+        ("实体 · 移到其他源码…", Action::MoveEntitySource),
         ("审阅 · 协作审阅", Action::Tab(Tab::Review)),
         ("语言 · 本地化", Action::Tab(Tab::Localization)),
         ("演练 · 试玩", Action::Tab(Tab::Play)),
@@ -275,6 +277,7 @@ impl WorldeditApp {
                         self.message = Some("对象已不存在，请重新查找".into());
                     }
                 }
+                Action::MoveEntitySource => self.begin_current_entity_source_move(),
                 Action::Save => {
                     self.save();
                 }

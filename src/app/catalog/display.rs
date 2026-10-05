@@ -154,7 +154,11 @@ impl WorldeditApp {
                                 if ui.button(format!("{}  {}  ·  {}", kind_label(&hit.target.kind), hit.display, hit.target.id)).clicked() { self.navigate_object(&hit); }
                             }
                         }
-                        if ui.button("定位源文件").clicked() { self.jump_to_file(&object.file, object.line, 1); }
+                        if target.kind == "entity" && ui.button("移到其他源码…").clicked() { self.begin_entity_source_move(&target.id); }
+                        if ui.button("定位源文件").clicked() {
+                            if target.kind == "entity" { self.jump_to_entity_source(&target.id); }
+                            else { self.jump_to_file(&object.file, object.line, 1); }
+                        }
                     }
                 } else if editor.is_none() && self.state_editor.is_none() && self.anchor_editor.is_none() {
                     theme::card().show(ui, |ui| {

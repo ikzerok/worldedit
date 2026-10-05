@@ -1,12 +1,14 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.23.0 在现有查找与替换中加入逐处审阅：阅读匹配附近原文，明确选中要改的命中，核对前后差异后一次应用。导航的当前项与待替换集合分别显示；人物证词、正文和设定中的相同文字由作者逐处判断，不自动推断真假。
+worldline 的 Rust / egui 作者工作台。0.24.0 增加实体资料移源闭环：选中一条实体，核对稳定身份与当前来源，选择另一份已有活动源码，阅读两侧精确原文后一次应用。迁移后按同一实体身份回到新的来源，支持一次撤销/重做和显式保存。
 
-操作见[逐处审阅与替换](docs/selective-replace.md)与[配对核心契约](https://github.com/ikzerok/worldline/blob/main/spec/search-replace.md)。命中、保护标记、上下文和替换事务均来自 core，正文没有第二份可写副本。默认语言1.9、最高既有显式版本1.13不变。
+操作见[实体资料移源](docs/entity-source-move.md)与[配对核心契约](https://github.com/ikzerok/worldline/blob/main/spec/entity-source-move.md)。声明范围、静态引用、运行指纹及保护规则全部来自 core。默认语言1.9、最高既有显式版本1.13不变，无第二份资料真源。人物、事件、片段、目录、资源和批量迁移不在本动作范围。
 
-升级边界：0.22 trace/checkpoint 按既有 runtime_version 守卫拒绝在0.23重放或比较，应重新录制；普通 Story Save 继续独立的格式/能力/指纹规则。正文替换可能使旧存档指纹不再相符。升级前保留完整工程和原记录。原生合成输入、WASM/Node验证不替代真实浏览器、系统输入法或跨平台原生验收。
+升级边界：0.23 trace/checkpoint 按既有 runtime_version 守卫拒绝在0.24重放或比较，应重新录制；普通 Story Save 继续独立的格式/能力/指纹规则。同版本内成功移源要求运行指纹不变。升级前保留完整工程和原记录。工作分支不等于正式发行，原生合成输入与Node/WASM不替代物理输入法、读屏或真实浏览器验收。
 
 ## 使用入口
+
+- [实体资料移源](docs/entity-source-move.md)：明确身份与目标、两侧预览、一次事务、撤销及真实来源
 
 - [逐处审阅后安全改稿](docs/selective-replace.md)：当前项与勾选集合、命中上下文、前后预览、一次撤销与保存
 

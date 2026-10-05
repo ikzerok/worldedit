@@ -64,6 +64,7 @@ impl Settings {
 pub(super) struct Location {
     pub tab: Option<Tab>,
     pub file: PathBuf,
+    pub source_entity: Option<String>,
     pub cursor: Option<usize>,
     pub source_scroll: [f32; 2],
     pub source_baseline: Option<String>,
@@ -241,6 +242,11 @@ impl WorldeditApp {
         Location {
             tab: Some(self.tab),
             file: self.active_file.clone(),
+            source_entity: self
+                .entity_source_navigation
+                .as_ref()
+                .filter(|(_, path)| *path == self.active_file && self.tab == Tab::Edit)
+                .map(|(id, _)| id.clone()),
             cursor,
             source_scroll: self.personal.source_scroll,
             source_view: source.and_then(|_| {
@@ -352,6 +358,7 @@ impl WorldeditApp {
         mut location: Location,
         ctx: &egui::Context,
     ) {
+        let entity_source = self.rebase_entity_source_location(&mut location);
         if location.tab == Some(Tab::Manuscript) {
             if let Ok(mut session) = serde_json::from_value::<super::manuscript::ManuscriptSession>(
                 location.manuscript.clone(),
@@ -518,6 +525,9 @@ impl WorldeditApp {
         }
         if let Ok(session) = serde_json::from_value(location.manuscript) {
             self.restore_manuscript_session(session);
+        }
+        if let Some(id) = entity_source {
+            self.focus_entity_source(&id);
         }
     }
 }

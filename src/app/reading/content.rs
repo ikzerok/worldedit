@@ -55,7 +55,7 @@ impl WorldeditApp {
                 kind_label(&target.kind),
                 target.id
             )));
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 if ui
                     .add_enabled(
                         self.active_reading_panel.is_none(),
@@ -83,10 +83,20 @@ impl WorldeditApp {
                     self.close_transient_reading();
                 }
                 if ui.button("定位源文件").clicked() {
-                    self.jump_to_file(&object.file, object.line, 1);
+                    if target.kind == "entity" {
+                        self.jump_to_entity_source(&target.id);
+                    } else {
+                        self.jump_to_file(&object.file, object.line, 1);
+                    }
                     self.close_transient_reading();
                 }
             });
+            if target.kind == "entity"
+                && self.active_reading_panel.is_none()
+                && ui.button("移到其他源码…").clicked()
+            {
+                self.begin_entity_source_move(&target.id);
+            }
             ui.label(theme::muted(
                 "按当前工程内容汇总；表单修改应用后会更新此页。",
             ));

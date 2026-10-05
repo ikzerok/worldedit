@@ -21,6 +21,7 @@ mod conflicts;
 mod deletion;
 mod draft_lifecycle;
 mod entities;
+mod entity_source_move;
 mod export_scope;
 #[cfg(not(target_arch = "wasm32"))]
 mod frame_profile;
@@ -333,6 +334,8 @@ pub struct WorldeditApp {
     delete_form: Option<authoring_forms::DeleteForm>,
     rename_form: Option<authoring_forms::RenameForm>,
     source_move_form: Option<source_lifecycle_ui::SourceMoveForm>,
+    entity_source_move_form: Option<entity_source_move::EntitySourceMoveForm>,
+    entity_source_navigation: Option<(String, PathBuf)>,
     preset_editor: Option<presets::PresetEditor>,
     alias_input: String,
     link_query: String,
