@@ -568,3 +568,6 @@ mod saltbell_focus;
 
 #[path = "ime_focus_tests.rs"]
 mod ime_focus;
+
+#[path = "variable_write_tests.rs"]
+mod variable_writes;

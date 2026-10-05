@@ -304,6 +304,7 @@ pub struct WorldeditApp {
     replay_debugger: ReplayDebugger,
     comparison: play::comparison::ComparisonState,
     play_scroll_bottom: bool,
+    play_keyboard: play::keyboard::PlayKeyboard,
     event_editor: Option<EventEditor>,
     character_editor: Option<CharacterEditor>,
     world_editor: Option<WorldDraft>,

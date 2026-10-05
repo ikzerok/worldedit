@@ -53,6 +53,7 @@ impl WorldeditApp {
             replay_debugger: ReplayDebugger::default(),
             comparison: play::comparison::ComparisonState::default(),
             play_scroll_bottom: false,
+            play_keyboard: play::keyboard::PlayKeyboard::default(),
             event_editor: None,
             character_editor: None,
             world_editor: None,
@@ -307,6 +308,7 @@ impl WorldeditApp {
         self.alias_input.clear();
         self.link_query.clear();
         self.play = None;
+        self.play_keyboard.new_session();
         self.comparison = play::comparison::ComparisonState::default();
         self.replay_debugger.explanations = None;
         self.event_editor = None;

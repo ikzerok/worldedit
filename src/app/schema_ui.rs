@@ -354,16 +354,31 @@ impl WorldeditApp {
 
 fn draw_plan(ui: &mut egui::Ui, plan: &SchemaEditPreview) {
     ui.separator();
-    ui.label(format!(
-        "影响预览：{} 项字段/约束变化，{} 个实例",
-        plan.field_changes.len(),
-        plan.instance_impacts.len()
-    ));
-    if !plan.complete {
+    if plan.complete {
+        ui.label(format!(
+            "完整影响预览：{} 项字段/约束变化，{} 个受影响实例",
+            plan.field_changes.len(),
+            plan.instance_impacts.len()
+        ));
+        if plan.instance_impacts.is_empty() {
+            ui.label("已检查全部可用源码，确认没有受影响实例。");
+        }
+    } else {
+        ui.label(format!(
+            "部分影响预览：{} 项已知字段/约束变化，{} 个已知受影响实例",
+            plan.field_changes.len(),
+            plan.instance_impacts.len()
+        ));
         ui.colored_label(
             theme::ERROR(),
-            "源码或绑定尚不完整，影响列表不能视为全部；允许保留错误草稿，发布前必须修复。",
+            "无法确定全部实例影响；当前列表不是完整结果。允许保留错误草稿，运行或发布前必须修复。",
         );
+        for reason in &plan.incomplete_reasons {
+            ui.colored_label(theme::ERROR(), reason.label());
+        }
+        if plan.instance_impacts.is_empty() {
+            ui.label("当前没有已知受影响实例，不代表没有影响。");
+        }
     }
     for change in &plan.field_changes {
         ui.label(format!(

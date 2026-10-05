@@ -179,17 +179,7 @@ pub(super) fn render(
             access.focus,
         );
     }
-    for difference_value in &compared.result.variable_differences {
-        difference(
-            ui,
-            compared,
-            difference_value,
-            false,
-            &mut state.selected_state,
-            catalog,
-            access.focus,
-        );
-    }
+    super::variables::render(ui, compared, state, access, request);
     ui.add_space(theme::SPACE_MD);
     ui.heading("实际状态动作");
     let ids: std::collections::BTreeSet<_> = [&compared.result.left, &compared.result.right]

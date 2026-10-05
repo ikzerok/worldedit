@@ -150,6 +150,8 @@ impl WorldeditApp {
             self.comparison.b,
             &self.comparison.selected_state,
             self.comparison.selected_action,
+            &self.comparison.selected_variable,
+            self.comparison.selected_write,
         ));
         let access = NavigationAccess {
             blocked: blocked.as_deref(),
@@ -287,7 +289,10 @@ impl WorldeditApp {
                 super::focus::restore(ctx, &mut self.comparison.restore_focus);
                 let mut scroll = egui::ScrollArea::vertical()
                     .id_salt("route-comparison-body")
-                    .auto_shrink([false, false]);
+                    .auto_shrink([false, false])
+                    // 快速 Tab 时上一控件的滚动动画不能继续把新焦点带出窄视口。
+                    // 仅关闭程序化目标动画；手动滚动仍由原生 ScrollArea 处理。
+                    .animated(false);
                 if self.comparison.restore_scroll {
                     // 与作者书稿返回相同：旧焦点目标和惯性不能覆盖明确保存的位置。
                     let mut state = egui::scroll_area::State::default();

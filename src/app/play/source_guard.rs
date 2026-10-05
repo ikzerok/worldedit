@@ -11,6 +11,12 @@ impl WorldeditApp {
             return Err("实际运行快照已过期或来源内容已变化，请重新运行后定位".into());
         }
         let snapshot = self.snapshot.as_ref().ok_or("当前没有可确认的编译来源")?;
+        if snapshot.result.has_errors() {
+            return Err("当前编译稿存在错误，请修正并重新运行后定位".into());
+        }
+        if snapshot.result.options != self.project.compile_options() {
+            return Err("当前编译选项与已应用稿不一致，请重新编译后定位".into());
+        }
         if snapshot.result.sources != scope.sources {
             return Err("当前编译来源不再是此次实际运行的源码集合".into());
         }
@@ -24,6 +30,19 @@ impl WorldeditApp {
             return Err("工作区仍有恢复冲突，无法确认来源".into());
         }
         Ok(())
+    }
+
+    /// 仅实际跳转读取完整磁盘基线；绘制/可用状态不能每帧扫描工作区。
+    pub(super) fn play_source_navigation_guard(
+        &self,
+        scope: &AppliedPlayScope,
+    ) -> Result<(), String> {
+        self.play_source_guard(scope)?;
+        self.project.verify_review_navigation().map_err(|reason| {
+            reason
+                .replace("审稿来源需要刷新", "运行证据的外部来源需要刷新")
+                .replace("审稿", "运行证据")
+        })
     }
 
     pub(super) fn play_source_hit(

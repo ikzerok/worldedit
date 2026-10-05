@@ -1,7 +1,8 @@
 //! 验证当前比较中的实际证据，再进入已有作者来源桥。
 use super::ComparedRoutes;
 use crate::app::WorldeditApp;
-use worldline_core::evidence_source::EvidenceSource;
+use worldline_core::evidence_source::{EvidenceSource, EvidenceSourceOwner};
+use worldline_runtime::VariableWriteRecord;
 
 pub(super) struct NavigationAccess<'a> {
     pub blocked: Option<&'a str>,
@@ -14,7 +15,37 @@ pub(super) struct ComparisonSourceRequest {
     pub source: EvidenceSource,
 }
 
+pub(super) fn variable_source(record: &VariableWriteRecord) -> Option<&EvidenceSource> {
+    let source = record.source.as_ref()?;
+    match &source.owner {
+        EvidenceSourceOwner::VariableWrite {
+            node,
+            variable,
+            operation,
+        } if record.node.as_ref() == Some(node)
+            && record.variable == *variable
+            && record.operation == *operation =>
+        {
+            Some(source)
+        }
+        _ => None,
+    }
+}
+
 fn contains_source(compared: &ComparedRoutes, source: &EvidenceSource) -> bool {
+    if matches!(source.owner, EvidenceSourceOwner::VariableWrite { .. }) {
+        // 新类别不能借旧 state/choice 字段中的来源取得导航授权。
+        return [&compared.result.left, &compared.result.right]
+            .into_iter()
+            .any(|side| {
+                side.variable_writes.captured
+                    && side
+                        .variable_writes
+                        .records
+                        .iter()
+                        .any(|record| variable_source(record) == Some(source))
+            });
+    }
     let first = compared.result.alignment.first_difference.as_ref();
     first.is_some_and(|difference| {
         [
@@ -52,7 +83,7 @@ pub(super) fn source_button(
         source_key,
     ));
     let response = super::focus::widget(ui, id, |ui| {
-        ui.add_enabled(reason.is_none(), egui::Button::new(label))
+        ui.add_enabled(reason.is_none(), egui::Button::new(label).wrap())
     });
     access.ime_focus.observe(ui.ctx(), before, &response);
     access.focus.reveal(ui, &response);
@@ -94,7 +125,7 @@ impl WorldeditApp {
             if compared.id != request.result_id || !contains_source(compared, &request.source) {
                 return Err("证据已不属于当前比较结果，请重新选择动作".to_owned());
             }
-            self.play_source_guard(&compared.scope)?;
+            self.play_source_navigation_guard(&compared.scope)?;
             let hit = self.play_source_hit(&compared.scope, &request.source)?;
             self.project
                 .verify_source_navigation(&hit.path, self.project.document(&hit.path)?)?;

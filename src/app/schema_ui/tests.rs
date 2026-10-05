@@ -174,3 +174,186 @@ fn character_constraint_in_113_previews_cancel_applies_and_undoes_without_coerci
     app.undo(false);
     assert_eq!(app.project.content_baseline(), baseline);
 }
+
+fn plan_frame(plan: &SchemaEditPreview, width: f32) -> egui::FullOutput {
+    let ctx = egui::Context::default();
+    ctx.run(
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 1200.0))),
+            ..Default::default()
+        },
+        |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_plan(ui, plan));
+        },
+    )
+}
+
+fn visible(output: &egui::FullOutput, text: &str) -> bool {
+    output
+        .shapes
+        .iter()
+        .any(|shape| find(&shape.shape, text).is_some_and(|point| shape.clip_rect.contains(point)))
+}
+
+#[test]
+fn missing_source_warning_is_visible_while_cancel_apply_and_undo_preserve_drafts() {
+    let (ctx, mut app) = app();
+    let baseline = app.project.content_baseline();
+    let original = app.schema_ui.source.clone();
+    app.schema_ui.source.push_str("include \"missing.wl\"\n");
+    let draft = app.schema_ui.source.clone();
+    click(&ctx, &mut app, "预览约束影响");
+    let plan = app.schema_ui.preview.as_ref().unwrap();
+    assert!(!plan.complete);
+    assert!(plan.instance_impacts.is_empty());
+    let output = plan_frame(plan, 520.0);
+    assert!(visible(
+        &output,
+        "部分影响预览：0 项已知字段/约束变化，0 个已知受影响实例"
+    ));
+    assert!(visible(
+        &output,
+        "无法确定全部实例影响；当前列表不是完整结果。允许保留错误草稿，运行或发布前必须修复。"
+    ));
+    assert!(visible(
+        &output,
+        "源码未完整加载（缺失、不可读、越界或 include 异常）"
+    ));
+    assert!(visible(&output, "当前没有已知受影响实例，不代表没有影响。"));
+    assert_eq!(app.project.content_baseline(), baseline);
+    click(&ctx, &mut app, "取消影响预览");
+    assert!(app.schema_ui.preview.is_none());
+    assert_eq!(app.schema_ui.source, draft);
+    app.schema_ui.close(&ctx);
+    app.open_schema_editor(&ctx);
+    assert_eq!(app.schema_ui.source, draft);
+    click(&ctx, &mut app, "预览约束影响");
+    click(&ctx, &mut app, "应用约束草稿");
+    assert_eq!(app.project.document(&app.active_file).unwrap(), draft);
+    assert!(app.project.compile().has_errors());
+    assert_eq!(app.history.len(), 1);
+    app.undo(false);
+    frame(&ctx, &mut app, vec![]);
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.schema_ui.source, original);
+}
+
+#[test]
+fn complete_zero_instances_and_unknown_zero_instances_have_distinct_visible_text() {
+    let (_, mut app) = app();
+    let source = app
+        .schema_ui
+        .source
+        .replace("bind entity town to city\n", "");
+    app.project
+        .set_text(&app.active_file, source.clone())
+        .unwrap();
+    let request = SourceEditRequest {
+        schema_version: 1,
+        path: app
+            .active_file
+            .strip_prefix(&app.project.root)
+            .unwrap()
+            .to_owned(),
+        expected_baseline: app.project.content_baseline(),
+        source: source.replace("population number", "population text"),
+    };
+    let complete = app.project.preview_schema_edit(&request).unwrap();
+    let incomplete = app
+        .project
+        .preview_schema_edit(&SourceEditRequest {
+            source: request.source.clone() + "include \"../outside.wl\"\n",
+            ..request
+        })
+        .unwrap();
+    assert!(complete.complete);
+    assert!(!incomplete.complete);
+    assert!(complete.instance_impacts.is_empty());
+    assert!(incomplete.instance_impacts.is_empty());
+    for width in [320.0, 1000.0] {
+        let known = plan_frame(&complete, width);
+        let unknown = plan_frame(&incomplete, width);
+        assert!(visible(
+            &known,
+            "完整影响预览：1 项字段/约束变化，0 个受影响实例"
+        ));
+        assert!(visible(&known, "已检查全部可用源码，确认没有受影响实例。"));
+        assert!(!visible(
+            &unknown,
+            "已检查全部可用源码，确认没有受影响实例。"
+        ));
+        assert!(visible(
+            &unknown,
+            "部分影响预览：1 项已知字段/约束变化，0 个已知受影响实例"
+        ));
+        assert!(visible(
+            &unknown,
+            "当前没有已知受影响实例，不代表没有影响。"
+        ));
+    }
+}
+
+#[test]
+fn incomplete_preview_shows_known_instances_and_core_reasons_without_reclassifying_diagnostics() {
+    let (_, app) = app();
+    let source = app
+        .schema_ui
+        .source
+        .replace("population number", "population text")
+        .replace(
+            "property population = 0",
+            "property population = 0\n  property population = 1",
+        )
+        + "include \"missing.wl\"\nperiod\nschema broken for entity\n  field incomplete\n";
+    let request = SourceEditRequest {
+        schema_version: 1,
+        path: app
+            .active_file
+            .strip_prefix(&app.project.root)
+            .unwrap()
+            .to_owned(),
+        expected_baseline: app.project.content_baseline(),
+        source,
+    };
+    let mut plan = app.project.preview_schema_edit(&request).unwrap();
+    assert_eq!(plan.incomplete_reasons.len(), 4);
+    assert_eq!(plan.instance_impacts.len(), 1);
+    // 展示原因只来自 core 字段；删掉诊断仍必须保留全部原因提示。
+    plan.before_diagnostics.clear();
+    plan.after_diagnostics.clear();
+    let output = plan_frame(&plan, 520.0);
+    for reason in &plan.incomplete_reasons {
+        assert!(visible(&output, reason.label()), "原因不可见：{reason:?}");
+    }
+    assert!(output.shapes.iter().any(|shape| find(
+        &shape.shape,
+        "entity:town · [\"city\"] → [\"city\"] · 诊断 0 → 1"
+    )
+    .is_some()));
+}
+
+#[test]
+fn repaired_source_remains_unknown_for_transition_then_becomes_complete_in_ui() {
+    let (ctx, mut app) = app();
+    let source = app.schema_ui.source.clone();
+    app.project
+        .set_text(
+            &app.active_file,
+            source.clone() + "include \"missing.wl\"\n",
+        )
+        .unwrap();
+    app.recompile();
+    app.load_schema_file(app.active_file.clone());
+    app.schema_ui.source = source;
+    click(&ctx, &mut app, "预览约束影响");
+    assert!(!app.schema_ui.preview.as_ref().unwrap().complete);
+    click(&ctx, &mut app, "应用约束草稿");
+    click(&ctx, &mut app, "预览约束影响");
+    let plan = app.schema_ui.preview.as_ref().unwrap();
+    assert!(plan.complete);
+    assert!(plan.incomplete_reasons.is_empty());
+    assert!(visible(
+        &plan_frame(plan, 520.0),
+        "已检查全部可用源码，确认没有受影响实例。"
+    ));
+}

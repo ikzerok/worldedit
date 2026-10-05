@@ -4,10 +4,12 @@ pub(in crate::app) mod comparison;
 mod debugger;
 mod evidence;
 mod evidence_navigation;
+pub(in crate::app) mod keyboard;
 mod replay;
 mod replay_location;
 pub(in crate::app) mod scope;
 mod source_guard;
+mod start;
 mod story;
 
 use super::WorldeditApp;

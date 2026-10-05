@@ -60,6 +60,10 @@ impl WorldeditApp {
         self.comparison.result = None;
         self.comparison.selected_state = None;
         self.comparison.selected_action = None;
+        self.comparison.selected_variable = None;
+        self.comparison.selected_write = None;
+        self.comparison.restore_focus = None;
+        super::focus::queue_restore(ctx, None);
         self.comparison.scroll = 0.0;
         self.comparison.restore_scroll = true;
         self.comparison.notice = None;
@@ -154,6 +158,34 @@ impl WorldeditApp {
                                 .first()
                                 .or_else(|| result.right.state_actions.records.first())
                                 .map(|record| record.state.clone())
+                        });
+                    self.comparison.selected_variable = result
+                        .variable_differences
+                        .first()
+                        .map(|difference| difference.id.clone())
+                        .or_else(|| {
+                            result
+                                .left
+                                .variable_writes
+                                .records
+                                .first()
+                                .or_else(|| result.right.variable_writes.records.first())
+                                .map(|record| record.variable.clone())
+                        })
+                        .or_else(|| {
+                            result
+                                .left
+                                .vars
+                                .as_ref()
+                                .and_then(|vars| vars.keys().next())
+                                .or_else(|| {
+                                    result
+                                        .right
+                                        .vars
+                                        .as_ref()
+                                        .and_then(|vars| vars.keys().next())
+                                })
+                                .cloned()
                         });
                     self.comparison.result = Some(ComparedRoutes {
                         id: job.id,
