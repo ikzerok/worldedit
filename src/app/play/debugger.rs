@@ -1,5 +1,6 @@
 use super::super::{PlayState, ReplayDebugger, SavedReplayPath};
 use super::evidence_navigation::{EvidenceNavigationAccess, EvidenceNavigationRequest};
+use super::keyboard::{PlayKeyboard, Target};
 use super::replay_location::failure_location;
 use crate::theme;
 use worldline_runtime::{ReplayOrigin, ReplayStatus, ReplayTrace, REPLAY_SCHEMA_VERSION};
@@ -9,6 +10,7 @@ const MAX_IMPORTED_TRACE_STEPS: usize = 20_000;
 const MAX_IMPORTED_TRACE_STRING_BYTES: usize = 256 * 1024;
 const MAX_SAVED_REPLAY_PATHS: usize = 64;
 pub(super) struct DebuggerRequests<'a> {
+    pub keyboard: &'a mut PlayKeyboard,
     pub replay: &'a mut bool,
     pub failure: &'a mut bool,
     pub evidence: &'a mut Option<EvidenceNavigationRequest>,
@@ -24,6 +26,7 @@ pub(super) fn render_debugger_controls(
     evidence_access: &EvidenceNavigationAccess,
 ) {
     let DebuggerRequests {
+        keyboard,
         replay: replay_request,
         failure: failure_jump,
         evidence: evidence_jump,
@@ -48,7 +51,24 @@ pub(super) fn render_debugger_controls(
             ui.label("路径名");
             ui.add(egui::TextEdit::singleline(&mut debugger.path_name).desired_width(120.0));
         });
-        if ui.button("● 保存当前路径").clicked() {
+        if keyboard.wants_record_focus() {
+            let unavailable = if debugger.saved_paths.len() >= MAX_SAVED_REPLAY_PATHS {
+                Some(format!("当前会话最多保留 {MAX_SAVED_REPLAY_PATHS} 条路径"))
+            } else if trace.steps.len() > MAX_IMPORTED_TRACE_STEPS
+                || serde_json::to_vec(&trace)
+                    .map_or(true, |json| json.len() > 4 * MAX_IMPORTED_TRACE_BYTES)
+            {
+                Some("当前路径超过 20,000 步或 4 MiB 保存边界".into())
+            } else {
+                None
+            };
+            if let Some(notice) = unavailable {
+                debugger.notice = Some(notice);
+                keyboard.cancel();
+            }
+        }
+        let record = keyboard.button(ui, "record", Some(Target::Record), true, "● 保存当前路径");
+        if keyboard.activation(&record).is_some() {
             let name = if debugger.path_name.trim().is_empty() {
                 format!("路径 {}", debugger.saved_paths.len() + 1)
             } else {

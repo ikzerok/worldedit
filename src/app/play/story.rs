@@ -1,11 +1,11 @@
 //! 试玩及运行状态。
-use super::super::{PlayPane, PlayState, WorldeditApp};
-use super::debugger;
+use super::super::{PlayPane, WorldeditApp};
+use super::{debugger, keyboard::Target};
 use crate::theme;
-use worldline_core::{Analysis, Program};
-use worldline_runtime::{ContinuationOutcome, Output, ReplayBudget, ReplayCancellation, Story};
+use worldline_runtime::{ContinuationOutcome, Output, ReplayBudget, ReplayCancellation};
 impl WorldeditApp {
     pub(super) fn play_tab_inner(&mut self, ctx: &egui::Context) {
+        self.prepare_play_keyboard(ctx);
         self.poll_replay(ctx);
         let current_inputs = self.unapplied_play_inputs();
         // 无故事 / 编译有错误时的引导
@@ -38,18 +38,22 @@ impl WorldeditApp {
                             ui.add(egui::DragValue::new(&mut self.replay_debugger.seed));
                         });
                         super::bounded::render_live_budget(ui, &mut self.replay_debugger);
-                        if ui
-                            .button(egui::RichText::new("▶ 开始试玩").size(20.0))
-                            .clicked()
-                        {
-                            self.start_play();
+                        let start = self.play_keyboard.button(
+                            ui,
+                            "start",
+                            None,
+                            true,
+                            egui::RichText::new("▶ 开始试玩").size(20.0),
+                        );
+                        if let Some(activation) = self.play_keyboard.activation(&start) {
+                            self.start_play_activated(ctx, activation);
                         }
                     });
                 });
             });
             return;
         }
-        let mut restart = false;
+        let mut restart = None;
         let mut reading_request = None;
         let mut replay_request = false;
         let mut failure_jump = false;
@@ -80,6 +84,7 @@ impl WorldeditApp {
                             }
                         } else if ui.button("Ⅱ 暂停").clicked() {
                             play.paused = true;
+                            self.play_keyboard.cancel();
                         }
                         if ui
                             .add_enabled(!play.ended && !play.stopped, egui::Button::new("■ 停止"))
@@ -88,11 +93,12 @@ impl WorldeditApp {
                             play.paused = true;
                             play.stopped = true;
                             play.interruption = Some(ContinuationOutcome::Cancelled);
+                            self.play_keyboard.cancel();
                         }
                     });
-                    if ui.button("↻ 重新开始（已应用稿）").clicked() {
-                        restart = true;
-                    }
+                    let response = self.play_keyboard.button(ui, "restart", None, true,
+                        "↻ 重新开始（已应用稿）");
+                    restart = self.play_keyboard.activation(&response);
                 }
                 super::bounded::render_live_budget(ui, &mut self.replay_debugger);
                 if let Some(outcome) = self.play.as_ref().and_then(|play| play.interruption) {
@@ -114,6 +120,8 @@ impl WorldeditApp {
                     });
                 }
                 egui::ScrollArea::vertical()
+                    // 键盘交接下一帧就应看见目标，不等待动画状态再多推迟一帧布局。
+                    .animated(false)
                     .id_salt("play-side-scroll")
                     .show(ui, |ui| {
                         if !narrow {
@@ -157,7 +165,7 @@ impl WorldeditApp {
                                 ui.label(crate::theme::muted("点击关键词看注释；点击“选择”推进。"));
                             }
                             for (i, (label, links, enabled, reason)) in choices.iter().enumerate() {
-                                let mut choose = false;
+                                let mut choose = None;
                                 ui.push_id(i, |ui| {
                                     ui.group(|ui| {
                                         {
@@ -172,12 +180,11 @@ impl WorldeditApp {
                                                 reading_request = Some(target);
                                             }
                                         }
-                                        choose = ui
-                                            .add_enabled(
-                                                *enabled && !play.paused,
-                                                egui::Button::new(format!("选择：{label}")),
-                                            )
-                                            .clicked();
+                                        let response = self.play_keyboard.button(ui, "choice",
+                                            Some(Target::Choice(i)), *enabled && !play.paused
+                                                && self.play_confirmation.is_none(),
+                                            format!("选择：{label}"));
+                                        choose = self.play_keyboard.activation(&response);
                                         if let Some(reason) = reason {
                                             ui.label(crate::theme::muted(format!(
                                                 "暂不可选：{reason}"
@@ -185,15 +192,15 @@ impl WorldeditApp {
                                         }
                                     });
                                 });
-                                if choose
-                                    && play
-                                        .story
-                                        .as_mut()
-                                        .map(|s| s.choose_presentation(i))
-                                        .is_some_and(|r| r.is_ok())
-                                {
-                                    self.replay_debugger.explanations = None;
-                                    self.play_scroll_bottom = true;
+                                if let Some(activation) = choose {
+                                    if play.story.as_mut().is_some_and(|story|
+                                        story.choose_presentation(i).is_ok()) {
+                                        self.play_keyboard.advanced(ctx, activation);
+                                        self.replay_debugger.explanations = None;
+                                        self.play_scroll_bottom = true;
+                                    } else {
+                                        self.play_keyboard.cancel();
+                                    }
                                 }
                             }
                         }
@@ -216,7 +223,7 @@ impl WorldeditApp {
                             play,
                             cur_version,
                             can_replay,
-                            debugger::DebuggerRequests { replay: &mut replay_request, failure: &mut failure_jump, evidence: &mut evidence_jump },
+                            debugger::DebuggerRequests { replay: &mut replay_request, failure: &mut failure_jump, evidence: &mut evidence_jump, keyboard: &mut self.play_keyboard },
                             &evidence_access,
                         );
                         ui.separator();
@@ -339,8 +346,8 @@ impl WorldeditApp {
                         ui.separator();
                     });
             });
-        if restart {
-            self.start_play();
+        if let Some(activation) = restart {
+            self.start_play_activated(ctx, activation);
         }
         if replay_request {
             self.begin_replay(ctx);
@@ -402,6 +409,14 @@ impl WorldeditApp {
                     );
                     match story.continue_story_bounded(budget, &ReplayCancellation::new()) {
                         Ok(continuation) => {
+                            self.play_keyboard.settled(
+                                ctx,
+                                continuation.outcome,
+                                story
+                                    .choice_presentations()
+                                    .iter()
+                                    .position(|choice| choice.enabled),
+                            );
                             match continuation.outcome {
                                 ContinuationOutcome::Choice | ContinuationOutcome::Ended => {
                                     play.interruption = None
@@ -457,6 +472,7 @@ impl WorldeditApp {
                             }
                         }
                         Err(e) => {
+                            self.play_keyboard.cancel();
                             play.error = Some(e.to_string());
                             play.paused = true;
                         }
@@ -492,68 +508,9 @@ impl WorldeditApp {
             }
         });
         if let Some(target) = reading_request {
+            self.play_keyboard.cancel();
             self.open_reading(target);
         }
-    }
-
-    pub(super) fn start_play_inner(&mut self, scope: super::scope::AppliedPlayScope) {
-        if !scope.matches_project(&self.project, self.version) {
-            self.replay_debugger.notice =
-                Some("已应用源码与编译快照不一致，请重新编译后运行".into());
-            return;
-        }
-        let Some(snap) = &self.snapshot else { return };
-        if snap.result.has_errors() {
-            return;
-        }
-        self.replay_debugger.explanations = None;
-        let source_catalog = snap.result.analysis.catalog.clone();
-        let source_wiki = worldline_core::wiki::KeywordIndex::new(&snap.result);
-        let entry_diagnostics = worldline_core::analysis::execution_diagnostics(
-            &snap.result.program,
-            &snap.result.analysis,
-        );
-        // 泄漏快照换取 'static 生命周期(点击级频率;见 PlayState 注释)
-        let leaked: &'static (Program, Analysis) = Box::leak(Box::new((
-            snap.result.program.clone(),
-            snap.result.analysis.clone(),
-        )));
-        match Story::new_with_seed(&leaked.0, &leaked.1, self.replay_debugger.seed) {
-            Ok(story) => {
-                self.play = Some(PlayState {
-                    story: Some(story),
-                    transcript: String::new(),
-                    transcript_links: Vec::new(),
-                    ended: false,
-                    error: None,
-                    version: scope.version,
-                    scope,
-                    source_catalog,
-                    source_wiki,
-                    paused: false,
-                    stopped: false,
-                    interruption: None,
-                    entry_diagnostics,
-                });
-                self.play_scroll_bottom = true;
-            }
-            Err(e) => {
-                self.play = Some(PlayState {
-                    story: None,
-                    transcript: String::new(),
-                    transcript_links: Vec::new(),
-                    ended: true,
-                    error: Some(e.to_string()),
-                    version: scope.version,
-                    scope,
-                    source_catalog,
-                    source_wiki,
-                    paused: true,
-                    stopped: false,
-                    interruption: None,
-                    entry_diagnostics,
-                });
-            }
-        }
+        self.prepare_play_keyboard(ctx);
     }
 }

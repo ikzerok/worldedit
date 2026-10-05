@@ -66,6 +66,7 @@ impl eframe::App for WorldeditApp {
             self.restore_personal_view(ctx);
         }
         self.author_shortcuts(ctx);
+        self.prepare_play_keyboard(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         let input_active = self
             .frame_profile
