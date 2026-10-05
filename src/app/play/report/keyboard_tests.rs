@@ -14,7 +14,11 @@ fn frame(
 ) -> egui::FullOutput {
     ctx.run(
         egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SIZE)),
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                ctx.data(|data| data.get_temp::<egui::Vec2>(egui::Id::new("report-test-size")))
+                    .unwrap_or(SIZE),
+            )),
             events,
             ..Default::default()
         },
@@ -221,3 +225,6 @@ fn report_keyboard_entry_cannot_skip_unapplied_scope_confirmation() {
         .contains("保留未应用稿"));
     assert_eq!(invariant(&app), before);
 }
+
+#[path = "keyboard_export_tests.rs"]
+mod export;

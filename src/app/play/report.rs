@@ -1,5 +1,6 @@
 //! 当前已应用快照的只读试玩报告；运行与 Markdown 只由 runtime 生成。
 mod export;
+mod focus;
 mod job;
 mod view;
 

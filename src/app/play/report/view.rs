@@ -28,6 +28,13 @@ impl WorldeditApp {
             && !self.ime_composing
             && !self.command_palette.ime
             && !self.command_palette.ime_frame;
+        let focus = super::focus::FocusReveal::for_frame(
+            ctx,
+            focus_on_open
+                || self.ime_composing
+                || self.command_palette.ime
+                || self.command_palette.ime_frame,
+        );
         let inputs = self.unapplied_play_inputs();
         if self.playthrough_report.confirmed_inputs != inputs {
             self.playthrough_report.scope_confirmed = false;
@@ -49,8 +56,18 @@ impl WorldeditApp {
             .max_width(ctx.screen_rect().width().min(900.0) - 24.0)
             .default_height(620.0)
             .resizable(true)
-            .vscroll(true)
             .show(ctx, |ui| {
+                // Resize的名义内容高度可能超过屏幕实际裁切区，滚动上限须按可见视口计。
+                let available = ui.available_rect_before_wrap();
+                let visible_height = available.height().min((ui.clip_rect().bottom() - available.top()).max(0.0));
+                // 窗口内置vscroll不能关闭程序化滚动动画，故显式保留同样的外层滚动范围。
+                egui::ScrollArea::vertical()
+                    .id_salt("playthrough-report-window-scroll")
+                    .animated(false)
+                    .max_height(visible_height)
+                    .min_scrolled_height(0.0)
+                    .auto_shrink(false)
+                    .show(ui, |ui| {
                 ui.colored_label(theme::WARNING(), "作者私密内容：实际正文、选择、说话者及源码相对文件名可能含私人信息。复制或保存前请核对全部预览及接收范围。");
                 ui.label("这是已验证的单条试玩区段；未探索分支不代表不可达，也不授予读者发布权限。");
                 ui.separator();
@@ -75,25 +92,27 @@ impl WorldeditApp {
                         route.response.request_focus();
                         route.response.scroll_to_me_animation(Some(egui::Align::Min), egui::style::ScrollAnimation::none());
                     }
+                    focus.reveal(ui, &route.response, route.response.rect);
                     ui.horizontal_wrapped(|ui| {
                         ui.label("步数上限");
-                        ui.add(egui::DragValue::new(&mut state.max_steps).range(0..=100_000));
+                        focus.widget(ui, |ui| ui.add(egui::DragValue::new(&mut state.max_steps).range(0..=100_000)));
                         ui.label("时限 ms");
-                        ui.add(egui::DragValue::new(&mut state.time_budget_ms).range(0..=30_000));
+                        focus.widget(ui, |ui| ui.add(egui::DragValue::new(&mut state.time_budget_ms).range(0..=30_000)));
                     });
                     ui.label(format!("验证当前已应用工程稿 #{}；已应用但未保存的修改也会参与。", self.version));
                     if !inputs.is_empty() {
-                        egui::CollapsingHeader::new(format!("未纳入的创作草稿 · {} 项", inputs.len()))
+                        let scope = egui::CollapsingHeader::new(format!("未纳入的创作草稿 · {} 项", inputs.len()))
                             .default_open(true)
                             .show(ui, |ui| {
                                 for input in &inputs {
                                     ui.label(format!("{} · {}", input.kind, input.source));
                                 }
                             });
-                        ui.checkbox(&mut state.scope_confirmed, "我确认仅验证已应用稿，以上草稿仍保留且不进入报告");
+                        focus.reveal(ui, &scope.header_response, scope.header_response.rect);
+                        focus.widget(ui, |ui| ui.checkbox(&mut state.scope_confirmed, "我确认仅验证已应用稿，以上草稿仍保留且不进入报告"));
                     }
-                    generate = ui.add_enabled(inputs.is_empty() || state.scope_confirmed,
-                        theme::primary("生成并预览已验证报告")).clicked();
+                    generate = focus.widget(ui, |ui| ui.add_enabled(inputs.is_empty() || state.scope_confirmed,
+                        theme::primary("生成并预览已验证报告"))).clicked();
                 });
                 if before != (state.route, state.max_steps, state.time_budget_ms) {
                     state.privacy_confirmed = false;
@@ -108,7 +127,7 @@ impl WorldeditApp {
                     ui.horizontal(|ui| {
                         ui.spinner();
                         ui.label("只读验证中…");
-                        cancel = ui.button("取消验证").clicked();
+                        cancel = focus.widget(ui, |ui| ui.button("取消验证")).clicked();
                     });
                 }
                 if let Some(reviewed) = &state.reviewed {
@@ -132,29 +151,35 @@ impl WorldeditApp {
                     if !reviewed.scope.excluded_inputs.is_empty() {
                         ui.label(format!("生成时排除 {} 项未应用草稿；输入仍保留。", reviewed.scope.excluded_inputs.len()));
                     }
-                    egui::ScrollArea::vertical()
+                    let preview = egui::ScrollArea::vertical()
+                        // TextEdit本身的光标滚入也要立即结算，避免焦点已稳定后仍插值位移。
+                        .animated(false)
                         .id_salt("playthrough-report-preview")
                         .max_height(280.0)
                         .show(ui, |ui| {
                             let mut markdown = reviewed.report.markdown.as_str();
                             ui.add(egui::TextEdit::multiline(&mut markdown).font(egui::TextStyle::Monospace)
-                                .desired_width(f32::INFINITY).desired_rows(12));
+                                .id(egui::Id::new("playthrough-report-markdown"))
+                                .desired_width(f32::INFINITY).desired_rows(12))
                         });
-                    ui.checkbox(&mut state.privacy_confirmed, "我已核对预览、验证范围与私密内容，确认复制或保存此作者报告");
+                    // 正文可能很长，只把受限预览视口滚入外层窗口，不追逐整篇TextEdit矩形。
+                    focus.reveal(ui, &preview.inner, preview.inner_rect);
+                    focus.widget(ui, |ui| ui.checkbox(&mut state.privacy_confirmed, "我已核对预览、验证范围与私密内容，确认复制或保存此作者报告"));
                     #[cfg(not(target_arch = "wasm32"))]
                     ui.horizontal_wrapped(|ui| {
                         ui.label("新 Markdown 文件");
-                        ui.add(egui::TextEdit::singleline(&mut state.destination)
-                            .hint_text("工作区外的绝对完整路径，以 .md 结尾").desired_width(370.0));
-                        browse = ui.button("系统选择器（可选）").clicked();
+                        focus.widget(ui, |ui| ui.add(egui::TextEdit::singleline(&mut state.destination)
+                            .id(egui::Id::new("playthrough-report-destination"))
+                            .hint_text("工作区外的绝对完整路径，以 .md 结尾").desired_width(370.0)));
+                        browse = focus.widget(ui, |ui| ui.button("系统选择器（可选）")).clicked();
                     });
                     ui.add_enabled_ui(current && selected && state.privacy_confirmed && state.job.is_none(), |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            copy = ui.button("复制 Markdown").clicked();
+                            copy = focus.widget(ui, |ui| ui.button("复制 Markdown")).clicked();
                             #[cfg(not(target_arch = "wasm32"))]
-                            { save = ui.button("保存新 Markdown 文件").clicked(); }
+                            { save = focus.widget(ui, |ui| ui.button("保存新 Markdown 文件")).clicked(); }
                             #[cfg(target_arch = "wasm32")]
-                            { save = ui.button("下载 Markdown").clicked(); }
+                            { save = focus.widget(ui, |ui| ui.button("下载 Markdown")).clicked(); }
                         });
                     });
                 }
@@ -162,7 +187,8 @@ impl WorldeditApp {
                     ui.colored_label(theme::WARNING(), notice);
                 }
                 ui.separator();
-                close = ui.button("关闭报告").clicked();
+                close = focus.widget(ui, |ui| ui.button("关闭报告")).clicked();
+                    });
             });
         if !open || close {
             self.close_playthrough_report();
