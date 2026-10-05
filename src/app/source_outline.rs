@@ -240,7 +240,7 @@ impl WorldeditApp {
         } else {
             "编辑位置 · 当前稿结构暂不可用".into()
         };
-        ui.heading(relative);
+        self.source_jump_heading(ctx, ui, relative);
         // 光标变动只更新提示文字，不能把源码的鼠标坐标和滚动视口挤走。
         // 提示区保持两行预算；完整长名与身份始终可用下方按钮/快捷键打开查看。
         let context_height = ui.text_style_height(&egui::TextStyle::Body) * 2.0;

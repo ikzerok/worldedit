@@ -117,6 +117,10 @@ impl WorldeditApp {
                     self.command_palette.open = false;
                     true
                 }
+                Some("source-jump") => {
+                    self.close_source_jump(ctx);
+                    true
+                }
                 Some("source-outline") => {
                     self.close_source_outline(ctx);
                     true
@@ -195,6 +199,10 @@ impl WorldeditApp {
                 }
             }
             ui.separator();
+            if ui.button("跳转到行列  Ctrl+G").clicked() {
+                self.open_source_jump(ui.ctx());
+                ui.close();
+            }
             if ui.button(format!("本文件结构  {command}Shift+O")).clicked() {
                 self.open_source_outline(ui.ctx());
                 ui.close();
