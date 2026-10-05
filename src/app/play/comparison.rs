@@ -3,6 +3,7 @@ mod details;
 mod focus;
 mod job;
 mod navigation;
+mod variables;
 mod view;
 
 use super::super::WorldeditApp;
@@ -18,6 +19,8 @@ pub(in crate::app) struct ComparisonLocation {
     reversed: bool,
     selected_state: Option<String>,
     selected_action: Option<(bool, u64)>,
+    selected_variable: Option<String>,
+    selected_write: Option<(bool, u64)>,
     scroll: f32,
     focus: Option<egui::Id>,
 }
@@ -81,6 +84,8 @@ pub(in crate::app) struct ComparisonState {
     time_budget_ms: u64,
     selected_state: Option<String>,
     selected_action: Option<(bool, u64)>,
+    selected_variable: Option<String>,
+    selected_write: Option<(bool, u64)>,
     scroll: f32,
     restore_scroll: bool,
     restore_focus: Option<egui::Id>,
@@ -99,6 +104,8 @@ impl Default for ComparisonState {
             time_budget_ms: 30_000,
             selected_state: None,
             selected_action: None,
+            selected_variable: None,
+            selected_write: None,
             scroll: 0.0,
             restore_scroll: false,
             restore_focus: None,
@@ -158,6 +165,8 @@ impl WorldeditApp {
             reversed: self.comparison.result.as_ref().is_some_and(|r| r.reversed),
             selected_state: self.comparison.selected_state.clone(),
             selected_action: self.comparison.selected_action,
+            selected_variable: self.comparison.selected_variable.clone(),
+            selected_write: self.comparison.selected_write,
             scroll: self.comparison.scroll,
             focus: ctx.and_then(|ctx| ctx.memory(|m| m.focused())),
         })
@@ -180,6 +189,8 @@ impl WorldeditApp {
         }
         self.comparison.selected_state = location.selected_state;
         self.comparison.selected_action = location.selected_action;
+        self.comparison.selected_variable = location.selected_variable;
+        self.comparison.selected_write = location.selected_write;
         self.comparison.scroll = location.scroll.max(0.0);
         self.comparison.restore_scroll = true;
         self.comparison.restore_focus = location.focus;

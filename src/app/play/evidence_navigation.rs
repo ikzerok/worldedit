@@ -100,7 +100,8 @@ impl WorldeditApp {
         request: &EvidenceNavigationRequest,
     ) {
         let result: Result<SearchMatch, String> = (|| {
-            self.evidence_navigation_guard()?;
+            let play = self.play.as_ref().ok_or("当前没有可定位的运行")?;
+            self.play_source_navigation_guard(&play.scope)?;
             let actual = self
                 .play
                 .as_ref()
