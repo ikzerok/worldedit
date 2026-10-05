@@ -13,9 +13,10 @@ fn setup() -> (egui::Context, WorldeditApp, PathBuf) {
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("world.wl"), format!("let toll = 2\nevent start as \"渡口\"\n  choice \"{LONG}\" if toll > 0\n    -> end\n  choice \"同名分支\" if toll == 2\n    -> end\n  choice \"同名分支\"\n    -> end\nevent end as \"重逢\"\n  -> END\n")).unwrap();
     let ctx = egui::Context::default();
-    ctx.style_mut(|style| style.animation_time = 0.0);
     let creation = eframe::CreationContext::_new_kittest(ctx.clone());
     let mut app = WorldeditApp::new(&creation, Some(root.join("world.wl")));
+    // App 初始化会安装主题；关闭动画必须在其后进行。
+    ctx.style_mut(|style| style.animation_time = 0.0);
     app.tab = Tab::Timeline;
     assert!(!app.snapshot.as_ref().unwrap().result.has_errors());
     (ctx, app, root)
@@ -42,6 +43,13 @@ fn frame(
             app.command_window(ctx);
         },
     )
+}
+fn settle(ctx: &egui::Context, app: &mut WorldeditApp) -> egui::FullOutput {
+    // egui 新 Window 的首帧用于测量尺寸，未必产生可见文字，不能把它当最终绘制。
+    for _ in 0..3 {
+        frame(ctx, app, vec![], 1188.0);
+    }
+    frame(ctx, app, vec![], 1188.0)
 }
 fn text(shape: &Shape, out: &mut String) {
     match shape {
@@ -113,7 +121,9 @@ fn details(app: &WorldeditApp) -> Details {
     let graph = &app.snapshot.as_ref().unwrap().result.analysis.graph;
     let group = projected_groups(graph, true)
         .into_iter()
-        .find(|group| group.edges.len() == 3)
+        .find(|group| {
+            graph.nodes[group.from].name == "start" && graph.nodes[group.to].name == "end"
+        })
         .unwrap();
     Details {
         version: app.version,
@@ -139,8 +149,16 @@ fn grouping_preserves_each_original_edge_and_projects_scene_endpoints_only_for_t
     let original = serde_json::to_string(&graph).unwrap();
     let groups = projected_groups(&graph, true);
     assert_eq!(groups.len(), 1);
-    assert_eq!(groups[0].edges.len(), 3);
-    assert_eq!(group_label(&groups[0], &graph), "3 条连接 · 选择 3");
+    // 每个 choice 的可选入口与其显式 -> 是两个独立 core 边，不能丢掉后者。
+    assert_eq!(groups[0].edges, (0..6).collect::<Vec<_>>());
+    assert_eq!(
+        group_label(&groups[0], &graph),
+        "6 条连接 · 选择 3 · 直达 3"
+    );
+    assert_eq!(
+        graph.edges.iter().map(|edge| edge.line).collect::<Vec<_>>(),
+        vec![3, 4, 5, 6, 7, 8]
+    );
     assert_eq!(serde_json::to_string(&graph).unwrap(), original);
     let mut scene = graph.nodes[0].clone();
     scene.name = "start.branch".into();
@@ -152,12 +170,18 @@ fn grouping_preserves_each_original_edge_and_projects_scene_endpoints_only_for_t
     scene_edge.from = scene_index as u32;
     scene_edge.kind = EdgeKind::Drift;
     graph.edges.push(scene_edge);
-    graph.edges[1].kind = EdgeKind::Divert;
+    graph
+        .edges
+        .iter_mut()
+        .filter(|edge| edge.kind == EdgeKind::Choice)
+        .nth(1)
+        .unwrap()
+        .kind = EdgeKind::Divert;
     let timeline = projected_groups(&graph, true);
-    assert_eq!(timeline[0].edges.len(), 4);
+    assert_eq!(timeline[0].edges.len(), 7);
     assert_eq!(
         group_label(&timeline[0], &graph),
-        "4 条连接 · 选择 2 · 直达 1 · 漂流 1"
+        "7 条连接 · 选择 2 · 直达 4 · 漂流 1"
     );
     assert_eq!(projected_groups(&graph, false).len(), 2);
     let mut enter = graph.edges[0].clone();
@@ -166,13 +190,13 @@ fn grouping_preserves_each_original_edge_and_projects_scene_endpoints_only_for_t
     let mut internal = graph.edges[0].clone();
     internal.to = scene_index as u32;
     graph.edges.push(internal);
-    assert_eq!(projected_groups(&graph, true)[0].edges.len(), 4);
+    assert_eq!(projected_groups(&graph, true)[0].edges.len(), 7);
     assert_eq!(
         projected_groups(&graph, false)
             .iter()
             .map(|group| group.edges.len())
             .sum::<usize>(),
-        6
+        9
     );
     let _ = std::fs::remove_dir_all(root);
 }
@@ -187,22 +211,67 @@ fn grouped_badge_renders_once_at_supported_widths_and_zoom_then_details_show_ful
             for width in [1040.0, 1188.0, 1280.0] {
                 let output = frame(&ctx, &mut app, vec![], width);
                 let result = rendered(&output);
-                assert_eq!(result.matches("3 条连接 · 选择 3").count(), 1, "{result}");
+                assert_eq!(
+                    result.matches("6 条连接 · 选择 3 · 直达 3").count(),
+                    1,
+                    "{result}"
+                );
                 assert!(!result.contains("同名分支"), "平行标签不能继续叠画");
             }
         }
     }
     app.tab = Tab::Timeline;
     app.zoom = 1.0;
-    click_text(&ctx, &mut app, "3 条连接");
+    click_text(&ctx, &mut app, "6 条连接");
     let output = frame(&ctx, &mut app, vec![], 1040.0);
     let result = rendered(&output);
     assert!(result.contains(LONG), "{result}");
-    assert_eq!(result.matches("同名分支").count(), 2);
     assert!(result.contains("条件："));
-    for index in 1..=3 {
-        assert!(result.contains(&format!("定位第 {index} 条来源")));
+    let saved = ctx
+        .data(|data| data.get_temp::<Details>(state_id()))
+        .unwrap();
+    assert_eq!(saved.edges.len(), 6);
+    assert_eq!(
+        saved
+            .edges
+            .iter()
+            .filter(|edge| edge.label.as_deref() == Some("同名分支"))
+            .count(),
+        2
+    );
+    // 详情窗口有界，后面的原始边应通过真实滚动变得可见；不能要求六行同时装下。
+    let pointer = output
+        .shapes
+        .iter()
+        .find_map(|shape| text_point(&shape.shape, "定位第 1 条来源"))
+        .unwrap();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut output = output;
+    for _ in 0..24 {
+        let result = rendered(&output);
+        for index in 1..=6 {
+            if result.contains(&format!("定位第 {index} 条来源")) {
+                seen.insert(index);
+            }
+        }
+        if seen.len() == 6 {
+            break;
+        }
+        output = frame(
+            &ctx,
+            &mut app,
+            vec![
+                Event::PointerMoved(pointer),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: Vec2::new(0.0, -120.0),
+                    modifiers: Modifiers::NONE,
+                },
+            ],
+            1040.0,
+        );
     }
+    assert_eq!(seen, (1..=6).collect());
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -214,7 +283,7 @@ fn keyboard_can_close_reopen_and_navigate_each_original_source_then_back_without
         app.project.is_dirty(),
         app.history.len(),
     );
-    click_text(&ctx, &mut app, "3 条连接");
+    click_text(&ctx, &mut app, "6 条连接");
     frame(&ctx, &mut app, key(Key::Escape, Modifiers::NONE), 1188.0);
     assert!(ctx
         .data(|data| data.get_temp::<Details>(state_id()))
@@ -265,8 +334,12 @@ fn stale_deleted_replaced_or_externally_changed_edge_never_uses_old_source_line(
     assert!(app.personal.history.is_empty());
     ctx.data_mut(|data| data.insert_temp(state_id(), saved));
     app.version += 1;
-    let output = frame(&ctx, &mut app, vec![], 1188.0);
-    assert!(rendered(&output).contains("旧来源定位已停用"));
+    let output = settle(&ctx, &mut app);
+    let visible = rendered(&output);
+    assert!(visible.contains("旧来源定位已停用"), "{visible}");
+    // 稳定绘制也不能改变之前的导航拒绝或消费历史。
+    assert_eq!(app.tab, Tab::Timeline);
+    assert!(app.personal.history.is_empty());
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -282,9 +355,11 @@ fn single_edges_retain_readable_label_and_palette_hides_lower_edge_details() {
     let saved = details(&app);
     ctx.data_mut(|data| data.insert_temp(state_id(), saved));
     app.open_commands(&ctx, true);
-    let output = frame(&ctx, &mut app, vec![], 1188.0);
+    assert!(app.command_palette.open && app.command_palette.commands_only);
+    let output = settle(&ctx, &mut app);
     let text = rendered(&output);
-    assert!(text.contains("任务命令"));
+    assert!(text.contains("任务命令"), "{text}");
+    assert!(app.command_palette.open && app.command_palette.commands_only);
     assert!(!text.contains("连接详情 · 原始分支"));
     assert!(!text.contains("拖动卡片调整位置,右侧圆点用于连线"));
     let _ = std::fs::remove_dir_all(root);

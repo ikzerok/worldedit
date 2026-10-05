@@ -150,7 +150,11 @@ pub(super) fn draw_groups(
         painter.add(egui::Shape::line(
             crate::visual::bezier_points(start, c0, c1, end, 30),
             egui::Stroke::new(
-                if group.edges.len() > 1 { 2.3 } else { 1.5 },
+                if group.edges.len() > 1 {
+                    2.3_f32
+                } else {
+                    1.5_f32
+                },
                 color.gamma_multiply(0.65),
             ),
         ));
@@ -163,7 +167,7 @@ pub(super) fn draw_groups(
         );
         painter.line_segment(
             [middle, center + Vec2::new(0.0, 12.0)],
-            egui::Stroke::new(1.0, color.gamma_multiply(0.35)),
+            egui::Stroke::new(1.0_f32, color.gamma_multiply(0.35)),
         );
         let id = group_id(timeline, graph, &group);
         let label = group_label(&group, graph);
