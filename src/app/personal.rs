@@ -72,6 +72,8 @@ pub(super) struct Location {
     #[serde(skip)]
     pub source_selection_diagnostic: bool,
     #[serde(skip)]
+    pub source_outline: bool,
+    #[serde(skip)]
     pub source_problem: Option<std::sync::Arc<super::problems::SourceProblem>>,
     pub source_view: Option<source_view::SourceView>,
     pub target: Option<TargetRef>,
@@ -259,6 +261,7 @@ impl WorldeditApp {
             source_baseline: source.map(|(_, text)| super::writing_workspace::fingerprint(text)),
             source_problem: self.capture_problem_source(),
             source_secondary: selection.map(|range| range.secondary.index),
+            source_outline: false,
             source_selection_diagnostic: source.is_some_and(|(id, _)| {
                 ctx.is_some_and(|ctx| super::search::selection_is_diagnostic(ctx, id, selection))
             }),
@@ -290,6 +293,11 @@ impl WorldeditApp {
         }
     }
     pub(super) fn author_back(&mut self, ctx: &egui::Context) {
+        if self.tab == Tab::Edit && (self.ime_composing || self.ime_source_draft.is_some()) {
+            self.message =
+                Some("输入法组合或未提交稿仍待处理，未恢复旧源码位置；当前输入已保留".into());
+            return;
+        }
         if self.return_search_source_if_open(ctx) {
             return;
         }
@@ -396,6 +404,11 @@ impl WorldeditApp {
                 self.source_position_document(&self.active_file)
                     .is_some_and(|(_, source)| {
                         super::writing_workspace::fingerprint(source) == *baseline
+                            && (!location.source_outline
+                                || self
+                                    .project
+                                    .verify_source_navigation(&self.active_file, source)
+                                    .is_ok())
                     })
             });
             if location.tab == Some(Tab::Edit) && source_current {

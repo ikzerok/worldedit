@@ -1,12 +1,14 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.24.0 增加实体资料移源闭环：选中一条实体，核对稳定身份与当前来源，选择另一份已有活动源码，阅读两侧精确原文后一次应用。迁移后按同一实体身份回到新的来源，支持一次撤销/重做和显式保存。
+worldline 的 Rust / egui 作者工作台。0.25 开发中的当前源码结构闭环让作者在同一份语言文件内辨认声明、核对真实身份与位置、准确跳转并返回原稿。结构与来源范围由 core 的正式语言解析产生，界面只读取，不保存第二份正文或更改运行状态。
 
-操作见[实体资料移源](docs/entity-source-move.md)与[配对核心契约](https://github.com/ikzerok/worldline/blob/main/spec/entity-source-move.md)。声明范围、静态引用、运行指纹及保护规则全部来自 core。默认语言1.9、最高既有显式版本1.13不变，无第二份资料真源。人物、事件、片段、目录、资源和批量迁移不在本动作范围。
+工作分支不表示已交付或正式发行；已验范围持续记录在[0.25版本说明](https://github.com/ikzerok/worldedit/blob/main/docs/releases/v0.25.0.md)。本轮不新增 DSL，默认语言1.9、最高既有显式版本1.13保持。既有实体移源、逐处改稿、书稿审阅、试玩与读者公开选择继续保留。
 
-升级边界：0.23 trace/checkpoint 按既有 runtime_version 守卫拒绝在0.24重放或比较，应重新录制；普通 Story Save 继续独立的格式/能力/指纹规则。同版本内成功移源要求运行指纹不变。升级前保留完整工程和原记录。工作分支不等于正式发行，原生合成输入与Node/WASM不替代物理输入法、读屏或真实浏览器验收。
+升级边界：0.24运行轨迹与运行检查点（ReplayTrace / ReplayCheckpoint） 按既有 runtime_version 守卫拒绝在0.25重放或比较，应重新录制；普通 Story Save 继续按格式、能力和指纹独立校验。升级前保留完整工程和原记录。Linux合成输入、Node/WASM构建不替代物理输入法、读屏或各平台真实GUI验收。
 
 ## 使用入口
+
+- [当前源码结构与可信定位](https://github.com/ikzerok/worldedit/blob/main/docs/source-outline.md)：当前文件声明、精确范围、键盘跳转与作者位置返回
 
 - [实体资料移源](docs/entity-source-move.md)：明确身份与目标、两侧预览、一次事务、撤销及真实来源
 

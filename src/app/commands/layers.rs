@@ -34,6 +34,7 @@ impl WorldeditApp {
                 self.personal.settings.diagnostics && !self.personal.settings.focus,
             ),
             ("temporal-issues", self.temporal_issues.open),
+            ("source-outline", self.source_outline.open),
             ("search", self.search_open),
             ("commands", self.command_palette.open),
             ("preferences", self.personal.preferences_open),
@@ -78,6 +79,7 @@ impl WorldeditApp {
         for kind in new {
             let focus = match kind {
                 "search" => self.search_return_focus(),
+                "source-outline" => self.source_outline.return_focus,
                 "commands" => self.command_palette.previous_focus,
                 "schema" => self.schema_ui.return_focus,
                 "temporal-issues" => self.temporal_issues.return_focus,

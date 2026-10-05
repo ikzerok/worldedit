@@ -34,6 +34,7 @@ enum Action {
     NextProblem,
     PreviousProblem,
     MoveEntitySource,
+    SourceOutline,
 }
 fn commands() -> Vec<(&'static str, Action)> {
     vec![
@@ -53,6 +54,7 @@ fn commands() -> Vec<(&'static str, Action)> {
         ("空间 · 地图画布", Action::Tab(Tab::Map)),
         ("关系 · 世界关联", Action::Tab(Tab::Network)),
         ("编辑 · 源文件", Action::Tab(Tab::Edit)),
+        ("源码 · 本文件结构", Action::SourceOutline),
         ("实体 · 移到其他源码…", Action::MoveEntitySource),
         ("审阅 · 协作审阅", Action::Tab(Tab::Review)),
         ("语言 · 本地化", Action::Tab(Tab::Localization)),
@@ -106,6 +108,7 @@ impl WorldeditApp {
             return;
         }
         self.edit_shortcuts(ctx);
+        self.source_outline_shortcut(ctx);
         self.problems_shortcuts(ctx);
         self.character_region_shortcut(ctx);
         if ctx.input_mut(|i| {
@@ -278,6 +281,7 @@ impl WorldeditApp {
                     }
                 }
                 Action::MoveEntitySource => self.begin_current_entity_source_move(),
+                Action::SourceOutline => self.open_source_outline(ctx),
                 Action::Save => {
                     self.save();
                 }

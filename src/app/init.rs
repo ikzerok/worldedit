@@ -22,6 +22,7 @@ impl WorldeditApp {
             project,
             personal: personal::PersonalState::restore(cc.storage),
             command_palette: commands::CommandPalette::default(),
+            source_outline: source_outline::OutlineState::default(),
             draft_action: None,
             new_draft_baselines: HashMap::new(),
             frame_dirty_drafts: Vec::new(),
@@ -273,6 +274,7 @@ impl WorldeditApp {
         self.personal.history.clear();
         self.personal.source_scroll = [0.0; 2];
         self.command_palette = commands::CommandPalette::default();
+        self.source_outline = source_outline::OutlineState::default();
         self.export_confirmation = None;
         self.directory = None;
         self.draft_action = None;
