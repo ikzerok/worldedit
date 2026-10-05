@@ -168,3 +168,82 @@ fn source_jump_back_restores_reversed_selection_scroll_and_wrap_layout() {
         assert_eq!(h.source(), source);
     }
 }
+
+#[test]
+fn source_jump_filename_stays_left_aligned_with_fixed_heading_and_position_budget() {
+    let mut h = Harness::new(source());
+    let coordinates = SourceCoordinates::new(source()).unwrap();
+    let inside_crlf = source()[..source().find('\r').unwrap()].chars().count() + 1;
+    let long_name = format!("{}.wl", "潮汐档案馆第十三灯室记录".repeat(10));
+    for mode in [
+        crate::theme::ThemeMode::Dark,
+        crate::theme::ThemeMode::Light,
+    ] {
+        for size in [egui::vec2(1040.0, 660.0), egui::vec2(800.0, 600.0)] {
+            for font in [16.0, 28.0] {
+                let mut baseline = None;
+                for name in ["world.wl", long_name.as_str()] {
+                    for character in [
+                        coordinates
+                            .locate(source(), "1:1")
+                            .unwrap()
+                            .character_offset,
+                        coordinates
+                            .locate(source(), "11:9")
+                            .unwrap()
+                            .character_offset,
+                        inside_crlf,
+                    ] {
+                        h.select(character, character);
+                        crate::theme::configure(&h.ctx, mode);
+                        h.ctx.style_mut(|style| {
+                            style
+                                .text_styles
+                                .insert(egui::TextStyle::Body, egui::FontId::proportional(font));
+                            style
+                                .text_styles
+                                .insert(egui::TextStyle::Button, egui::FontId::proportional(font));
+                            style.text_styles.insert(
+                                egui::TextStyle::Heading,
+                                egui::FontId::proportional(font * 1.25),
+                            );
+                        });
+                        let mut geometry = None;
+                        h.tick += 1;
+                        let output = h.ctx.run(
+                            egui::RawInput {
+                                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
+                                time: Some(f64::from(h.tick) / 60.0),
+                                ..Default::default()
+                            },
+                            |ctx| {
+                                egui::CentralPanel::default().show(ctx, |ui| {
+                                    let origin = ui.cursor().min;
+                                    let response = h.app.source_jump_heading(ctx, ui, name);
+                                    geometry = Some((origin, response.rect, ui.min_rect()));
+                                });
+                            },
+                        );
+                        let (origin, position, whole) = geometry.unwrap();
+                        let title = text_rect(&output, name).expect("文件名应在固定预算内绘制");
+                        assert!(
+                            (title.left() - origin.x).abs() < 0.1,
+                            "长短文件名均须贴同一左边界：{name:?} {title:?}/{origin:?}"
+                        );
+                        assert!(title.right() <= position.left(), "长标题不能侵入行列入口");
+                        let actual = (title.left(), position, whole);
+                        if let Some(expected) = baseline {
+                            assert_eq!(
+                                actual, expected,
+                                "标题长短、行列位数和错误提示不能移动固定布局"
+                            );
+                        } else {
+                            baseline = Some(actual);
+                        }
+                        assert_eq!(h.source(), source());
+                    }
+                }
+            }
+        }
+    }
+}

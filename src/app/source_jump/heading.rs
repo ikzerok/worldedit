@@ -5,7 +5,7 @@ impl WorldeditApp {
         ctx: &egui::Context,
         ui: &mut egui::Ui,
         relative: &str,
-    ) {
+    ) -> egui::Response {
         let position = self.source_jump_position(ctx);
         let caption = position
             .as_ref()
@@ -20,18 +20,23 @@ impl WorldeditApp {
             .max(ui.spacing().interact_size.y);
         ui.horizontal(|ui| {
             let title_width = (ui.available_width() - width - ui.spacing().item_spacing.x).max(0.0);
-            ui.add_sized(
-                [title_width, height],
-                egui::Label::new(egui::RichText::new(relative).heading()).truncate(),
-            )
-            .on_hover_text(relative);
-            if ui
+            ui.allocate_ui_with_layout(
+                egui::vec2(title_width, height),
+                egui::Layout::left_to_right(egui::Align::Center).with_main_align(egui::Align::Min),
+                |ui| {
+                    ui.set_min_size(egui::vec2(title_width, height));
+                    ui.add(egui::Label::new(egui::RichText::new(relative).heading()).truncate())
+                        .on_hover_text(relative);
+                },
+            );
+            let response = ui
                 .add_sized([width, height], egui::Button::new(caption).truncate())
-                .on_hover_text(hint)
-                .clicked()
-            {
+                .on_hover_text(hint);
+            if response.clicked() {
                 self.open_source_jump(ctx);
             }
-        });
+            response
+        })
+        .inner
     }
 }
