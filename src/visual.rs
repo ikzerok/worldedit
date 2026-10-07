@@ -44,30 +44,13 @@ pub(super) fn truncated(s: &str, max: usize) -> String {
     }
 }
 
-pub(super) fn lighten(c: Color32) -> Color32 {
-    Color32::from_rgb(
-        c.r().saturating_add(25),
-        c.g().saturating_add(25),
-        c.b().saturating_add(25),
-    )
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{lighten, truncated};
-    use egui::Color32;
+    use super::truncated;
 
     #[test]
     fn truncation_preserves_short_text_and_marks_long_text() {
         assert_eq!(truncated("短文本", 4), "短文本");
         assert_eq!(truncated("一二三四五", 4), "一二三…");
-    }
-
-    #[test]
-    fn geometry_and_color_helpers_are_bounded() {
-        assert_eq!(
-            lighten(Color32::from_rgb(250, 10, 20)),
-            Color32::from_rgb(255, 35, 45)
-        );
     }
 }

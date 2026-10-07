@@ -1,4 +1,6 @@
-use egui::{Color32, RichText, Ui};
+use egui::{RichText, Ui};
+#[cfg(test)]
+mod appearance_tests;
 use std::path::Path;
 use worldline_core::localization::{
     LocalizationDiagnostic, LocalizationExchange, LocalizationExportPlan, LocalizationImportPlan,
@@ -136,8 +138,7 @@ pub(super) fn show(ui: &mut Ui, project: &mut Project, state: &mut LocalizationU
                 .export_plan
                 .as_ref()
                 .is_some_and(|plan| plan.can_export);
-            if ui
-                .add_enabled(can_export, egui::Button::new("导出 UTF-8 JSON…"))
+            if crate::theme::add_enabled(ui, can_export, egui::Button::new("导出 UTF-8 JSON…"))
                 .clicked()
             {
                 export_exchange(ui, project, state);
@@ -192,7 +193,11 @@ pub(super) fn show(ui: &mut Ui, project: &mut Project, state: &mut LocalizationU
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    ui.add_enabled(false, egui::Button::new("浏览器端暂不可应用译文"));
+                    crate::theme::add_enabled(
+                        ui,
+                        false,
+                        egui::Button::new("浏览器端暂不可应用译文"),
+                    );
                 }
             }
         }
@@ -320,11 +325,11 @@ fn show_parts(ui: &mut Ui, parts: &[LocalizationPart]) {
                 }
                 LocalizationPart::Placeholder { token } => {
                     ui.label("占位符");
-                    ui.colored_label(Color32::LIGHT_BLUE, token);
+                    ui.colored_label(crate::theme::resolved(ui.ctx()).colors.info, token);
                 }
                 LocalizationPart::Link { label, .. } => {
                     ui.label("链接");
-                    ui.colored_label(Color32::LIGHT_BLUE, label);
+                    ui.colored_label(crate::theme::resolved(ui.ctx()).colors.info, label);
                 }
             }
         }
@@ -391,7 +396,7 @@ fn show_diagnostics(
     for diagnostic in diagnostics {
         ui.group(|ui| {
             ui.colored_label(
-                Color32::LIGHT_RED,
+                crate::theme::resolved(ui.ctx()).colors.danger,
                 format!("{} · {}", diagnostic.code, diagnostic.message),
             );
             if let Some(id) = &diagnostic.id {
@@ -416,10 +421,14 @@ fn show_status(ui: &mut Ui, state: &LocalizationUiState) {
     if let Some(status) = &state.status {
         match status {
             Ok(message) => {
-                ui.label(RichText::new(message).color(Color32::LIGHT_GREEN));
+                ui.label(
+                    RichText::new(message).color(crate::theme::resolved(ui.ctx()).colors.success),
+                );
             }
             Err(message) => {
-                ui.label(RichText::new(message).color(Color32::LIGHT_RED));
+                ui.label(
+                    RichText::new(message).color(crate::theme::resolved(ui.ctx()).colors.danger),
+                );
             }
         }
     }

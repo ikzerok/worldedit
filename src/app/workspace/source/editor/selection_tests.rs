@@ -126,7 +126,7 @@ fn source_selection_suggestion_is_hidden_on_focus_loss_and_above_editor_layers()
         assert!(text_position(&frame(&ctx, &mut app, vec![]), "从选中文本建档").is_none());
     }
     let output = frame(&ctx, &mut app, vec![]);
-    assert!(text_position(&output, "任务命令").is_some());
+    assert!(text_position(&output, "快速导航").is_some());
     assert!(text_position(&output, "从选中文本建档").is_none());
     frame(&ctx, &mut app, vec![key(Key::Escape, Modifiers::NONE)]);
     app.open_search(&ctx, false, false);

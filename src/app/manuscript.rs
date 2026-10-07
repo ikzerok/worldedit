@@ -1,14 +1,23 @@
 //! 注册书稿工作台：结构和统计来自 core，正文始终读取原有源码。
+mod creation;
+mod creation_form;
+mod creation_plan;
+#[cfg(test)]
+mod creation_tests;
 mod editing;
+mod focus_controls;
 mod layout;
 mod outline;
 mod preview;
+mod recovery;
 mod review_navigation;
 mod review_render;
+mod runtime_drafts;
 mod search_navigation;
 mod session;
 mod transactions;
 mod workbench;
+mod writing;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
@@ -61,9 +70,9 @@ pub(super) struct WorkbenchState {
     review_page_offset: usize,
     pending_review_scroll: Option<f32>,
     review_focus: bool,
-    new_id: String,
-    new_title: String,
-    create_touched: bool,
+    creation: Option<creation::CreationState>,
+    creation_dismissed: bool,
+    orphan_discard_confirm: Option<PathBuf>,
 }
 
 impl Default for WorkbenchState {
@@ -92,9 +101,9 @@ impl Default for WorkbenchState {
             review_page_offset: 0,
             pending_review_scroll: None,
             review_focus: false,
-            new_id: String::new(),
-            new_title: String::new(),
-            create_touched: false,
+            creation: None,
+            creation_dismissed: false,
+            orphan_discard_confirm: None,
         }
     }
 }
@@ -150,25 +159,38 @@ impl WorkbenchState {
                     .map(|(id, _)| format!("书稿编排 · manuscript:{id}")),
             )
             .collect();
-        if self.create_touched && (!self.new_id.is_empty() || !self.new_title.is_empty()) {
-            sources.push(format!("新建书稿 · {}", self.new_id));
+        if let Some(form) = self.creation.as_ref().filter(|form| form.touched) {
+            sources.push(format!("新建章节 · {}", form.chapter_title));
+        }
+        if self.writing_view.has_retained_input() {
+            sources.push("未插入的保留正文输入".into());
         }
         sources.sort();
         sources
     }
 
     pub(super) fn has_unsubmitted_work(&self) -> bool {
-        (self.create_touched && (!self.new_id.is_empty() || !self.new_title.is_empty()))
+        self.creation.as_ref().is_some_and(|form| form.touched)
+            || self.writing_view.has_retained_input()
             || self.books.values().any(|book| book.changed)
             || self.writing_buffers.values().any(WritingBuffer::is_changed)
     }
 
     pub(super) fn rebase_clean(&mut self, project: &worldline_core::project::Project) {
+        self.rebase_clean_preserving(project, None);
+    }
+
+    pub(super) fn rebase_clean_preserving(
+        &mut self,
+        project: &worldline_core::project::Project,
+        receiver_book: Option<&str>,
+    ) {
         let indices = project.manuscript_indices();
-        self.books
-            .retain(|id, local| indices.contains_key(id) || local.changed);
+        self.books.retain(|id, local| {
+            indices.contains_key(id) || local.changed || receiver_book == Some(id.as_str())
+        });
         for (id, local) in &mut self.books {
-            if local.changed {
+            if local.changed || receiver_book == Some(id.as_str()) {
                 continue;
             }
             let Some(index) = indices.get(id) else {
@@ -191,7 +213,9 @@ impl WorkbenchState {
                         .map(|entry| entry.id.clone())
                 });
         }
-        self.writing_buffers.retain(|_, buffer| buffer.is_changed());
+        self.writing_buffers.retain(|_, buffer| {
+            buffer.is_changed() || self.writing_view.has_retained_for(buffer.path())
+        });
         self.chapter_sources
             .retain(|_, (_, path)| self.writing_buffers.contains_key(path));
     }

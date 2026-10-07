@@ -195,7 +195,7 @@ fn source_jump_filename_stays_left_aligned_with_fixed_heading_and_position_budge
                         inside_crlf,
                     ] {
                         h.select(character, character);
-                        crate::theme::configure(&h.ctx, mode);
+                        let _theme = crate::theme::configure(&h.ctx, mode);
                         h.ctx.style_mut(|style| {
                             style
                                 .text_styles

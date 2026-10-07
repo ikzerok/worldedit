@@ -200,12 +200,12 @@ impl WorkbenchState {
                                 .iter()
                                 .filter(|c| matches!(c, Column::Property(_)))
                                 .count();
-                            if ui
-                                .add_enabled(
-                                    active || count < 6,
-                                    egui::Checkbox::new(&mut active, column.label()),
-                                )
-                                .changed()
+                            if crate::theme::add_enabled(
+                                ui,
+                                active || count < 6,
+                                egui::Checkbox::new(&mut active, column.label()),
+                            )
+                            .changed()
                             {
                                 if active {
                                     cols.push(column);
@@ -224,11 +224,11 @@ impl WorkbenchState {
             for (index, column) in cols.iter().enumerate() {
                 ui.horizontal(|ui| {
                     ui.label(column.label());
-                    if ui.add_enabled(index > 0, egui::Button::new("↑")).clicked() {
+                    if crate::theme::add_enabled(ui, index > 0, egui::Button::new("↑")).clicked()
+                    {
                         move_up = Some(index);
                     }
-                    if ui
-                        .add_enabled(index + 1 < cols.len(), egui::Button::new("↓"))
+                    if crate::theme::add_enabled(ui, index + 1 < cols.len(), egui::Button::new("↓"))
                         .clicked()
                     {
                         move_down = Some(index);

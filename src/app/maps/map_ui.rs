@@ -261,8 +261,7 @@ impl super::super::WorldeditApp {
                     } else {
                         "显示地图面板"
                     };
-                    if ui
-                        .add_enabled(!needs_inspector, egui::Button::new(label))
+                    if crate::theme::add_enabled(ui, !needs_inspector, egui::Button::new(label))
                         .on_disabled_hover_text("请先完成或取消当前表单")
                         .clicked()
                     {
@@ -316,7 +315,7 @@ impl super::super::WorldeditApp {
                     }
                     scroll.show(ui, |ui| {
                         if self.map_canvas.calibration_active() {
-                            ui.disable();
+                            crate::theme::disable(ui);
                         }
                         if self.map_canvas.panel == MapPanel::Layers {
                             self.map_layers_panel(ui, &selected_map_id);
@@ -441,9 +440,12 @@ impl super::super::WorldeditApp {
                         }
                         let selected = !self.map_canvas.scene.selection.is_empty()
                             || self.map_canvas.selected_placement().is_some();
-                        if ui
-                            .add_enabled(selected, egui::Button::new("导出当前选择…"))
-                            .clicked()
+                        if crate::theme::add_enabled(
+                            ui,
+                            selected,
+                            egui::Button::new("导出当前选择…"),
+                        )
+                        .clicked()
                         {
                             self.begin_svg_export(ctx, true);
                             ui.close();

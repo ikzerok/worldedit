@@ -59,7 +59,7 @@ impl WorldeditApp {
             if read_only {
                 ui.colored_label(theme::GOLD(), "只读文档或未知能力：可查看，不能改写。");
             }
-            ui.add_enabled_ui(!read_only, |ui| {
+            crate::theme::add_enabled_ui(ui, !read_only, |ui| {
                 ui.label("作者");
                 ui.text_edit_singleline(&mut editor.draft.author);
                 ui.label("正文");
@@ -111,12 +111,12 @@ impl WorldeditApp {
                         );
                     });
             }
-            if ui
-                .add_enabled(
-                    status == AnchorStatus::Attached,
-                    egui::Button::new("定位准确原文 / 对象"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                status == AnchorStatus::Attached,
+                egui::Button::new("定位准确原文 / 对象"),
+            )
+            .clicked()
             {
                 action = Some(ReviewAction::Source(editor.draft.anchor.clone()));
             }
@@ -124,7 +124,7 @@ impl WorldeditApp {
                 && matches!(editor.draft.anchor, CommentAnchor::TextRange { .. })
             {
                 ui.collapsing("手动重新锚定（先核对完整行原文）", |ui| {
-                    ui.add_enabled_ui(!read_only, |ui| {
+                    crate::theme::add_enabled_ui(ui, !read_only, |ui| {
                         ui.text_edit_singleline(&mut self.review.text_path);
                         ui.horizontal_wrapped(|ui| {
                             ui.label("起止行");
@@ -159,16 +159,16 @@ impl WorldeditApp {
                     "工程已变化；旧批注表单不能覆盖当前稿。输入保留，请明确处理后重开。",
                 );
             }
-            if ui
-                .add_enabled(
-                    !read_only
-                        && anchor_writable
-                        && current
-                        && !editor.draft.author.trim().is_empty()
-                        && !editor.draft.body.trim().is_empty(),
-                    theme::primary("保存批注"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                !read_only
+                    && anchor_writable
+                    && current
+                    && !editor.draft.author.trim().is_empty()
+                    && !editor.draft.body.trim().is_empty(),
+                theme::primary("保存批注"),
+            )
+            .clicked()
             {
                 saved = self.save_comment_editor(&editor);
             }

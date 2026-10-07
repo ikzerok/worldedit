@@ -83,7 +83,7 @@ fn click(ctx: &egui::Context, state: &mut ReaderPublishState, label: &str) {
 fn two_thousand_candidates_remain_reachable_and_bulk_selection_spans_every_page() {
     let ctx = egui::Context::default();
     crate::fonts::install_cjk_fonts(&ctx);
-    crate::theme::configure(&ctx, crate::theme::ThemeMode::Dark);
+    let _theme = crate::theme::configure(&ctx, crate::theme::ThemeMode::Dark);
     let mut state = large_state();
     click(&ctx, &mut state, "下一页");
     assert_eq!(state.object_page, 1);

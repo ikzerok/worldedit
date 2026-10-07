@@ -193,7 +193,7 @@ fn v080_light_dark_palettes_have_readable_text_and_restore() {
         crate::theme::ThemeMode::Dark,
         crate::theme::ThemeMode::Light,
     ] {
-        crate::theme::configure(&ctx, mode);
+        let _theme = crate::theme::configure(&ctx, mode);
         fn luminance(c: egui::Color32) -> f32 {
             let v = |x: u8| {
                 let n = x as f32 / 255.0;
@@ -227,7 +227,7 @@ fn v080_light_dark_palettes_have_readable_text_and_restore() {
             }
         }
     }
-    crate::theme::configure(&ctx, crate::theme::ThemeMode::Dark);
+    let _theme = crate::theme::configure(&ctx, crate::theme::ThemeMode::Dark);
 }
 
 #[test]
@@ -267,7 +267,7 @@ fn v080_system_theme_follows_reported_os_theme_without_project_edits() {
                 ..Default::default()
             },
             |ctx| {
-                crate::theme::configure(ctx, crate::theme::ThemeMode::System);
+                let _theme = crate::theme::configure(ctx, crate::theme::ThemeMode::System);
                 assert_eq!(crate::theme::is_light(), theme == egui::Theme::Light);
             },
         );
@@ -513,7 +513,23 @@ fn v080_full_catalog_with_reference_at_1040_uses_transient_navigation_and_index(
     assert!(!app.personal.catalog_drawer_open);
     click_personal_view(&ctx, &mut app, "资料索引（窄窗）");
     assert!(app.personal.catalog_drawer_open);
-    click_personal_view(&ctx, &mut app, "实体 · b");
+    let chosen = TargetRef::new("entity", "b");
+    let caption = crate::app::object_picker::candidate_caption(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .result
+            .analysis
+            .catalog
+            .object(&chosen)
+            .unwrap(),
+        Some(&app.project.root),
+    );
+    assert!(
+        caption.contains("同名 · 实体:b\n"),
+        "完整同名对象身份必须可见：{caption}"
+    );
+    click_personal_view(&ctx, &mut app, &caption);
     assert!(!app.personal.catalog_drawer_open);
     assert_eq!(app.catalog_target, Some(TargetRef::new("entity", "b")));
     click_personal_view(&ctx, &mut app, "关闭参考");

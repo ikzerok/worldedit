@@ -568,3 +568,29 @@ fn switching_project_keeps_draft_bound_to_original_project() {
     assert!(prototype.drafts[1].is_empty());
     assert_eq!(prototype.drafts[0], "雾港草稿");
 }
+
+#[test]
+fn isolated_prototype_installs_its_own_resolved_default_theme() {
+    for system in [None, Some(egui::Theme::Light), Some(egui::Theme::Dark)] {
+        let ctx = egui::Context::default();
+        ctx.set_visuals(egui::Visuals::dark());
+        let mut prototype = Prototype::default();
+        let before = prototype.demos[0].project.content_baseline();
+        let output = ctx.run(
+            RawInput {
+                system_theme: system,
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 760.0))),
+                ..Default::default()
+            },
+            |ctx| prototype.draw(ctx),
+        );
+        let expected =
+            crate::theme::resolve(&crate::theme::AppearancePreferences::default(), system);
+        assert_eq!(crate::theme::resolved(&ctx), expected);
+        assert_eq!(ctx.style().visuals.dark_mode, !expected.light);
+        assert_eq!(ctx.style().visuals.panel_fill, expected.colors.panel);
+        assert!(output.shapes.iter().any(|shape| matches!(&shape.shape,
+            egui::Shape::Rect(rect) if rect.fill == expected.colors.panel)));
+        assert_eq!(prototype.demos[0].project.content_baseline(), before);
+    }
+}

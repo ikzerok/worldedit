@@ -1,4 +1,4 @@
-use super::catalog::scroll_catalog_to;
+use super::catalog::{await_catalog_query, scroll_catalog_to};
 use super::*;
 
 fn prepare_sort_app(count: usize) -> (egui::Context, WorldeditApp) {
@@ -24,19 +24,15 @@ fn prepare_sort_app(count: usize) -> (egui::Context, WorldeditApp) {
 
 // 排序表头先于异步查询结果更新；等待真实结果行，不能把表头出现当作查询完成。
 fn sorted_rows(ctx: &egui::Context, app: &mut WorldeditApp, header: &str) -> String {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    loop {
-        let text = rendered_text_in_window(ctx, app, 14, header);
-        if text.contains("4 个命中") && text.contains("资料001") && text.contains("资料004")
-        {
-            return text;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "排序结果未完成：{text}"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
+    let text = await_catalog_query(ctx, app, 14, header);
+    assert!(
+        text.contains(header)
+            && text.contains("4 个命中")
+            && text.contains("资料001")
+            && text.contains("资料004"),
+        "查询已结束，但排序或真实结果行不符合预期：{text}"
+    );
+    text
 }
 
 #[test]
@@ -45,7 +41,7 @@ fn catalog_sort_headers_toggle_and_navigation_follows_object_identity_without_wr
     let baseline = app.project.content_baseline();
     let sources = app.project.sources();
     click(&ctx, &mut app, 14, "运行查询");
-    let _ = rendered_text_in_window(&ctx, &mut app, 14, "4 个命中");
+    let _ = await_catalog_query(&ctx, &mut app, 14, "4 个命中");
     click(&ctx, &mut app, 14, "名称");
     let ascending = sorted_rows(&ctx, &mut app, "名称 ↑");
     assert!(ascending.find("资料001").unwrap() < ascending.find("资料004").unwrap());
@@ -83,7 +79,7 @@ fn catalog_sort_narrow_menu_restarts_pages_and_shared_definition_round_trips() {
         let baseline = app.project.content_baseline();
         let sources = app.project.sources();
         click(&ctx, &mut app, window, "运行查询");
-        let _ = rendered_text_in_window(&ctx, &mut app, window, "108 个命中");
+        let _ = await_catalog_query(&ctx, &mut app, window, "108 个命中");
         for _ in 0..2 {
             scroll_catalog_to(&ctx, &mut app, window, "下一页");
             click(&ctx, &mut app, window, "下一页");
@@ -92,7 +88,7 @@ fn catalog_sort_narrow_menu_restarts_pages_and_shared_definition_round_trips() {
         scroll_catalog_to(&ctx, &mut app, window, "排序：默认顺序");
         click(&ctx, &mut app, window, "排序：默认顺序");
         click(&ctx, &mut app, window, "名称升序");
-        let text = rendered_text_in_window(&ctx, &mut app, window, "显示 1–50");
+        let text = await_catalog_query(&ctx, &mut app, window, "显示 1–50");
         assert!(text.contains("显示 1–50"), "{text}");
         assert!(scroll_catalog_to(&ctx, &mut app, window, "资料001").contains("资料001"));
         assert_eq!(app.project.content_baseline(), baseline);
@@ -126,7 +122,7 @@ fn catalog_sort_narrow_menu_restarts_pages_and_shared_definition_round_trips() {
         assert!(text.contains("排序：名称升序"), "{text}");
         click(&ctx, &mut app, window, "排序：名称升序");
         click(&ctx, &mut app, window, "默认顺序");
-        let _ = rendered_text_in_window(&ctx, &mut app, window, "显示 1–50");
+        let _ = await_catalog_query(&ctx, &mut app, window, "显示 1–50");
         scroll_catalog_to(&ctx, &mut app, window, "保存共享定义");
         click(&ctx, &mut app, window, "保存共享定义");
         let draft = &app.project.saved_query_index().queries["sorted"].draft;

@@ -64,8 +64,7 @@ pub(super) fn draw_history_list(
     if let Some(id) = &state.selected_id {
         if let Some(record) = records.iter().find(|record| &record.id == id) {
             ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(record.available, theme::primary("预览恢复…"))
+                if crate::theme::add_enabled(ui, record.available, theme::primary("预览恢复…"))
                     .clicked()
                 {
                     *action = Some(Action::Preview(record.id.clone()));

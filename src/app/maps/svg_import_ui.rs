@@ -83,7 +83,7 @@ impl super::super::WorldeditApp {
         egui::Window::new("导入 SVG · 安全预检").id(egui::Id::new("scene-svg-import"))
             .open(&mut open).default_width(660.0).show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    confirm = ui.add_enabled(form.preview.is_some() && form.job.is_none(), crate::theme::primary("确认添加矢量图层")).clicked();
+                    confirm = crate::theme::add_enabled(ui, form.preview.is_some() && form.job.is_none(), crate::theme::primary("确认添加矢量图层")).clicked();
                     cancel = ui.button("取消导入").clicked();
                     ui.label("完整预检后一次应用，可撤销");
                 });
@@ -97,7 +97,7 @@ impl super::super::WorldeditApp {
                         form.clear_preview();
                         match SvgJob::pick(ctx) { Ok(job) => form.job = Some(job), Err(error) => form.error = Some(error) }
                     }
-                    if ui.add_enabled(!form.source.is_empty(), egui::Button::new("检查并预览当前源码")).clicked() {
+                    if crate::theme::add_enabled(ui, !form.source.is_empty(), egui::Button::new("检查并预览当前源码")).clicked() {
                         form.clear_preview();
                         match SvgJob::check(form.source.clone(), ctx) { Ok(job) => form.job = Some(job), Err(error) => form.error = Some(error) }
                     }

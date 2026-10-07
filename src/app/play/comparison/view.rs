@@ -179,7 +179,7 @@ impl WorldeditApp {
             if self.comparison.b.is_none() && self.replay_debugger.saved_paths.len() > 1 {
                 self.comparison.b = Some(1);
             }
-            ui.add_enabled_ui(!running, |ui| {
+            crate::theme::add_enabled_ui(ui, !running, |ui| {
                 ui.columns(2, |columns| {
                     for (i, ui) in columns.iter_mut().enumerate() {
                         let selected = if i == 0 {
@@ -206,21 +206,19 @@ impl WorldeditApp {
                 });
             });
             ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(!running, egui::Button::new("交换 A/B"))
-                    .clicked()
+                if crate::theme::add_enabled(ui, !running, egui::Button::new("交换 A/B")).clicked()
                 {
                     self.comparison.swap();
                 }
-                run = ui
-                    .add_enabled(
-                        !running
-                            && self
-                                .comparison
-                                .has_paths(self.replay_debugger.saved_paths.len()),
-                        theme::primary("比较当前已应用稿"),
-                    )
-                    .clicked();
+                run = crate::theme::add_enabled(
+                    ui,
+                    !running
+                        && self
+                            .comparison
+                            .has_paths(self.replay_debugger.saved_paths.len()),
+                    theme::primary("比较当前已应用稿"),
+                )
+                .clicked();
                 if let Some(job) = &self.comparison.job {
                     if ui.button("取消比较").clicked() {
                         job.cancellation.cancel();
@@ -371,7 +369,7 @@ impl WorldeditApp {
             .id_salt("comparison-technical")
             .show(ui, |ui| {
                 ui.label("比较上限：每条 4 MiB / 4,096 选择；两侧共用步数与时间预算");
-                ui.add_enabled_ui(self.comparison.job.is_none(), |ui| {
+                crate::theme::add_enabled_ui(ui, self.comparison.job.is_none(), |ui| {
                     ui.horizontal_wrapped(|ui| {
                         ui.label("合计步数");
                         ui.add(

@@ -144,8 +144,7 @@ impl WorldeditApp {
                     if ui.button("收起并回到源码").clicked() {
                         close = true;
                     }
-                    if ui
-                        .add_enabled(!blocked, egui::Button::new("刷新结构"))
+                    if crate::theme::add_enabled(ui, !blocked, egui::Button::new("刷新结构"))
                         .clicked()
                     {
                         refresh = true;
@@ -219,7 +218,7 @@ impl WorldeditApp {
                                 entry,
                                 current == Some(*occurrence),
                                 focused && top && ctx.memory(|memory| memory.has_focus(query_id())),
-                                self.personal.settings.body_size,
+                                self.personal.appearance().body_size,
                             );
                             if navigation && response.clicked() {
                                 action = Some(*occurrence);

@@ -73,8 +73,7 @@ impl WorldeditApp {
                                 .desired_rows(3)
                                 .desired_width(f32::INFINITY),
                         );
-                        if ui
-                            .add_enabled(
+                        if crate::theme::add_enabled(ui,
                                 !self.review.author.trim().is_empty()
                                     && !self.review.reason.trim().is_empty()
                                     && self.project.is_dirty(),
@@ -289,8 +288,7 @@ impl WorldeditApp {
                                             }
                                         }
                                         let open = proposal.status == ProposalStatus::Open;
-                                        if ui
-                                            .add_enabled(
+                                        if crate::theme::add_enabled(ui,
                                                 open && conflicts_resolved && !stale,
                                                 theme::primary("采纳提案"),
                                             )

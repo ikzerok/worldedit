@@ -34,12 +34,12 @@ impl super::super::WorldeditApp {
         }
         if !is_new
             && self.map_canvas.is_edit_mode()
-            && ui
-                .add_enabled(
-                    !self.map_canvas.scene.inspector_dirty,
-                    egui::Button::new("新建地点并绑定…"),
-                )
-                .clicked()
+            && crate::theme::add_enabled(
+                ui,
+                !self.map_canvas.scene.inspector_dirty,
+                egui::Button::new("新建地点并绑定…"),
+            )
+            .clicked()
         {
             self.open_scene_place(node.id.clone());
         }
@@ -63,7 +63,7 @@ impl super::super::WorldeditApp {
         let mut apply = false;
         let mut cancel = false;
         let editable = self.map_canvas.is_edit_mode() && self.map_canvas.scene.job.is_none();
-        ui.add_enabled_ui(editable, |ui| {
+        crate::theme::add_enabled_ui(ui, editable, |ui| {
             ui.label("显示名称");
             changed |= ui.text_edit_singleline(&mut node.name).changed();
             ui.label("展示说明");
@@ -113,9 +113,12 @@ impl super::super::WorldeditApp {
                 ui.label("移到图层（保持世界位置）");
                 for layer in &self.map_canvas.snapshot.layers {
                     if layer.id != node.layer_id
-                        && ui
-                            .add_enabled(!layer.locked, egui::Button::new(&layer.title))
-                            .clicked()
+                        && crate::theme::add_enabled(
+                            ui,
+                            !layer.locked,
+                            egui::Button::new(&layer.title),
+                        )
+                        .clicked()
                     {
                         self.map_canvas.scene.operations.push(SceneOp::MoveToLayer {
                             node_ids: self.map_canvas.scene.selection.iter().cloned().collect(),
@@ -141,13 +144,13 @@ impl super::super::WorldeditApp {
                 }
             });
             ui.horizontal(|ui| {
-                apply = ui
-                    .add_enabled(
-                        (self.map_canvas.scene.inspector_dirty || changed)
-                            && !self.map_canvas.scene.binding.blocks_search_binding(),
-                        crate::theme::primary("应用对象修改"),
-                    )
-                    .clicked();
+                apply = crate::theme::add_enabled(
+                    ui,
+                    (self.map_canvas.scene.inspector_dirty || changed)
+                        && !self.map_canvas.scene.binding.blocks_search_binding(),
+                    crate::theme::primary("应用对象修改"),
+                )
+                .clicked();
                 cancel = ui.button("取消检查器输入").clicked();
             });
         });

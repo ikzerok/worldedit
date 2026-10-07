@@ -136,20 +136,17 @@ impl WorldeditApp {
             format!("{scope} · 查找失败，未载入结果；请缩小范围或处理下方错误")
         });
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(!hits.is_empty(), egui::Button::new("上一处"))
+            if crate::theme::add_enabled(ui, !hits.is_empty(), egui::Button::new("上一处"))
                 .clicked()
             {
                 self.navigate_search(ui.ctx(), true);
             }
-            if ui
-                .add_enabled(!hits.is_empty(), egui::Button::new("下一处"))
+            if crate::theme::add_enabled(ui, !hits.is_empty(), egui::Button::new("下一处"))
                 .clicked()
             {
                 self.navigate_search(ui.ctx(), false);
             }
-            if ui
-                .add_enabled(!hits.is_empty(), egui::Button::new("查看当前原文"))
+            if crate::theme::add_enabled(ui, !hits.is_empty(), egui::Button::new("查看当前原文"))
                 .clicked()
             {
                 if let Some(hit) = hits.get(self.search_state.selected) {
@@ -173,8 +170,7 @@ impl WorldeditApp {
                 let current = hits
                     .get(self.search_state.selected)
                     .filter(|hit| hit.replaceable);
-                if ui
-                    .add_enabled(current.is_some(), egui::Button::new("只选当前处"))
+                if crate::theme::add_enabled(ui, current.is_some(), egui::Button::new("只选当前处"))
                     .clicked()
                 {
                     if let Some(hit) = current {
@@ -182,43 +178,39 @@ impl WorldeditApp {
                         self.choose_search_hit(hit, true);
                     }
                 }
-                if ui
-                    .add_enabled(
-                        replaceable > 0,
-                        egui::Button::new(format!("全选本范围可替换 {replaceable} 处")),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    replaceable > 0,
+                    egui::Button::new(format!("全选本范围可替换 {replaceable} 处")),
+                )
+                .clicked()
                 {
                     self.choose_all_search_hits();
                 }
-                if ui
-                    .add_enabled(
-                        !self.search_state.chosen.is_empty(),
-                        egui::Button::new("清空选择"),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    !self.search_state.chosen.is_empty(),
+                    egui::Button::new("清空选择"),
+                )
+                .clicked()
                 {
                     self.clear_search_choices();
                 }
             });
             ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(
-                        !self.search_state.chosen.is_empty(),
-                        egui::Button::new(format!(
-                            "预览已选 {} 处",
-                            self.search_state.chosen.len()
-                        )),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    !self.search_state.chosen.is_empty(),
+                    egui::Button::new(format!("预览已选 {} 处", self.search_state.chosen.len())),
+                )
+                .clicked()
                 {
                     self.preview_selected_search_replacement();
                 }
                 if let Some(plan) = &self.search_state.plan {
                     let label = format!("确认应用 {} 处", plan.hits.len());
                     let enabled = !plan.changes.is_empty();
-                    if ui
-                        .add_enabled(enabled, crate::theme::primary(&label))
+                    if crate::theme::add_enabled(ui, enabled, crate::theme::primary(&label))
                         .clicked()
                     {
                         self.apply_search_replacement();
@@ -229,9 +221,12 @@ impl WorldeditApp {
                 }
                 ui.menu_button("更多", |ui| {
                     ui.label("原有全部替换：检查整个当前范围，含保护项时整批拒绝");
-                    if ui
-                        .add_enabled(!hits.is_empty(), egui::Button::new("预览本范围全部命中"))
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !hits.is_empty(),
+                        egui::Button::new("预览本范围全部命中"),
+                    )
+                    .clicked()
                     {
                         self.preview_search_replacement();
                         ui.close();
@@ -294,34 +289,54 @@ impl WorldeditApp {
                 }
             });
         if !self.project_query.trim().is_empty() {
-            let (objects, warning) = self.search_objects_in_current_drafts();
-            let applied_catalog = warning.is_some();
-            if let Some(warning) = warning {
-                ui.colored_label(crate::theme::GOLD(), warning);
-            }
-            ui.separator();
-            ui.label(format!("{} 个对象 · 名称、ID 或别名匹配", objects.len()));
-            egui::ScrollArea::vertical()
-                .id_salt("object-search")
-                .max_height(160.0)
-                .show(ui, |ui| {
-                    for object in objects.iter().take(300) {
-                        if ui
-                            .link(format!(
-                                "{} · {} ({})",
-                                crate::app::catalog::kind_label(&object.target.kind),
-                                object.display,
-                                object.target.id
-                            ))
+            self.search_object_candidates(ui);
+        }
+    }
+
+    fn search_object_candidates(&mut self, ui: &mut egui::Ui) {
+        let mut view = self.search_objects_in_current_drafts();
+        ui.separator();
+        ui.strong("对象 · 名称、别名、类型、ID和来源");
+        if let Some(warning) = &view.warning {
+            ui.colored_label(
+                crate::theme::GOLD(),
+                "已应用目录 · 当前稿不可解析；总数仅含已解析对象",
+            )
+            .on_hover_text(warning);
+        } else {
+            ui.small("当前稿目录");
+        }
+        if self.search_state.object_page.controls(ui) {
+            view = self.search_objects_in_current_drafts();
+        }
+        match view.page {
+            Ok(page) => {
+                if page.total == 0 {
+                    ui.label("没有匹配对象");
+                }
+                egui::ScrollArea::vertical()
+                    .id_salt("object-search")
+                    .max_height(180.0)
+                    .show(ui, |ui| {
+                        for object in &page.items {
+                            if crate::app::object_picker::candidate_row_at_revision(
+                                ui,
+                                object,
+                                Some(&self.project.root),
+                                false,
+                                self.search_state.object_page.serial,
+                            )
                             .clicked()
-                        {
-                            self.navigate_search_object(ui.ctx(), object, applied_catalog);
+                                && !view.stale
+                            {
+                                self.navigate_search_object(ui.ctx(), object, view.applied);
+                            }
                         }
-                    }
-                    if objects.len() > 300 {
-                        ui.label("只显示前 300 个对象，请缩小查询");
-                    }
-                });
+                    });
+            }
+            Err(error) => {
+                ui.colored_label(crate::theme::ERROR(), error);
+            }
         }
     }
 

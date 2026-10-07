@@ -267,7 +267,10 @@ impl Prototype {
                     self.inspector_tab = false;
                 }
                 if self.stale {
-                    ui.colored_label(egui::Color32::YELLOW, "目标来源已变化；旧输入不得覆盖。");
+                    ui.colored_label(
+                        ui.visuals().warn_fg_color,
+                        "目标来源已变化；旧输入不得覆盖。",
+                    );
                 }
             });
     }
@@ -442,6 +445,10 @@ impl eframe::App for Prototype {
 
 impl Prototype {
     fn draw(&mut self, ctx: &egui::Context) {
+        let _theme = crate::theme::configure_appearance(
+            ctx,
+            &crate::theme::AppearancePreferences::default(),
+        );
         let drawer_was_open = self.drawer;
         let focus_before_frame = ctx.memory(|memory| memory.focused());
         let (primary_pressed, primary_released, primary_down) = ctx.input(|input| {

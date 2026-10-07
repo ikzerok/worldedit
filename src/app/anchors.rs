@@ -65,7 +65,8 @@ impl WorldeditApp {
         theme::card().show(ui, |ui| {
             ui.label(RichText::new("叙事锚点").strong().size(19.0));
             ui.label(theme::muted("锚点 ID · 创建后保持稳定"));
-            ui.add_enabled(
+            crate::theme::add_enabled(
+                ui,
                 original.is_none(),
                 egui::TextEdit::singleline(&mut draft.id).desired_width(f32::INFINITY),
             );

@@ -83,7 +83,7 @@ impl WorldeditApp {
                         .iter()
                         .any(|p| p.id == id)
                 });
-                ui.add_enabled_ui(!existing, |ui| {
+                crate::theme::add_enabled_ui(ui, !existing, |ui| {
                     super::super::inspector::field(ui, "时段 ID", &mut id)
                 });
                 super::super::inspector::field(ui, "时段名称 / 起止时间", &mut display);

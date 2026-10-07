@@ -62,7 +62,9 @@ impl WorldeditApp {
                         ("dialogue_examples", "口吻例句"),
                     ] {
                         let exists = editor.draft.properties.iter().any(|(name, _)| name == key);
-                        if ui.add_enabled(!exists, egui::Button::new(label)).clicked() {
+                        if crate::theme::add_enabled(ui, !exists, egui::Button::new(label))
+                            .clicked()
+                        {
                             editor.draft.properties.push((
                                 key.into(),
                                 worldline_core::ast::PropertyValue::Str(String::new()),

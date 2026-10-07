@@ -90,12 +90,12 @@ impl Wizard {
                 ui.label("目标工程：当前浏览器工程");
                 if !app.saved_location {
                     ui.colored_label(
-                        egui::Color32::LIGHT_RED,
+                        crate::theme::resolved(ui.ctx()).colors.danger,
                         "当前工程尚未保存到工作区；请先另存工程，或选择导入到新工程。",
                     );
                 } else if app.project.is_dirty() || app.has_open_authoring_form() {
                     ui.colored_label(
-                        egui::Color32::LIGHT_RED,
+                        crate::theme::resolved(ui.ctx()).colors.danger,
                         "当前工程有未保存的草稿；先保存或完成草稿，再开始迁移。",
                     );
                 }
@@ -123,7 +123,7 @@ impl Wizard {
         });
 
         if let Some(error) = &self.error {
-            ui.colored_label(egui::Color32::LIGHT_RED, error);
+            ui.colored_label(crate::theme::resolved(ui.ctx()).colors.danger, error);
         }
         let Some(plan) = self.plan.take() else {
             return;
@@ -146,7 +146,7 @@ impl Wizard {
         ));
         if self.stale {
             ui.colored_label(
-                egui::Color32::LIGHT_RED,
+                crate::theme::resolved(ui.ctx()).colors.danger,
                 "预检已过期，应用已锁定。请重新预检后再确认。",
             );
         }
@@ -181,7 +181,7 @@ impl Wizard {
                 blockers.push("尚未确认语言升级".into());
             }
             ui.colored_label(
-                egui::Color32::LIGHT_RED,
+                crate::theme::resolved(ui.ctx()).colors.danger,
                 format!("暂不能应用：{}。", blockers.join("；")),
             );
         }
@@ -190,9 +190,8 @@ impl Wizard {
         let mut should_preview = false;
         let mut should_close = false;
         ui.horizontal_wrapped(|ui| {
-            should_apply = ui
-                .add_enabled(can_apply, egui::Button::new("应用导入"))
-                .clicked();
+            should_apply =
+                crate::theme::add_enabled(ui, can_apply, egui::Button::new("应用导入")).clicked();
             if show_refresh {
                 should_preview = ui.button("重新预检").clicked();
             }

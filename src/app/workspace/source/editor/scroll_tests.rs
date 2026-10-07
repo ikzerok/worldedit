@@ -67,7 +67,7 @@ fn source_wrap_full_app_animated_search_reaches_long_line_end_above_problem_pane
     app.active_file = app.project.entry.clone();
     app.tab = Tab::Edit;
     app.personal.settings.source_wrap = true;
-    app.personal.settings.body_size = 16.0;
+    app.personal.settings.source_size = 16.0;
     app.personal.settings.diagnostics = true;
     app.recompile();
     ctx.data_mut(|data| {

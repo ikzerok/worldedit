@@ -1,65 +1,20 @@
 //! 设备个人状态；从不写入 Project、源码或展示文档。
+mod migration;
+mod preferences;
+mod preferences_ui;
 mod reading_position;
+mod settings;
 mod source_position;
 pub(super) mod source_view;
 mod ui;
 use super::{Tab, WorldeditApp};
 use serde::{Deserialize, Serialize};
+pub(super) use settings::Settings;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use worldline_core::TargetRef;
 
 const KEY: &str = "worldedit.personal.v1";
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub(super) struct Settings {
-    pub body_size: f32,
-    pub line_spacing: f32,
-    pub reading_width: f32,
-    pub theme: crate::theme::ThemeMode,
-    pub navigation: bool,
-    pub diagnostics: bool,
-    pub source_wrap: bool,
-    pub focus: bool,
-    pub dock_references: bool,
-    pub references_visible: bool,
-    pub navigation_width: f32,
-    pub reference_width: f32,
-}
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            body_size: 16.0,
-            line_spacing: 1.45,
-            reading_width: 840.0,
-            theme: crate::theme::ThemeMode::Dark,
-            navigation: true,
-            diagnostics: false,
-            source_wrap: false,
-            focus: false,
-            dock_references: true,
-            references_visible: true,
-            navigation_width: 212.0,
-            reference_width: 330.0,
-        }
-    }
-}
-impl Settings {
-    fn normalize(&mut self) {
-        fn bounded(value: f32, default: f32, min: f32, max: f32) -> f32 {
-            if value.is_finite() {
-                value.clamp(min, max)
-            } else {
-                default
-            }
-        }
-        self.body_size = bounded(self.body_size, 16.0, 12.0, 28.0);
-        self.line_spacing = bounded(self.line_spacing, 1.45, 1.0, 2.0);
-        self.reading_width = bounded(self.reading_width, 840.0, 480.0, 1400.0);
-        self.navigation_width = bounded(self.navigation_width, 212.0, 180.0, 320.0);
-        self.reference_width = bounded(self.reference_width, 330.0, 260.0, 440.0);
-    }
-}
 #[derive(Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub(super) struct Location {
@@ -115,6 +70,12 @@ pub(super) struct PersonalState {
     #[serde(skip)]
     pub catalog_drawer_open: bool,
     #[serde(skip)]
+    appearance_draft: Option<crate::theme::AppearancePreferences>,
+    #[serde(skip)]
+    protected_storage: Option<String>,
+    #[serde(skip)]
+    storage_notice: Option<String>,
+    #[serde(skip)]
     pub pending_restore: bool,
     #[cfg(target_arch = "wasm32")]
     #[serde(skip)]
@@ -123,7 +84,7 @@ pub(super) struct PersonalState {
 impl Default for PersonalState {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             settings: Settings::default(),
             last_project: None,
             workspaces: BTreeMap::new(),
@@ -134,58 +95,13 @@ impl Default for PersonalState {
             source_view: None,
             preferences_open: false,
             catalog_drawer_open: false,
+            appearance_draft: None,
+            protected_storage: None,
+            storage_notice: None,
             pending_restore: false,
             #[cfg(target_arch = "wasm32")]
             last_browser_saved: String::new(),
         }
-    }
-}
-impl PersonalState {
-    pub fn restore(storage: Option<&dyn eframe::Storage>) -> Self {
-        let text = storage.and_then(|s| s.get_string(KEY));
-        #[cfg(target_arch = "wasm32")]
-        let text = text.or_else(|| {
-            web_sys::window()?
-                .local_storage()
-                .ok()??
-                .get_item(KEY)
-                .ok()?
-        });
-        text.and_then(|s| Self::decode(&s)).unwrap_or_default()
-    }
-    fn decode(text: &str) -> Option<Self> {
-        if text.len() > 1_048_576 {
-            return None;
-        }
-        let mut value: Self = serde_json::from_str(text).ok()?;
-        if value.schema_version != 1 || value.workspaces.len() > 64 {
-            return None;
-        }
-        value.settings.normalize();
-        for workspace in value.workspaces.values_mut() {
-            workspace.references.truncate(2);
-        }
-        Some(value)
-    }
-    pub fn save(&self, storage: &mut dyn eframe::Storage) {
-        if let Ok(text) = serde_json::to_string(self) {
-            storage.set_string(KEY, text);
-        }
-    }
-    #[cfg(target_arch = "wasm32")]
-    pub fn save_browser(&mut self) {
-        if let (Some(storage), Ok(text)) = (
-            web_sys::window().and_then(|w| w.local_storage().ok().flatten()),
-            serde_json::to_string(self),
-        ) {
-            if self.last_browser_saved != text && storage.set_item(KEY, &text).is_ok() {
-                self.last_browser_saved = text;
-            }
-        }
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn last_project(&self) -> Option<PathBuf> {
-        self.last_project.clone()
     }
 }
 impl WorldeditApp {
@@ -575,3 +491,9 @@ mod source_position_tests;
 
 #[cfg(test)]
 mod preferences_focus_tests;
+
+#[cfg(test)]
+mod appearance_runtime_tests;
+
+#[cfg(test)]
+mod stylized_tests;

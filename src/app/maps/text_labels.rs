@@ -37,8 +37,7 @@ impl super::super::WorldeditApp {
                 .placement_layer(&selected.id)
                 .is_some_and(|(_, _, locked)| !locked);
             if self.map_form.text_draft.is_none()
-                && ui
-                    .add_enabled(unlocked, egui::Button::new("编辑文字标签"))
+                && crate::theme::add_enabled(ui, unlocked, egui::Button::new("编辑文字标签"))
                     .on_disabled_hover_text("图层已锁定，请先解锁图层")
                     .clicked()
             {
@@ -121,9 +120,8 @@ impl super::super::WorldeditApp {
         let mut cancel = false;
         let mut delete = false;
         ui.horizontal_wrapped(|ui| {
-            save = ui
-                .add_enabled(valid, egui::Button::new("保存文字标签"))
-                .clicked();
+            save =
+                crate::theme::add_enabled(ui, valid, egui::Button::new("保存文字标签")).clicked();
             cancel = ui.button("取消文字草稿").clicked();
             if draft.placement_id.is_some() {
                 delete = ui.button("删除文字标签").clicked();

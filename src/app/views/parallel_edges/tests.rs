@@ -358,7 +358,7 @@ fn single_edges_retain_readable_label_and_palette_hides_lower_edge_details() {
     assert!(app.command_palette.open && app.command_palette.commands_only);
     let output = settle(&ctx, &mut app);
     let text = rendered(&output);
-    assert!(text.contains("任务命令"), "{text}");
+    assert!(text.contains("快速导航"), "{text}");
     assert!(app.command_palette.open && app.command_palette.commands_only);
     assert!(!text.contains("连接详情 · 原始分支"));
     assert!(!text.contains("拖动卡片调整位置,右侧圆点用于连线"));

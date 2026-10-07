@@ -75,7 +75,7 @@ fn frame(
             ..Default::default()
         },
         |ctx| {
-            theme::configure(ctx, appearance.mode);
+            let _theme = theme::configure(ctx, appearance.mode);
             ctx.style_mut(|style| style.animation_time = 0.0);
             app.play_tab(ctx);
         },
@@ -166,6 +166,7 @@ fn background_at(shapes: &[(Rect, &egui::Shape)], point: Pos2) -> Color32 {
 }
 
 /// 逐行核对实际裁剪内的文字，不把窗口外的形状算作可见结果。
+/// expected 来自本次绘制 Context 的解析快照；frame guard 退出后的零参 helper 不是期望值来源。
 fn assert_readable(output: &egui::FullOutput, fragment: &str, expected: Color32) {
     let shapes = shapes(output);
     let mut found = 0;
@@ -251,7 +252,7 @@ fn play_compile_error_is_readable_in_dark_light_and_system() {
         let (ctx, mut app) = fixture("event start\n  -> missing_destination\n");
         assert!(app.snapshot.as_ref().unwrap().result.has_errors());
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "故事存在错误", theme::ERROR());
+        assert_readable(&output, "故事存在错误", theme::resolved(&ctx).colors.danger);
         assert!(app.play.is_none());
     }
 }
@@ -269,13 +270,25 @@ fn play_end_and_anchor_keep_readable_textual_semantics_in_every_theme() {
         start(&mut app);
         let output = settled(&ctx, &mut app, appearance, 1600.0);
         assert!(app.play.as_ref().unwrap().ended);
-        assert_readable(&output, "世界线收束", theme::SUCCESS());
-        assert_readable(&output, "◆ [", theme::ANCHOR());
-        assert_readable(&output, "↳ 核对锚点说明", theme::MUTED());
-        assert_readable(&output, "@start · 故事线", theme::MUTED());
+        assert_readable(&output, "世界线收束", theme::resolved(&ctx).colors.success);
+        assert_readable(&output, "◆ [", theme::resolved(&ctx).colors.success);
+        assert_readable(
+            &output,
+            "↳ 核对锚点说明",
+            theme::resolved(&ctx).colors.secondary,
+        );
+        assert_readable(
+            &output,
+            "@start · 故事线",
+            theme::resolved(&ctx).colors.secondary,
+        );
         click(&ctx, &mut app, appearance, 1600.0, "状态变更记录 · 1");
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "start · 轮次 0", theme::MUTED());
+        assert_readable(
+            &output,
+            "start · 轮次 0",
+            theme::resolved(&ctx).colors.secondary,
+        );
     }
 }
 
@@ -292,14 +305,30 @@ fn play_runtime_error_stale_warning_and_debugger_notice_use_semantic_tokens() {
         app.version += 1;
         app.replay_debugger.notice = Some("测试通知：路径未能导入".into());
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "运行错误:", theme::ERROR());
-        assert_readable(&output, "当前结果仍属于旧快照", theme::WARNING());
-        assert_readable(&output, "测试通知：路径未能导入", theme::WARNING());
-        assert_readable(&output, "试玩已暂停", theme::MUTED());
-        assert_readable(&output, "(暂无;", theme::MUTED());
+        assert_readable(&output, "运行错误:", theme::resolved(&ctx).colors.danger);
+        assert_readable(
+            &output,
+            "当前结果仍属于旧快照",
+            theme::resolved(&ctx).colors.warning,
+        );
+        assert_readable(
+            &output,
+            "测试通知：路径未能导入",
+            theme::resolved(&ctx).colors.warning,
+        );
+        assert_readable(
+            &output,
+            "试玩已暂停",
+            theme::resolved(&ctx).colors.secondary,
+        );
+        assert_readable(&output, "(暂无;", theme::resolved(&ctx).colors.secondary);
         app.replay_debugger.pane = PlayPane::Debugger;
         let output = settled(&ctx, &mut app, appearance, 760.0);
-        assert_readable(&output, "测试通知：路径未能导入", theme::WARNING());
+        assert_readable(
+            &output,
+            "测试通知：路径未能导入",
+            theme::resolved(&ctx).colors.warning,
+        );
     }
 }
 
@@ -319,7 +348,11 @@ fn debugger_import_error_and_stale_result_are_readable_on_real_surfaces() {
             "导入路径 JSON（最多 4 MiB / 20,000 步）",
         );
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "内容已拒绝导入", theme::ERROR());
+        assert_readable(
+            &output,
+            "内容已拒绝导入",
+            theme::resolved(&ctx).colors.danger,
+        );
         let trace = app
             .play
             .as_ref()
@@ -342,7 +375,11 @@ fn debugger_import_error_and_stale_result_are_readable_on_real_surfaces() {
         app.replay_debugger.result_version = Some(app.version);
         app.version += 1;
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "此结果属于旧编译快照", theme::WARNING());
+        assert_readable(
+            &output,
+            "此结果属于旧编译快照",
+            theme::resolved(&ctx).colors.warning,
+        );
     }
 }
 
@@ -365,8 +402,8 @@ fn evidence_error_and_not_evaluated_are_readable_without_recoloring_truth_values
             .save()
             .unwrap();
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "→ 求值错误", theme::ERROR());
-        assert_readable(&output, "→ 未求值", theme::MUTED());
+        assert_readable(&output, "→ 求值错误", theme::resolved(&ctx).colors.danger);
+        assert_readable(&output, "→ 未求值", theme::resolved(&ctx).colors.secondary);
         assert_eq!(
             app.play
                 .as_ref()
@@ -387,8 +424,16 @@ fn evidence_error_and_not_evaluated_are_readable_without_recoloring_truth_values
         start(&mut app);
         click(&ctx, &mut app, appearance, 1600.0, "解释当前条件（只读）");
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "→ 已满足 · true", theme::TEXT());
-        assert_readable(&output, "→ 未满足 · false", theme::TEXT());
+        assert_readable(
+            &output,
+            "→ 已满足 · true",
+            theme::resolved(&ctx).colors.text,
+        );
+        assert_readable(
+            &output,
+            "→ 未满足 · false",
+            theme::resolved(&ctx).colors.text,
+        );
     }
 }
 
@@ -403,16 +448,32 @@ fn evidence_omitted_values_and_label_errors_remain_readable() {
         start(&mut app);
         click(&ctx, &mut app, appearance, 1600.0, "解释当前条件（只读）");
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "→ 证据已省略", theme::MUTED());
-        assert_readable(&output, "部分证据已省略", theme::MUTED());
+        assert_readable(
+            &output,
+            "→ 证据已省略",
+            theme::resolved(&ctx).colors.secondary,
+        );
+        assert_readable(
+            &output,
+            "部分证据已省略",
+            theme::resolved(&ctx).colors.secondary,
+        );
 
         let (ctx, mut app) =
             fixture("event start\n  choice \"标签 {1 / 0}\" if true\n    -> END\n");
         start(&mut app);
         click(&ctx, &mut app, appearance, 1600.0, "解释当前条件（只读）");
         let output = settled(&ctx, &mut app, appearance, 1600.0);
-        assert_readable(&output, "选择标签求值失败", theme::ERROR());
-        assert_readable(&output, "→ 已满足 · true", theme::TEXT());
+        assert_readable(
+            &output,
+            "选择标签求值失败",
+            theme::resolved(&ctx).colors.danger,
+        );
+        assert_readable(
+            &output,
+            "→ 已满足 · true",
+            theme::resolved(&ctx).colors.text,
+        );
     }
 }
 
@@ -428,7 +489,11 @@ fn disabled_choice_is_an_inactive_exception_with_readable_reason_and_no_activati
         let output = settled(&ctx, &mut app, appearance, 1600.0);
         // inactive 控件本身单列例外；其可见原因是普通文字，仍必须达到4.5:1。
         assert!(visible_texts(&output).contains("选择：锁定"));
-        assert_readable(&output, "暂不可选：缺少钥匙", theme::MUTED());
+        assert_readable(
+            &output,
+            "暂不可选：缺少钥匙",
+            theme::resolved(&ctx).colors.secondary,
+        );
         let story = app.play.as_ref().unwrap().story.as_ref().unwrap();
         assert!(!story.choice_presentations()[0].enabled);
         let before = (story.save().unwrap(), story.replay_trace());

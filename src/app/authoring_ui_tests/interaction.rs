@@ -46,79 +46,82 @@ pub(super) fn frame(
             events,
             ..Default::default()
         },
-        |ctx| match window {
-            0 => app.entity_editor_window(ctx),
-            1 => app.relation_editor_window(ctx),
-            2 => app.relation_type_editor_window(ctx),
-            4 | 37 => app.network_tab(ctx),
-            5 => app.target_rename_window(ctx),
-            6 => app.preset_editor_window(ctx),
-            7 => app.review_tab(ctx),
-            16 => app.review_tab(ctx),
-            8 | 9 => app.reading_window(ctx),
-            11 => app.source_tab(ctx),
-            13 => app.manuscript_tab(ctx),
-            17 | 19 => app.template_manager_tab(ctx),
-            18 => app.sidebar(ctx),
-            10 => {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    app.reading_content(ui, TargetRef::new("entity", "a"));
-                });
+        |ctx| {
+            let _theme = crate::theme::configure_appearance(ctx, app.personal.appearance());
+            match window {
+                0 => app.entity_editor_window(ctx),
+                1 => app.relation_editor_window(ctx),
+                2 => app.relation_type_editor_window(ctx),
+                4 | 37 => app.network_tab(ctx),
+                5 => app.target_rename_window(ctx),
+                6 => app.preset_editor_window(ctx),
+                7 => app.review_tab(ctx),
+                16 => app.review_tab(ctx),
+                8 | 9 => app.reading_window(ctx),
+                11 => app.source_tab(ctx),
+                13 => app.manuscript_tab(ctx),
+                17 | 19 => app.template_manager_tab(ctx),
+                18 => app.sidebar(ctx),
+                10 => {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        app.reading_content(ui, TargetRef::new("entity", "a"));
+                    });
+                }
+                12 => {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let target = app.reading_target.clone().unwrap();
+                        app.reading_content(ui, target);
+                    });
+                }
+                14 => app.catalog_tab(ctx),
+                38 => {
+                    app.top_bar(ctx);
+                    app.status_bar(ctx);
+                    app.sidebar(ctx);
+                    app.review_tab(ctx);
+                }
+                36 => {
+                    app.top_bar(ctx);
+                    app.status_bar(ctx);
+                    app.sidebar(ctx);
+                    app.checkpoint_history_tab(ctx);
+                }
+                34 | 35 => {
+                    app.top_bar(ctx);
+                    app.status_bar(ctx);
+                    app.sidebar(ctx);
+                    app.catalog_tab(ctx);
+                }
+                29 | 30 => {
+                    app.top_bar(ctx);
+                    app.status_bar(ctx);
+                    app.sidebar(ctx);
+                    app.play_tab(ctx);
+                }
+                20 | 21 => app.play_tab(ctx),
+                22 => app.canvas_tab(ctx),
+                23 => app.checkpoint_history_tab(ctx),
+                31 | 32 => {
+                    app.top_bar(ctx);
+                    app.status_bar(ctx);
+                    app.sidebar(ctx);
+                    app.manuscript_tab(ctx);
+                }
+                24 => app.checkpoint_history_tab(ctx),
+                33 => {
+                    app.top_bar(ctx);
+                    app.markdown_import_window(ctx);
+                }
+                25 => {
+                    app.top_bar(ctx);
+                    app.markdown_import_window(ctx);
+                }
+                26 => {
+                    app.top_bar(ctx);
+                    app.reader_publish_window(ctx);
+                }
+                _ => app.content_deletion_window(ctx),
             }
-            12 => {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    let target = app.reading_target.clone().unwrap();
-                    app.reading_content(ui, target);
-                });
-            }
-            14 => app.catalog_tab(ctx),
-            38 => {
-                app.top_bar(ctx);
-                app.status_bar(ctx);
-                app.sidebar(ctx);
-                app.review_tab(ctx);
-            }
-            36 => {
-                app.top_bar(ctx);
-                app.status_bar(ctx);
-                app.sidebar(ctx);
-                app.checkpoint_history_tab(ctx);
-            }
-            34 | 35 => {
-                app.top_bar(ctx);
-                app.status_bar(ctx);
-                app.sidebar(ctx);
-                app.catalog_tab(ctx);
-            }
-            29 | 30 => {
-                app.top_bar(ctx);
-                app.status_bar(ctx);
-                app.sidebar(ctx);
-                app.play_tab(ctx);
-            }
-            20 | 21 => app.play_tab(ctx),
-            22 => app.canvas_tab(ctx),
-            23 => app.checkpoint_history_tab(ctx),
-            31 | 32 => {
-                app.top_bar(ctx);
-                app.status_bar(ctx);
-                app.sidebar(ctx);
-                app.manuscript_tab(ctx);
-            }
-            24 => app.checkpoint_history_tab(ctx),
-            33 => {
-                app.top_bar(ctx);
-                app.markdown_import_window(ctx);
-            }
-            25 => {
-                app.top_bar(ctx);
-                app.markdown_import_window(ctx);
-            }
-            26 => {
-                app.top_bar(ctx);
-                app.reader_publish_window(ctx);
-            }
-            _ => app.content_deletion_window(ctx),
         },
     )
 }

@@ -147,7 +147,7 @@ impl WorldeditApp {
                                 self.focus_event = None;
                             }
                         }
-                        painter.rect_filled(canvas, 10, BG());
+                        painter.rect_filled(canvas, 0, BG());
                         let dot = 26.0 * zoom;
                         for x in 0..(total.x / dot) as i32 {
                             for y in 0..(total.y / dot) as i32 {
@@ -177,7 +177,7 @@ impl WorldeditApp {
                                     to_screen(Pos2::new(0.0, 20.0 + li as f32 * LANE)),
                                     Vec2::new(width * zoom, (LANE - 14.0) * zoom),
                                 );
-                                painter.rect_filled(band, 10, PANEL().gamma_multiply(0.7));
+                                painter.rect_filled(band, theme::shapes().document, PANEL());
                                 let (id, display) = &graph.storyline_order[li];
                                 painter.rect_filled(
                                     Rect::from_min_size(

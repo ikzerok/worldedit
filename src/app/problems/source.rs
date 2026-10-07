@@ -137,7 +137,7 @@ impl WorldeditApp {
             return;
         };
         let current = self.problem_source_current(&source);
-        let settings = self.personal.settings.clone();
+        let settings = *self.personal.appearance();
         let protected = self.ime_composing
             || self.ime_source_draft.is_some()
             || self.command_palette.ime

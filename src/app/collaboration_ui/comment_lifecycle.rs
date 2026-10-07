@@ -129,12 +129,12 @@ impl WorldeditApp {
                 if ui.button("取消，保留批注输入").clicked() {
                     cancel = true;
                 }
-                if ui
-                    .add_enabled(
-                        !self.review_ime_active(),
-                        egui::Button::new("明确放弃此批注输入并继续"),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    !self.review_ime_active(),
+                    egui::Button::new("明确放弃此批注输入并继续"),
+                )
+                .clicked()
                 {
                     discard = true;
                 }

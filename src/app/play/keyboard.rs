@@ -193,7 +193,8 @@ impl PlayKeyboard {
         }
         let mut child = egui::Ui::new(ui.ctx().clone(), id, builder);
         child.set_clip_rect(ui.clip_rect());
-        let response = child.add_enabled(enabled, egui::Button::new(text).wrap());
+        let response =
+            crate::theme::add_enabled(&mut child, enabled, egui::Button::new(text).wrap());
         ui.advance_cursor_after_rect(child.min_rect());
         let frame = ui.ctx().cumulative_frame_nr();
         let restore = self.pending.is_some_and(|pending| {

@@ -154,6 +154,7 @@ impl ViewState {
         block_offset: usize,
         text: &str,
     ) {
+        super::register_input(&output.response);
         super::remember_text_undo(ui.ctx(), output.response.id, text);
         ui.ctx().data_mut(|data| {
             data.insert_temp(
@@ -167,7 +168,7 @@ impl ViewState {
             )
         });
         super::super::search::scroll_editor_selection(ui, output);
-        if !output.response.has_focus() {
+        if !output.response.has_focus() || self.composing() {
             return;
         }
         if let Some(range) = output.cursor_range {

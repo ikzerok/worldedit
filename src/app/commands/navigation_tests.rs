@@ -35,7 +35,7 @@ impl Harness {
             br#"{"schema_version":1,"language_version":"1.13","required_features":["content.entities.v1"]}"#.to_vec()).unwrap();
         app.project.save().unwrap();
         app.saved_location = true;
-        app.personal.settings.theme = theme;
+        app.personal.settings.appearance.theme = theme;
         app.personal.pending_restore = false;
         app.recompile();
         app.tab = Tab::Edit;
@@ -102,11 +102,25 @@ fn visible(output: &egui::FullOutput, label: &str, size: Vec2) -> Option<Rect> {
     })
 }
 fn object_entry(h: &Harness, index: usize) -> (String, TargetRef) {
-    let object = super::super::object_picker::candidates(
-        &h.app.snapshot.as_ref().unwrap().result.analysis.catalog,
-        "",
-        &[],
-    )[index];
+    let page = h
+        .app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .result
+        .analysis
+        .catalog
+        .search_objects_filtered_page(
+            "",
+            &super::super::object_picker::filter(&[], None),
+            worldline_core::object_search::ObjectSearchOptions {
+                offset: index,
+                limit: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let object = &page.items[0];
     (
         super::super::object_picker::candidate_caption(object, Some(&h.app.project.root)),
         object.target.clone(),
@@ -217,25 +231,28 @@ fn all_31_commands_follow_keyboard_selection_across_dark_light_and_sizes() {
 }
 
 #[test]
-fn thousand_objects_scroll_to_exact_identity_and_enter_only_visible_selection() {
+fn fifteen_hundred_objects_page_to_exact_identity_and_enter_only_visible_selection() {
     let mut h = Harness::new(
-        1000,
+        1500,
         egui::vec2(1280.0, 800.0),
         crate::theme::ThemeMode::Dark,
     );
     let baseline = h.app.project.content_baseline();
-    let (label, target) = object_entry(&h, 999);
+    let (label, target) = object_entry(&h, 1499);
     h.open(false);
-    h.press(Key::ArrowDown, 999);
+    h.press(Key::PageDown, 74);
+    h.press(Key::ArrowDown, 19);
     let output = h.settle();
-    assert_eq!(h.app.command_palette.selected, 999);
+    assert_eq!(h.app.command_palette.objects.options.offset, 1480);
+    assert_eq!(h.app.command_palette.selected, 19);
     assert!(
         visible(&output, &label, h.size).is_some(),
-        "1000th object hidden"
+        "1500th object hidden"
     );
-    h.press(Key::ArrowUp, 500);
+    h.press(Key::PageUp, 50);
     let output = h.settle();
-    assert!(visible(&output, &object_entry(&h, 499).0, h.size).is_some());
+    assert_eq!(h.app.command_palette.objects.options.offset, 480);
+    assert!(visible(&output, &object_entry(&h, 480).0, h.size).is_some());
     h.frame(vec![Event::Text(target.id.clone())]);
     let output = h.settle();
     assert_eq!(
@@ -261,7 +278,7 @@ fn manual_scroll_stays_put_and_hidden_enter_never_executes() {
             crate::theme::ThemeMode::Light,
         );
         h.open(!objects);
-        let index = if objects { 999 } else { 21 };
+        let index = if objects { 19 } else { 21 };
         let label = if objects {
             object_entry(&h, index).0
         } else {
@@ -319,7 +336,7 @@ fn empty_filter_and_ime_do_not_execute_and_escape_restores_source_focus() {
     h.frame(vec![]);
     let baseline = h.app.project.content_baseline();
     h.open(false);
-    h.press(Key::ArrowDown, 999);
+    h.press(Key::ArrowDown, 19);
     h.settle();
     h.frame(vec![
         Event::Ime(egui::ImeEvent::Enabled),
@@ -328,7 +345,7 @@ fn empty_filter_and_ime_do_not_execute_and_escape_restores_source_focus() {
         key_event(Key::Escape),
     ]);
     assert!(h.app.command_palette.open);
-    assert_eq!(h.app.command_palette.selected, 999);
+    assert_eq!(h.app.command_palette.selected, 19);
     for event in [
         egui::ImeEvent::Preedit("中".into()),
         egui::ImeEvent::Commit("中".into()),
@@ -354,4 +371,167 @@ fn empty_filter_and_ime_do_not_execute_and_escape_restores_source_focus() {
     let output = h.settle();
     assert_eq!(h.app.command_palette.selected, 0);
     assert!(visible(&output, &object_entry(&h, 0).0, h.size).is_some());
+}
+
+#[test]
+fn refresh_rejects_old_page_enter_and_budget_error_never_opens_an_object() {
+    let mut h = Harness::new(
+        1500,
+        egui::vec2(1280.0, 800.0),
+        crate::theme::ThemeMode::Light,
+    );
+    h.open(false);
+    h.press(Key::PageDown, 74);
+    h.settle();
+    assert_eq!(h.app.command_palette.objects.options.offset, 1480);
+    let source = h
+        .app
+        .project
+        .document(&h.app.active_file)
+        .unwrap()
+        .to_owned();
+    h.app
+        .project
+        .set_text(
+            &h.app.active_file.clone(),
+            format!("// 新来源代次\n{source}"),
+        )
+        .unwrap();
+    h.app.recompile();
+    let baseline = h.app.project.content_baseline();
+    h.press(Key::Enter, 1);
+    assert!(h.app.command_palette.open);
+    assert_eq!(h.app.command_palette.objects.options.offset, 0);
+    assert_eq!(h.app.tab, Tab::Edit);
+    assert!(h.app.catalog_target.is_none());
+    h.app.command_palette.objects.options.max_candidates = 100;
+    h.settle();
+    h.press(Key::Enter, 1);
+    assert!(h
+        .app
+        .command_palette
+        .objects
+        .result
+        .as_ref()
+        .unwrap()
+        .is_err());
+    assert!(h.app.command_palette.open);
+    assert!(h.app.catalog_target.is_none());
+    assert_eq!(h.app.project.content_baseline(), baseline);
+}
+
+#[test]
+fn full_app_mention_escape_keeps_diagnostics_and_defers_to_command_and_ime_layers() {
+    let mut h = Harness::new(2, egui::vec2(1280.0, 800.0), crate::theme::ThemeMode::Light);
+    let source =
+        "entity a kind place as \"同名\"\nentity b kind place as \"同名\"\nevent start\n  @同名";
+    h.app
+        .project
+        .set_text(&h.app.active_file.clone(), source.into())
+        .unwrap();
+    h.app.recompile();
+    h.app.personal.settings.diagnostics = true;
+    h.settle();
+    let editor = egui::Id::new(("source", &h.app.active_file));
+    let mut state = egui::TextEdit::load_state(&h.ctx, editor).unwrap();
+    state
+        .cursor
+        .set_char_range(Some(egui::text::CCursorRange::one(
+            egui::text::CCursor::new(source.chars().count()),
+        )));
+    state.store(&h.ctx, editor);
+    h.ctx.memory_mut(|memory| memory.request_focus(editor));
+    h.settle();
+    assert!(h.app.source_mention_owns_escape(&h.ctx));
+    let before = h.app.project.content_baseline();
+    h.press(Key::Escape, 1);
+    assert!(h.app.personal.settings.diagnostics);
+    assert!(h.app.mention_suppression.is_some());
+    assert_eq!(h.app.project.content_baseline(), before);
+    h.app.mention_suppression = None;
+    h.settle();
+    h.open(true);
+    h.press(Key::Escape, 1);
+    assert!(!h.app.command_palette.open);
+    assert!(h.app.mention_suppression.is_none());
+    assert!(h.app.personal.settings.diagnostics);
+    h.ctx.memory_mut(|memory| memory.request_focus(editor));
+    h.size = egui::vec2(640.0, 600.0);
+    h.app.reading_panels.pin(TargetRef::new("entity", "a"));
+    h.app.personal.settings.references_visible = true;
+    h.app.personal.settings.dock_references = true;
+    h.ctx
+        .data_mut(|data| data.insert_temp(egui::Id::new("compact-reference-drawer"), true));
+    h.frame(vec![]);
+    assert!(h.app.compact_reference_open(&h.ctx));
+    h.ctx.memory_mut(|memory| memory.request_focus(editor));
+    assert!(!h.app.source_mention_owns_escape(&h.ctx));
+    h.press(Key::Escape, 1);
+    assert!(!h.app.compact_reference_open(&h.ctx));
+    assert!(h.app.mention_suppression.is_none());
+    h.ctx.memory_mut(|memory| memory.request_focus(editor));
+    h.frame(vec![
+        Event::Ime(egui::ImeEvent::Enabled),
+        key_event(Key::Escape),
+    ]);
+    assert!(h.app.personal.settings.diagnostics);
+    assert!(h.app.mention_suppression.is_none());
+    assert_eq!(h.app.project.content_baseline(), before);
+    h.frame(vec![Event::Ime(egui::ImeEvent::Disabled)]);
+}
+
+#[test]
+fn palette_pointer_press_cannot_survive_source_revision_or_page_replacement() {
+    for page_change in [false, true] {
+        let mut h = Harness::new(
+            50,
+            egui::vec2(1280.0, 800.0),
+            crate::theme::ThemeMode::Light,
+        );
+        h.open(false);
+        let output = h.settle();
+        let point = visible(&output, &object_entry(&h, 1).0, h.size)
+            .unwrap()
+            .center();
+        h.frame(vec![
+            Event::PointerMoved(point),
+            Event::PointerButton {
+                pos: point,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: Modifiers::NONE,
+            },
+        ]);
+        if page_change {
+            h.app.command_palette.objects.options.offset = 20;
+        } else {
+            let source = h
+                .app
+                .project
+                .document(&h.app.active_file)
+                .unwrap()
+                .replace("同名对象 0001", "更新对象 0001");
+            h.app
+                .project
+                .set_text(&h.app.active_file.clone(), source)
+                .unwrap();
+            h.app.recompile();
+        }
+        let baseline = h.app.project.content_baseline();
+        h.frame(vec![]);
+        h.frame(vec![]);
+        h.frame(vec![
+            Event::PointerMoved(point),
+            Event::PointerButton {
+                pos: point,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: Modifiers::NONE,
+            },
+        ]);
+        assert!(h.app.command_palette.open);
+        assert!(h.app.catalog_target.is_none());
+        assert_eq!(h.app.tab, Tab::Edit);
+        assert_eq!(h.app.project.content_baseline(), baseline);
+    }
 }

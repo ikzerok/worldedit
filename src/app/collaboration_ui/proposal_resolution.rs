@@ -122,8 +122,7 @@ pub(super) fn show_conflict_resolution(
                 } else {
                     format!("采用{side}（删除）")
                 };
-                if ui
-                    .add_enabled(!file.truncated, egui::Button::new(label))
+                if crate::theme::add_enabled(ui, !file.truncated, egui::Button::new(label))
                     .clicked()
                 {
                     draft.value = value.unwrap_or_default().to_owned();

@@ -8,11 +8,58 @@
   <link data-trunk rel="rust" data-bin="worldedit" data-wasm-opt="0">
   <link data-trunk rel="icon" href="assets/worldedit-icon.png">
   <style>
-    html, body { margin: 0; width: 100%; height: 100%; background: #16171b; color: #edeff5; }
+    :root { color-scheme: light dark; --workspace: #eef1ec; --text: #25342b; --accent: #27654d; }
+    @media (prefers-color-scheme: dark) {
+      :root { --workspace: #151e19; --text: #edf4e9; --accent: #a8d5ae; }
+    }
+    html, body { margin: 0; width: 100%; height: 100%; background: var(--workspace); color: var(--text); }
     #worldedit-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-    #loading { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; font: 16px/1.8 system-ui, sans-serif; padding: 24px; }
-    #loading strong { color: #8fb7f8; font-size: 24px; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; gap: 12px; text-align: center; font: 16px/1.8 system-ui, sans-serif; padding: 24px; }
+    #loading strong { color: var(--accent); font-size: 24px; font-weight: 600; letter-spacing: .03em; }
   </style>
+  <script>
+    // Resolve only known device preferences. Rust owns all canvas appearance.
+    (() => {
+      const colors = {
+        Mist: [['#eef1ec','#25342b','#27654d'],['#151e19','#edf4e9','#a8d5ae']],
+        Plum: [['#f5f0f5','#382b38','#803f73'],['#201923','#f5eaf4','#e4addb']],
+        Copper: [['#f4edde','#382d1f','#963f21'],['#231c15','#f6ecd9','#f2b98a']],
+        SeaSalt: [['#edf3f6','#203548','#285d95'],['#121f2b','#e9f3fc','#a1caf1']],
+        Graphite: [['#eef0f2','#29343b','#14636e'],['#191e22','#eef4f6','#98d4de']],
+        Terminal: [null,['#08130d','#d6f5d4','#8def6f']],
+        Neon: [null,['#140f24','#f2efff','#f2a2df']],
+        Vellum: [['#eeebd8','#2c3027','#4a5930'],null],
+        Sakura: [['#fbeff1','#482d39','#983a63'],['#28151e','#ffeaf2','#f8aac8']],
+        Monochrome: [['#eeeeee','#202020','#333333'],['#111111','#f1f1f1','#e0e0e0']]
+      };
+      try {
+        const raw = JSON.parse(localStorage.getItem('worldedit.personal.v1') || 'null');
+        const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+        const stored = object(raw) && (raw.schema_version === undefined ||
+          Number.isSafeInteger(raw.schema_version) && raw.schema_version >= 1) ? raw : null;
+        const s = stored && object(stored.settings) ? stored.settings : {};
+        const legacy = stored && (stored.schema_version === undefined || stored.schema_version === 1);
+        const p = legacy ? s : object(s.appearance) ? s.appearance : {};
+        const knownMode = value => ['System', 'Light', 'Dark'].includes(value);
+        const mode = legacy ? (knownMode(s.theme) ? s.theme : 'Dark') :
+          knownMode(p.mode) ? p.mode : knownMode(p.theme) ? p.theme : 'System';
+        const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const palette = typeof p.palette === 'string' && Object.prototype.hasOwnProperty.call(colors, p.palette) ? p.palette : 'Mist';
+        // A null member marks a single-mode palette. Keep the requested mode untouched.
+        const requestedDark = mode === 'Dark' || (mode === 'System' && systemDark);
+        const dark = !colors[palette][0] || (!!colors[palette][1] && requestedDark);
+        const [background, text, baseAccent] = colors[palette][dark ? 1 : 0];
+        const accents = { Pine: 'Mist', Plum: 'Plum', Copper: 'Copper', Indigo: 'SeaSalt', IceCyan: 'Graphite' };
+        const accentPalette = typeof p.accent === 'string' && Object.prototype.hasOwnProperty.call(accents, p.accent) ? accents[p.accent] : null;
+        const accent = accentPalette ? colors[accentPalette][dark ? 1 : 0][2] : baseAccent;
+        const root = document.documentElement;
+        root.style.setProperty('--workspace', background);
+        root.style.setProperty('--text', text);
+        root.style.setProperty('--accent', accent);
+        root.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (_) { /* CSS keeps a deterministic System fallback; raw storage is untouched. */ }
+    })();
+  </script>
 <link data-trunk rel="copy-file" href="worker.mjs">
 </head>
 <body>

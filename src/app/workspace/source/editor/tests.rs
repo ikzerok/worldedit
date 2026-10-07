@@ -15,6 +15,7 @@ pub(super) fn app() -> (Context, WorldeditApp, String) {
     });
     let creation = eframe::CreationContext::_new_kittest(ctx.clone());
     let mut app = WorldeditApp::new(&creation, None);
+    app.personal.settings.reduce_motion = true;
     let root = std::env::temp_dir().join(format!(
         "worldedit-source-wrap-{}-{}",
         std::process::id(),
@@ -52,7 +53,10 @@ fn frame(
             events,
             ..Default::default()
         },
-        |ctx| app.source_tab(ctx),
+        |ctx| {
+            let _theme = crate::theme::configure_appearance(ctx, app.personal.appearance());
+            app.source_tab(ctx);
+        },
     )
 }
 
@@ -114,7 +118,7 @@ fn source_wrap_frames_preserve_bytes_and_physical_lines_across_width_and_font() 
         (false, 700.0, 28.0),
     ] {
         app.personal.settings.source_wrap = wrap;
-        app.personal.settings.body_size = size;
+        app.personal.settings.source_size = size;
         let output = settle(&ctx, &mut app, width, 800.0);
         let (_, galley) = rendered_source(&output, &source);
         assert_eq!(galley.job.text.as_bytes(), source.as_bytes());
@@ -176,7 +180,7 @@ fn source_wrap_keeps_selection_direction_and_visible_anchor_after_reflow() {
         (900.0, 750.0, 16.0, 1.45, false),
         (900.0, 750.0, 16.0, 1.45, true),
     ] {
-        app.personal.settings.body_size = size;
+        app.personal.settings.source_size = size;
         app.personal.settings.line_spacing = spacing;
         app.personal.settings.source_wrap = wrap;
         let output = settle(&ctx, &mut app, width, height);
@@ -211,7 +215,7 @@ fn source_wrap_back_reflows_saved_location_and_rejects_stale_source() {
     app.remember_author_location(location.clone());
     app.jump = Some((60, 1));
     settle(&ctx, &mut app, 850.0, 750.0);
-    app.personal.settings.body_size = 28.0;
+    app.personal.settings.source_size = 28.0;
     app.author_back(&ctx);
     let output = settle(&ctx, &mut app, 500.0, 750.0);
     let selected = range(&ctx, &app);
@@ -252,7 +256,7 @@ fn source_wrap_reflow_preserves_unapplied_ime_draft() {
         (false, 16.0, 700.0),
     ] {
         app.personal.settings.source_wrap = wrap;
-        app.personal.settings.body_size = size;
+        app.personal.settings.source_size = size;
         let output = settle(&ctx, &mut app, width, 750.0);
         assert_eq!(rendered_source(&output, &draft).1.job.text, draft);
         assert_eq!(app.project.document(&app.active_file).unwrap(), source);
@@ -275,7 +279,7 @@ fn source_wrap_search_selection_wins_over_previous_view_when_width_changes() {
         source.clone(),
         start..end,
     );
-    app.personal.settings.body_size = 28.0;
+    app.personal.settings.source_size = 28.0;
     let output = settle(&ctx, &mut app, 500.0, 800.0);
     let selected = range(&ctx, &app);
     assert_eq!(
@@ -307,7 +311,7 @@ fn source_wrap_reflow_keeps_scrolled_context_when_cursor_is_offscreen() {
     let old = serde_json::to_value(&app.personal.source_view.as_ref().unwrap().1).unwrap();
     let anchor = old["anchor"].as_u64().unwrap() as usize;
     assert!(anchor > 50, "可见锚点应来自滚动后的正文，不能跳回首字符");
-    app.personal.settings.body_size = 28.0;
+    app.personal.settings.source_size = 28.0;
     let output = settle(&ctx, &mut app, 500.0, 750.0);
     assert_eq!(range(&ctx, &app).primary.index, 0);
     let (origin, galley) = rendered_source(&output, &source);
@@ -324,7 +328,7 @@ fn source_wrap_gutter_and_jump_share_actual_row_positions_including_crlf_blanks(
     let (ctx, mut app, source) = app();
     app.personal.settings.source_wrap = true;
     for size in [16.0, 28.0] {
-        app.personal.settings.body_size = size;
+        app.personal.settings.source_size = size;
         for line in [3, 4, source.split('\n').count()] {
             app.jump = Some((line as u32, 1));
             let output = settle(&ctx, &mut app, 520.0, 780.0);

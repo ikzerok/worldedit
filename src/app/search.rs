@@ -29,6 +29,8 @@ pub(super) enum Scope {
 }
 #[derive(Default)]
 pub(super) struct SearchState {
+    object_catalog: objects::ObjectCatalogCache,
+    object_page: super::object_picker::CandidatePage,
     scope: Scope,
     source: bool,
     options: SearchOptions,

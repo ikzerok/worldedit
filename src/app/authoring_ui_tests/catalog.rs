@@ -1,5 +1,33 @@
 use super::*;
 
+/// 真实时间等待native查询完成；80个快速合成帧不代表后台线程已获得执行机会。
+pub(super) fn await_catalog_query(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    window: u8,
+    expected: &str,
+) -> String {
+    let started = std::time::Instant::now();
+    let deadline = started + std::time::Duration::from_secs(5);
+    let mut frames = 0;
+    loop {
+        let output = frame(ctx, app, Vec::new(), window);
+        frames += 1;
+        let mut rendered = String::new();
+        for shape in &output.shapes {
+            collect_text(&shape.shape, &mut rendered);
+        }
+        let state = app.catalog_workbench.test_query_state();
+        assert!(std::time::Instant::now() < deadline,
+            "目录查询等待超时：expected={expected}; elapsed={:?}; frames={frames}; pending={}; {}; UI={rendered}",
+            started.elapsed(), state.pending, state.details);
+        if !state.pending {
+            return rendered;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 #[test]
 fn catalog_query_opens_from_the_existing_catalog_and_keeps_browsing_read_only() {
     let (ctx, mut app) = app();
@@ -33,7 +61,7 @@ fn catalog_query_composes_core_filters_shows_reasons_and_removes_a_condition() {
     enter_text_at_placeholder_in_window(&ctx, &mut app, 14, "输入名称、ID 或别名", "同名");
     click(&ctx, &mut app, 14, "添加名称值");
     click(&ctx, &mut app, 14, "运行查询");
-    let _ = rendered_text_in_window(&ctx, &mut app, 14, "2 个命中");
+    let _ = await_catalog_query(&ctx, &mut app, 14, "2 个命中");
     click(&ctx, &mut app, 14, "命中原因");
     let rendered = rendered_text_in_window(&ctx, &mut app, 14, "命中：类型");
 
@@ -66,7 +94,7 @@ fn catalog_query_reports_an_empty_result_without_changing_the_project() {
     enter_text_at_placeholder_in_window(&ctx, &mut app, 14, "输入名称、ID 或别名", "不存在的资料");
     click(&ctx, &mut app, 14, "添加名称值");
     click(&ctx, &mut app, 14, "运行查询");
-    let rendered = rendered_text_in_window(&ctx, &mut app, 14, "没有找到匹配资料");
+    let rendered = await_catalog_query(&ctx, &mut app, 14, "没有找到匹配资料");
 
     assert!(rendered.contains("没有找到匹配资料"), "{rendered}");
     assert_eq!(app.project.content_baseline(), baseline);
@@ -92,7 +120,7 @@ fn catalog_query_uses_core_pages_and_rejects_a_result_from_an_old_project_baseli
     click(&ctx, &mut app, 14, "对象类型");
     click(&ctx, &mut app, 14, "实体 · entity");
     click(&ctx, &mut app, 14, "运行查询");
-    let first_page = rendered_text_in_window(&ctx, &mut app, 14, "57 个命中");
+    let first_page = await_catalog_query(&ctx, &mut app, 14, "57 个命中");
     assert!(first_page.contains("显示 1–50"), "{first_page}");
     assert!(first_page.contains("下一页"), "{first_page}");
 
@@ -105,7 +133,7 @@ fn catalog_query_uses_core_pages_and_rejects_a_result_from_an_old_project_baseli
     assert!(!stale_page.contains("下一页"), "{stale_page}");
 
     click(&ctx, &mut app, 14, "从第一页重新查询");
-    let refreshed = rendered_text_in_window(&ctx, &mut app, 14, "58 个命中");
+    let refreshed = await_catalog_query(&ctx, &mut app, 14, "58 个命中");
     assert!(refreshed.contains("58 个命中"), "{refreshed}");
     assert!(refreshed.contains("显示 1–50"), "{refreshed}");
 }
@@ -136,7 +164,7 @@ fn catalog_query_saves_shared_definitions_and_keeps_local_favorites_out_of_the_p
         fingerprint
     );
     assert_eq!(app.history.len(), 1);
-    click(&ctx, &mut app, 14, "共享查询定义 · 1 项");
+    ensure_single_saved_definition_visible(&ctx, &mut app, "所有资料 · people");
     click(&ctx, &mut app, 14, "☆ 收藏到本机");
     let baseline = app.project.content_baseline();
     assert_eq!(app.history.len(), 1);
@@ -147,8 +175,18 @@ fn catalog_query_saves_shared_definitions_and_keeps_local_favorites_out_of_the_p
     app.recompile();
     app.tab = super::Tab::Catalog;
     click(&ctx, &mut app, 14, "组合查询与待办");
+    // 同一Context保留折叠状态；先看真实可见内容，不能把“确保展开”写成盲目toggle。
+    ensure_single_saved_definition_visible(&ctx, &mut app, "所有资料 · people");
+    let (_, toggled) = ensure_single_saved_definition_visible(&ctx, &mut app, "所有资料 · people");
+    assert!(!toggled, "已展开的共享定义不能被再次点成收起");
+    // 也验证真正收起的分支：只能通过可见控件的实际按下/抬起重新打开。
     click(&ctx, &mut app, 14, "共享查询定义 · 1 项");
-    let output = frame(&ctx, &mut app, Vec::new(), 14);
+    let closed = frame(&ctx, &mut app, Vec::new(), 14);
+    assert!(visible_text_position(&closed, "载入").is_none());
+    assert!(visible_text_position(&closed, "所有资料 · people").is_none());
+    let (output, toggled) =
+        ensure_single_saved_definition_visible(&ctx, &mut app, "所有资料 · people");
+    assert!(toggled, "收起的共享定义必须由真实点击打开");
     let mut rendered = String::new();
     for shape in &output.shapes {
         collect_text(&shape.shape, &mut rendered);
@@ -164,13 +202,21 @@ fn catalog_query_saves_shared_definitions_and_keeps_local_favorites_out_of_the_p
         favorite_text.contains("所有资料 · people"),
         "{favorite_text}"
     );
-    if !favorite_text.contains("载入") {
-        click(&ctx, &mut app, 14, "共享查询定义 · 1 项");
-    }
+    // 收藏区同名行仍可见时，必须识别共享定义实际已收起，不能借用下方文字假通过。
+    click(&ctx, &mut app, 14, "共享查询定义 · 1 项");
+    let only_favorite = frame(&ctx, &mut app, Vec::new(), 14);
+    assert!(visible_text_position(&only_favorite, "所有资料 · people").is_some());
+    assert!(!saved_definition_visible(
+        &ctx,
+        &only_favorite,
+        "所有资料 · people"
+    ));
+    let (_, toggled) = ensure_single_saved_definition_visible(&ctx, &mut app, "所有资料 · people");
+    assert!(toggled, "本地收藏中的同名行不代表共享定义已展开");
     click(&ctx, &mut app, 14, "载入");
     assert_eq!(app.project.content_baseline(), baseline);
     click(&ctx, &mut app, 14, "运行查询");
-    let reopened_query = rendered_text_in_window(&ctx, &mut app, 14, "2 个命中");
+    let reopened_query = await_catalog_query(&ctx, &mut app, 14, "2 个命中");
     assert!(reopened_query.contains("2 个命中"), "{reopened_query}");
     assert_eq!(app.project.content_baseline(), baseline);
     assert_eq!(app.history.len(), 0);
@@ -178,6 +224,58 @@ fn catalog_query_saves_shared_definitions_and_keeps_local_favorites_out_of_the_p
         app.snapshot.as_ref().unwrap().result.analysis.fingerprint,
         fingerprint
     );
+}
+
+fn ensure_single_saved_definition_visible(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    label: &str,
+) -> (egui::FullOutput, bool) {
+    scroll_catalog_to(ctx, app, 14, "共享查询定义 · 1 项");
+    let before = frame(ctx, app, Vec::new(), 14);
+    let opened = saved_definition_visible(ctx, &before, label);
+    if !opened {
+        click(ctx, app, 14, "共享查询定义 · 1 项");
+    }
+    scroll_catalog_to(ctx, app, 14, "载入");
+    let output = frame(ctx, app, Vec::new(), 14);
+    assert!(
+        saved_definition_visible(ctx, &output, label),
+        "共享定义区域的完整名称/ID与载入动作须实际可见：{label}"
+    );
+    (output, !opened)
+}
+
+fn saved_definition_visible(ctx: &egui::Context, output: &egui::FullOutput, label: &str) -> bool {
+    let Some(shared) = visible_text_position(output, "共享查询定义 · 1 项") else {
+        return false;
+    };
+    let screen = ctx.screen_rect();
+    let bottom =
+        visible_text_position(output, "本地收藏 ·").map_or(screen.bottom(), |point| point.y);
+    let region = Rect::from_min_max(pos2(screen.left(), shared.y), pos2(screen.right(), bottom));
+    fn has_text(shape: &egui::Shape, clip: Rect, region: Rect, label: &str) -> bool {
+        match shape {
+            egui::Shape::Text(text) if text.galley.job.text == label => {
+                let rect = text.galley.rect.translate(text.pos.to_vec2());
+                clip.contains_rect(rect) && region.contains_rect(rect)
+            }
+            egui::Shape::Vec(shapes) => shapes
+                .iter()
+                .any(|shape| has_text(shape, clip, region, label)),
+            _ => false,
+        }
+    }
+    [label, "载入"].into_iter().all(|label| {
+        output.shapes.iter().any(|shape| {
+            has_text(
+                &shape.shape,
+                shape.clip_rect.intersect(screen),
+                region,
+                label,
+            )
+        })
+    })
 }
 
 #[test]
@@ -264,6 +362,7 @@ pub(super) fn scroll_catalog_to(
     label: &str,
 ) -> String {
     let mut rendered = String::new();
+    let mut previous_point: Option<egui::Pos2> = None;
     for delta in [-90.0, 90.0] {
         for _ in 0..250 {
             let output = frame(ctx, app, Vec::new(), window);
@@ -271,9 +370,15 @@ pub(super) fn scroll_catalog_to(
             for shape in &output.shapes {
                 collect_text(&shape.shape, &mut rendered);
             }
-            if visible_text_position(&output, label).is_some() {
-                return rendered;
+            if let Some(point) = visible_text_position(&output, label) {
+                // 真实滚动可能仍在惯性移动；连续两帧位置稳定才交给按下/抬起。
+                if previous_point.is_some_and(|previous| previous.distance(point) <= 0.1) {
+                    return rendered;
+                }
+                previous_point = Some(point);
+                continue;
             }
+            previous_point = None;
             // 从结果区域滚动到底，继续滚动必须能到达外层操作区。
             let point = ctx.screen_rect().center() + vec2(100.0, 60.0);
             let _ = frame(
@@ -314,7 +419,7 @@ fn small_catalog_viewport_can_page_save_and_favorite_after_scrolling() {
         click(&ctx, &mut app, 34, "对象类型");
         click(&ctx, &mut app, 34, "实体 · entity");
         click(&ctx, &mut app, 34, "运行查询");
-        let first = rendered_text_in_window(&ctx, &mut app, window, "68 个命中");
+        let first = await_catalog_query(&ctx, &mut app, window, "68 个命中");
         assert!(first.contains("显示 1–50"), "{first}");
         scroll_catalog_to(&ctx, &mut app, window, "下一页");
         click(&ctx, &mut app, window, "下一页");

@@ -295,7 +295,7 @@ fn both_route_statuses_and_first_difference_are_visible_in_both_themes_at_all_si
         crate::theme::ThemeMode::Dark,
         crate::theme::ThemeMode::Light,
     ] {
-        crate::theme::configure(&ctx, mode);
+        let _theme = crate::theme::configure(&ctx, mode);
         for size in [
             egui::vec2(1280.0, 800.0),
             egui::vec2(1188.0, 848.0),
@@ -488,7 +488,7 @@ fn long_route_names_keep_status_and_relative_source_on_first_screen() {
         crate::theme::ThemeMode::Dark,
         crate::theme::ThemeMode::Light,
     ] {
-        crate::theme::configure(&ctx, mode);
+        let _theme = crate::theme::configure(&ctx, mode);
         for size in [
             egui::vec2(1280.0, 800.0),
             egui::vec2(1188.0, 848.0),

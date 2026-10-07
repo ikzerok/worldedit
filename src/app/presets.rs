@@ -246,7 +246,8 @@ impl WorldeditApp {
             ui.label("标题");
             ui.text_edit_singleline(&mut form.draft.title);
             ui.label(theme::muted("稳定 ID"));
-            ui.add_enabled(
+            crate::theme::add_enabled(
+                ui,
                 form.original.is_none(),
                 egui::TextEdit::singleline(&mut form.draft.id),
             );
@@ -400,14 +401,14 @@ impl WorldeditApp {
                     "工程已变化；预设输入保留，但旧基线不能覆盖当前内容。",
                 );
             }
-            if ui
-                .add_enabled(
-                    current
-                        && !form.draft.title.trim().is_empty()
-                        && (form.draft.map_id.is_some() || form.draft.graph_view_id.is_some()),
-                    theme::primary("保存展示预设"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                current
+                    && !form.draft.title.trim().is_empty()
+                    && (form.draft.map_id.is_some() || form.draft.graph_view_id.is_some()),
+                theme::primary("保存展示预设"),
+            )
+            .clicked()
             {
                 saved_now = self.save_preset_editor(&form);
                 if saved_now {

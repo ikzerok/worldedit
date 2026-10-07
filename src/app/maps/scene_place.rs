@@ -182,18 +182,18 @@ impl super::super::WorldeditApp {
             .default_width(580.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    apply = ui
-                        .add_enabled(
-                            form.plan.is_some(),
-                            crate::theme::primary("确认创建与绑定（一次撤销）"),
-                        )
-                        .clicked();
+                    apply = crate::theme::add_enabled(
+                        ui,
+                        form.plan.is_some(),
+                        crate::theme::primary("确认创建与绑定（一次撤销）"),
+                    )
+                    .clicked();
                     cancel = ui.button("取消，保留原工程").clicked();
                 });
                 ui.label("资料与地图引用由同一核心事务提交；不会自动升级语言。");
                 crate::theme::technical_value(ui, "绑定节点", &form.request.node_id);
                 let mut changed = false;
-                ui.add_enabled_ui(form.job.is_none(), |ui| {
+                crate::theme::add_enabled_ui(ui, form.job.is_none(), |ui| {
                     ui.label("稳定 ID");
                     changed |= ui
                         .text_edit_singleline(&mut form.request.draft.id)

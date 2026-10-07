@@ -56,7 +56,7 @@ fn long_status_receipt_is_single_line_with_full_hover_and_clickable_right_contro
             let ctx = egui::Context::default();
             let creation = eframe::CreationContext::_new_kittest(ctx.clone());
             let mut app = WorldeditApp::new(&creation, None);
-            theme::configure(&ctx, mode);
+            let _theme = theme::configure(&ctx, mode);
             ctx.style_mut(|style| {
                 style.animation_time = 0.0;
                 style.interaction.tooltip_delay = 0.0;

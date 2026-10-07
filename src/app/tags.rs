@@ -67,10 +67,7 @@ pub(super) fn condition(ui: &mut egui::Ui, catalog: &Catalog, expression: &mut S
                 alternative,
             )));
         }
-        if ui
-            .add_enabled(ready, egui::Button::new("添加到条件"))
-            .clicked()
-        {
+        if crate::theme::add_enabled(ui, ready, egui::Button::new("添加到条件")).clicked() {
             *expression = append_condition(expression, &state, &tags, absent, any, alternative);
         }
         ui.label(theme::muted(
@@ -114,17 +111,17 @@ pub(super) fn picker(
                 }
                 count += 1;
                 let mut checked = selected.contains(&tag.id);
-                if ui
-                    .add_enabled(
-                        !locked.contains(&tag.id),
-                        egui::Checkbox::new(&mut checked, format!("{} · {}", tag.display, tag.id)),
-                    )
-                    .on_hover_text(if locked.contains(&tag.id) {
-                        "来自正文内联标签，请在源码中修改"
-                    } else {
-                        &tag.description
-                    })
-                    .changed()
+                if crate::theme::add_enabled(
+                    ui,
+                    !locked.contains(&tag.id),
+                    egui::Checkbox::new(&mut checked, format!("{} · {}", tag.display, tag.id)),
+                )
+                .on_hover_text(if locked.contains(&tag.id) {
+                    "来自正文内联标签，请在源码中修改"
+                } else {
+                    &tag.description
+                })
+                .changed()
                 {
                     if checked {
                         selected.push(tag.id.clone());
@@ -186,12 +183,12 @@ pub(super) fn actions(ui: &mut egui::Ui, catalog: &Catalog, actions: &mut String
         } else {
             "仅增减所选标签，保留其他标签。"
         }));
-        if ui
-            .add_enabled(
-                !state.is_empty() && (operation == 0 || !tags.is_empty()),
-                egui::Button::new("＋ 添加状态变更"),
-            )
-            .clicked()
+        if crate::theme::add_enabled(
+            ui,
+            !state.is_empty() && (operation == 0 || !tags.is_empty()),
+            egui::Button::new("＋ 添加状态变更"),
+        )
+        .clicked()
         {
             if !actions.is_empty() && !actions.ends_with('\n') {
                 actions.push('\n');

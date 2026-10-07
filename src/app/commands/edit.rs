@@ -64,7 +64,7 @@ impl WorldeditApp {
             }
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if egui::Popup::is_any_open(ctx) {
+            if egui::Popup::is_any_open(ctx) || self.source_mention_owns_escape(ctx) {
                 return;
             }
 
@@ -75,6 +75,14 @@ impl WorldeditApp {
                 return;
             }
             let closed = match top {
+                Some("navigation-drawer") => {
+                    self.close_navigation_drawer(ctx);
+                    true
+                }
+                Some("compact-references") => {
+                    self.close_compact_reference(ctx);
+                    true
+                }
                 Some("entity-source-move") => {
                     self.entity_source_move_form = None;
                     true
@@ -167,14 +175,14 @@ impl WorldeditApp {
         let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
         let command = if mac { "⌘" } else { "Ctrl+" };
         let (_, _, replace_label) = replacement_shortcut(ui.ctx().os());
-        ui.menu_button("编辑", |ui| {
-            if ui
-                .add_enabled(
-                    self.active_file != self.project.entry
-                        && self.project.documents.contains_key(&self.active_file),
-                    egui::Button::new("安全整理当前源码路径…"),
-                )
-                .clicked()
+        crate::chrome::quiet_menu(ui, "编辑", |ui| {
+            if crate::theme::add_enabled(
+                ui,
+                self.active_file != self.project.entry
+                    && self.project.documents.contains_key(&self.active_file),
+                egui::Button::new("安全整理当前源码路径…"),
+            )
+            .clicked()
             {
                 self.begin_source_move(self.active_file.clone());
                 ui.close();

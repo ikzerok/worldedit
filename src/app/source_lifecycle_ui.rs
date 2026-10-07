@@ -190,8 +190,8 @@ impl WorldeditApp {
                 let current = form.plan.as_ref().is_some_and(|p| p.content_baseline == self.project.content_baseline()) && form.root == self.project.root;
                 if form.plan.is_some() && !current { ui.colored_label(theme::WARNING(), "工程已变化；输入保留，请重新预览。" ); }
                 ui.horizontal_wrapped(|ui| {
-                    preview = ui.add_enabled(form.root == self.project.root, egui::Button::new("预览完整移动")).clicked();
-                    apply = ui.add_enabled(current, theme::primary("应用完整计划")).clicked();
+                    preview = crate::theme::add_enabled(ui, form.root == self.project.root, egui::Button::new("预览完整移动")).clicked();
+                    apply = crate::theme::add_enabled(ui, current, theme::primary("应用完整计划")).clicked();
                     cancel = ui.button("取消路径整理").clicked();
                 });
             });

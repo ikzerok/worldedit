@@ -1,7 +1,10 @@
 //! 固定作者命令与完整对象快速切换，不执行用户脚本。
 mod edit;
 mod layers;
+mod window;
 use super::{Tab, WorldeditApp};
+use worldline_core::catalog::CatalogObject;
+#[cfg(test)]
 use worldline_core::TargetRef;
 #[derive(Default)]
 pub(super) struct CommandPalette {
@@ -10,6 +13,8 @@ pub(super) struct CommandPalette {
     pub query: String,
     pub focus: bool,
     selected: usize,
+    objects: super::object_picker::CandidatePage,
+    notice: Option<String>,
     scroll_selected: bool,
     previous_focus: Option<egui::Id>,
     pub ime: bool,
@@ -21,7 +26,7 @@ pub(super) struct CommandPalette {
 #[derive(Clone)]
 enum Action {
     Tab(Tab),
-    Object(TargetRef),
+    Object(CatalogObject, bool),
     Save,
     Focus,
     Navigation,
@@ -81,6 +86,8 @@ impl WorldeditApp {
         self.command_palette.open = true;
         self.command_palette.commands_only = commands_only;
         self.command_palette.query.clear();
+        self.command_palette.objects = Default::default();
+        self.command_palette.notice = None;
         self.command_palette.selected = 0;
         self.command_palette.scroll_selected = true;
         self.command_palette.focus = true;
@@ -125,191 +132,12 @@ impl WorldeditApp {
             self.open_commands(ctx, false);
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowLeft)) {
-            self.author_back(ctx);
-        }
-    }
-    pub(super) fn command_window(&mut self, ctx: &egui::Context) {
-        if !self.command_palette.open {
-            return;
-        }
-        let top = self.edit_layer_is_top("commands");
-        let mut palette = std::mem::take(&mut self.command_palette);
-        let mut open = true;
-        let mut action = None;
-        egui::Window::new(if palette.commands_only {
-            "任务命令"
-        } else {
-            "快速切换对象"
-        })
-        .id(egui::Id::new("author-command-palette"))
-        .open(&mut open)
-        .collapsible(false)
-        .default_width(640.0)
-        .anchor(egui::Align2::CENTER_TOP, [0.0, 64.0])
-        .show(ctx, |ui| {
-            let response = ui.add(
-                egui::TextEdit::singleline(&mut palette.query)
-                    .desired_width(f32::INFINITY)
-                    .hint_text("输入名称、ID、类型或来源；↑↓选择，Enter打开，Esc取消"),
-            );
-            if palette.focus {
-                response.request_focus();
-                palette.focus = false;
-            }
-            if response.changed() {
-                palette.selected = 0;
-                palette.scroll_selected = true;
-            }
-            let query = palette.query.trim().to_lowercase();
-            let mut entries: Vec<(String, Action)> = Vec::new();
-            if palette.commands_only {
-                entries.extend(
-                    commands()
-                        .into_iter()
-                        .filter(|(label, _)| label.to_lowercase().contains(&query))
-                        .map(|(label, action)| (label.into(), action)),
-                );
-            } else if let Some(snapshot) = &self.snapshot {
-                entries.extend(
-                    super::object_picker::candidates(
-                        &snapshot.result.analysis.catalog,
-                        &query,
-                        &[],
-                    )
-                    .into_iter()
-                    .take(1000)
-                    .map(|object| {
-                        (
-                            super::object_picker::candidate_caption(
-                                object,
-                                Some(&self.project.root),
-                            ),
-                            Action::Object(object.target.clone()),
-                        )
-                    }),
-                );
-            }
-            let previous_selection = palette.selected;
-            if top && !self.ime_composing && !palette.ime && !palette.ime_frame {
-                let (down, up) = ui.input_mut(|i| {
-                    (
-                        i.count_and_consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
-                        i.count_and_consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
-                    )
-                });
-                palette.selected = palette.selected.saturating_add(down).saturating_sub(up);
-            }
-            palette.selected = palette.selected.min(entries.len().saturating_sub(1));
-            let scroll_selected = palette.scroll_selected || palette.selected != previous_selection;
-            let mut selected_visible = false;
-            egui::ScrollArea::vertical()
-                .id_salt(("author-command-results", palette.commands_only))
-                .max_height(420.0)
-                .show(ui, |ui| {
-                    for (index, (label, candidate)) in entries.iter().enumerate() {
-                        let selected = index == palette.selected;
-                        let object = match candidate {
-                            Action::Object(target) => self.snapshot.as_ref().and_then(|snapshot| {
-                                snapshot.result.analysis.catalog.object(target)
-                            }),
-                            _ => None,
-                        };
-                        let row = if let Some(object) = object {
-                            super::object_picker::candidate_row(
-                                ui,
-                                object,
-                                Some(&self.project.root),
-                                selected,
-                            )
-                        } else {
-                            ui.selectable_label(selected, label)
-                        };
-                        if row.clicked() {
-                            action = Some(candidate.clone());
-                        }
-                        if selected {
-                            selected_visible = ui.clip_rect().contains_rect(row.rect);
-                            ui.painter().rect_stroke(
-                                row.rect.shrink(0.5),
-                                4,
-                                egui::Stroke::new(1.5_f32, crate::theme::ACCENT()),
-                                egui::StrokeKind::Inside,
-                            );
-                            if scroll_selected {
-                                row.scroll_to_me(None);
-                            }
-                        }
-                    }
-                });
-            palette.scroll_selected = false;
-            if !entries.is_empty() && !selected_visible {
-                ui.label("选中项在视野外；用↑↓定位或点击可见项");
-            }
-            if entries.is_empty() {
-                ui.label("没有匹配项；不会自动改选同名对象");
-            }
-            if entries.len() == 1000 {
-                ui.label("最多显示1000项，请继续输入缩小范围");
-            }
-            if top
-                && !palette.ime
-                && !palette.ime_frame
-                && !self.ime_composing
-                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
-                && selected_visible
-            {
-                action = entries.get(palette.selected).map(|(_, a)| a.clone());
-            }
-        });
-        palette.open = open && action.is_none();
-        if !palette.open {
-            if let Some(id) = palette.previous_focus {
-                ctx.memory_mut(|m| m.request_focus(id));
-            }
-        }
-        self.command_palette = palette;
-        if let Some(action) = action {
-            match action {
-                Action::Tab(tab) => self.switch_tab(tab),
-                Action::Object(target) => {
-                    let object = self
-                        .snapshot
-                        .as_ref()
-                        .and_then(|s| s.result.analysis.catalog.object(&target))
-                        .cloned();
-                    if let Some(object) = object {
-                        self.navigate_object(&object);
-                    } else {
-                        self.message = Some("对象已不存在，请重新查找".into());
-                    }
-                }
-                Action::MoveEntitySource => self.begin_current_entity_source_move(),
-                Action::SourceOutline => self.open_source_outline(ctx),
-                Action::SourceJump => self.open_source_jump(ctx),
-                Action::Save => {
-                    self.save();
-                }
-                Action::Focus => self.personal.settings.focus = !self.personal.settings.focus,
-                Action::Navigation => {
-                    self.personal.settings.navigation = !self.personal.settings.navigation
-                }
-                Action::References => {
-                    self.personal.settings.references_visible =
-                        !self.personal.settings.references_visible
-                }
-                Action::Back => self.author_back(ctx),
-                Action::Settings => self.personal.preferences_open = true,
-                Action::Capabilities => self.open_capabilities(),
-                Action::TemporalIssues => self.open_temporal_issues(ctx),
-                Action::Problems => self.open_problems(ctx),
-                Action::NextProblem => {
-                    self.open_problems(ctx);
-                    self.step_problem(ctx, false, true);
-                }
-                Action::PreviousProblem => {
-                    self.open_problems(ctx);
-                    self.step_problem(ctx, true, true);
-                }
+            if self.edit_layer_is_top("navigation-drawer") {
+                self.close_navigation_drawer(ctx);
+            } else if self.edit_layer_is_top("compact-references") {
+                self.close_compact_reference(ctx);
+            } else {
+                self.author_back(ctx);
             }
         }
     }

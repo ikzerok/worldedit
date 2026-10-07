@@ -106,12 +106,12 @@ impl super::super::WorldeditApp {
                 }
             }
             if let Some(placement_id) = self.map_form.editing_placement.clone() {
-                if ui
-                    .add_enabled(
-                        self.map_form.binding.pending().is_none(),
-                        egui::Button::new("保存当前标记说明"),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    self.map_form.binding.pending().is_none(),
+                    egui::Button::new("保存当前标记说明"),
+                )
+                .clicked()
                 {
                     let applied = self.apply_map_command(
                         selected_map_id.as_deref().unwrap_or_default(),

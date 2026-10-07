@@ -12,7 +12,7 @@ impl WorldeditApp {
                 // stable non-text focus so Tab and transaction undo remain available.
                 results.request_focus();
             }
-            ui.add_enabled_ui(self.search_state.plan.is_some(), |ui| {
+            crate::theme::add_enabled_ui(ui, self.search_state.plan.is_some(), |ui| {
                 ui.selectable_value(
                     &mut self.search_state.review_preview,
                     true,
@@ -54,12 +54,12 @@ impl WorldeditApp {
                             if self.search_state.replace {
                                 let mut chosen = self.search_hit_is_chosen(hit);
                                 let label = if hit.replaceable { "待改" } else { "保护" };
-                                let response = ui
-                                    .add_enabled(
-                                        hit.replaceable,
-                                        egui::Checkbox::new(&mut chosen, label),
-                                    )
-                                    .on_hover_text(format!("选择第 {} 处加入替换集合", index + 1));
+                                let response = crate::theme::add_enabled(
+                                    ui,
+                                    hit.replaceable,
+                                    egui::Checkbox::new(&mut chosen, label),
+                                )
+                                .on_hover_text(format!("选择第 {} 处加入替换集合", index + 1));
                                 if response.gained_focus() {
                                     response.scroll_to_me(None);
                                 }
@@ -69,7 +69,9 @@ impl WorldeditApp {
                             }
                             let current = index == self.search_state.selected;
                             let mut job = match &hit.context {
-                                Some(context) => context_job(ui, context, &self.personal.settings),
+                                Some(context) => {
+                                    context_job(ui, context, self.personal.appearance())
+                                }
                                 None => LayoutJob::simple_singleline(
                                     hit.preview.clone(),
                                     TextStyle::Body.resolve(ui.style()),
@@ -169,13 +171,13 @@ impl WorldeditApp {
                     ui.label(context_job(
                         ui,
                         &occurrence.before_context,
-                        &self.personal.settings,
+                        self.personal.appearance(),
                     ));
                     ui.label("修改后");
                     ui.label(context_job(
                         ui,
                         &occurrence.after_context,
-                        &self.personal.settings,
+                        self.personal.appearance(),
                     ));
                     ui.separator();
                 }
@@ -186,10 +188,7 @@ impl WorldeditApp {
 fn pager(ui: &mut egui::Ui, page: usize, pages: usize, count: usize) -> Option<usize> {
     let mut next = None;
     ui.horizontal_wrapped(|ui| {
-        if ui
-            .add_enabled(page > 0, egui::Button::new("上一页"))
-            .clicked()
-        {
+        if crate::theme::add_enabled(ui, page > 0, egui::Button::new("上一页")).clicked() {
             next = Some(page - 1);
         }
         ui.small(format!(
@@ -198,9 +197,7 @@ fn pager(ui: &mut egui::Ui, page: usize, pages: usize, count: usize) -> Option<u
             pages,
             count
         ));
-        if ui
-            .add_enabled(page + 1 < pages, egui::Button::new("下一页"))
-            .clicked()
+        if crate::theme::add_enabled(ui, page + 1 < pages, egui::Button::new("下一页")).clicked()
         {
             next = Some(page + 1);
         }
@@ -219,12 +216,12 @@ fn meta_format(ui: &egui::Ui) -> TextFormat {
 pub(super) fn context_job(
     ui: &egui::Ui,
     context: &SearchContext,
-    settings: &crate::app::personal::Settings,
+    settings: &crate::theme::AppearancePreferences,
 ) -> LayoutJob {
     let mut job = LayoutJob::default();
     let normal = TextFormat {
-        font_id: egui::FontId::proportional(settings.body_size),
-        line_height: Some(settings.body_size * settings.line_spacing),
+        font_id: crate::theme::source_font(settings.source_size),
+        line_height: Some(settings.source_size * settings.line_spacing),
         color: crate::theme::TEXT(),
         ..Default::default()
     };

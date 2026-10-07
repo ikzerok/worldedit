@@ -25,18 +25,18 @@ fn source_mention_lists_ambiguous_targets_and_explicit_choice_inserts_one_stable
         output
             .shapes
             .iter()
-            .any(|shape| text_position(&shape.shape, "实体 · 同名 · entity:a").is_some()),
+            .any(|shape| text_position(&shape.shape, "同名 · 实体:a\nworld.wl:1").is_some()),
         "候选必须显示 kind 和 ID，避免同名时静默选择"
     );
     assert!(output.shapes.iter().any(|shape| text_position(
         &shape.shape,
-        "实体 · 同名 · entity:b"
+        "同名 · 实体:b\nworld.wl:2"
     )
     .is_some()));
 
     let before_commit = app.project.content_baseline();
     let history_before = app.history.len();
-    click(&ctx, &mut app, 11, "实体 · 同名 · entity:b");
+    click(&ctx, &mut app, 11, "同名 · 实体:b\nworld.wl:2");
     assert!(
         app.project
             .document(&entry)
@@ -84,7 +84,7 @@ fn source_mention_candidates_can_be_selected_and_committed_without_a_mouse() {
     let candidates = frame(&ctx, &mut app, Vec::new(), 11);
     assert!(candidates.shapes.iter().any(|shape| text_position(
         &shape.shape,
-        "实体 · 同名 · entity:a"
+        "同名 · 实体:a\nworld.wl:1"
     )
     .is_some()));
 
@@ -200,7 +200,7 @@ fn source_mention_esc_hides_candidates_without_changing_source() {
     assert!(shown
         .shapes
         .iter()
-        .any(|shape| { text_position(&shape.shape, "实体 · 同名 · entity:a").is_some() }));
+        .any(|shape| { text_position(&shape.shape, "同名 · 实体:a\nworld.wl:1").is_some() }));
 
     let baseline = app.project.content_baseline();
     let output = frame(
@@ -218,13 +218,22 @@ fn source_mention_esc_hides_candidates_without_changing_source() {
     assert!(!output
         .shapes
         .iter()
-        .any(|shape| { text_position(&shape.shape, "实体 · 同名 · entity:a").is_some() }));
+        .any(|shape| { text_position(&shape.shape, "同名 · 实体:a\nworld.wl:1").is_some() }));
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(app.project.document(&entry).unwrap().contains("@同名"));
 }
 
 #[test]
 fn source_mention_waits_for_ime_commit_before_showing_candidates() {
+    source_mention_ime_commit(false);
+}
+
+#[test]
+fn source_mention_commit_navigation_keys_do_not_insert_cancel_or_add_newlines() {
+    source_mention_ime_commit(true);
+}
+
+fn source_mention_ime_commit(with_navigation_keys: bool) {
     let (ctx, mut app) = app();
     let entry = app.project.entry.clone();
     let source = "entity a kind place as \"同名\"\nevent start\n  开始：";
@@ -253,23 +262,47 @@ fn source_mention_waits_for_ime_commit_before_showing_candidates() {
     assert!(!preedit
         .shapes
         .iter()
-        .any(|shape| { text_position(&shape.shape, "实体 · 同名 · entity:a").is_some() }));
+        .any(|shape| { text_position(&shape.shape, "同名 · 实体:a\nworld.wl:1").is_some() }));
     assert!(preedit.shapes.iter().any(|shape| {
         matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.contains("@同名"))
     }));
     assert_eq!(app.project.document(&entry).unwrap(), source);
 
-    let _ = frame(
-        &ctx,
-        &mut app,
-        vec![Event::Ime(egui::ImeEvent::Commit("@同名".into()))],
-        11,
-    );
+    let mut commit = vec![Event::Ime(egui::ImeEvent::Commit("@同名".into()))];
+    if with_navigation_keys {
+        commit.extend(
+            [
+                egui::Key::Enter,
+                egui::Key::Escape,
+                egui::Key::ArrowDown,
+                egui::Key::PageDown,
+            ]
+            .into_iter()
+            .map(|key| Event::Key {
+                key,
+                physical_key: Some(key),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }),
+        );
+    }
+    let _ = frame(&ctx, &mut app, commit, 11);
     let committed = frame(&ctx, &mut app, Vec::new(), 11);
-    assert!(committed
-        .shapes
-        .iter()
-        .any(|shape| { text_position(&shape.shape, "实体 · 同名 · entity:a").is_some() }));
+    assert!(
+        committed.shapes.iter().any(|shape| {
+            text_position(&shape.shape, "同名 · 实体:a\nworld.wl:1").is_some()
+        }),
+        "source={:?}, focus={:?}, composing={:?}, suppressed={:?}",
+        app.project.document(&entry),
+        ctx.memory(|m| m.focused()),
+        app.ime_composing,
+        app.mention_suppression
+    );
     assert_eq!(app.history.len(), 1);
-    assert!(app.project.document(&entry).unwrap().contains("@同名"));
+    assert_eq!(
+        app.project.document(&entry).unwrap(),
+        format!("{source}@同名")
+    );
+    assert!(app.mention_suppression.is_none());
 }

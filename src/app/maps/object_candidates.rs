@@ -55,14 +55,12 @@ impl CandidateSearch {
             let previous = page.offset.saturating_sub(page.limit);
             let next = page.next_offset;
             ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(page.offset > 0, egui::Button::new("上一页候选"))
+                if crate::theme::add_enabled(ui, page.offset > 0, egui::Button::new("上一页候选"))
                     .clicked()
                 {
                     self.options.offset = previous;
                 }
-                if ui
-                    .add_enabled(next.is_some(), egui::Button::new("下一页候选"))
+                if crate::theme::add_enabled(ui, next.is_some(), egui::Button::new("下一页候选"))
                     .clicked()
                 {
                     self.options.offset = next.unwrap_or_default();

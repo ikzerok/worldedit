@@ -62,8 +62,7 @@ impl WorldeditApp {
                         "工程已变化，旧输入/预览已失效；请关闭后重新打开。",
                     );
                 }
-                if ui
-                    .add_enabled(current, egui::Button::new("预览重命名"))
+                if crate::theme::add_enabled(ui, current, egui::Button::new("预览重命名"))
                     .clicked()
                 {
                     if let Err(error) = form.preview(&self.project, self.version) {
@@ -84,8 +83,7 @@ impl WorldeditApp {
                         theme::GOLD(),
                         "这不是改显示名。应用后旧 ID 将不存在；可用应用级撤销恢复。",
                     );
-                    if ui
-                        .add_enabled(current, theme::primary("应用跨视图重命名"))
+                    if crate::theme::add_enabled(ui, current, theme::primary("应用跨视图重命名"))
                         .clicked()
                     {
                         let new_target = TargetRef::new(&form.target.kind, form.new_id.trim());

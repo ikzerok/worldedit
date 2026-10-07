@@ -44,12 +44,12 @@ pub(super) fn render_filter_row(
                         egui::TextEdit::singleline(&mut inputs.name_value)
                             .hint_text("输入名称、ID 或别名"),
                     );
-                    if ui
-                        .add_enabled(
-                            !inputs.name_value.trim().is_empty(),
-                            egui::Button::new("添加名称值"),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !inputs.name_value.trim().is_empty(),
+                        egui::Button::new("添加名称值"),
+                    )
+                    .clicked()
                     {
                         push_unique(values, std::mem::take(&mut inputs.name_value));
                     }
@@ -62,12 +62,12 @@ pub(super) fn render_filter_row(
                 ui.checkbox(recursive, "递归解引用标签");
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut inputs.tag_value).hint_text("标签 ID"));
-                    if ui
-                        .add_enabled(
-                            !inputs.tag_value.trim().is_empty(),
-                            egui::Button::new("添加标签值"),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !inputs.tag_value.trim().is_empty(),
+                        egui::Button::new("添加标签值"),
+                    )
+                    .clicked()
                     {
                         push_unique(values, std::mem::take(&mut inputs.tag_value));
                     }
@@ -135,12 +135,12 @@ pub(super) fn render_filter_row(
                             ui.selectable_value(&mut inputs.scope_file, file.clone(), file);
                         }
                     });
-                if ui
-                    .add_enabled(
-                        !inputs.scope_file.is_empty(),
-                        egui::Button::new("添加来源文件"),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    !inputs.scope_file.is_empty(),
+                    egui::Button::new("添加来源文件"),
+                )
+                .clicked()
                 {
                     push_unique(source_files, std::mem::take(&mut inputs.scope_file));
                 }
@@ -152,12 +152,12 @@ pub(super) fn render_filter_row(
                         egui::TextEdit::singleline(&mut inputs.missing_property)
                             .hint_text("缺少属性键"),
                     );
-                    if ui
-                        .add_enabled(
-                            !inputs.missing_property.trim().is_empty(),
-                            egui::Button::new("添加缺少属性"),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !inputs.missing_property.trim().is_empty(),
+                        egui::Button::new("添加缺少属性"),
+                    )
+                    .clicked()
                     {
                         let condition = MissingCondition::Property {
                             key: std::mem::take(&mut inputs.missing_property),

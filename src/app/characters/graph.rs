@@ -104,14 +104,14 @@ impl WorldeditApp {
                 if ui.button("取消建边").clicked() {
                     self.character_link = None;
                 }
-            } else if ui
-                .add_enabled(
-                    self.character_editor
-                        .as_ref()
-                        .is_some_and(|e| e.original.is_some()),
-                    egui::Button::new("创建旧式人物关系"),
-                )
-                .clicked()
+            } else if crate::theme::add_enabled(
+                ui,
+                self.character_editor
+                    .as_ref()
+                    .is_some_and(|e| e.original.is_some()),
+                egui::Button::new("创建旧式人物关系"),
+            )
+            .clicked()
                 && !self.prevent_replacing_draft("人物资料")
             {
                 self.character_link = self
@@ -194,22 +194,22 @@ impl WorldeditApp {
                 self.character_focus.full_page + 1,
                 pages
             ));
-            if ui
-                .add_enabled(
-                    self.character_focus.full_page > 0,
-                    egui::Button::new("上一页"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                self.character_focus.full_page > 0,
+                egui::Button::new("上一页"),
+            )
+            .clicked()
             {
                 self.character_focus.full_page -= 1;
                 self.character_focus.fit = true;
             }
-            if ui
-                .add_enabled(
-                    self.character_focus.full_page + 1 < pages,
-                    egui::Button::new("下一页"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                self.character_focus.full_page + 1 < pages,
+                egui::Button::new("下一页"),
+            )
+            .clicked()
             {
                 self.character_focus.full_page += 1;
                 self.character_focus.fit = true;
@@ -292,7 +292,7 @@ impl WorldeditApp {
             Sense::click(),
         );
         let painter = ui.painter_at(canvas);
-        painter.rect_filled(canvas, 8, PANEL());
+        painter.rect_filled(canvas, theme::shapes().document, theme::BG());
         if keyboard.has_focus() {
             painter.rect_stroke(
                 canvas.shrink(2.0),
@@ -389,19 +389,25 @@ impl WorldeditApp {
             let chosen = selected.as_ref() == Some(&node.target);
             painter.rect_filled(
                 rect,
-                7,
-                if response.hovered() {
-                    ui.visuals().widgets.hovered.bg_fill
+                theme::shapes().control,
+                if chosen {
+                    theme::SELECTION()
+                } else if response.hovered() {
+                    theme::HOVER()
                 } else {
-                    CARD()
+                    theme::DOCUMENT()
                 },
             );
             painter.rect_stroke(
                 rect,
-                7,
+                theme::shapes().control,
                 Stroke::new(
                     if chosen { 2.5_f32 } else { 1.0_f32 },
-                    if chosen { ACCENT() } else { BORDER() },
+                    if chosen {
+                        ACCENT()
+                    } else {
+                        theme::CONTROL_BORDER()
+                    },
                 ),
                 egui::StrokeKind::Inside,
             );
@@ -409,8 +415,8 @@ impl WorldeditApp {
                 // 键盘焦点用独立外环与文字，不复用当前人物的内描边。
                 painter.rect_stroke(
                     rect.expand(4.0),
-                    10,
-                    Stroke::new(2.0_f32, BLUE()),
+                    theme::shapes().control,
+                    Stroke::new(theme::focus_width(), theme::FOCUS()),
                     egui::StrokeKind::Outside,
                 );
                 let marker = egui::pos2(
@@ -422,7 +428,7 @@ impl WorldeditApp {
                     egui::Align2::LEFT_TOP,
                     "键盘焦点",
                     egui::FontId::proportional(11.0),
-                    BLUE(),
+                    theme::FOCUS(),
                 );
             }
             let node_zoom = if chosen { zoom.max(1.0) } else { zoom };

@@ -28,9 +28,7 @@ impl ReaderPublishState {
         let count = reviewed.preview.content.len();
         let mut index = self.page_directory.opened_index().unwrap_or(0);
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(index > 0, egui::Button::new("上一阅读页"))
-                .clicked()
+            if crate::theme::add_enabled(ui, index > 0, egui::Button::new("上一阅读页")).clicked()
             {
                 index -= 1;
             }
@@ -38,8 +36,7 @@ impl ReaderPublishState {
                 "阅读页 {} / {count}（全部公开页面的原顺序）",
                 if count == 0 { 0 } else { index + 1 }
             ));
-            if ui
-                .add_enabled(index + 1 < count, egui::Button::new("下一阅读页"))
+            if crate::theme::add_enabled(ui, index + 1 < count, egui::Button::new("下一阅读页"))
                 .clicked()
             {
                 index += 1;

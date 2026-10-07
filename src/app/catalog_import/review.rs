@@ -193,14 +193,12 @@ fn row_detail(plan: &CatalogImportPlan, index: usize, app: &mut WorldeditApp, ui
             .and_then(|s| s.result.analysis.catalog.object(target))
             .cloned();
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(object.is_some(), egui::Button::new("看资料"))
+            if crate::theme::add_enabled(ui, object.is_some(), egui::Button::new("看资料"))
                 .clicked()
             {
                 app.open_reading(target.clone());
             }
-            if ui
-                .add_enabled(object.is_some(), egui::Button::new("回到来源"))
+            if crate::theme::add_enabled(ui, object.is_some(), egui::Button::new("回到来源"))
                 .clicked()
             {
                 if let Some(object) = &object {

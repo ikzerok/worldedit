@@ -1,10 +1,17 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.29提供资料强引用查询、完整地图候选检索、路径交换、可释放试玩会话与发布前公开页目录。语义、来源与保护由core/runtime统一提供。
+worldline 的 Rust / egui 作者工作台。0.30 候选重做原生与 Web 共用视觉，提供五种结构、十组十七套配色、可撤回外观预览、空白起笔和一致的对象筛选分页。语言语义、来源与保护由 core/runtime 统一提供。
 
-功能、验收与下载见[0.29版本说明](https://github.com/ikzerok/worldedit/blob/v0.29.0/docs/releases/v0.29.0.md)，公开状态以对应GitHub Release为准。本轮不新增DSL，默认语言1.9、最高既有显式版本1.13保持；新查询格式须显式选择。
+当前候选范围见[0.30版本说明](docs/releases/v0.30.0.md)，公开发行状态以对应 GitHub Release 为准。默认语言 1.9、最高既有显式版本 1.13 保持，不新增 DSL，也不自动升级作品。
 
-升级边界：运行轨迹与运行检查点（ReplayTrace / ReplayCheckpoint）继续要求精确匹配 `runtime_version`；0.28 及更早的记录不能在 0.29 重放、比较或生成已验证审阅，应重新录制。合法旧轨迹可只读导入查看，读取成功不代表可重放。普通 Story Save 继续按格式、能力和指纹独立校验。升级前保留完整工程和原记录。Linux 合成输入、Node/WASM 检查不替代物理输入法、读屏或各平台真实 GUI 验收。
+升级边界：运行轨迹与运行检查点（ReplayTrace / ReplayCheckpoint）继续精确匹配 runtime_version；0.29 及更早记录不能在 0.30 重放、比较或生成已验证审阅，应重新录制。合法旧轨迹可只读导入查看，读取成功不代表可执行。普通 Story Save 继续按格式、能力和指纹独立校验。升级前保留完整工程和原记录。
+
+## 0.30 作者工作流
+
+- [新外观与个人设置](docs/appearance-0.30.md)：Studio 默认；结构、配色、密度与字号独立，预览后应用或取消
+- [全功能工作台](docs/workbench-shell-0.30.md)：导航、工具与内容分层；窄窗、Focus 抽屉和 Ledger 重排仍保留操作入口
+- [开始写作](docs/start-writing-0.30.md)：书名/章名优先，核对正式来源与原子改动，直接进入空正文
+- [统一对象筛选与分页](https://github.com/ikzerok/worldline/blob/main/spec/object-search.md)：完整身份、类型约束、路径与别名、准确总数和来源保护
 
 ## 0.28 作者工作流
 
@@ -83,7 +90,7 @@ worldline 的 Rust / egui 作者工作台。0.29提供资料强引用查询、�
 - 演练：选择、变量、访问次数、实际状态与历史；不把分支源码变化当成唯一当前事实。
 - 地图画布：旧点线面、文字、底图与测量继续可用；原生矢量支持曲线、文字、组、变换、节点编辑和对象绑定。浏览与文档编辑有独立入口，见[矢量地图工作流](docs/vector-authoring-0.15.md)和[既有地图操作](docs/maps.md)。
 
-Ctrl/Cmd+S 保存全部，Ctrl/Cmd+O 选择工作区，Ctrl/Cmd+F 当前稿查找，Ctrl/Cmd+Shift+F 工程搜索；其余命令见“编辑”菜单。修改前后应检查工程诊断。
+Ctrl/Cmd+S 保存全部，Ctrl/Cmd+O 选择工作区，Ctrl/Cmd+Shift+E 打开导航与文件，Ctrl/Cmd+F 当前稿查找，Ctrl/Cmd+Shift+F 工程搜索；其余命令见“编辑”菜单。修改前后应检查工程诊断。
 
 ## AI 创作
 

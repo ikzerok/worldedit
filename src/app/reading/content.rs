@@ -56,13 +56,13 @@ impl WorldeditApp {
                 target.id
             )));
             ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(
-                        self.active_reading_panel.is_none(),
-                        egui::Button::new("编辑此对象"),
-                    )
-                    .on_hover_text("钉住面板用于只读旁查；从临时阅读页进入编辑")
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    self.active_reading_panel.is_none(),
+                    egui::Button::new("编辑此对象"),
+                )
+                .on_hover_text("钉住面板用于只读旁查；从临时阅读页进入编辑")
+                .clicked()
                 {
                     if target.kind == "tag"
                         && catalog.tags.get(&target.id).is_some_and(|t| t.declared)
@@ -117,7 +117,7 @@ impl WorldeditApp {
             ui.separator();
             ui.label(RichText::new("别名").strong());
             let names = catalog.aliases_for(&target);
-            ui.add_enabled_ui(self.active_reading_panel.is_none(), |ui| {
+            crate::theme::add_enabled_ui(ui, self.active_reading_panel.is_none(), |ui| {
                 ui.horizontal_wrapped(|ui| {
                     for name in &names {
                         if ui
@@ -136,12 +136,12 @@ impl WorldeditApp {
                         egui::TextEdit::singleline(&mut self.alias_input)
                             .hint_text("例如：昵称、旧称或简称"),
                     );
-                    if ui
-                        .add_enabled(
-                            !self.alias_input.trim().is_empty(),
-                            egui::Button::new("添加别名"),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !self.alias_input.trim().is_empty(),
+                        egui::Button::new("添加别名"),
+                    )
+                    .clicked()
                     {
                         let mut updated = names.clone();
                         updated.push(self.alias_input.trim().into());
@@ -412,12 +412,12 @@ impl WorldeditApp {
                 ui.label(&asset.path);
                 ui.label(theme::muted(&asset.resolved_path));
                 ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(
-                            asset.available,
-                            egui::Button::new(crate::media::OPEN_REFERENCE_LABEL),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        asset.available,
+                        egui::Button::new(crate::media::OPEN_REFERENCE_LABEL),
+                    )
+                    .clicked()
                     {
                         if let Err(error) = crate::media::open_reference(
                             &self.project.root,

@@ -1,38 +1,20 @@
-//! 完整对象身份选择器：只读 core 目录，永不按显示名猜测身份。
+//! 完整对象身份选择器：只读 core 分页目录，永不按显示名猜测身份。
+mod browse;
+mod page;
 use egui::Ui;
+pub(in crate::app) use page::CandidatePage;
 use std::path::{Path, PathBuf};
 use worldline_core::catalog::{Catalog, CatalogObject, TargetRef};
+use worldline_core::object_search::ObjectSearchFilter;
 
-pub(super) fn matches(object: &CatalogObject, query: &str, allowed: &[&str]) -> bool {
-    (allowed.is_empty() || allowed.contains(&object.target.kind.as_str()))
-        && [
-            object.display.as_str(),
-            object.target.kind.as_str(),
-            object.target.id.as_str(),
-            object.file.as_str(),
-        ]
-        .iter()
-        .any(|part| part.to_lowercase().contains(&query.trim().to_lowercase()))
+pub(in crate::app) fn filter(allowed: &[&str], entity_type: Option<&str>) -> ObjectSearchFilter {
+    ObjectSearchFilter {
+        allowed_kinds: allowed.iter().map(|kind| (*kind).into()).collect(),
+        match_source_path: true,
+        entity_type: entity_type.map(str::to_owned),
+    }
 }
-pub(super) fn candidates<'a>(
-    catalog: &'a Catalog,
-    query: &str,
-    allowed: &[&str],
-) -> Vec<&'a CatalogObject> {
-    let query = query.trim().to_lowercase();
-    catalog
-        .objects
-        .iter()
-        .filter(|object| {
-            (allowed.is_empty() || allowed.contains(&object.target.kind.as_str()))
-                && (matches(object, &query, allowed)
-                    || catalog
-                        .aliases_for(&object.target)
-                        .iter()
-                        .any(|alias| alias.to_lowercase().contains(&query)))
-        })
-        .collect()
-}
+
 /// 命令面板与资料选择器显示同一完整身份，不以同名合并候选。
 pub(super) fn candidate_label(object: &CatalogObject) -> String {
     candidate_caption(object, None)
@@ -93,7 +75,16 @@ pub(super) fn candidate_row(
     );
     let full = candidate_label(object);
     let response = ui
-        .add(egui::Button::selectable(selected, job).wrap())
+        .push_id(
+            (
+                &object.target.kind,
+                &object.target.id,
+                &object.file,
+                object.line,
+            ),
+            |ui| ui.add(egui::Button::selectable(selected, job).wrap()),
+        )
+        .inner
         .on_hover_text(&full);
     response.context_menu(|ui| {
         if ui.button("复制完整身份与来源").clicked() {
@@ -101,7 +92,74 @@ pub(super) fn candidate_row(
             ui.close();
         }
     });
+    crate::theme::selection_frame(ui, &response, selected);
     response
+}
+
+pub(super) fn candidate_row_at_revision(
+    ui: &mut Ui,
+    object: &CatalogObject,
+    root: Option<&Path>,
+    selected: bool,
+    revision: impl std::hash::Hash,
+) -> egui::Response {
+    ui.push_id(revision, |ui| candidate_row(ui, object, root, selected))
+        .inner
+}
+
+pub(in crate::app) fn consume_candidate_ime_keys(ctx: &egui::Context) {
+    ctx.input_mut(|input| {
+        for key in [
+            egui::Key::Enter,
+            egui::Key::Escape,
+            egui::Key::ArrowDown,
+            egui::Key::ArrowUp,
+            egui::Key::PageDown,
+            egui::Key::PageUp,
+        ] {
+            input.consume_key(egui::Modifiers::NONE, key);
+        }
+    });
+}
+
+pub(super) fn set_workspace_snapshot(ctx: &egui::Context, root: &Path, version: u64) {
+    set_workspace_root(ctx, root);
+    ctx.data_mut(|data| {
+        data.insert_temp(egui::Id::new("object-picker-workspace-version"), version)
+    });
+}
+
+fn catalog_stamp(ui: &Ui, catalog: &Catalog, root: &Option<PathBuf>) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    root.hash(&mut hash);
+    ui.data(|data| data.get_temp::<u64>(egui::Id::new("object-picker-workspace-version")))
+        .hash(&mut hash);
+    for object in &catalog.objects {
+        (
+            &object.target.kind,
+            &object.target.id,
+            &object.display,
+            &object.file,
+            object.line,
+        )
+            .hash(&mut hash);
+    }
+    for alias in &catalog.aliases {
+        (&alias.target.kind, &alias.target.id, &alias.name).hash(&mut hash);
+    }
+    for (id, entity) in &catalog.entities {
+        (id, &entity.entity_type).hash(&mut hash);
+    }
+    format!("{:016x}", hash.finish())
+}
+
+#[derive(Clone, Default)]
+struct PickerState {
+    query: String,
+    page: CandidatePage,
+    selected: usize,
+    ime: bool,
 }
 
 pub(super) fn object_picker(
@@ -114,7 +172,19 @@ pub(super) fn object_picker(
 ) -> bool {
     object_picker_focused(ui, salt, label, current, catalog, allowed, false).0
 }
-/// 返回真实控件身份，供按需工具的进入/返回焦点使用，不推测egui内部ID。
+
+pub(super) fn object_picker_typed(
+    ui: &mut Ui,
+    salt: impl std::hash::Hash,
+    label: &str,
+    current: &mut Option<TargetRef>,
+    catalog: &Catalog,
+    filter: &ObjectSearchFilter,
+) -> bool {
+    picker(ui, salt, label, current, catalog, filter, false).0
+}
+
+/// 返回真实控件身份，供按需工具的进入/返回焦点使用。
 pub(super) fn object_picker_focused(
     ui: &mut Ui,
     salt: impl std::hash::Hash,
@@ -124,15 +194,61 @@ pub(super) fn object_picker_focused(
     allowed: &[&str],
     request_focus: bool,
 ) -> (bool, egui::Id) {
+    picker(
+        ui,
+        salt,
+        label,
+        current,
+        catalog,
+        &filter(allowed, None),
+        request_focus,
+    )
+}
+
+fn picker(
+    ui: &mut Ui,
+    salt: impl std::hash::Hash,
+    label: &str,
+    current: &mut Option<TargetRef>,
+    catalog: &Catalog,
+    filter: &ObjectSearchFilter,
+    request_focus: bool,
+) -> (bool, egui::Id) {
     let before = current.clone();
     let root = ui
         .ctx()
         .data(|data| data.get_temp::<PathBuf>(egui::Id::new("object-picker-workspace-root")));
+    let revision = catalog_stamp(ui, catalog, &root);
     let id = ui.make_persistent_id(salt);
     let was_open = ui
         .data(|data| data.get_temp::<bool>(id.with("was-open")))
         .unwrap_or(false);
-    let mut selected_by_keyboard = false;
+    let mut state = ui
+        .data_mut(|data| data.get_temp::<PickerState>(id))
+        .unwrap_or_default();
+    let ime_frame = ui.input(|input| {
+        input
+            .events
+            .iter()
+            .filter_map(|event| {
+                if let egui::Event::Ime(event) = event {
+                    Some(event)
+                } else {
+                    None
+                }
+            })
+            .fold(false, |_, event| {
+                state.ime = matches!(event, egui::ImeEvent::Enabled | egui::ImeEvent::Preedit(_));
+                true
+            })
+    });
+    if was_open && (ime_frame || state.ime) {
+        consume_candidate_ime_keys(ui.ctx());
+        let query_id = id.with("query");
+        if ui.memory(|memory| memory.had_focus_last_frame(query_id)) {
+            ui.memory_mut(|memory| memory.request_focus(query_id));
+        }
+    }
     let caption = current
         .as_ref()
         .map(|target| {
@@ -142,26 +258,23 @@ pub(super) fn object_picker_focused(
                 .unwrap_or_else(|| format!("已失效 · {}:{}", target.kind, target.id))
         })
         .unwrap_or_else(|| "请选择".into());
+    let selected_caption = caption.clone();
+    let mut selected_explicitly = false;
     ui.label(label);
     let width = ui
         .available_width()
         .min((ui.ctx().screen_rect().width() - 48.0).max(1.0))
         .max(1.0);
-    let selected_caption = caption.clone();
     let response = egui::ComboBox::from_id_salt(id)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .selected_text(caption)
         .truncate()
-        // 搜索/清空固定区 + 260px候选滚动区，避免外层默认200px再次剪裁内层。
-        .height(360.0)
+        .height(420.0)
         .width(width)
         .show_ui(ui, |ui| {
             ui.set_width((width - 16.0).max(1.0));
-            let mut query = ui
-                .data_mut(|data| data.get_temp::<String>(id))
-                .unwrap_or_default();
             let search = ui.add(
-                egui::TextEdit::singleline(&mut query)
+                egui::TextEdit::singleline(&mut state.query)
                     .id(id.with("query"))
                     .desired_width(ui.available_width())
                     .hint_text("搜索名称、类型、ID或来源"),
@@ -169,155 +282,142 @@ pub(super) fn object_picker_focused(
             if !was_open {
                 search.request_focus();
             }
-            ui.data_mut(|data| data.insert_temp(id, query.clone()));
+            ui.memory_mut(|memory| {
+                memory.set_focus_lock_filter(
+                    search.id,
+                    egui::EventFilter {
+                        horizontal_arrows: true,
+                        vertical_arrows: true,
+                        escape: true,
+                        ..Default::default()
+                    },
+                )
+            });
+            ui.small("已应用目录 · 支持别名 · ↑↓选择 · 翻页键换页 · Enter确认");
+            if search.changed() {
+                state.selected = 0;
+            }
+            let previous_serial = state.page.serial;
+            let stale = state.page.refresh(catalog, &state.query, filter, &revision);
+            let query_changed = previous_serial != state.page.serial;
+            if query_changed {
+                state.selected = 0;
+            }
+            if stale {
+                state.selected = 0;
+                ui.colored_label(
+                    crate::theme::GOLD(),
+                    "目录已变化，请在新页重新选择；原引用保留",
+                );
+            }
             if ui
                 .selectable_label(current.is_none(), "不指定 / 清空")
                 .clicked()
             {
                 *current = None;
+                selected_explicitly = true;
                 ui.close();
             }
-            let candidates = candidates(catalog, &query, allowed);
-            if was_open
-                && (search.has_focus() || search.lost_focus())
-                && !ui.input(|i| {
-                    i.events
-                        .iter()
-                        .any(|event| matches!(event, egui::Event::Ime(_)))
-                })
-                && !query.trim().is_empty()
-                && candidates.len() == 1
-                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
-            {
-                *current = Some(candidates[0].target.clone());
-                selected_by_keyboard = true;
-                ui.close();
+            let keyboard = was_open && !state.ime && !ime_frame && !stale;
+            let mut turned = state.page.controls(ui);
+            if keyboard {
+                if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::PageDown)) {
+                    turned |= state.page.turn(false);
+                }
+                if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::PageUp)) {
+                    turned |= state.page.turn(true);
+                }
             }
-            if candidates.is_empty() {
-                ui.label("没有可用候选；请调整搜索或先创建对象");
+            if turned {
+                state.selected = 0;
+                state.page.refresh(catalog, &state.query, filter, &revision);
             }
+            let items = state
+                .page
+                .result
+                .as_ref()
+                .and_then(|page| page.as_ref().ok())
+                .map(|page| page.items.clone())
+                .unwrap_or_default();
+            let mut moved = query_changed || search.changed() || turned || !was_open;
+            if keyboard {
+                let (down, up) = ui.input_mut(|i| {
+                    (
+                        i.count_and_consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                        i.count_and_consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                    )
+                });
+                moved |= down > 0 || up > 0;
+                state.selected = state.selected.saturating_add(down).saturating_sub(up);
+            }
+            state.selected = state.selected.min(items.len().saturating_sub(1));
+            if items.is_empty() && matches!(state.page.result, Some(Ok(_))) {
+                ui.label("没有匹配对象；原引用保持不变");
+            }
+            let mut selected_visible = false;
             egui::ScrollArea::vertical()
                 .id_salt(id.with("matches"))
                 .max_height(260.0)
                 .show(ui, |ui| {
-                    for object in candidates.iter().take(1000) {
-                        let response = candidate_row(
+                    for (index, object) in items.iter().enumerate() {
+                        let selected = state.selected == index;
+                        let row = candidate_row_at_revision(
                             ui,
                             object,
                             root.as_deref(),
-                            current.as_ref() == Some(&object.target),
+                            selected,
+                            state.page.serial,
                         );
-                        if response.clicked() {
+                        if selected {
+                            selected_visible = ui.clip_rect().contains_rect(row.rect);
+                            if moved {
+                                row.scroll_to_me(None);
+                            }
+                        }
+                        if row.clicked() && !stale {
                             *current = Some(object.target.clone());
+                            selected_explicitly = true;
                             ui.close();
                         }
                     }
                 });
-            if candidates.len() > 1000 {
-                ui.label("匹配超过1000项，请继续输入缩小范围");
+            if keyboard
+                && selected_visible
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+            {
+                if let Some(object) = items.get(state.selected) {
+                    *current = Some(object.target.clone());
+                    selected_explicitly = true;
+                    ui.close();
+                }
             }
         });
     let focus_id = response.response.id;
     let now_open = egui::ComboBox::is_open(ui.ctx(), focus_id);
-    ui.data_mut(|data| data.insert_temp(id.with("was-open"), now_open));
+    ui.data_mut(|data| {
+        data.insert_temp(id.with("was-open"), now_open);
+        data.insert_temp(id, state);
+    });
     let escaped = was_open && !now_open && ui.input(|i| i.key_pressed(egui::Key::Escape));
-    if (request_focus && !now_open) || escaped || selected_by_keyboard {
+    if (request_focus && !now_open) || escaped || selected_explicitly {
         response.response.request_focus();
     }
     response.response.on_hover_text(selected_caption);
     if let Some(target) = current {
-        if catalog.object(target).is_none()
-            || (!allowed.is_empty() && !allowed.contains(&target.kind.as_str()))
-        {
+        let valid = catalog
+            .object(target)
+            .is_some_and(|object| filter.accepts_object(catalog, object));
+        if !valid {
             ui.colored_label(
                 crate::theme::ERROR(),
-                "当前引用失效或类型不允许；未自动选择其他对象",
+                "当前引用无法在此范围确认；原身份保留，未自动替换",
             );
         }
     }
     (*current != before, focus_id)
 }
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn duplicate_names_never_collapse_kind_or_source() {
-        let a = CatalogObject {
-            target: TargetRef::new("entity", "same"),
-            display: "林".into(),
-            file: "a.wl".into(),
-            line: 1,
-        };
-        let b = CatalogObject {
-            target: TargetRef::new("character", "same"),
-            display: "林".into(),
-            file: "b.wl".into(),
-            line: 2,
-        };
-        assert!(matches(&a, "林", &[]));
-        assert!(matches(&b, "林", &[]));
-        assert!(!matches(&a, "same", &["character"]));
-        assert!(matches(&b, "b.wl", &["character"]));
-    }
-    #[test]
-    fn same_basename_sources_remain_distinguishable_in_the_visible_candidate() {
-        let make = |file: &str| CatalogObject {
-            target: TargetRef::new("character", "same"),
-            display: "林".into(),
-            file: file.into(),
-            line: 3,
-        };
-        let left = candidate_label(&make("/project/甲/人物.wl"));
-        let right = candidate_label(&make("/project/乙/人物.wl"));
-        assert_ne!(left, right);
-        assert!(left.contains("/project/甲/人物.wl:3"));
-        assert!(right.contains("/project/乙/人物.wl:3"));
-    }
-
-    #[test]
-    fn relative_caption_preserves_directories_identity_and_full_path_search() {
-        let object = CatalogObject {
-            target: TargetRef::new("entity", "record_294"),
-            display: "潮汐档案第295号".into(),
-            file: "/project/深层 目录/档案/人物.wl".into(),
-            line: 17,
-        };
-        let caption = candidate_caption(&object, Some(Path::new("/project")));
-        assert_eq!(
-            caption,
-            "潮汐档案第295号 · 实体:record_294\n深层 目录/档案/人物.wl:17"
-        );
-        assert!(matches(&object, "/project/深层 目录/档案/人物.wl", &[]));
-        assert!(candidate_label(&object).contains(&object.file));
-        assert!(candidate_caption(&object, Some(Path::new("/another"))).contains(&object.file));
-        assert!(candidate_caption(&object, None).contains(&object.file));
-    }
-
-    #[test]
-    fn candidate_row_uses_two_text_levels_and_a_relative_source() {
-        let ctx = egui::Context::default();
-        let object = CatalogObject {
-            target: TargetRef::new("character", "lin"),
-            display: "林舟".into(),
-            file: "/project/人物/林舟.wl".into(),
-            line: 3,
-        };
-        let output = ctx.run(egui::RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                candidate_row(ui, &object, Some(Path::new("/project")), true);
-            });
-        });
-        let job = output
-            .shapes
-            .iter()
-            .find_map(|shape| match &shape.shape {
-                egui::Shape::Text(text) if text.galley.job.text.contains("林舟") => {
-                    Some(&text.galley.job)
-                }
-                _ => None,
-            })
-            .expect("候选应实际绘制");
-        assert_eq!(job.text, "林舟 · 人物:lin\n人物/林舟.wl:3");
-        assert!(job.sections[0].format.font_id.size > job.sections[1].format.font_id.size);
-    }
-}
+mod interaction_tests;
+#[cfg(test)]
+mod tests;

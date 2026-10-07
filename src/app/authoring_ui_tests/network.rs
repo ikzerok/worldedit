@@ -163,3 +163,34 @@ fn empty_network_has_a_real_searchable_center_picker_and_does_not_edit_the_proje
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(app.history.is_empty());
 }
+
+#[test]
+fn network_borrowed_snapshot_keeps_live_relation_actions_and_refreshed_labels() {
+    let (ctx, mut app) = app();
+    let entry = app.project.entry.clone();
+    let mut source = app.project.sources()[&entry].clone();
+    source.push_str("relation_def r type knows from entity a to entity b\n");
+    app.project.set_text(&entry, source.clone()).unwrap();
+    app.recompile();
+    app.open_network(TargetRef::new("entity", "a"));
+    let baseline = app.project.content_baseline();
+    click(&ctx, &mut app, 4, "隐藏");
+    assert!(app.network_state.hidden.contains("r"));
+    click(&ctx, &mut app, 4, "显示");
+    assert!(!app.network_state.hidden.contains("r"));
+    click(&ctx, &mut app, 4, "认识 · r");
+    assert_eq!(app.reading_target, Some(TargetRef::new("relation", "r")));
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(app.history.is_empty());
+
+    app.project
+        .set_text(&entry, source.replace("认识", "已更新关系"))
+        .unwrap();
+    app.recompile();
+    let after = app.project.content_baseline();
+    app.reading_target = None;
+    click(&ctx, &mut app, 4, "已更新关系 · r");
+    assert_eq!(app.reading_target, Some(TargetRef::new("relation", "r")));
+    assert_eq!(app.project.content_baseline(), after);
+    assert!(app.history.is_empty());
+}

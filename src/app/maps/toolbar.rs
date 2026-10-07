@@ -40,7 +40,8 @@ impl MapCanvas {
                     }
                 });
             }
-            ui.add_enabled_ui(
+            crate::theme::add_enabled_ui(
+                ui,
                 self.scene.job.is_none() && self.scene.review_plan.is_none(),
                 |ui| {
                     ui.horizontal_wrapped(|ui| {
@@ -63,12 +64,12 @@ impl MapCanvas {
                                         | CanvasTool::Rectangle
                                         | CanvasTool::Ellipse
                                 );
-                            if ui
-                                .add_enabled(
-                                    supported,
-                                    egui::Button::new(label).selected(self.tool == tool),
-                                )
-                                .clicked()
+                            if crate::theme::add_enabled(
+                                ui,
+                                supported,
+                                egui::Button::new(label).selected(self.tool == tool),
+                            )
+                            .clicked()
                             {
                                 if !self.scene.path.is_empty() {
                                     self.scene.error =
@@ -86,12 +87,12 @@ impl MapCanvas {
                             });
                             if self.tool == CanvasTool::Bezier {
                                 ui.checkbox(&mut self.scene.close_path, "闭合并填充");
-                                if ui
-                                    .add_enabled(
-                                        !self.scene.path.is_empty(),
-                                        egui::Button::new("添加子路径 · Alt"),
-                                    )
-                                    .clicked()
+                                if crate::theme::add_enabled(
+                                    ui,
+                                    !self.scene.path.is_empty(),
+                                    egui::Button::new("添加子路径 · Alt"),
+                                )
+                                .clicked()
                                 {
                                     self.scene.new_subpath = true;
                                 }

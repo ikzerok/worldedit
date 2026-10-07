@@ -215,7 +215,7 @@ fn five_thousand_rows_are_paginated_and_only_visible_rows_are_laid_out() {
             crate::theme::ThemeMode::Light,
         ] {
             app.personal.settings.theme = theme;
-            crate::theme::configure(&ctx, theme);
+            let _theme = crate::theme::configure(&ctx, theme);
             for font in [16., 28.] {
                 app.personal.settings.body_size = font;
                 let output = frame(&ctx, &mut app, size, vec![]);

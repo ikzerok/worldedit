@@ -238,9 +238,12 @@ impl SceneAuthoring {
         egui::CollapsingHeader::new("查看渲染详情")
             .id_salt("scene-render-status")
             .show(ui, |ui| {
-                if ui
-                    .add_enabled(errors > 0, egui::Button::new("资源已调整，重试失败层"))
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    errors > 0,
+                    egui::Button::new("资源已调整，重试失败层"),
+                )
+                .clicked()
                 {
                     for layer in self.layers.values_mut() {
                         layer.renderer.retry();

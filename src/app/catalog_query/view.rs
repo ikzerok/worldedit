@@ -207,7 +207,7 @@ impl WorkbenchState {
                     .filters
                     .iter()
                     .any(|filter| filter_dimension(filter) == dimension);
-                if ui.add_enabled(!exists, egui::Button::new(label)).clicked() {
+                if crate::theme::add_enabled(ui, !exists, egui::Button::new(label)).clicked() {
                     push_empty_filter(&mut self.query, dimension);
                     ui.close();
                 }
@@ -249,10 +249,13 @@ impl WorkbenchState {
                         if document.read_only {
                             ui.label(RichText::new("只读").color(crate::theme::GOLD()));
                         }
-                        if ui
-                            .add_enabled(!document.read_only, egui::Button::new("载入"))
-                            .on_disabled_hover_text("此定义受只读保护，保留原文，不载入编辑或执行")
-                            .clicked()
+                        if crate::theme::add_enabled(
+                            ui,
+                            !document.read_only,
+                            egui::Button::new("载入"),
+                        )
+                        .on_disabled_hover_text("此定义受只读保护，保留原文，不载入编辑或执行")
+                        .clicked()
                         {
                             *action = Action::Load(document.draft.clone());
                         }
@@ -287,12 +290,12 @@ impl WorkbenchState {
             ui.label("保存在当前用户或浏览器存储中的个人收藏，不写入工程清单或共享查询文档。");
             for id in favorites.iter() {
                 if let Some(document) = saved.queries.get(id) {
-                    if ui
-                        .add_enabled(
-                            !document.read_only,
-                            egui::Button::new(format!("{} · {id}", document.draft.name)),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !document.read_only,
+                        egui::Button::new(format!("{} · {id}", document.draft.name)),
+                    )
+                    .clicked()
                     {
                         *action = Action::Load(document.draft.clone());
                     }

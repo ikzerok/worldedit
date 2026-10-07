@@ -20,7 +20,7 @@ impl WorldeditApp {
         };
         let current = !self.problems.stale(self.version) && self.problems.error.is_none();
         let scope = egui::Id::new(("problem-detail", &problem.id));
-        let settings = self.personal.settings.clone();
+        let settings = *self.personal.appearance();
         if self.problems.focus_detail {
             ui.memory_mut(|memory| memory.request_focus(scope.with("copy-problem")));
             self.problems.focus_detail = false;

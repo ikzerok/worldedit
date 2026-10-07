@@ -1,6 +1,6 @@
 # 构建与发布
 
-## 0.29.0 无样例分发
+## 长期无样例分发（自 0.29.0）
 
 Windows、Web 和双仓源码发行 ZIP 不包含 worldline 根 `examples/`、`spec/examples/` 或独立 `eds10-visual-sample.html`。历史演示仍保留在开发仓库；正式源码归档通过对应提交的 `.gitattributes export-ignore` 排除它们，不重写 `git archive` 的字节。产品字段模板已迁至 `worldline/spec/templates.catalog.json`，必要回归夹具、开发性能工具 `core/examples/relations_profile.rs`、应用资产与许可证继续保留。
 

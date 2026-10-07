@@ -44,7 +44,8 @@ impl ImportState {
                         .to_path_buf();
                     let label = relative.display().to_string();
                     let Ok(portable) = portable_destination(&relative) else {
-                        ui.add_enabled(
+                        crate::theme::add_enabled(
+                            ui,
                             false,
                             egui::Button::new(format!("{label}（路径不可传输）")).wrap(),
                         );

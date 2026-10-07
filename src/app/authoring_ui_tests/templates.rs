@@ -172,12 +172,19 @@ fn template_fields_preserve_values(windows_sources: bool) {
             object.file = r"C:\Users\runneradmin\AppData\Local\Temp\worldedit-form-ui-12345-1234567890123456789-0\world.wl".into();
         }
         assert_eq!(
-            crate::app::object_picker::candidates(
-                &app.snapshot.as_ref().unwrap().result.analysis.catalog,
-                "c",
-                &["entity"]
-            )
-            .len(),
+            app.snapshot
+                .as_ref()
+                .unwrap()
+                .result
+                .analysis
+                .catalog
+                .search_objects_filtered_page(
+                    "c",
+                    &crate::app::object_picker::filter(&["entity"], None),
+                    Default::default()
+                )
+                .unwrap()
+                .total,
             3,
             "来源路径中的 c 必须同时保留三个同名候选"
         );

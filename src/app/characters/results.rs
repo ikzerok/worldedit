@@ -79,8 +79,7 @@ impl WorldeditApp {
                                     let name =
                                         node.map(|n| n.display.as_str()).unwrap_or(&other.id);
                                     ui.horizontal_wrapped(|ui| {
-                                        if ui
-                                            .add_enabled(
+                                        if crate::theme::add_enabled(ui,
                                                 node.is_some_and(|n| n.exists),
                                                 egui::Button::new(crate::visual::truncated(
                                                     name, 24,
@@ -122,7 +121,7 @@ impl WorldeditApp {
                                                 for scope in scope_refs {
                                                     let object = self.snapshot.as_ref().and_then(|s|s.result.analysis.catalog.object(scope)).cloned();
                                                     let name = object.as_ref().map(|o|o.display.as_str()).unwrap_or(&scope.id);
-                                                    if ui.add_enabled(object.is_some(),egui::Button::new(crate::visual::truncated(name,20)).small()).on_hover_text(state::key(scope)).clicked() {
+                                                    if crate::theme::add_enabled(ui, object.is_some(),egui::Button::new(crate::visual::truncated(name,20)).small()).on_hover_text(state::key(scope)).clicked() {
                                                         if let Some(object) = &object { self.jump_to_file(&object.file,object.line,1); }
                                                     }
                                                 }

@@ -159,8 +159,7 @@ pub(super) fn geometry_fields(ui: &mut egui::Ui, geometry: &mut SceneGeometry) -
                 points.push(points.last().copied().unwrap_or([0.0, 0.0]));
                 changed = true;
             }
-            if ui
-                .add_enabled(!points.is_empty(), egui::Button::new("删除此顶点"))
+            if crate::theme::add_enabled(ui, !points.is_empty(), egui::Button::new("删除此顶点"))
                 .clicked()
             {
                 points.remove(index);
@@ -222,9 +221,12 @@ pub(super) fn geometry_fields(ui: &mut egui::Ui, geometry: &mut SceneGeometry) -
                     segments.push(PathSegment::Close);
                     changed = true;
                 }
-                if ui
-                    .add_enabled(!segments.is_empty(), egui::Button::new("删除此段"))
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    !segments.is_empty(),
+                    egui::Button::new("删除此段"),
+                )
+                .clicked()
                 {
                     segments.remove(index);
                     changed = true;
@@ -248,8 +250,7 @@ pub(super) fn geometry_fields(ui: &mut egui::Ui, geometry: &mut SceneGeometry) -
                     runs.push(TextRun::default());
                     changed = true;
                 }
-                if ui
-                    .add_enabled(runs.len() > 1, egui::Button::new("删除片段"))
+                if crate::theme::add_enabled(ui, runs.len() > 1, egui::Button::new("删除片段"))
                     .clicked()
                 {
                     runs.remove(index);

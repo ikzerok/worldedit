@@ -209,8 +209,7 @@ impl WorldeditApp {
                         let selected = state.selected_id.clone();
                         if let Some(id) = selected.as_deref() {
                             if let Some(document) = index.projects.get(id) {
-                                if ui
-                                    .add_enabled(
+                                if crate::theme::add_enabled(ui,
                                         !document.read_only,
                                         egui::Button::new("载入所选模板 JSON"),
                                     )
@@ -222,8 +221,7 @@ impl WorldeditApp {
                                 }
                             }
                             let copyable = selected_template_value(&index, id).is_some();
-                            if ui
-                                .add_enabled(copyable, egui::Button::new("复制为新模板 JSON"))
+                            if crate::theme::add_enabled(ui, copyable, egui::Button::new("复制为新模板 JSON"))
                                 .clicked()
                             {
                                 if let Some(document) = copied_template_json(&index, id) {
@@ -237,8 +235,7 @@ impl WorldeditApp {
                                 copied_json = selected_template_json(&index, id);
                             }
                             if let Some(document) = index.projects.get(id) {
-                                if ui
-                                    .add_enabled(
+                                if crate::theme::add_enabled(ui,
                                         !document.read_only,
                                         egui::Button::new("预览停用模板（保留对象资料）"),
                                     )

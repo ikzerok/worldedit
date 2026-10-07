@@ -336,7 +336,8 @@ impl WorldeditApp {
                                     )))
                                     .wrap(),
                                 );
-                                let response = ui.add_enabled(
+                                let response = crate::theme::add_enabled(
+                                    ui,
                                     current,
                                     egui::Button::new(format!("定位第 {} 条来源", index + 1)),
                                 );

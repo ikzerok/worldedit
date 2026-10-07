@@ -112,6 +112,36 @@ struct RunningQuery {
     cancel_requested: bool,
 }
 
+/// 仅原生测试观察异步查询生命周期，不改变运行分支或消费channel。
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(in crate::app) struct CatalogQueryTestState {
+    pub pending: bool,
+    pub details: String,
+}
+#[cfg(all(test, not(target_arch = "wasm32")))]
+impl WorkbenchState {
+    pub(in crate::app) fn test_query_state(&self) -> CatalogQueryTestState {
+        CatalogQueryTestState {
+            pending: self.running.is_some(),
+            details: format!(
+                "cancel_requested={:?}; query={}; options={:?}; page={:?}; error={:?}",
+                self.running
+                    .as_ref()
+                    .map(|running| running.cancel_requested),
+                self.query.summary(),
+                current_options(self),
+                self.page.as_ref().map(|page| (
+                    &page.snapshot,
+                    page.offset,
+                    page.total,
+                    page.items.len()
+                )),
+                self.error,
+            ),
+        }
+    }
+}
+
 impl WorldeditApp {
     pub(super) fn catalog_query_tab(&mut self, ctx: &egui::Context) {
         let mut workbench = std::mem::take(&mut self.catalog_workbench);

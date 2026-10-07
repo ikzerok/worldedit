@@ -7,7 +7,7 @@ fn source_outline_rows_left_align_name_and_metadata_without_changing_size_or_wra
     let ctx = egui::Context::default();
     crate::fonts::install_cjk_fonts(&ctx);
     for mode in [theme::ThemeMode::Dark, theme::ThemeMode::Light] {
-        theme::configure(&ctx, mode);
+        let _theme = theme::configure(&ctx, mode);
         for size in [16.0, 28.0] {
             for width in [300.0, 620.0] {
                 for (depth, display) in [

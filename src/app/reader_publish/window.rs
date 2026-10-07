@@ -76,7 +76,8 @@ impl WorldeditApp {
                         (PublishStep::Preview, "3 预览页面"),
                         (PublishStep::Generate, "4 确认生成"),
                     ] {
-                        ui.add_enabled_ui(
+                        crate::theme::add_enabled_ui(
+                            ui,
                             !state.busy()
                                 && (step == PublishStep::Select || state.reviewed.is_some()),
                             |ui| {
@@ -84,12 +85,12 @@ impl WorldeditApp {
                             },
                         );
                     }
-                    if ui
-                        .add_enabled(
-                            !state.busy() && state.reviewed.is_some(),
-                            egui::Button::new("页面目录 / 查找"),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !state.busy() && state.reviewed.is_some(),
+                        egui::Button::new("页面目录 / 查找"),
+                    )
+                    .clicked()
                     {
                         state.step = PublishStep::Preview;
                         state.page_directory.show();
@@ -104,7 +105,7 @@ impl WorldeditApp {
                 ui.separator();
                 let scroll_height = (ui.available_height() - 68.0).max(80.0);
                 if state.step == PublishStep::Preview {
-                    ui.add_enabled_ui(!state.busy(), |ui| {
+                    crate::theme::add_enabled_ui(ui, !state.busy(), |ui| {
                         action = state.page_review_ui(ui, scroll_height, keyboard_allowed);
                     });
                 } else {
@@ -113,17 +114,21 @@ impl WorldeditApp {
                         .max_height(scroll_height)
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            ui.add_enabled_ui(!state.busy(), |ui| match state.step {
-                                PublishStep::Select => {
-                                    let (changed, next_action) = state.selection_ui(ui);
-                                    if changed {
-                                        state.invalidate_review();
+                            crate::theme::add_enabled_ui(ui, !state.busy(), |ui| {
+                                match state.step {
+                                    PublishStep::Select => {
+                                        let (changed, next_action) = state.selection_ui(ui);
+                                        if changed {
+                                            state.invalidate_review();
+                                        }
+                                        action = next_action;
                                     }
-                                    action = next_action;
+                                    PublishStep::Resources => state.resource_review_ui(ui),
+                                    PublishStep::Preview => {
+                                        unreachable!("阅读视图有独立正文滚动区")
+                                    }
+                                    PublishStep::Generate => action = state.generation_ui(ui),
                                 }
-                                PublishStep::Resources => state.resource_review_ui(ui),
-                                PublishStep::Preview => unreachable!("阅读视图有独立正文滚动区"),
-                                PublishStep::Generate => action = state.generation_ui(ui),
                             });
                         });
                 }
@@ -151,12 +156,12 @@ impl WorldeditApp {
                     }
                     match state.step {
                         PublishStep::Select => {
-                            if ui
-                                .add_enabled(
-                                    !state.busy() && state.has_selection(),
-                                    crate::theme::primary("生成 / 更新预览"),
-                                )
-                                .clicked()
+                            if crate::theme::add_enabled(
+                                ui,
+                                !state.busy() && state.has_selection(),
+                                crate::theme::primary("生成 / 更新预览"),
+                            )
+                            .clicked()
                             {
                                 action = Some(PublishAction::Preview(state.selection()));
                             }
@@ -165,9 +170,12 @@ impl WorldeditApp {
                             }
                         }
                         PublishStep::Resources | PublishStep::Preview => {
-                            if ui
-                                .add_enabled(!state.busy(), crate::theme::primary("继续"))
-                                .clicked()
+                            if crate::theme::add_enabled(
+                                ui,
+                                !state.busy(),
+                                crate::theme::primary("继续"),
+                            )
+                            .clicked()
                             {
                                 state.step = if state.step == PublishStep::Resources {
                                     PublishStep::Preview
@@ -181,12 +189,12 @@ impl WorldeditApp {
                             let label = "发布 ZIP";
                             #[cfg(target_arch = "wasm32")]
                             let label = "下载阅读包";
-                            if ui
-                                .add_enabled(
-                                    !state.busy() && state.confirmed && state.reviewed.is_some(),
-                                    crate::theme::primary(label),
-                                )
-                                .clicked()
+                            if crate::theme::add_enabled(
+                                ui,
+                                !state.busy() && state.confirmed && state.reviewed.is_some(),
+                                crate::theme::primary(label),
+                            )
+                            .clicked()
                             {
                                 action = Some(PublishAction::Publish);
                             }

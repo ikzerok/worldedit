@@ -56,10 +56,19 @@ fn panel_frame(
     app: &mut WorldeditApp,
     events: Vec<Event>,
 ) -> (bool, egui::FullOutput) {
+    panel_frame_at_size(ctx, app, vec2(1700.0, 1400.0), events)
+}
+
+fn panel_frame_at_size(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    size: egui::Vec2,
+    events: Vec<Event>,
+) -> (bool, egui::FullOutput) {
     let mut applied = false;
     let output = ctx.run(
         RawInput {
-            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1700.0, 1400.0))),
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), size)),
             events,
             ..Default::default()
         },
@@ -73,24 +82,35 @@ fn panel_frame(
 }
 
 fn click_panel(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) -> bool {
+    click_panel_at_size(ctx, app, vec2(1700.0, 1400.0), label)
+}
+
+fn click_panel_at_size(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    size: egui::Vec2,
+    label: &str,
+) -> bool {
     let mut found = None;
     let mut rendered = String::new();
     for _ in 0..30 {
-        let (_, output) = panel_frame(ctx, app, Vec::new());
+        let (_, output) = panel_frame_at_size(ctx, app, size, Vec::new());
         rendered = text(&output);
+        // A painted text shape can lie outside the scroll area's visible clip.
         if let Some(point) = output
             .shapes
             .iter()
-            .find_map(|shape| super::text_position(&shape.shape, label))
+            .find_map(|shape| super::clipped_text_position(&shape.shape, label, shape.clip_rect))
         {
             found = Some(point);
             break;
         }
-        let _ = panel_frame(
+        let _ = panel_frame_at_size(
             ctx,
             app,
+            size,
             vec![
-                Event::PointerMoved(pos2(850.0, 700.0)),
+                Event::PointerMoved(pos2(size.x * 0.5, size.y * 0.5)),
                 Event::MouseWheel {
                     unit: egui::MouseWheelUnit::Point,
                     delta: vec2(0.0, -450.0),
@@ -102,9 +122,10 @@ fn click_panel(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) -> bool
     let point = found.unwrap_or_else(|| panic!("未显示控件 {label}：{rendered}"));
     let mut applied = false;
     for pressed in [true, false] {
-        applied = panel_frame(
+        applied = panel_frame_at_size(
             ctx,
             app,
+            size,
             vec![
                 Event::PointerMoved(point),
                 Event::PointerButton {
@@ -274,6 +295,80 @@ fn panel_shows_core_missing_stale_and_placeholder_diagnostics_without_writing() 
     );
     assert_eq!(app.project.content_baseline(), baseline);
     assert!(app.localization_ui.has_unsubmitted_work());
+
+    drop(app);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn clipped_import_confirmation_scrolls_into_view_and_cancel_keeps_the_project_unchanged() {
+    const CONFIRM: &str = "复核通过 · 确认导入…";
+    let (ctx, mut app, root) = localization_app();
+    click_panel(&ctx, &mut app, "预览导出");
+    let mut exchange = app
+        .localization_ui
+        .export_plan
+        .as_ref()
+        .unwrap()
+        .exchange
+        .clone();
+    for entry in &mut exchange.entries {
+        entry.translation_parts = Some(entry.source_parts.clone());
+    }
+    let json = serde_json::to_string(&exchange).unwrap();
+    app.localization_ui.exchange_json = json.clone();
+    click_panel(&ctx, &mut app, "预览导入");
+    assert!(app.localization_ui.import_plan.as_ref().unwrap().can_apply);
+    let baseline = app.project.content_baseline();
+
+    // Derive the clipping boundary from the current font metrics, including native Windows fonts.
+    let tall = vec2(1700.0, 3000.0);
+    let (_, output) = panel_frame_at_size(&ctx, &mut app, tall, Vec::new());
+    let (rect, clip) = output
+        .shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.text() == CONFIRM => Some((
+                text.galley.rect.translate(text.pos.to_vec2()),
+                shape.clip_rect,
+            )),
+            _ => None,
+        })
+        .expect("confirmation entry should exist after a valid preview");
+    let size = vec2(tall.x, rect.top() + tall.y - clip.bottom() - 1.0);
+    let (_, output) = panel_frame_at_size(&ctx, &mut app, size, Vec::new());
+    let (point, clip) = output
+        .shapes
+        .iter()
+        .find_map(|shape| {
+            super::text_position(&shape.shape, CONFIRM).map(|point| (point, shape.clip_rect))
+        })
+        .expect("the clipped button still emits its text shape");
+    assert!(
+        !clip.contains(point),
+        "fixture must put the old click point outside the clip"
+    );
+    assert!(
+        output.shapes.iter().all(|shape| {
+            super::clipped_text_position(&shape.shape, CONFIRM, shape.clip_rect).is_none()
+        }),
+        "fixture must require real scrolling before the confirmation entry is clickable"
+    );
+
+    assert!(!click_panel_at_size(&ctx, &mut app, size, CONFIRM));
+    let (_, output) = panel_frame_at_size(&ctx, &mut app, size, Vec::new());
+    assert!(
+        text(&output).contains("确认本地化导入"),
+        "confirmation window never opened"
+    );
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(!click_panel_at_size(&ctx, &mut app, size, "取消导入"));
+    let (_, output) = panel_frame_at_size(&ctx, &mut app, size, Vec::new());
+    assert!(!text(&output).contains("确认本地化导入"));
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.localization_ui.exchange_json, json);
+    assert!(app.localization_ui.has_unsubmitted_work());
+    assert!(!root.join(".world/localization/zh-Hant.json").exists());
 
     drop(app);
     fs::remove_dir_all(root).unwrap();

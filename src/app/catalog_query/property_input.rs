@@ -59,8 +59,7 @@ pub(super) fn render(
             }
         }
         let condition = condition_from_inputs(inputs, root);
-        if ui
-            .add_enabled(condition.is_ok(), egui::Button::new("添加属性值"))
+        if crate::theme::add_enabled(ui, condition.is_ok(), egui::Button::new("添加属性值"))
             .clicked()
         {
             if let Ok(condition) = condition {

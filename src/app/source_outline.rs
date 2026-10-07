@@ -262,8 +262,7 @@ impl WorldeditApp {
             if ui.button(format!("本文件结构  {shortcut}")).clicked() {
                 self.open_source_outline(ctx);
             }
-            if ui
-                .add_enabled(
+            if crate::theme::add_enabled(ui,
                     !self.personal.history.is_empty() && !self.source_outline_blocked(ctx),
                     egui::Button::new("返回作者位置"),
                 )
@@ -272,8 +271,7 @@ impl WorldeditApp {
             {
                 self.author_back(ctx);
             }
-            if ui
-                .add_enabled(!self.ime_composing, egui::Button::new("为当前选区添加批注"))
+            if crate::theme::add_enabled(ui, !self.ime_composing, egui::Button::new("为当前选区添加批注"))
                 .clicked()
             {
                 self.comment_current_selection(ctx);

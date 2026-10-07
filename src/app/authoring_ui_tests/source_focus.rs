@@ -12,6 +12,7 @@ fn source_and_reading(
             ..Default::default()
         },
         |ctx| {
+            let _theme = crate::theme::configure_appearance(ctx, app.personal.appearance());
             app.source_tab(ctx);
             app.reading_window(ctx);
         },
@@ -34,6 +35,56 @@ fn pointer_click(ctx: &egui::Context, app: &mut WorldeditApp, point: egui::Pos2)
             ],
         );
     }
+}
+
+// 光标坐标不保证在视口内；通过真实滚动找到未被旁查窗口覆盖的可点击源码。
+fn reveal_uncovered_source(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    source: &str,
+    needle: &str,
+) -> egui::Pos2 {
+    for _ in 0..24 {
+        let output = source_and_reading(ctx, app, vec![]);
+        let reader = ctx.memory(|memory| memory.area_rect(egui::Id::new("object-reading")));
+        if let Some(point) = output.shapes.iter().find_map(|shape| {
+            let point = source_text_position(&shape.shape, source, needle)?;
+            (shape.clip_rect.contains(point)
+                && ctx.screen_rect().contains(point)
+                && reader.is_none_or(|rect| !rect.contains(point)))
+            .then_some(point)
+        }) {
+            return point;
+        }
+        let viewport = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text == source => {
+                    Some(shape.clip_rect.intersect(ctx.screen_rect()))
+                }
+                _ => None,
+            })
+            .expect("真实源码视口仍须存在");
+        let point = viewport.right_bottom() - vec2(20.0, 20.0);
+        assert!(
+            reader.is_none_or(|rect| !rect.contains(point)),
+            "滚动点必须位于旁查窗口外的源码"
+        );
+        source_and_reading(
+            ctx,
+            app,
+            vec![
+                Event::PointerMoved(point),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, -90.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+        );
+    }
+    panic!("源码 {needle} 经实际滚动后仍不可见或被旁查覆盖");
 }
 
 #[test]
@@ -97,12 +148,7 @@ fn opening_source_wiki_releases_hidden_input_but_explicit_return_restores_cursor
         assert_eq!(app.history.len(), history);
         assert!(!ctx.memory(|memory| memory.has_focus(id)));
         // 旁查仍非模态：明确点击窗口外的正文可以继续创作。
-        let output = source_and_reading(&ctx, &mut app, vec![]);
-        let visible_source = output
-            .shapes
-            .iter()
-            .find_map(|shape| source_text_position(&shape.shape, &source, "VISIBLE_SOURCE"))
-            .unwrap();
+        let visible_source = reveal_uncovered_source(&ctx, &mut app, &source, "VISIBLE_SOURCE");
         pointer_click(&ctx, &mut app, visible_source);
         assert!(ctx.memory(|memory| memory.has_focus(id)));
         let range = egui::TextEdit::load_state(&ctx, id)

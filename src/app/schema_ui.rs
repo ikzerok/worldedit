@@ -141,8 +141,7 @@ impl WorldeditApp {
                                             .unwrap_or(path)
                                             .display()
                                             .to_string();
-                                        if ui
-                                            .add_enabled(
+                                        if crate::theme::add_enabled(ui,
                                                 !state.has_unsubmitted_work(),
                                                 egui::Button::selectable(
                                                     state.path.as_ref() == Some(path),
@@ -207,7 +206,7 @@ impl WorldeditApp {
                             source_id,
                             &state.source,
                         );
-                        let response = ui.add_enabled(
+                        let response = crate::theme::add_enabled(ui,
                             writable,
                             egui::TextEdit::multiline(&mut state.source)
                                 .id(source_id)
@@ -231,8 +230,7 @@ impl WorldeditApp {
                             );
                         }
                         ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .add_enabled(
+                            if crate::theme::add_enabled(ui,
                                     writable && state.path.is_some(),
                                     egui::Button::new("预览约束影响"),
                                 )
@@ -240,8 +238,7 @@ impl WorldeditApp {
                             {
                                 do_preview = true;
                             }
-                            if ui
-                                .add_enabled(
+                            if crate::theme::add_enabled(ui,
                                     writable
                                         && state.preview.as_ref().is_some_and(|plan| plan.changed),
                                     egui::Button::new("应用约束草稿"),
@@ -253,8 +250,7 @@ impl WorldeditApp {
                             if ui.button("取消影响预览").clicked() {
                                 state.preview = None;
                             }
-                            if ui
-                                .add_enabled(
+                            if crate::theme::add_enabled(ui,
                                     state.has_unsubmitted_work(),
                                     egui::Button::new("丢弃约束草稿"),
                                 )

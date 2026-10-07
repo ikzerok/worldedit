@@ -9,6 +9,8 @@ CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令
 | 执行图与条件上下文 | graph | analyze / export | 共享结构数据；Mermaid 是文本输出 |
 | 时段与先后关系 | timeline | analyze | 同一 timeline 数据 |
 | 人物、标签、状态、锚点、素材、别名、正文链接 | catalog | analyze.catalog | 查找与源码定位 |
+| 对象完整身份筛选与分页 | object-search --query；可加 --filter-json / --options-json | world.objects.search | 同一 core 类型/实体类型、别名、按需源码路径和分页预算；自己的已应用快照，不读编辑器未应用稿 |
+| 新章及正式来源原子创建 | manuscript-chapter preview / apply --request-json；apply需 --plan-digest | manuscript.chapter.preview / manuscript.chapter.apply | 新/已有书稿，复用来源或新建空事件；同一 core 计划和保存基线保护，不自动连接执行路线 |
 | 1.10 实体目录与属性 | catalog --kind entity | project.open / project.analyze | 同一 core 目录；同名实体和旧词条保持独立 |
 | 创建、修改、删除 1.10 实体 | entity create / update / delete | entity.create / entity.update / entity.delete | 显式1.10工程；按基线与引用保护写入磁盘，桌面随后刷新 |
 | 工作区检查、地图与标记反查 | workspace check / maps list | workspace.check / maps.list | 核心分域诊断及地图索引；读取已保存作品，不连接编辑器缓冲 |
@@ -24,10 +26,10 @@ CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令
 | 试玩、选择、当前状态 | play | session.* | 独立会话，不连接 UI 当前试玩 |
 | 当前稿真实双路线对照 | route-compare | project.compare_routes | 共用有界runtime DTO；只读各自工程，不遥控UI；对照source/back与取消仍由编辑器运行态处理 |
 | 演练存读档 | play --load/--save | session.open/save | 各自会话存档 |
-| 创建/修改人物、事件和设定 | 无写入命令 | 无写入方法 | 编辑 `.wl` 或 Rust Project API；桌面刷新 |
+| 通用人物、事件和设定表单 | 无同等通用表单命令 | 无同等通用表单方法 | 编辑 `.wl` 或 Rust Project API；新章命令仅有明确的新建空事件选项，不等同全部事件编辑 |
 | 新建/选择工作区 | 启动 worldedit DIR | 无 | 编辑器目录选择 |
 | 递归源码搜索 | 无专门命令 | 无 | 编辑器搜索或读取工作区文本 |
-| 保存缓冲、另存、完整工程导出 | 无 | 无 | 编辑器；Rust Project API 可供自建工具调用 |
+| 保存缓冲、另存、完整工程导出 | 个别写命令显式 --save | project.save（自身会话） | 不读取运行中编辑器缓冲；编辑器另存与完整工程导出仍由 UI 负责 |
 | 当前单文件源码结构与精确定位 | 无专用命令 | 无专用方法 | 编辑器本文件结构；Rust Project::source_outline / source_outline_range只读接口，不访问另一个进程的源码缓冲 |
 | 切换视图、选中对象、资料阅读窗口 | 无 | 无 | UI |
 | 卡片拖动、缩放、关系连线手势 | 无 | 无 | UI；语义修改可写源码 |
@@ -81,3 +83,11 @@ CLI 的 `world-context --options-json '{"include_executable":true}'` 与 RPC
 未应用输入与作者私密范围确认、取消、复制、桌面新文件保存/Web下载、当前稿与外部观察守卫。
 CLI/RPC维持同步有界查询，不替代UI确认，也不改变live session或保存基线。完整路径见
 [试玩路径报告](playthrough-report.md) 与 worldline/spec/playthrough-report.md。
+
+## 0.30 起笔与统一对象检索
+
+`wl manuscript-chapter preview 工程 --request-json DTO --json` 返回实际原子计划；apply 重传同一请求并带 `--plan-digest`，默认只在短命 CLI 内存应用，必须显式 `--save` 才保存。预览不能带 save/digest，参数错误退出 2、业务拒绝退出 1；保存失败会明确 `applied:true` / `saved:false`，不能据此宣称磁盘未触及。RPC 的 preview/apply 必须使用自身已打开的 project_id，不接受 path；末端仍重建候选并核对修订、基线、全部文件清单与内容摘要。
+
+`wl object-search 工程 --query 文本 --json` 支持 `--filter-json`、`--options-json` 与可选 `--expected-baseline`。空查询须明确传入空字符串；只读打开工程，不恢复或保存事务。RPC 方法是 `world.objects.search`，filter/options 与 core 使用相同 DTO；预算先针对完整 Catalog，不允许 UI 通过裁剪目录绕过限制。
+
+完整新章请求/结果见[新章作者契约](../../worldline/spec/manuscript-authoring.md)，分页字段见[对象检索](../../worldline/spec/object-search.md)。正文空槽属于 core/UI 投影，机器后续编辑仍走已有 `source.edit`，没有新增远程键入或外观遥控协议。
