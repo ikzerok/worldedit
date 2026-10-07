@@ -78,7 +78,9 @@ use worldline_core::{Analysis, Program};
 use worldline_core::{CompileResult, Diagnostic};
 #[cfg(target_arch = "wasm32")]
 use worldline_runtime::ReplaySession;
-use worldline_runtime::{ChoiceExplanation, ReplayCancellation, ReplayResult, ReplayTrace, Story};
+use worldline_runtime::{
+    ChoiceExplanation, OwnedStory, ReplayCancellation, ReplayResult, ReplayTrace,
+};
 
 pub(super) fn workspace_source_path(project: &Project, path: &Path) -> PathBuf {
     workspace::workspace_source_path(project, path)
@@ -138,8 +140,8 @@ struct Snapshot {
     proposal_index: worldline_core::collaboration::ProposalIndex,
 }
 struct PlayState {
-    // 延续运行时借用接口;每次重开产生一个会话快照。
-    story: Option<Story<'static>>,
+    // 会话拥有程序和分析快照，重开或离开工程时一并释放。
+    story: Option<OwnedStory>,
     transcript: String,
     transcript_links: Vec<worldline_core::navigation::RenderedLink>,
     ended: bool,

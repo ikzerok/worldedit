@@ -48,6 +48,9 @@ impl WorkbenchState {
                 });
         });
 
+        if self.query.filters != previous_query.filters {
+            self.query.sync_edited_version();
+        }
         if self.query != previous_query || current_options(self) != previous_options {
             self.page = None;
             self.error = None;
@@ -66,20 +69,7 @@ impl WorkbenchState {
             Action::Next => self.next_page(app),
             Action::Previous(offset) => self.previous_page(app, offset),
             Action::Save => self.save_query(app),
-            Action::Load(draft) => {
-                #[cfg(not(target_arch = "wasm32"))]
-                if let Some(running) = &mut self.running {
-                    running
-                        .cancel
-                        .store(true, std::sync::atomic::Ordering::Relaxed);
-                    running.cancel_requested = true;
-                }
-                self.query = draft.query;
-                self.saved_query_id = draft.id;
-                self.saved_query_name = draft.name;
-                self.page = None;
-                self.error = None;
-            }
+            Action::Load(draft) => self.load_saved_query(&app.project, draft),
             Action::Favorite(id) => self.toggle_favorite(&app.project.root, id),
             #[cfg(not(target_arch = "wasm32"))]
             Action::Cancel => self.cancel_query(),
@@ -259,7 +249,11 @@ impl WorkbenchState {
                         if document.read_only {
                             ui.label(RichText::new("只读").color(crate::theme::GOLD()));
                         }
-                        if ui.button("载入").clicked() {
+                        if ui
+                            .add_enabled(!document.read_only, egui::Button::new("载入"))
+                            .on_disabled_hover_text("此定义受只读保护，保留原文，不载入编辑或执行")
+                            .clicked()
+                        {
                             *action = Action::Load(document.draft.clone());
                         }
                         let favorite = self
@@ -294,7 +288,10 @@ impl WorkbenchState {
             for id in favorites.iter() {
                 if let Some(document) = saved.queries.get(id) {
                     if ui
-                        .button(format!("{} · {id}", document.draft.name))
+                        .add_enabled(
+                            !document.read_only,
+                            egui::Button::new(format!("{} · {id}", document.draft.name)),
+                        )
                         .clicked()
                     {
                         *action = Action::Load(document.draft.clone());

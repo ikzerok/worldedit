@@ -1,5 +1,11 @@
 # 构建与发布
 
+## 0.29.0 无样例分发
+
+Windows、Web 和双仓源码发行 ZIP 不包含 worldline 根 `examples/`、`spec/examples/` 或独立 `eds10-visual-sample.html`。历史演示仍保留在开发仓库；正式源码归档通过对应提交的 `.gitattributes export-ignore` 排除它们，不重写 `git archive` 的字节。产品字段模板已迁至 `worldline/spec/templates.catalog.json`，必要回归夹具、开发性能工具 `core/examples/relations_profile.rs`、应用资产与许可证继续保留。
+
+从源码 ZIP 重建和运行测试仍是配对验收要求；仅通过文件排除审计不能宣称已完成构建或运行验收。将两个 ZIP 解压到同一父目录后，在 worldline 运行 `cargo test --workspace --locked`，在 worldedit 运行 `cargo test --locked` 和 `cargo test --locked --features eds11_prototype`；两边均可用 `cargo build --release --locked` 重建。源码 ZIP 不包含 Git 元数据，`check-pair.ps1` 的精确 HEAD 检查用于完整 Git 检出，归档的提交身份由 ZIP commit comment 和发行配对清单核对。新建世界为空白工程，不预置演示作品。此节说明分发策略，不代表当前候选已构建或已经发布。
+
 ## 0.14.0 更新
 
 试玩/重放显式稿件范围、语义主题色、真实条件证据来源导航和既有语言能力启用作为同一版本交付。启用能力采用 core 全稿预览与精确计划校验，默认语言仍1.9，最高1.13；不开新DSL、不自动迁移或保存。作者说明见[0.14使用与兼容边界](explicit-authoring-0.14.md)。
@@ -47,7 +53,7 @@ Wiki 已集成到编辑器：可按关键词、ID 和别名查找资料，创建
 
 worldedit 和 worldline 分别上传各自目录，克隆到同级位置。各仓库保留 Cargo.toml、Cargo.lock、rust-toolchain.toml、LICENSE、README、AGENTS、源码、测试和持续集成。worldedit 另保留图标、开放字体与许可证、Web 入口、启动脚本和 .agent 创作技能。
 
-target、dist、releases、日志和临时文件不是源码，不上传。父目录旧研究、规划、截图与图标生成过程不属于这两个仓库。不能删除 core 编译时嵌入的 worldline/examples/harbor-world，也不能删除字体许可证。
+target、dist、releases、日志和临时文件不是源码，不上传。父目录旧研究、规划、截图与图标生成过程不属于这两个仓库。源码分发保留 core 编译所需字段模板、必要测试输入及字体许可证；不把用于开发的性能工具或回归夹具误当作演示工程删除。
 
 ## 门禁
 
@@ -55,26 +61,28 @@ target、dist、releases、日志和临时文件不是源码，不上传。父�
 
 ## Windows 和 Web 包
 
-在已安装 Rust、WebAssembly 编译目标和 Trunk 的机器运行：
+在已安装 Rust、WebAssembly 编译目标、Trunk 和 Python 3.11+（CI 为 3.12）的 Windows x64 机器运行：
 
 ```powershell
 ./scripts/package.ps1
 ./scripts/package.ps1 -OutputDirectory D:/发行包 -SkipWeb
 ```
 
-脚本使用 --release --locked，输出独立带时间的目录，包含 Windows ZIP、可选 Web ZIP、两个源码 ZIP 与 SHA256SUMS.txt。Windows 包包含 worldedit.exe、wl.exe、wl-agent.exe、图标、项目及字体许可证、创作技能、使用说明、语言规范与示例。Web 包为静态 HTTP 文件，附 Noto 字体许可证；不能双击 HTML 运行。
+脚本使用 --release --locked，输出独立带时间的目录，包含 Windows ZIP、可选 Web ZIP、两个源码 ZIP 与 SHA256SUMS.txt。Windows 包包含 worldedit.exe、wl.exe、wl-agent.exe、图标、项目及字体许可证、运行依赖许可、创作技能、使用说明和语言规范；不复制演示工程或规范样例。Web 包为静态 HTTP 文件，附字体与运行依赖许可；不能双击 HTML 运行。
 
-当前脚本适用于 Windows x64 主机，未构建 macOS/Linux 安装器，也不签名或上传。GitHub 上传和 Release 发布由用户决定；本地打包成功不表示线上已发布。两个源码 ZIP 解压到同一目录即可得到同级 worldline 与 worldedit 目录；source/ 下也保留这两个待上传目录。源码打包递归排除缓存、版本库、本机配置、凭据扩展名和日志，遇到符号链接或目录联接会停止。
+当前脚本适用于 Windows x64 主机，未构建 macOS/Linux 安装器，也不签名或上传。GitHub 上传和 Release 发布由用户决定；本地打包成功不表示线上已发布。两个源码 ZIP 解压到同一目录即可得到同级 worldline 与 worldedit 目录；脚本不另外保留 source/ 工作目录。Git 检出在构建前与归档前要求没有已暂存、未暂存或未忽略的未跟踪更改，源码使用原始 HEAD 归档，避免二进制与源码版本错配。无 .git 的已导出源码采用同一精确样例筛选策略，并排除缓存、本机配置、凭据扩展名和日志。复制拒绝符号链接、Windows junction 和所有 reparse point，不沿其读取目录外内容；所有 ZIP 在计算校验值前再次审计。
 
-解压后验证 wl check worldline/examples/harbor-world --json，再打开编辑器验证工作区。Web 包用静态 HTTP 服务器运行。源码发布前确认 GitHub 页面包含以点开头的 .agent 与 .github；不要只拖动文件管理器当前可见文件。
+正式 release-build.py 从最终 Windows ZIP 解出 wl.exe，在发行目录外生成只含 `event start` 和缩进 `-> END` 的临时 smoke.wl，运行 `wl.exe check <temporary>/smoke.wl --json`，核对成功状态、零诊断和一个事件，再删除临时输入与解压目录。该烟测的实际结果写入 release-pair.json，不再依赖随包演示工程。原生编辑器工作区交互须另行验证。Web 包用静态 HTTP 服务器运行。源码发布前确认 GitHub 页面包含以点开头的 .agent 与 .github；不要只拖动文件管理器当前可见文件。
 
 ## 公开上传范围
 
-上传 source/worldline 的内容到 worldline 仓库，上传 source/worldedit 的内容到 worldedit 仓库；不要把 source 或本地组合父目录作为第三层套入仓库。两者默认分支使用 main，但编辑器 CI 只检出 `compatibility.json` 指定的 worldline SHA；先确保该提交在指定远端可获取，再上传 worldedit。保留隐藏的 .github、.agent、.gitignore、Cargo.lock 和兼容记录。父目录原有 .git 历史不在源码包中。
+公开仓库维护各自的 worldline、worldedit 源码及历史，正式源码附件则是相应提交排除样例后的归档。不要用分发 ZIP 回写并删减开发仓库历史，也不要把本地组合父目录作为第三层套入仓库。两者默认分支使用 main，但编辑器 CI 只检出 `compatibility.json` 指定的 worldline SHA；先确保该提交在指定远端可获取，再上传 worldedit。保留隐藏的 .github、.agent、.gitignore、.gitattributes、Cargo.lock 和兼容记录。版本库元数据不在源码包中。
 
 Windows/Web ZIP 与 SHA256SUMS.txt 作为 GitHub Release 附件；不提交到源码树。是否完成线上发布以 GitHub Release 页面及附件为准。
 
 ## WP-17 配对验收（2026-09-26）
+
+以下为当时版本的历史记录，不是 0.29 候选的构建、测试或交互验收结果。
 
 M0–M4 的最终需求状态见 [WP-17 全量验收](wp17-acceptance.md)，升级/回退边界见 [0.2 格式升级说明](migration-0.2.md)。最终 core 文档基线为 `fe88d7f1447995e49bb4b54a20a53be0ad0b2db6`，编辑器 `compatibility.json` 固定该 SHA；最终 editor SHA 在源码提交后写入发行目录 `release-pair.json` 与配对 tag，不使用自引用占位符。
 

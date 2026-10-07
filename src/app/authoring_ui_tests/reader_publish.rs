@@ -1,4 +1,5 @@
 use super::*;
+mod directory;
 mod narrow;
 
 #[test]

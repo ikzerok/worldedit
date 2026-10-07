@@ -3,6 +3,7 @@ mod actions;
 mod columns;
 mod filters;
 mod persistence;
+mod property_input;
 mod results;
 mod results_view;
 mod view;
@@ -32,6 +33,7 @@ enum ScalarInputKind {
     String,
     Number,
     Boolean,
+    Reference,
 }
 
 #[derive(Default)]
@@ -42,6 +44,7 @@ struct FilterInputs {
     property_value: String,
     property_kind: ScalarInputKind,
     property_bool: bool,
+    property_reference_kind: Option<String>,
     relation_type: String,
     relation_related: String,
     relation_direction: RelationDirection,
@@ -59,6 +62,7 @@ pub(super) struct WorkbenchState {
     page: Option<CatalogQueryPage>,
     saved_query_id: String,
     saved_query_name: String,
+    saved_query_baseline: Option<(String, String)>,
     error: Option<String>,
     inputs: FilterInputs,
     local_favorites: BTreeMap<PathBuf, BTreeSet<String>>,
@@ -79,6 +83,7 @@ impl Default for WorkbenchState {
             page: None,
             saved_query_id: String::new(),
             saved_query_name: String::new(),
+            saved_query_baseline: None,
             error: None,
             inputs: FilterInputs::default(),
             local_favorites: BTreeMap::new(),
@@ -199,3 +204,6 @@ mod persistence_tests {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod sorting_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod reference_tests;

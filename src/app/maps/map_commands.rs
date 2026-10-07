@@ -44,6 +44,17 @@ impl super::super::WorldeditApp {
             self.io_error = Some("请先确认或取消两点校准".into());
             return false;
         }
+        if matches!(
+            &command,
+            worldline_core::presentation_commands::Command::CreatePlacement { .. }
+                | worldline_core::presentation_commands::Command::UpdatePlacement {
+                    target_ref: Some(_),
+                    ..
+                }
+        ) && !self.marker_binding_ready()
+        {
+            return false;
+        }
         let path =
             match worldline_core::presentation_commands::map_document_path(&self.project, map_id) {
                 Ok(path) => path,
@@ -218,6 +229,11 @@ impl super::super::WorldeditApp {
                 }
                 EditIntent::Create(geometry) => {
                     let pending = EditIntent::Create(geometry.clone());
+                    if !self.marker_binding_ready() {
+                        self.map_canvas.restore_failed_preview(&pending);
+                        self.remember_failed_map_command(&map_id, pending);
+                        break;
+                    }
                     if self.map_form.pending_place.is_some() {
                         self.io_error = Some("请先提交或取消已保留的地点落点".into());
                         self.map_canvas.restore_failed_preview(&pending);

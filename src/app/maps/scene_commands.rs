@@ -10,6 +10,12 @@ impl super::super::WorldeditApp {
             self.map_canvas.scene.error = Some("请先进入编辑展示，待提交输入已保留".into());
             return;
         }
+        self.refresh_map_binding_guards();
+        if self.map_canvas.scene.binding.blocks_search_binding() {
+            self.map_canvas.scene.error =
+                Some("对象引用待确认，请重选、不使用引用或取消检查器输入。".into());
+            return;
+        }
         let map_id = self.map_canvas.map_id().to_owned();
         let Some(baseline) = self
             .map_canvas
@@ -104,6 +110,10 @@ impl super::super::WorldeditApp {
     }
 
     pub(super) fn apply_scene_plan(&mut self, plan: &ScenePlan) -> Result<(), String> {
+        self.refresh_map_binding_guards();
+        if self.map_canvas.scene.binding.blocks_search_binding() {
+            return Err("对象引用待确认，请重选、不使用引用或取消检查器输入。".into());
+        }
         let before = self.project.clone();
         let old_ids: std::collections::BTreeSet<_> = self
             .map_canvas
@@ -117,6 +127,7 @@ impl super::super::WorldeditApp {
         self.remember(before);
         self.map_canvas.accept_local_preview();
         self.map_canvas.scene.inspector_dirty = false;
+        self.map_canvas.scene.binding = super::binding::BindingGuard::default();
         self.map_canvas.scene.retry_operations.clear();
         self.map_canvas.scene.error = None;
         self.refresh_presentation_after_map_command();

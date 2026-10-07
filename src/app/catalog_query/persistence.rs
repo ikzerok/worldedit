@@ -1,6 +1,37 @@
 use super::*;
 use std::path::Path;
 impl WorkbenchState {
+    pub(super) fn load_saved_query(
+        &mut self,
+        project: &worldline_core::project::Project,
+        draft: SavedQueryDraft,
+    ) {
+        let index = project.saved_query_index();
+        let Some(document) = index.queries.get(&draft.id) else {
+            self.error = Some("查询定义不可用或格式不受支持，保留原文。".into());
+            return;
+        };
+        if document.read_only || document.draft != draft {
+            self.error = Some("查询定义只读或已经变化，请重新检查原文。".into());
+            return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(running) = &mut self.running {
+            running
+                .cancel
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+            running.cancel_requested = true;
+        }
+        // 载入不选择新版本；只有显式编辑条件才调用 core 的版本同步。
+        self.query = draft.query;
+        self.saved_query_id = draft.id;
+        self.saved_query_name = draft.name;
+        self.saved_query_baseline = Some((self.saved_query_id.clone(), project.content_baseline()));
+        self.inputs = FilterInputs::default();
+        self.page = None;
+        self.error = None;
+    }
+
     pub(in crate::app) fn unapplied_saved_query(
         &self,
         project: &worldline_core::project::Project,
@@ -56,7 +87,12 @@ impl WorkbenchState {
             name: self.saved_query_name.clone(),
             query: self.query.clone(),
         };
-        let baseline = app.project.content_baseline();
+        let baseline = self
+            .saved_query_baseline
+            .as_ref()
+            .filter(|(id, _)| id == &self.saved_query_id)
+            .map(|(_, baseline)| baseline.clone())
+            .unwrap_or_else(|| app.project.content_baseline());
         if !app.commit("共享查询定义已保存", move |project| {
             project.save_saved_query(draft, &baseline).map(|_| ())
         }) {
@@ -65,6 +101,8 @@ impl WorkbenchState {
             self.error = None;
             self.page = None;
             self.todo_cache = None;
+            self.saved_query_baseline =
+                Some((self.saved_query_id.clone(), app.project.content_baseline()));
         }
     }
 

@@ -2,9 +2,7 @@ use super::*;
 use egui::Ui;
 use std::path::Path;
 use worldline_core::project::Project;
-use worldline_core::queries::{
-    CatalogQueryFilter, MissingCondition, PropertyCondition, PropertyScalar, RelationCondition,
-};
+use worldline_core::queries::{CatalogQueryFilter, MissingCondition, RelationCondition};
 pub(super) fn render_filter_row(
     ui: &mut Ui,
     filter: &mut CatalogQueryFilter,
@@ -77,76 +75,7 @@ pub(super) fn render_filter_row(
                 string_value_row(ui, values);
             }
             CatalogQueryFilter::Property { values, .. } => {
-                ui.horizontal_wrapped(|ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut inputs.property_key).hint_text("属性键"),
-                    );
-                    egui::ComboBox::from_id_salt("query-property-scalar")
-                        .selected_text(scalar_kind_label(inputs.property_kind))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut inputs.property_kind,
-                                ScalarInputKind::String,
-                                "文字",
-                            );
-                            ui.selectable_value(
-                                &mut inputs.property_kind,
-                                ScalarInputKind::Number,
-                                "数字",
-                            );
-                            ui.selectable_value(
-                                &mut inputs.property_kind,
-                                ScalarInputKind::Boolean,
-                                "布尔值",
-                            );
-                        });
-                    match inputs.property_kind {
-                        ScalarInputKind::String | ScalarInputKind::Number => {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut inputs.property_value)
-                                    .hint_text("精确值"),
-                            );
-                        }
-                        ScalarInputKind::Boolean => {
-                            ui.checkbox(&mut inputs.property_bool, "值为真");
-                        }
-                    }
-                    if ui
-                        .add_enabled(
-                            !inputs.property_key.trim().is_empty()
-                                && (inputs.property_kind == ScalarInputKind::Boolean
-                                    || !inputs.property_value.is_empty()),
-                            egui::Button::new("添加属性值"),
-                        )
-                        .clicked()
-                    {
-                        let value = match inputs.property_kind {
-                            ScalarInputKind::String => {
-                                Some(PropertyScalar::String(inputs.property_value.clone()))
-                            }
-                            ScalarInputKind::Number => inputs
-                                .property_value
-                                .parse::<f64>()
-                                .ok()
-                                .filter(|value| value.is_finite())
-                                .map(PropertyScalar::Number),
-                            ScalarInputKind::Boolean => {
-                                Some(PropertyScalar::Boolean(inputs.property_bool))
-                            }
-                        };
-                        if let Some(equals) = value {
-                            let condition = PropertyCondition {
-                                key: std::mem::take(&mut inputs.property_key),
-                                equals,
-                            };
-                            if !values.contains(&condition) {
-                                values.push(condition);
-                            }
-                            inputs.property_value.clear();
-                        }
-                    }
-                });
-                property_value_row(ui, values);
+                super::property_input::render(ui, values, inputs, &project.root);
             }
             CatalogQueryFilter::Relation { values, .. } => {
                 ui.horizontal_wrapped(|ui| {
@@ -264,28 +193,6 @@ fn string_value_row(ui: &mut Ui, values: &mut Vec<String>) {
     ui.horizontal_wrapped(|ui| {
         for (index, value) in values.iter().enumerate() {
             if ui.small_button(format!("× {value}")).clicked() {
-                remove = Some(index);
-            }
-        }
-    });
-    if let Some(index) = remove {
-        values.remove(index);
-    }
-}
-
-fn property_value_row(ui: &mut Ui, values: &mut Vec<PropertyCondition>) {
-    let mut remove = None;
-    ui.horizontal_wrapped(|ui| {
-        for (index, condition) in values.iter().enumerate() {
-            let value = match condition.equals {
-                PropertyScalar::String(ref value) => value.clone(),
-                PropertyScalar::Number(value) => value.to_string(),
-                PropertyScalar::Boolean(value) => if value { "真" } else { "假" }.into(),
-            };
-            if ui
-                .small_button(format!("× {} = {value}", condition.key))
-                .clicked()
-            {
                 remove = Some(index);
             }
         }
@@ -423,14 +330,6 @@ fn parse_target(value: &str) -> Option<TargetRef> {
     (!kind.trim().is_empty() && !id.trim().is_empty())
         .then(|| TargetRef::new(kind.trim(), id.trim()))
 }
-fn scalar_kind_label(kind: ScalarInputKind) -> &'static str {
-    match kind {
-        ScalarInputKind::String => "文字",
-        ScalarInputKind::Number => "数字",
-        ScalarInputKind::Boolean => "布尔值",
-    }
-}
-
 fn direction_label(direction: RelationDirection) -> &'static str {
     match direction {
         RelationDirection::Outgoing => "出边",

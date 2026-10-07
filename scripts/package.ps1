@@ -16,20 +16,12 @@ function Run-Cargo([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "Cargo 失败：$Arguments" }
 }
 
-function Copy-PublicSource([string]$Source, [string]$Destination) {
-    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    Get-ChildItem -LiteralPath $Source -Force | Where-Object {
-        $_.Name -notin @('target', 'dist', 'releases', '.git', '.idea', '.vscode', '.zcode', 'node_modules', '__pycache__', '.DS_Store', 'Thumbs.db') -and
-        $_.Name -notlike '.env*' -and $_.Name -notlike '*.save.json' -and
-        $_.Extension -notin @('.log', '.tmp', '.bak', '.swp', '.pyc', '.pem', '.key', '.pfx')
-    } | ForEach-Object {
-        if ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "源码目录不能包含链接：$($_.FullName)" }
-        $destinationPath = Join-Path $Destination $_.Name
-        if ($_.PSIsContainer) { Copy-PublicSource $_.FullName $destinationPath }
-        else { Copy-Item -LiteralPath $_.FullName -Destination $destinationPath }
-    }
+function Run-PackageHelper([string[]]$Arguments) {
+    & python "$PSScriptRoot/release-package.py" @Arguments
+    if ($LASTEXITCODE -ne 0) { throw "发行文件筛选/审计失败：$Arguments" }
 }
 
+Run-PackageHelper @('check-source', $languageRoot, $editorRoot)
 Run-Cargo @('build', '--manifest-path', "$languageRoot/Cargo.toml", '--workspace', '--release', '--locked')
 Run-Cargo @('build', '--manifest-path', "$editorRoot/Cargo.toml", '--release', '--locked')
 $desktopRoot = Join-Path $buildRoot 'windows'
@@ -38,15 +30,18 @@ foreach ($binary in @('worldedit.exe', 'wl.exe', 'wl-agent.exe')) {
     Copy-Item -LiteralPath (Join-Path $env:CARGO_TARGET_DIR "release/$binary") -Destination $desktopRoot
 }
 foreach ($directory in @('.agent', 'docs')) {
-    Copy-Item -LiteralPath (Join-Path $editorRoot $directory) -Destination $desktopRoot -Recurse
+    Run-PackageHelper @('copy', '--source', (Join-Path $editorRoot $directory),
+        '--destination', (Join-Path $desktopRoot $directory), '--prefix', "windows/$directory")
 }
 Copy-Item -LiteralPath "$editorRoot/README.md", "$editorRoot/LICENSE", "$editorRoot/assets/worldedit.ico" -Destination $desktopRoot
 Copy-Item -LiteralPath "$editorRoot/assets/fonts/OFL.txt" -Destination (Join-Path $desktopRoot 'FONT-LICENSE.txt')
 Copy-Item -LiteralPath "$editorRoot/assets/licenses/resvg-MIT.txt" -Destination (Join-Path $desktopRoot 'RESVG-LICENSE.txt')
+Copy-Item -LiteralPath "$editorRoot/assets/licenses/self-cell-APACHE.txt" -Destination (Join-Path $desktopRoot 'SELF-CELL-LICENSE.txt')
 $languageDocs = Join-Path $desktopRoot 'worldline'
 New-Item -ItemType Directory -Path $languageDocs | Out-Null
-foreach ($directory in @('spec', 'docs', 'examples')) {
-    Copy-Item -LiteralPath (Join-Path $languageRoot $directory) -Destination $languageDocs -Recurse
+foreach ($directory in @('spec', 'docs')) {
+    Run-PackageHelper @('copy', '--source', (Join-Path $languageRoot $directory),
+        '--destination', (Join-Path $languageDocs $directory), '--prefix', "windows/worldline/$directory")
 }
 Copy-Item -LiteralPath "$languageRoot/README.md", "$languageRoot/LICENSE" -Destination $languageDocs
 Compress-Archive -LiteralPath $desktopRoot -DestinationPath "$buildRoot/worldedit-windows-x64.zip"
@@ -60,16 +55,18 @@ if (-not $SkipWeb) {
     } finally { Pop-Location }
     Copy-Item -LiteralPath "$editorRoot/assets/fonts/OFL.txt", "$editorRoot/LICENSE" -Destination $webRoot
     Copy-Item -LiteralPath "$editorRoot/assets/licenses/resvg-MIT.txt" -Destination (Join-Path $webRoot 'RESVG-LICENSE.txt')
+    Copy-Item -LiteralPath "$editorRoot/assets/licenses/self-cell-APACHE.txt" -Destination (Join-Path $webRoot 'SELF-CELL-LICENSE.txt')
     Compress-Archive -LiteralPath $webRoot -DestinationPath "$buildRoot/worldedit-web.zip"
 }
 
-# 源码包递归排除缓存与本机配置；解压后的根目录名可直接作为同级路径依赖。
+# Git 检出使用原始提交归档；无 .git 的已导出源码使用相同样例策略精确筛选。
 foreach ($repository in @($languageRoot, $editorRoot)) {
     $name = Split-Path -Leaf $repository
-    $sourceRoot = Join-Path $buildRoot "source/$name"
-    Copy-PublicSource $repository $sourceRoot
-    Compress-Archive -LiteralPath $sourceRoot -DestinationPath "$buildRoot/$name-source.zip"
+    Run-PackageHelper @('source', '--source', $repository,
+        '--destination', "$buildRoot/$name-source.zip", '--name', $name)
 }
+$archives = @(Get-ChildItem -LiteralPath $buildRoot -Filter '*.zip' | ForEach-Object { $_.FullName })
+Run-PackageHelper (@('audit') + $archives)
 Get-ChildItem -LiteralPath $buildRoot -Filter '*.zip' | Get-FileHash -Algorithm SHA256 |
     ForEach-Object { "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))" } |
     Set-Content -LiteralPath "$buildRoot/SHA256SUMS.txt" -Encoding utf8

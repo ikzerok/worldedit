@@ -1,14 +1,12 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.28补齐可解释依赖、可读试玩审阅、地图往返、汇聚分支可读性和共享片段分析性能。
+worldline 的 Rust / egui 作者工作台。0.29提供资料强引用查询、完整地图候选检索、路径交换、可释放试玩会话与发布前公开页目录。语义、来源与保护由core/runtime统一提供。
 
-工作分支不表示已交付或正式发行；实际范围与验证状态见[0.28版本说明](https://github.com/ikzerok/worldedit/blob/main/docs/releases/v0.28.0.md)。本轮不新增 DSL，默认语言1.9、最高既有显式版本1.13保持；既有资料、审稿、试玩、地图和读者公开选择继续保留。
+功能、验收与下载见[0.29版本说明](https://github.com/ikzerok/worldedit/blob/v0.29.0/docs/releases/v0.29.0.md)，公开状态以对应GitHub Release为准。本轮不新增DSL，默认语言1.9、最高既有显式版本1.13保持；新查询格式须显式选择。
 
-升级边界：0.27运行轨迹与运行检查点（ReplayTrace / ReplayCheckpoint）按既有 runtime_version 守卫拒绝在0.28重放、比较或生成已验证审阅，应重新录制；普通 Story Save 继续按格式、能力和指纹独立校验。升级前保留完整工程和原记录。Linux合成输入、Node/WASM构建不替代物理输入法、读屏或各平台真实GUI验收。
+升级边界：运行轨迹与运行检查点（ReplayTrace / ReplayCheckpoint）继续要求精确匹配 `runtime_version`；0.28 及更早的记录不能在 0.29 重放、比较或生成已验证审阅，应重新录制。合法旧轨迹可只读导入查看，读取成功不代表可重放。普通 Story Save 继续按格式、能力和指纹独立校验。升级前保留完整工程和原记录。Linux 合成输入、Node/WASM 检查不替代物理输入法、读屏或各平台真实 GUI 验收。
 
 ## 0.28 作者工作流
-
-- [蓝时水库原创演练](https://github.com/ikzerok/worldline/tree/main/examples/blue-hour-reservoir)：直接打开两地图与两条路线，验证本轮作者流程
 
 - [静态可执行依赖](https://github.com/ikzerok/worldline/blob/main/spec/executable-context.md)：查看调用、读写和语境，回到真实源码
 - [可读试玩审阅](https://github.com/ikzerok/worldedit/blob/main/docs/playthrough-report.md)：重新验证单条路径，预览后明确复制或导出作者报告
@@ -50,12 +48,14 @@ worldline 的 Rust / egui 作者工作台。0.28补齐可解释依赖、可读�
 - [共同界面布局](docs/visual-system-0.15.md)：主导航、索引、内容、检查器和参考区的职责及主题规则
 - [后台计算与取消](docs/web-worker.md)：桌面线程与同源 Web Worker 的进度、资源限制和过期结果保护
 
-从[时间约束与可信重放](docs/replay-timeline-workflow.md)和配对[栖雪山站示例](../worldline/examples/snowline-seeds/README.md)完成双路线改稿；跨仓相对链接用于 `worldline` / `worldedit` 同级检出。普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
+从[时间约束与可信重放](docs/replay-timeline-workflow.md)了解双路线改稿；跨仓相对链接用于 `worldline` / `worldedit` 同级检出。普通试玩见[有界试玩](docs/bounded-play.md)，键盘与正文教学见[作者反馈](docs/author-feedback.md)；既有[跨季偏序与人物资料引用](docs/static-authoring-0.10.md)继续支持。
+
+0.29 起，应用包和源码归档不再分发样例工程、`spec/examples/` 或独立视觉演示 HTML。新建作品只有可直接试玩至结束的空白 `world.wl`；字段模板和必要的回归测试输入仍保留。历史设计与版本记录中的演示链接用于完整 Git 检出，不表示这些文件存在于发行归档。
 [稳定ID重构与存档边界](docs/safe-id-refactor.md)说明逐处预览、原子提交和state所属实体的安全拒绝；[查找与作者位置](docs/search-author-context.md)说明模式保持、源码回退与返回保护。
 
 ## 安装与启动
 
-下载发行包并解压，运行 worldedit.exe，选择作品目录。空目录自动建立雾港示例；已有作品需要根目录 world.wl。也可以传目录：
+下载发行包并解压，运行 worldedit.exe，选择作品目录。空目录自动建立只有 `world.wl` 的空白作品；已有作品需要根目录 `world.wl`。也可以传目录：
 
 ```powershell
 ./worldedit.exe "D:/作品/我的世界"
@@ -111,7 +111,7 @@ cargo build --release --locked
 cargo test --locked
 cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
-cargo run -- ../worldline/examples/harbor-world
+cargo run -- /path/to/your/workspace
 ```
 
 Rust 源码按职责拆分；`check-source-lines.py` 对纳入 Git 的源码和测试执行单文件 600 物理行上限，配对检查也会对 worldline 执行同一规则。

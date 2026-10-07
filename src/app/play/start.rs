@@ -1,7 +1,6 @@
 //! 新建普通试玩会话的已应用快照。
 use super::super::{PlayState, WorldeditApp};
-use worldline_core::{Analysis, Program};
-use worldline_runtime::Story;
+use worldline_runtime::OwnedStory;
 
 impl WorldeditApp {
     pub(super) fn start_play_inner(&mut self, scope: super::scope::AppliedPlayScope) {
@@ -23,12 +22,12 @@ impl WorldeditApp {
             &snap.result.program,
             &snap.result.analysis,
         );
-        // 泄漏快照换取 'static 生命周期(点击级频率;见 PlayState 注释)
-        let leaked: &'static (Program, Analysis) = Box::leak(Box::new((
+        // 每次显式开始仅克隆一次编译对；runtime 拥有并释放真实 Story 的依赖。
+        match OwnedStory::new_with_seed(
             snap.result.program.clone(),
             snap.result.analysis.clone(),
-        )));
-        match Story::new_with_seed(&leaked.0, &leaked.1, self.replay_debugger.seed) {
+            self.replay_debugger.seed,
+        ) {
             Ok(story) => {
                 self.play = Some(PlayState {
                     story: Some(story),

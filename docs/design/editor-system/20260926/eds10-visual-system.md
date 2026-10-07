@@ -1,5 +1,7 @@
 # EDS-10：按状态组织的视觉系统与组件规范
 
+> 0.29 发行说明：本页保留历史视觉研究和候选方案。文中独立 `eds10-visual-sample.html` 保留在开发仓库，但不随 Windows、Web 或源码发行 ZIP 分发；历史样板链接仅适用于相应仓库检出，不代表当前产品能力或本次发行验收。
+
 关联 worldedit#41。依赖 [EDS-04 布局](eds04-layout-comparison.md)、[EDS-05 跨投影](eds05-cross-projection.md)、[EDS-06 检查器](eds06-inspector-drafts.md)、[EDS-07 图例](eds07-graph-grammar.md)、[EDS-08 写作](eds08-writing-preview.md)、[EDS-09 命令](eds09-command-routing.md)。这是待验证候选规范，不批准替换现有主题，也不宣称完整无障碍认证。旧深色、间距、图标与 880 逻辑点行宽均可推翻。
 
 ## Token 角色与禁用混用

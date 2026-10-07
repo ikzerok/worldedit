@@ -1,6 +1,7 @@
 use super::*;
 impl super::super::WorldeditApp {
     pub(in crate::app) fn map_tab(&mut self, ctx: &egui::Context) {
+        self.refresh_map_binding_guards();
         self.poll_scene_operations();
         if ctx.input(|i| i.key_pressed(egui::Key::Escape))
             && !self.map_canvas.measurement_active()
@@ -477,8 +478,9 @@ impl super::super::WorldeditApp {
                     });
                 }
                 ui.separator();
-                self.map_canvas.form_blocked =
-                    self.map_form.text_draft.is_some() || self.map_form.pending_place.is_some();
+                self.map_canvas.form_blocked = self.map_form.text_draft.is_some()
+                    || self.map_form.pending_place.is_some()
+                    || self.map_form.binding.pending().is_some();
                 self.map_canvas.legacy_place_tool = self.map_form.create_place_on_next_point;
                 self.map_canvas.show(ui);
             });

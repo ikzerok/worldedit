@@ -90,6 +90,8 @@ impl WorldeditApp {
                                     &self.project.content_baseline(),
                                 ) =>
                         {
+                            self.reader_publish.page_directory =
+                                page_directory::PageDirectory::default();
                             self.reader_publish.reviewed = Some(reviewed);
                             self.reader_publish.step = PublishStep::Resources;
                             self.reader_publish.status =

@@ -15,6 +15,7 @@ use self::rendering::*;
 mod authoring_forms;
 mod authoring_mentions;
 mod authoring_source;
+mod blank_project;
 mod bounded_play;
 mod catalog;
 mod catalog_sort;

@@ -1,6 +1,7 @@
 //! 地图画布与展示编辑。
 
 mod author_position;
+mod binding;
 mod camera;
 mod canvas;
 mod canvas_interaction;
@@ -17,6 +18,7 @@ mod map_ui;
 mod measurement;
 mod measurement_ui;
 pub(super) mod navigation;
+mod object_candidates;
 mod raster;
 mod render;
 mod render_budget;
@@ -315,6 +317,7 @@ pub(super) enum CanvasTool {
 pub(super) struct PlacementForm {
     pub(super) text_draft: Option<text_labels::TextDraft>,
     pub(super) target: Option<TargetRef>,
+    binding: binding::BindingGuard,
     pub(super) target_query: String,
     pub(super) annotation: String,
     pub(super) role: String,
@@ -343,6 +346,7 @@ impl PlacementForm {
             || self.pending_place.is_some()
             || self.editing_placement.is_some()
             || self.target.is_some()
+            || self.binding.pending().is_some()
             || !self.target_query.trim().is_empty()
             || !self.annotation.trim().is_empty()
             || !self.role.trim().is_empty()
@@ -512,3 +516,7 @@ mod tests_performance;
 #[cfg(test)]
 #[path = "maps/tests/author_position.rs"]
 mod tests_author_position;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "maps/tests/binding_guards.rs"]
+mod tests_binding_guards;

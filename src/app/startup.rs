@@ -21,7 +21,7 @@ impl WorldeditApp {
     pub fn start_native(cc: &eframe::CreationContext<'_>, explicit: Option<PathBuf>) -> Self {
         let selected = preferred_project(cc.storage, explicit).or_else(|| {
             rfd::FileDialog::new()
-                .set_title("选择工作区目录，空目录将创建示例工程")
+                .set_title("选择工作区目录，空目录将创建空白工程")
                 .pick_folder()
         });
         let outcome = selected

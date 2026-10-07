@@ -64,6 +64,7 @@ impl WorldeditApp {
     /// 不打开页面、不下载，也不会撤销已经跨过原子公布点的ZIP。
     pub(in crate::app) fn prepare_reader_app_close(&mut self, ctx: &egui::Context) -> bool {
         self.reader_publish.open = false;
+        self.reader_publish.page_directory = super::page_directory::PageDirectory::default();
         #[cfg(target_arch = "wasm32")]
         {
             let _ = ctx;
