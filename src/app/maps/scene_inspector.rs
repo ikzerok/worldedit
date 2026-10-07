@@ -2,6 +2,7 @@ use worldline_core::vector_scene::{SceneNavigation, SceneOp};
 
 impl super::super::WorldeditApp {
     pub(super) fn scene_inspector(&mut self, ui: &mut egui::Ui) -> bool {
+        self.refresh_map_binding_guards();
         let Some(mut node) = self.map_canvas.scene.inspector.take() else {
             return false;
         };
@@ -142,7 +143,8 @@ impl super::super::WorldeditApp {
             ui.horizontal(|ui| {
                 apply = ui
                     .add_enabled(
-                        self.map_canvas.scene.inspector_dirty || changed,
+                        (self.map_canvas.scene.inspector_dirty || changed)
+                            && !self.map_canvas.scene.binding.blocks_search_binding(),
                         crate::theme::primary("应用对象修改"),
                     )
                     .clicked();
@@ -165,6 +167,9 @@ impl super::super::WorldeditApp {
             self.map_canvas.scene_queue(vec![operation]);
         }
         if cancel {
+            self.discard_scene_binding_submission(&node.id);
+            self.map_canvas.scene.binding = super::binding::BindingGuard::default();
+            self.map_canvas.scene.binding_query.clear();
             self.map_canvas.scene.inspector_dirty = false;
             self.map_canvas.scene.intent_baseline = None;
             self.map_canvas.scene.inspector = self
@@ -186,44 +191,38 @@ impl super::super::WorldeditApp {
         node: &mut worldline_core::vector_scene::SceneNode,
     ) -> bool {
         let mut changed = false;
-        ui.label("查找对象名称或 ID");
+        ui.label("查找对象名称、ID、类型或别名");
         ui.text_edit_singleline(&mut self.map_canvas.scene.binding_query);
-        let query = self.map_canvas.scene.binding_query.trim().to_lowercase();
-        if !query.is_empty() {
-            let candidates = self
-                .snapshot
-                .as_ref()
-                .map(|snapshot| {
-                    snapshot
-                        .result
-                        .analysis
-                        .catalog
-                        .objects
-                        .iter()
-                        .filter(|object| {
-                            object.display.to_lowercase().contains(&query)
-                                || object.target.id.to_lowercase().contains(&query)
-                        })
-                        .take(12)
-                        .cloned()
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            for object in candidates {
-                if ui
-                    .button(format!(
-                        "{} · {}:{}",
-                        object.display, object.target.kind, object.target.id
-                    ))
-                    .clicked()
-                {
-                    node.target_ref = Some(object.target);
-                    self.map_canvas.scene.binding_query.clear();
-                    changed = true;
-                }
+        self.refresh_scene_binding(node);
+        self.map_canvas.scene.binding.notice(ui);
+        let candidates = self.map_object_candidates(
+            ui,
+            &format!("scene-binding:{}", node.id),
+            &self.map_canvas.scene.binding_query,
+        );
+        for object in candidates {
+            if ui
+                .button(format!(
+                    "{} · {}:{}",
+                    object.display, object.target.kind, object.target.id
+                ))
+                .on_hover_text(format!("{}:{}", object.file, object.line))
+                .clicked()
+            {
+                self.discard_scene_binding_submission(&node.id);
+                node.target_ref = Some(object.target);
+                self.map_canvas.scene.binding_query.clear();
+                self.map_canvas.scene.binding = super::binding::BindingGuard::Search {
+                    query: String::new(),
+                    version: self.version,
+                };
+                changed = true;
             }
         }
-        if node.target_ref.is_some() && ui.button("解除绑定（保留资料）").clicked() {
+        if ui.button("不使用对象引用").clicked() {
+            self.discard_scene_binding_submission(&node.id);
+            self.map_canvas.scene.binding = super::binding::BindingGuard::default();
+            self.map_canvas.scene.binding_query.clear();
             node.target_ref = None;
             changed = true;
         }

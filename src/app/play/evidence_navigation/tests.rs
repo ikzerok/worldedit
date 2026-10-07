@@ -73,7 +73,14 @@ fn source_request(app: &WorldeditApp, rule: bool) -> EvidenceNavigationRequest {
 }
 
 fn state(app: &WorldeditApp) -> (String, worldline_runtime::ReplayTrace, String, bool) {
-    let story: &Story<'_> = app.play.as_ref().unwrap().story.as_ref().unwrap();
+    let story: &Story<'_> = app
+        .play
+        .as_ref()
+        .unwrap()
+        .story
+        .as_ref()
+        .unwrap()
+        .as_story();
     (
         story.save().unwrap(),
         story.replay_trace(),

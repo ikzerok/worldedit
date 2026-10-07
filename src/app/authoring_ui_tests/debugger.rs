@@ -324,12 +324,12 @@ fn event_graph_marks_only_visits_from_the_selected_replay() {
 fn imported_trace_size_limit_is_enforced_without_rendering_or_retaining_it() {
     let source = "event start\n  choice \"继续\"\n    -> END\n";
     let (ctx, mut app) = replay_app(source, 20);
-    app.replay_debugger.import_json = "x".repeat(1024 * 1024 + 1);
+    app.replay_debugger.import_json = "x".repeat(worldline_runtime::MAX_REPLAY_EXCHANGE_BYTES + 1);
     click(
         &ctx,
         &mut app,
         20,
-        "导入路径 JSON（最多 1 MiB / 20,000 步）",
+        "导入路径 JSON（最多 4 MiB / 20,000 步）",
     );
     click(&ctx, &mut app, 20, "拒绝超限轨迹");
 
@@ -338,7 +338,7 @@ fn imported_trace_size_limit_is_enforced_without_rendering_or_retaining_it() {
         .replay_debugger
         .notice
         .as_deref()
-        .is_some_and(|notice| notice.contains("1 MiB")));
+        .is_some_and(|notice| notice.contains("4 MiB")));
 }
 
 #[test]
@@ -399,7 +399,7 @@ fn pause_stop_and_checkpoint_import_controls_keep_debug_state_out_of_project() {
         &ctx,
         &mut app,
         20,
-        "导入路径 JSON（最多 1 MiB / 20,000 步）",
+        "导入路径 JSON（最多 4 MiB / 20,000 步）",
     );
     click(&ctx, &mut app, 20, "检查并导入路径");
     assert_eq!(app.replay_debugger.saved_paths.len(), 1);
@@ -456,3 +456,5 @@ fn long_trace_json_keeps_the_following_debugger_controls_reachable() {
         "导入/导出 JSON 滚动区发生 egui id 冲突"
     );
 }
+
+mod exchange;

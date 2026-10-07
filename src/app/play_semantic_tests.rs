@@ -309,13 +309,14 @@ fn debugger_import_error_and_stale_result_are_readable_on_real_surfaces() {
         let (ctx, mut app) = fixture("event start\n  choice \"继续\"\n    -> END\n");
         start(&mut app);
         let _ = settled(&ctx, &mut app, appearance, 1600.0);
-        app.replay_debugger.import_json = "x".repeat(1024 * 1024 + 1);
+        app.replay_debugger.import_json =
+            "x".repeat(worldline_runtime::MAX_REPLAY_EXCHANGE_BYTES + 1);
         click(
             &ctx,
             &mut app,
             appearance,
             1600.0,
-            "导入路径 JSON（最多 1 MiB / 20,000 步）",
+            "导入路径 JSON（最多 4 MiB / 20,000 步）",
         );
         let output = settled(&ctx, &mut app, appearance, 1600.0);
         assert_readable(&output, "内容已拒绝导入", theme::ERROR());

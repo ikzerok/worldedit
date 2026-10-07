@@ -19,6 +19,7 @@ impl ReaderPublishState {
         self.profile_plan = None;
         self.generation = self.generation.wrapping_add(1);
         self.reviewed = None;
+        self.page_directory = page_directory::PageDirectory::default();
         self.step = PublishStep::Select;
         self.confirmed = false;
         self.status = None;

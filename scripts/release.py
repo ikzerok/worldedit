@@ -175,6 +175,23 @@ PRIVATE_FILES = re.compile(r"^(?:credentials?|secrets?|tokens?)(?:[._-].*)?$", r
 ENCODED_MEDIA = re.compile(rb"data:(?:image|video|audio)/|iVBORw0KGgo|/9j/4[A-Za-z0-9+/]|R0lGOD[dl]h|UklGR[A-Za-z0-9+/]{2,12}V0VCUA", re.I)
 
 
+def package_relative_parts(parts):
+    parts = [part.casefold() for part in parts]
+    if parts and parts[0] in {"windows", "web"}:
+        parts = parts[1:]
+    if parts and parts[0] in {"worldedit", "worldline"}:
+        parts = parts[1:]
+    return parts
+
+
+def distributed_sample(parts):
+    """只排除发行样例；保留 Rust examples 工具、测试夹具和内置创作模板。"""
+    parts = package_relative_parts(parts)
+    return (bool(parts) and parts[0] in {"examples", "samples"}
+            or parts[:2] == ["spec", "examples"]
+            or "eds10-visual-sample.html" in parts)
+
+
 def safe_entry(item):
     name = item.filename
     require(name and name == item.orig_filename and name == unicodedata.normalize("NFC", name) and "\\" not in name
@@ -183,6 +200,7 @@ def safe_entry(item):
     parts = name.rstrip("/").split("/")
     require(all(p and p not in {".", ".."} and p == p.rstrip(" .") for p in parts), "ZIP 路径别名或越界")
     lower = [p.casefold() for p in parts]
+    require(not distributed_sample(lower), f"ZIP 含发行禁止的样例：{name}")
     require(not any(re.fullmatch(r"(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?", p) for p in lower), "ZIP 含 Windows 保留设备名")
     require(not any(p in PRIVATE_DIRECTORIES for p in lower), "ZIP 含私有/缓存目录")
     require(not any(p.startswith(".env") or PRIVATE_FILES.fullmatch(p) for p in lower), "ZIP 含凭据或私有配置路径")

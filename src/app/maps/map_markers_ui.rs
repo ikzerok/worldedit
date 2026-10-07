@@ -53,50 +53,35 @@ impl super::super::WorldeditApp {
                 ui.separator();
             }
             ui.label(crate::theme::muted(
-                "选择已有对象可保持引用；留空则创建说明标记。",
+                "按名称、ID、类型或别名查找；选择后绑定完整对象身份。未选择则创建说明标记。",
             ));
             ui.text_edit_singleline(&mut self.map_form.target_query);
-            let target_query = self.map_form.target_query.trim().to_lowercase();
-            if !target_query.is_empty() {
-                let candidates = self
-                    .snapshot
-                    .as_ref()
-                    .map(|snapshot| {
-                        snapshot
-                            .result
-                            .analysis
-                            .catalog
-                            .objects
-                            .iter()
-                            .filter(|object| {
-                                object.display.to_lowercase().contains(&target_query)
-                                    || object.target.id.to_lowercase().contains(&target_query)
-                            })
-                            .take(8)
-                            .cloned()
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
-                for object in candidates {
-                    if ui
-                        .small_button(format!(
-                            "{}  ·  {}:{}",
-                            object.display, object.target.kind, object.target.id
-                        ))
-                        .clicked()
-                    {
-                        self.map_form.target = Some(object.target);
-                        self.map_form.target_query.clear();
-                    }
+            self.refresh_map_binding_guards();
+            self.map_form.binding.notice(ui);
+            let candidates =
+                self.map_object_candidates(ui, "marker-binding", &self.map_form.target_query);
+            for object in candidates {
+                if ui
+                    .small_button(format!(
+                        "{}  ·  {}:{}",
+                        object.display, object.target.kind, object.target.id
+                    ))
+                    .on_hover_text(format!("{}:{}", object.file, object.line))
+                    .clicked()
+                {
+                    self.select_marker_binding(object.target);
                 }
             }
             if let Some(target) = self.map_form.target.clone() {
                 ui.horizontal(|ui| {
                     ui.label(format!("已选：{}:{}", target.kind, target.id));
                     if ui.small_button("清除引用").clicked() {
-                        self.map_form.target = None;
+                        self.omit_marker_binding();
                     }
                 });
+            }
+            if ui.small_button("不使用对象引用").clicked() {
+                self.omit_marker_binding();
             }
             ui.label("说明");
             ui.text_edit_singleline(&mut self.map_form.annotation);
@@ -112,6 +97,8 @@ impl super::super::WorldeditApp {
                 if ui.small_button("载入当前标记到表单").clicked() {
                     self.map_form.editing_placement = Some(selected.id.clone());
                     self.map_form.target = selected.target_ref.clone();
+                    self.map_form.binding = binding::BindingGuard::default();
+                    self.map_form.target_query.clear();
                     self.map_form.annotation = selected.annotation.clone();
                     self.map_form.role = selected.role.clone();
                     self.map_form.label_override =
@@ -119,7 +106,13 @@ impl super::super::WorldeditApp {
                 }
             }
             if let Some(placement_id) = self.map_form.editing_placement.clone() {
-                if ui.button("保存当前标记说明").clicked() {
+                if ui
+                    .add_enabled(
+                        self.map_form.binding.pending().is_none(),
+                        egui::Button::new("保存当前标记说明"),
+                    )
+                    .clicked()
+                {
                     let applied = self.apply_map_command(
                         selected_map_id.as_deref().unwrap_or_default(),
                         worldline_core::presentation_commands::Command::UpdatePlacement {
@@ -233,7 +226,8 @@ impl super::super::WorldeditApp {
                     if ui.small_button("编辑展示并重绑定").clicked() {
                         self.map_canvas.set_mode(CanvasMode::Edit);
                         self.map_form.editing_placement = Some(placement.id.clone());
-                        self.map_form.target = None;
+                        self.map_form.target = placement.target_ref.clone();
+                        self.map_form.binding = binding::BindingGuard::default();
                         self.map_form.target_query.clear();
                         self.map_form.annotation = placement.annotation.clone();
                         self.map_form.role = placement.role.clone();

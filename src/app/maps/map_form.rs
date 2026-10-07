@@ -22,12 +22,34 @@ impl super::super::WorldeditApp {
 
     pub(in crate::app) fn cancel_map_form(&mut self) {
         self.map_form.clear();
+        let unrelated_retry = self
+            .map_failed_command
+            .as_ref()
+            .is_some_and(|pending| !matches!(pending.intent, EditIntent::Create(_)));
+        if !unrelated_retry {
+            self.map_failed_command = None;
+            self.map_canvas.draft = None;
+            self.map_canvas.last_error = None;
+        }
+        let (intents, baselines) = self.map_canvas.take_edit_batch();
+        for (index, intent) in intents.into_iter().enumerate() {
+            if !matches!(intent, EditIntent::Create(_)) {
+                self.map_canvas.edit_intents.push(intent);
+                self.map_canvas
+                    .intent_baselines
+                    .push(baselines.get(index).cloned().flatten());
+            }
+        }
+        self.map_canvas.form_blocked = false;
         self.message = Some("已取消未提交的标记表单".into());
     }
 
     pub(super) fn commit_pending_place(&mut self) -> bool {
         if !self.map_canvas.is_edit_mode() {
             self.io_error = Some("请先进入编辑展示模式".into());
+            return false;
+        }
+        if !self.marker_binding_ready() {
             return false;
         }
         let Some(pending) = self.map_form.pending_place.as_ref() else {

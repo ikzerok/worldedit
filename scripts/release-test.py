@@ -11,6 +11,7 @@ import stat
 from pathlib import Path
 import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import warnings
@@ -359,6 +360,43 @@ class AssetTests(unittest.TestCase):
         release.verify_assets(self.root, self.pair)
 
 
+    def test_distributed_samples_rejected_in_every_final_zip(self):
+        roots = {"worldedit-source.zip": "worldedit", "worldline-source.zip": "worldline",
+                 "worldedit-windows-x64.zip": "windows", "worldedit-web.zip": "web"}
+        samples = ["examples/harbor-world/world.wl", "spec/examples/project.json", "samples/demo.wl",
+                   "docs/design/editor-system/20260926/eds10-visual-sample.html"]
+        for name, root in roots.items():
+            for sample in samples:
+                path = root + "/" + sample
+                with self.subTest(archive=name, path=path):
+                    self.files[name][path] = b"sample"
+                    self.write()
+                    with self.assertRaisesRegex(RuntimeError, "发行禁止的样例"):
+                        release.verify_assets(self.root, self.pair)
+                    del self.files[name][path]
+        for path in ["windows/worldline/examples/minimal.wl", "windows/worldline/spec/examples/project.json",
+                     "windows/worldline/EXAMPLES/", "web/worldline/spec/Examples/"]:
+            name = "worldedit-web.zip" if path.startswith("web/") else "worldedit-windows-x64.zip"
+            with self.subTest(path=path):
+                self.files[name][path] = b""
+                self.write()
+                with self.assertRaisesRegex(RuntimeError, "发行禁止的样例"):
+                    release.verify_assets(self.root, self.pair)
+                del self.files[name][path]
+
+    def test_source_tools_fixtures_templates_and_required_assets_remain_allowed(self):
+        for path in ["core/examples/relations_profile.rs", "core/tests/fixtures/examples/world.wl",
+                     "core/tests/catalog.rs", "cli/tests/cli.rs", "runtime/src/lib.rs",
+                     "spec/templates.catalog.json", "spec/schema/worldline.schema.json", "Cargo.lock"]:
+            self.files["worldline-source.zip"]["worldline/" + path] = b"public source"
+        for path in ["src/app/tests.rs", "tests/fixtures/samples/world.wl", "assets/fonts/OFL.txt",
+                     "assets/licenses/self-cell-APACHE.txt", ".agent/skills/worldedit-authoring/SKILL.md",
+                     "docs/examples.md", "index.html", "build.rs", "Cargo.lock"]:
+            self.files["worldedit-source.zip"]["worldedit/" + path] = b"public source"
+        self.write()
+        release.verify_assets(self.root, self.pair)
+
+
 class ReleaseVisibilityTests(unittest.TestCase):
     def setUp(self):
         self.draft = {"id": 77, "tag_name": "v0.4.0", "draft": True, "target_commitish": E}
@@ -435,6 +473,267 @@ class SnapshotTests(unittest.TestCase):
     def test_wrong_checkout_sha_fails(self):
         with self.assertRaises(RuntimeError):
             self.builder.snapshot(self.repo, "worldedit", "c" * 40, self.root / "source.zip")
+
+
+    def test_export_ignore_keeps_exact_git_archive_and_buildable_source_paths(self):
+        fixtures = {"examples/harbor-world/world.wl": "sample", "spec/examples/project.json": "{}",
+                    "docs/design/editor-system/20260926/eds10-visual-sample.html": "sample",
+                    "core/examples/relations_profile.rs": "fn main() {}",
+                    "core/tests/fixtures/examples/world.wl": "event start\n  -> END\n",
+                    "spec/templates.catalog.json": "{}", "Cargo.toml": "[workspace]\n",
+                    ".gitattributes": "/examples export-ignore\n/spec/examples export-ignore\n"
+                                      "/docs/design/editor-system/20260926/eds10-visual-sample.html export-ignore\n"}
+        for name, text in fixtures.items():
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-qm", "sample-free fixture")
+        sha = self.git("rev-parse", "HEAD").strip()
+        output = self.root / "source.zip"
+        self.builder.snapshot(self.repo, "worldline", sha, output)
+        raw_archive = subprocess.check_output(["git", "-C", str(self.repo), "archive", "--format=zip",
+                                               "--prefix=worldline/", sha])
+        self.assertEqual(output.read_bytes(), raw_archive)
+        with zipfile.ZipFile(output) as archive:
+            names = set(archive.namelist())
+            self.assertEqual(archive.comment.decode("ascii"), sha)
+            for name in fixtures:
+                if name.startswith(("examples/", "spec/examples/")) or name.endswith("eds10-visual-sample.html"):
+                    self.assertNotIn("worldline/" + name, names)
+                else:
+                    self.assertIn("worldline/" + name, names)
+
+    def test_snapshot_without_sample_export_ignore_fails_closed(self):
+        (self.repo / "examples").mkdir()
+        (self.repo / "examples/world.wl").write_text("event start\n  -> END\n", encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-qm", "unexcluded sample fixture")
+        sha = self.git("rev-parse", "HEAD").strip()
+        with self.assertRaisesRegex(RuntimeError, "发行禁止的样例"):
+            self.builder.snapshot(self.repo, "worldline", sha, self.root / "source.zip")
+
+
+class PackageSourceTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("release_package", Path(__file__).with_name("release-package.py"))
+        self.packager = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.packager)
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def write_files(self, root, files):
+        for name in files:
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("public fixture\n", encoding="utf-8")
+
+    def test_exported_source_fallback_preserves_sibling_roots_and_test_tools(self):
+        kept = ["Cargo.toml", "Cargo.lock", "core/src/lib.rs", "core/examples/relations_profile.rs",
+                "core/tests/fixtures/examples/world.wl", "spec/templates.catalog.json",
+                "spec/schema/worldline.schema.json", ".agent/skills/authoring/SKILL.md", "index.html",
+                "docs/qa/fixtures/replay/world.wl", "docs/releases/v0.28.0.md",
+                "core/tests/fixtures/dist/input.json"]
+        omitted = ["examples/world.wl", "spec/examples/project.json",
+                   "docs/design/editor-system/20260926/eds10-visual-sample.html",
+                   "target/cache", "node_modules/cache", ".env", "__pycache__/cache.pyc",
+                   "releases/local.zip", "dist/index.html"]
+        for name in ["worldline", "worldedit"]:
+            with self.subTest(repository=name):
+                source = self.root / name
+                self.write_files(source, kept + omitted)
+                output = self.root / (name + "-source.zip")
+                self.packager.source_archive(source, output, name)
+                with zipfile.ZipFile(output) as archive:
+                    self.assertEqual(set(archive.namelist()), {name + "/" + path for path in kept})
+                    self.assertTrue(all(path.startswith(name + "/") for path in archive.namelist()))
+                    archive.extractall(self.root / "restored")
+        self.assertTrue((self.root / "restored/worldline/Cargo.toml").is_file())
+        self.assertTrue((self.root / "restored/worldedit/Cargo.toml").is_file())
+
+    def test_desktop_docs_copy_excludes_spec_examples_and_standalone_visual_sample(self):
+        source = self.root / "source"
+        self.write_files(source, ["examples/project.json", "templates.catalog.json", "language.md"])
+        destination = self.root / "windows/worldline/spec"
+        self.packager.copy_public(source, destination, "windows/worldline/spec")
+        self.assertFalse((destination / "examples").exists())
+        self.assertTrue((destination / "templates.catalog.json").is_file())
+        self.assertTrue((destination / "language.md").is_file())
+        self.write_files(source, ["design/editor-system/20260926/eds10-visual-sample.html", "handbook.md",
+                                  "releases/v0.28.0.md"])
+        docs = self.root / "windows/docs"
+        self.packager.copy_public(source, docs, "windows/docs")
+        self.assertFalse((docs / "design/editor-system/20260926/eds10-visual-sample.html").exists())
+        self.assertTrue((docs / "handbook.md").is_file())
+        self.assertTrue((docs / "releases/v0.28.0.md").is_file())
+
+    def test_windows_junctions_fail_before_source_or_child_directory_traversal(self):
+        original_lstat, original_iterdir = Path.lstat, Path.iterdir
+        for location in ["root", "child"]:
+            with self.subTest(location=location):
+                source = self.root / location
+                junction = source if location == "root" else source / "junction"
+                junction.mkdir(parents=True)
+                (junction / "outside.txt").write_text("must not read", encoding="utf-8")
+                destination = self.root / (location + "-copy")
+                def lstat(path, *args, **kwargs):
+                    if path == junction:
+                        return SimpleNamespace(st_mode=stat.S_IFDIR | 0o755,
+                                               st_file_attributes=stat.FILE_ATTRIBUTE_DIRECTORY
+                                               | stat.FILE_ATTRIBUTE_REPARSE_POINT)
+                    return original_lstat(path, *args, **kwargs)
+                def iterdir(path):
+                    self.assertNotEqual(path, junction, "不得遍历 junction 指向的目录")
+                    return original_iterdir(path)
+                with patch.object(Path, "lstat", new=lstat), patch.object(Path, "iterdir", new=iterdir), \
+                     patch.object(self.packager.shutil, "copy2") as copy_file:
+                    self.assertFalse(junction.is_symlink(), "夹具必须模拟不是普通符号链接的 Windows junction")
+                    with self.assertRaisesRegex(RuntimeError, "不能包含链接"):
+                        self.packager.copy_public(source, destination, "worldline")
+                    copy_file.assert_not_called()
+                self.assertFalse((destination / "outside.txt").exists())
+                self.assertFalse((destination / "junction").exists())
+
+    def test_source_root_symlink_rejected_without_cli_resolution_bypass(self):
+        source = self.root / "outside"
+        self.write_files(source, ["private.txt"])
+        link = self.root / "linked-source"
+        try:
+            link.symlink_to(source, target_is_directory=True)
+        except (NotImplementedError, OSError) as error:
+            self.skipTest(f"当前测试账户不能创建符号链接：{error}")
+        destination = self.root / "copied"
+        commands = [
+            ["copy", "--source", str(link), "--destination", str(destination), "--prefix", "worldline"],
+            ["source", "--source", str(link), "--destination", str(self.root / "source.zip"), "--name", "worldline"],
+            ["check-source", str(link)],
+        ]
+        for command in commands:
+            with self.subTest(command=command[0]), patch("sys.argv", ["release-package.py", *command]):
+                with self.assertRaisesRegex(RuntimeError, "不能包含链接"):
+                    self.packager.main()
+        self.assertFalse(destination.exists())
+        self.assertFalse((self.root / "source.zip").exists())
+
+    def create_checkout(self):
+        source = self.root / "worldline"
+        self.write_files(source, ["Cargo.toml", "core/examples/relations_profile.rs", "examples/world.wl"])
+        (source / ".gitattributes").write_text("/examples export-ignore\n", encoding="utf-8")
+        (source / ".gitignore").write_text("/target/\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q", str(source)], check=True)
+        for arguments in [["config", "user.name", "Offline test"], ["config", "user.email", "test@example.invalid"],
+                          ["add", "."], ["commit", "-qm", "fixture"]]:
+            subprocess.run(["git", "-C", str(source), *arguments], check=True)
+        return source
+
+    def test_clean_checkout_source_uses_exact_git_archive_and_ignores_local_build_cache(self):
+        source = self.create_checkout()
+        self.write_files(source, ["target/local-build-output"])
+        output = self.root / "worldline-source.zip"
+        self.packager.source_archive(source, output, "worldline")
+        expected = subprocess.check_output(["git", "-C", str(source), "archive", "--format=zip",
+                                            "--prefix=worldline/", "HEAD"])
+        self.assertEqual(output.read_bytes(), expected)
+
+    def test_dirty_checkout_source_fails_before_archive_creation(self):
+        source = self.create_checkout()
+        output = self.root / "worldline-source.zip"
+        for name in ["Cargo.toml", "untracked.txt"]:
+            with self.subTest(change=name):
+                (source / name).write_text("uncommitted", encoding="utf-8")
+                with self.assertRaisesRegex(RuntimeError, "未提交或未跟踪"):
+                    self.packager.check_source(source)
+                with self.assertRaisesRegex(RuntimeError, "未提交或未跟踪"):
+                    self.packager.source_archive(source, output, "worldline")
+                self.assertFalse(output.exists())
+                if name == "Cargo.toml":
+                    subprocess.run(["git", "-C", str(source), "checkout", "--", name], check=True)
+                else:
+                    (source / name).unlink()
+        (source / "Cargo.toml").write_text("staged change", encoding="utf-8")
+        subprocess.run(["git", "-C", str(source), "add", "Cargo.toml"], check=True)
+        with self.assertRaisesRegex(RuntimeError, "未提交或未跟踪"):
+            self.packager.source_archive(source, output, "worldline")
+        self.assertFalse(output.exists())
+
+    def test_package_script_uses_shared_filter_and_audits_every_zip_before_hashing(self):
+        text = Path(__file__).with_name("package.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("foreach ($directory in @('spec', 'docs'))", text)
+        self.assertNotIn("@('spec', 'docs', 'examples')", text)
+        self.assertIn("Run-PackageHelper @('source'", text)
+        self.assertLess(text.index("Run-PackageHelper @('check-source'"), text.index("Run-Cargo @('build'"))
+        self.assertIn("Run-PackageHelper (@('audit') + $archives)", text)
+        self.assertLess(text.index("Run-PackageHelper (@('audit')"), text.index("Get-FileHash"))
+
+
+class PackagedSmokeTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("release_build", Path(__file__).with_name("release-build.py"))
+        self.builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.builder)
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.output = Path(self.temp.name)
+        self.archive = self.output / "worldedit-windows-x64.zip"
+        with zipfile.ZipFile(self.archive, "w") as archive:
+            archive.writestr("windows/wl.exe", b"packaged executable fixture")
+        self.report = {"ok": True, "read_only": False, "diagnostics": [], "workspace_diagnostics": [],
+                       "stats": {"events": 1}}
+
+    def test_reads_packaged_binary_and_generates_only_temporary_minimal_input(self):
+        inputs = []
+        def run(command, **kwargs):
+            executable, verb, source, option = command
+            self.assertEqual((verb, option), ("check", "--json"))
+            self.assertEqual(Path(executable).read_bytes(), b"packaged executable fixture")
+            source = Path(source)
+            inputs.append(source)
+            self.assertFalse(source.is_relative_to(self.output))
+            self.assertEqual(source.read_text(encoding="utf-8"), "event start\n  -> END\n")
+            self.assertEqual(kwargs["cwd"], source.parent)
+            self.assertTrue(kwargs["check"])
+            self.assertTrue(kwargs["capture_output"])
+            self.assertEqual(kwargs["encoding"], "utf-8")
+            self.assertEqual(kwargs["timeout"], 60)
+            return subprocess.CompletedProcess(command, 0, json.dumps(self.report), "")
+        with patch.object(self.builder.subprocess, "run", side_effect=run):
+            result = self.builder.packaged_cli_smoke(self.archive)
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(result["events"], 1)
+        self.assertTrue(result["ok"])
+        self.assertIn("not distributed", result["input"])
+        self.assertTrue(all(not path.exists() for path in inputs))
+        self.assertEqual(list(self.output.iterdir()), [self.archive])
+
+    def test_bad_json_or_semantically_wrong_success_is_rejected(self):
+        bad = [[], {}, dict(self.report, ok=False), dict(self.report, ok=1), dict(self.report, read_only=True),
+               dict(self.report, diagnostics=[{"severity": "warning"}]),
+               dict(self.report, workspace_diagnostics=[{}]), dict(self.report, stats={"events": 0}),
+               dict(self.report, stats={"events": True})]
+        for report in bad:
+            with self.subTest(report=report), patch.object(self.builder.subprocess, "run",
+                    return_value=subprocess.CompletedProcess([], 0, json.dumps(report), "")):
+                with self.assertRaises(RuntimeError): self.builder.packaged_cli_smoke(self.archive)
+        with patch.object(self.builder.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "not json", "")):
+            with self.assertRaises(json.JSONDecodeError): self.builder.packaged_cli_smoke(self.archive)
+
+    def test_nonzero_exit_timeout_and_stderr_fail_without_publishing_input(self):
+        for error in [subprocess.CalledProcessError(1, ["wl.exe"]), subprocess.TimeoutExpired(["wl.exe"], 60)]:
+            with self.subTest(error=error), patch.object(self.builder.subprocess, "run", side_effect=error):
+                with self.assertRaises(type(error)): self.builder.packaged_cli_smoke(self.archive)
+        with patch.object(self.builder.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0, json.dumps(self.report), "unexpected warning")):
+            with self.assertRaises(RuntimeError): self.builder.packaged_cli_smoke(self.archive)
+        self.assertEqual(list(self.output.iterdir()), [self.archive])
+
+    def test_sample_contamination_is_rejected_before_extraction_or_execution(self):
+        with zipfile.ZipFile(self.archive, "a") as archive:
+            archive.writestr("windows/worldline/examples/world.wl", "event start\n  -> END\n")
+        with patch.object(self.builder.subprocess, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "发行禁止的样例"):
+                self.builder.packaged_cli_smoke(self.archive)
+            run.assert_not_called()
 
 
 class AbsentTests(unittest.TestCase):
@@ -714,6 +1013,18 @@ class TrunkInstallTests(unittest.TestCase):
             self.install()
         self.assertEqual(self.run.call_count, 1)
         self.assertEqual(self.path_file.read_text(encoding="utf-8"), previous)
+
+
+class RuntimeDependencyNoticeTests(unittest.TestCase):
+    def test_self_cell_apache_notice_is_fixed_and_copied_to_both_packages(self):
+        root = Path(__file__).resolve().parent.parent
+        notice = root / "assets/licenses/self-cell-APACHE.txt"
+        self.assertEqual(hashlib.sha256(notice.read_bytes()).hexdigest(),
+                         "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4")
+        package = (root / "scripts/package.ps1").read_text(encoding="utf-8-sig")
+        for destination in ["$desktopRoot", "$webRoot"]:
+            self.assertIn('Copy-Item -LiteralPath "$editorRoot/assets/licenses/self-cell-APACHE.txt" '
+                          f"-Destination (Join-Path {destination} 'SELF-CELL-LICENSE.txt')", package)
 
 
 class ReleaseNotesTests(unittest.TestCase):

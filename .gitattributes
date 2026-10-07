@@ -2,3 +2,6 @@
 
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# 历史视觉样板保留在仓库，不进入正式分发归档。
+/docs/design/editor-system/20260926/eds10-visual-sample.html export-ignore

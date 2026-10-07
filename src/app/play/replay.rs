@@ -1,7 +1,7 @@
 use super::super::WorldeditApp;
 #[cfg(not(target_arch = "wasm32"))]
 use worldline_runtime::ReplayTrace;
-use worldline_runtime::{ReplayBudget, ReplayCancellation};
+use worldline_runtime::{ReplayBudget, ReplayCancellation, ReplaySession};
 impl WorldeditApp {
     pub(super) fn begin_replay(&mut self, ctx: &egui::Context) {
         self.request_replay(ctx);
@@ -30,7 +30,7 @@ impl WorldeditApp {
             .get(index)
             .map(|path| path.trace.clone())
         else {
-            self.replay_debugger.selected_path = None;
+            self.replay_debugger.select_replay_path(None);
             self.replay_debugger.notice = Some("所选路径已失效，请重新选择".into());
             return;
         };
@@ -52,6 +52,14 @@ impl WorldeditApp {
         let time_budget_ms = time_budget_ms.min(2_000);
         let budget = ReplayBudget::new(max_steps, time_budget_ms);
         let cancellation = ReplayCancellation::new();
+        // 只读预检也适用于 native：旧版本可以交换/查看，但不能启动执行或清掉旧结果。
+        let session = match ReplaySession::new(trace.clone(), budget, cancellation.clone()) {
+            Ok(session) => session,
+            Err(error) => {
+                self.replay_debugger.notice = Some(format!("路径可只读查看，但无法重放：{error}"));
+                return;
+            }
+        };
         let path_name = self.replay_debugger.saved_paths[index].name.clone();
         self.replay_debugger.result = None;
         self.replay_debugger.result_path_name = Some(path_name);
@@ -61,6 +69,7 @@ impl WorldeditApp {
         self.replay_debugger.explanations = None;
         #[cfg(not(target_arch = "wasm32"))]
         {
+            drop(session);
             let worker_cancellation = cancellation.clone();
             let (sender, receiver) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
@@ -77,18 +86,13 @@ impl WorldeditApp {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            match worldline_runtime::ReplaySession::new(trace, budget, cancellation.clone()) {
-                Ok(session) => {
-                    self.replay_debugger.job = Some(super::super::ReplayJob {
-                        cancellation,
-                        program,
-                        analysis,
-                        session,
-                    });
-                    ctx.request_repaint_after(std::time::Duration::from_millis(16));
-                }
-                Err(error) => self.replay_debugger.notice = Some(error.to_string()),
-            }
+            self.replay_debugger.job = Some(super::super::ReplayJob {
+                cancellation,
+                program,
+                analysis,
+                session,
+            });
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
     }
 

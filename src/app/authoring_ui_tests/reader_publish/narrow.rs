@@ -1,6 +1,49 @@
 use super::*;
 
 #[test]
+fn reader_directory_narrow_long_titles_keep_query_pager_return_and_cancel_visible() {
+    let (ctx, mut app) = super::directory::directory_app();
+    let source = app.project.document(&app.active_file).unwrap().replace(
+        "同名公开页 ÉCLAIR",
+        &format!("同名公开页 ÉCLAIR {}", "可换行的长标题".repeat(18)),
+    );
+    app.project
+        .set_text(&app.active_file.clone(), source)
+        .unwrap();
+    app.recompile();
+    click(&ctx, &mut app, 26, "生成 / 更新预览");
+    wait_for_reader_publish(&ctx, &mut app);
+    for _ in 0..4 {
+        narrow_reader_frame(&ctx, &mut app, vec![]);
+    }
+    narrow_reader_click(&ctx, &mut app, "页面目录 / 查找");
+    for _ in 0..4 {
+        narrow_reader_frame(&ctx, &mut app, vec![]);
+    }
+    let output = narrow_reader_frame(&ctx, &mut app, vec![]);
+    for label in [
+        "查找公开页面",
+        "下一组结果",
+        "目录第 1 / 3 页 · 每页至多 12 项",
+        "取消发布",
+    ] {
+        assert!(
+            narrow_reader_point(&output, label).is_some(),
+            "fixed directory control must remain visible: {label}"
+        );
+    }
+    narrow_reader_click(&ctx, &mut app, "下一组结果");
+    narrow_reader_click(&ctx, &mut app, "打开此页");
+    let output = narrow_reader_frame(&ctx, &mut app, vec![]);
+    assert!(narrow_reader_point(&output, "返回页面目录").is_some());
+    narrow_reader_click(&ctx, &mut app, "返回页面目录");
+    let output = narrow_reader_frame(&ctx, &mut app, vec![]);
+    assert!(narrow_reader_point(&output, "目录第 2 / 3 页 · 每页至多 12 项").is_some());
+    narrow_reader_click(&ctx, &mut app, "取消发布");
+    assert!(!app.reader_publish.open);
+}
+
+#[test]
 fn reader_publish_narrow_viewport_keeps_preview_and_cancel_reachable() {
     let (ctx, mut app) = reader_publish_app();
     let path = app.active_file.clone();
@@ -102,7 +145,26 @@ fn narrow_reader_click(ctx: &egui::Context, app: &mut WorldeditApp, label: &str)
         let bounds = ctx
             .memory(|memory| memory.area_rect(egui::Id::new("reader-publish-window")))
             .unwrap();
-        let hover = pos2(bounds.right() - 48.0, bounds.center().y);
+        // 目录的搜索和分页固定在结果上方；滚轮必须命中真实结果 clip，
+        // 窗口中心可能仍在审核摘要里，不能假定它就是可滚动正文。
+        let hover = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text)
+                    if text
+                        .galley
+                        .job
+                        .text
+                        .lines()
+                        .any(|line| line.ends_with(".html"))
+                        && shape.clip_rect.intersects(bounds) =>
+                {
+                    Some(shape.clip_rect.intersect(bounds).center())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| pos2(bounds.right() - 48.0, bounds.center().y));
         narrow_reader_frame(
             ctx,
             app,

@@ -187,6 +187,7 @@ impl WorldeditApp {
             wiki,
             map_index,
         });
+        self.refresh_map_binding_guards();
         if self.reader_publish.open {
             self.reader_publish
                 .refresh_choices(&self.project, self.snapshot.as_ref());
@@ -219,6 +220,7 @@ impl WorldeditApp {
             snapshot.proposal_index = proposal_index;
             snapshot.map_index = map_index;
         }
+        self.refresh_map_binding_guards();
         self.reader_publish.refresh_profiles(&self.project);
     }
     pub(super) fn diagnostics(&self) -> &[Diagnostic] {

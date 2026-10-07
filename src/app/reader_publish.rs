@@ -7,6 +7,8 @@ mod delivery;
 mod maps;
 #[cfg(not(target_arch = "wasm32"))]
 mod native_delivery;
+mod page_directory;
+mod page_review;
 mod preview;
 mod profile_commit;
 mod profile_job;
@@ -44,7 +46,7 @@ pub(super) struct ReaderPublishState {
     object_page: usize,
     map_page: usize,
     unavailable_page: usize,
-    preview_page: usize,
+    page_directory: page_directory::PageDirectory,
     resource_page: usize,
     files_page: usize,
     profiles: Vec<ReaderPublicationProfile>,

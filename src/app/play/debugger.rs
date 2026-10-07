@@ -1,14 +1,14 @@
-use super::super::{PlayState, ReplayDebugger, SavedReplayPath};
+use super::super::{PlayState, ReplayDebugger};
 use super::evidence_navigation::{EvidenceNavigationAccess, EvidenceNavigationRequest};
 use super::keyboard::{PlayKeyboard, Target};
 use super::replay_location::failure_location;
 use crate::theme;
-use worldline_runtime::{ReplayOrigin, ReplayStatus, ReplayTrace, REPLAY_SCHEMA_VERSION};
+use worldline_runtime::{ReplayOrigin, ReplayStatus, ReplayTrace};
 
-const MAX_IMPORTED_TRACE_BYTES: usize = 1024 * 1024;
-const MAX_IMPORTED_TRACE_STEPS: usize = 20_000;
-const MAX_IMPORTED_TRACE_STRING_BYTES: usize = 256 * 1024;
-const MAX_SAVED_REPLAY_PATHS: usize = 64;
+mod exchange;
+use exchange::record_focus_unavailable;
+pub(super) use exchange::render_trace_import;
+
 pub(super) struct DebuggerRequests<'a> {
     pub keyboard: &'a mut PlayKeyboard,
     pub replay: &'a mut bool,
@@ -52,16 +52,7 @@ pub(super) fn render_debugger_controls(
             ui.add(egui::TextEdit::singleline(&mut debugger.path_name).desired_width(120.0));
         });
         if keyboard.wants_record_focus() {
-            let unavailable = if debugger.saved_paths.len() >= MAX_SAVED_REPLAY_PATHS {
-                Some(format!("当前会话最多保留 {MAX_SAVED_REPLAY_PATHS} 条路径"))
-            } else if trace.steps.len() > MAX_IMPORTED_TRACE_STEPS
-                || serde_json::to_vec(&trace)
-                    .map_or(true, |json| json.len() > 4 * MAX_IMPORTED_TRACE_BYTES)
-            {
-                Some("当前路径超过 20,000 步或 4 MiB 保存边界".into())
-            } else {
-                None
-            };
+            let unavailable = record_focus_unavailable(debugger, &trace);
             if let Some(notice) = unavailable {
                 debugger.notice = Some(notice);
                 keyboard.cancel();
@@ -69,27 +60,7 @@ pub(super) fn render_debugger_controls(
         }
         let record = keyboard.button(ui, "record", Some(Target::Record), true, "● 保存当前路径");
         if keyboard.activation(&record).is_some() {
-            let name = if debugger.path_name.trim().is_empty() {
-                format!("路径 {}", debugger.saved_paths.len() + 1)
-            } else {
-                debugger.path_name.trim().to_owned()
-            };
-            let trace_bytes = serde_json::to_vec(&trace).map(|json| json.len());
-            if debugger.saved_paths.len() >= MAX_SAVED_REPLAY_PATHS {
-                debugger.notice = Some(format!("当前会话最多保留 {MAX_SAVED_REPLAY_PATHS} 条路径"));
-            } else if trace.steps.len() > MAX_IMPORTED_TRACE_STEPS
-                || trace_bytes.map_or(true, |bytes| bytes > 4 * MAX_IMPORTED_TRACE_BYTES)
-            {
-                debugger.notice = Some("当前路径超过 20,000 步或 4 MiB 保存边界".into());
-            } else {
-                debugger.saved_paths.push(SavedReplayPath {
-                    name: name.clone(),
-                    trace,
-                });
-                debugger.selected_path = Some(debugger.saved_paths.len() - 1);
-                debugger.path_name = format!("路径 {}", debugger.saved_paths.len() + 1);
-                debugger.notice = Some(format!("已在本次工作台会话中保存路径“{name}”"));
-            }
+            debugger.record_replay_path(trace);
         }
     } else {
         ui.colored_label(theme::MUTED(), "开始试玩后可录制实际选择路径。");
@@ -130,13 +101,15 @@ pub(super) fn render_debugger_controls(
         .and_then(|index| debugger.saved_paths.get(index))
         .map(|path| path.name.as_str())
         .unwrap_or("选择已录制路径");
+    let mut selected_path = debugger.selected_path;
     egui::ComboBox::from_id_salt("replay-path-select")
         .selected_text(selected_text)
         .show_ui(ui, |ui| {
             for (index, path) in debugger.saved_paths.iter().enumerate() {
-                ui.selectable_value(&mut debugger.selected_path, Some(index), &path.name);
+                ui.selectable_value(&mut selected_path, Some(index), &path.name);
             }
         });
+    debugger.select_replay_path(selected_path);
     ui.horizontal(|ui| {
         ui.label("步数上限");
         ui.add(egui::DragValue::new(&mut debugger.max_steps).range(1..=1_000_000_000));
@@ -168,6 +141,11 @@ pub(super) fn render_debugger_controls(
         .and_then(|index| debugger.saved_paths.get(index))
     {
         let trace = &playback.trace;
+        ui.label(format!(
+            "路径 runtime {} · schema {}",
+            trace.runtime_version, trace.schema_version
+        ));
+        ui.label("格式可读不代表可重放；执行时仍检查版本、指纹与检查点。");
         ui.label(format!(
             "所选路径：{} · 原 fingerprint {} · {} 步 · {}",
             playback.name,
@@ -226,11 +204,11 @@ pub(super) fn render_debugger_controls(
             }
         });
         if ui.button("导出所选路径 JSON").clicked() {
-            debugger.export_json = serde_json::to_string_pretty(trace)
-                .unwrap_or_else(|error| format!("JSON 序列化失败：{error}"));
+            debugger.export_replay_path();
         }
     }
     render_trace_import(ui, debugger);
+    ui.label("路径 JSON 含完整运行状态，是作者数据；不同于默认省略私密字段的 Markdown 报告。");
     if !debugger.export_json.is_empty() {
         egui::ScrollArea::vertical()
             .id_salt("debugger-export-json")
@@ -238,6 +216,7 @@ pub(super) fn render_debugger_controls(
             .show(ui, |ui| {
                 ui.add(
                     egui::TextEdit::multiline(&mut debugger.export_json)
+                        .interactive(false)
                         .code_editor()
                         .desired_rows(4)
                         .desired_width(f32::INFINITY),
@@ -360,55 +339,6 @@ pub(super) fn render_debugger_compact(ui: &mut egui::Ui, debugger: &ReplayDebugg
     }
 }
 
-pub(super) fn render_trace_import(ui: &mut egui::Ui, debugger: &mut ReplayDebugger) {
-    egui::CollapsingHeader::new("导入路径 JSON（最多 1 MiB / 20,000 步）")
-        .default_open(false)
-        .show(ui, |ui| {
-            if debugger.import_json.len() > MAX_IMPORTED_TRACE_BYTES {
-                ui.colored_label(
-                    theme::ERROR(),
-                    "轨迹 JSON 超过 1 MiB 边界；内容已拒绝导入。",
-                );
-                if ui.button("清除超限输入").clicked() {
-                    debugger.import_json.clear();
-                }
-                if ui.button("拒绝超限轨迹").clicked() {
-                    debugger.notice = Some("轨迹 JSON 超过 1 MiB 边界".into());
-                }
-            } else {
-                egui::ScrollArea::vertical()
-                    .id_salt("debugger-import-json")
-                    .max_height(120.0)
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::multiline(&mut debugger.import_json)
-                                .code_editor()
-                                .desired_rows(3)
-                                .desired_width(f32::INFINITY),
-                        );
-                    });
-                if ui.button("检查并导入路径").clicked() {
-                    match validate_imported_trace(&debugger.import_json) {
-                        Ok(trace) => {
-                            if debugger.saved_paths.len() >= MAX_SAVED_REPLAY_PATHS {
-                                debugger.notice = Some(format!(
-                                    "当前会话最多保留 {MAX_SAVED_REPLAY_PATHS} 条路径"
-                                ));
-                            } else {
-                                let name = format!("导入路径 {}", debugger.saved_paths.len() + 1);
-                                debugger.saved_paths.push(SavedReplayPath { name, trace });
-                                debugger.selected_path = Some(debugger.saved_paths.len() - 1);
-                                debugger.notice =
-                                    Some("路径格式通过检查，已加入当前调试会话".into());
-                            }
-                        }
-                        Err(error) => debugger.notice = Some(error),
-                    }
-                }
-            }
-        });
-}
-
 fn trace_seed(trace: &ReplayTrace) -> Option<u64> {
     match &trace.origin {
         ReplayOrigin::Entry { seed } => Some(*seed),
@@ -443,37 +373,6 @@ fn state_changes(
         .collect()
 }
 
-fn validate_imported_trace(json: &str) -> Result<ReplayTrace, String> {
-    if json.len() > MAX_IMPORTED_TRACE_BYTES {
-        return Err("轨迹 JSON 超过 1 MiB 边界".into());
-    }
-    let value: serde_json::Value =
-        serde_json::from_str(json).map_err(|error| format!("JSON 格式错误：{error}"))?;
-    let mut pending = vec![&value];
-    while let Some(value) = pending.pop() {
-        match value {
-            serde_json::Value::String(text) if text.len() > MAX_IMPORTED_TRACE_STRING_BYTES => {
-                return Err("轨迹字段超过 256 KiB 边界".into());
-            }
-            serde_json::Value::Array(items) => pending.extend(items),
-            serde_json::Value::Object(items) => pending.extend(items.values()),
-            _ => {}
-        }
-    }
-    let trace: ReplayTrace =
-        serde_json::from_value(value).map_err(|error| format!("轨迹格式不兼容：{error}"))?;
-    if trace.schema_version != REPLAY_SCHEMA_VERSION {
-        return Err(format!(
-            "轨迹 schema_version {} 不受支持",
-            trace.schema_version
-        ));
-    }
-    if trace.steps.len() > MAX_IMPORTED_TRACE_STEPS {
-        return Err(format!("轨迹步数超过 {MAX_IMPORTED_TRACE_STEPS} 边界"));
-    }
-    Ok(trace)
-}
-
 fn replay_status_text(status: &ReplayStatus) -> String {
     match status {
         ReplayStatus::Replayed { ended, complete } => {
@@ -489,3 +388,6 @@ fn replay_status_text(status: &ReplayStatus) -> String {
         ReplayStatus::StoryFailed { message, .. } => format!("故事运行失败：{message}"),
     }
 }
+
+#[cfg(test)]
+mod exchange_tests;

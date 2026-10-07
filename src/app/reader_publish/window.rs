@@ -14,6 +14,30 @@ impl WorldeditApp {
             }
             return;
         }
+        if self
+            .reader_publish
+            .reviewed
+            .as_ref()
+            .is_some_and(|reviewed| {
+                !self
+                    .reader_publish
+                    .matches_review(reviewed, &self.project.content_baseline())
+            })
+        {
+            self.reader_publish.invalidate_review();
+            self.reader_publish.status = Some("公开页审核已过期，请重新生成预览。".into());
+        }
+        if let Some(reviewed) = &self.reader_publish.reviewed {
+            self.reader_publish.page_directory.sync(&reviewed.preview);
+        }
+        // 全局输入法状态涵盖离开目录后在其他控件完成组合的情况。
+        self.reader_publish
+            .page_directory
+            .set_composing(self.ime_composing || self.command_palette.ime);
+        let keyboard_allowed = self.edit_layer_is_top("reader")
+            && !self.ime_composing
+            && !self.command_palette.ime
+            && !self.command_palette.ime_frame;
         let viewport = ctx.screen_rect().shrink(8.0);
         let style = ctx.style();
         let frame = egui::Frame::window(&style);
@@ -60,6 +84,16 @@ impl WorldeditApp {
                             },
                         );
                     }
+                    if ui
+                        .add_enabled(
+                            !state.busy() && state.reviewed.is_some(),
+                            egui::Button::new("页面目录 / 查找"),
+                        )
+                        .clicked()
+                    {
+                        state.step = PublishStep::Preview;
+                        state.page_directory.show();
+                    }
                 });
                 if let Some(status) = &state.status {
                     ui.add(egui::Label::new(status).wrap());
@@ -69,24 +103,30 @@ impl WorldeditApp {
                 }
                 ui.separator();
                 let scroll_height = (ui.available_height() - 68.0).max(80.0);
-                egui::ScrollArea::vertical()
-                    .id_salt(("reader-step-content", state.step as u8))
-                    .max_height(scroll_height)
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.add_enabled_ui(!state.busy(), |ui| match state.step {
-                            PublishStep::Select => {
-                                let (changed, next_action) = state.selection_ui(ui);
-                                if changed {
-                                    state.invalidate_review();
-                                }
-                                action = next_action;
-                            }
-                            PublishStep::Resources => state.resource_review_ui(ui),
-                            PublishStep::Preview => action = state.page_review_ui(ui),
-                            PublishStep::Generate => action = state.generation_ui(ui),
-                        });
+                if state.step == PublishStep::Preview {
+                    ui.add_enabled_ui(!state.busy(), |ui| {
+                        action = state.page_review_ui(ui, scroll_height, keyboard_allowed);
                     });
+                } else {
+                    egui::ScrollArea::vertical()
+                        .id_salt(("reader-step-content", state.step as u8))
+                        .max_height(scroll_height)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.add_enabled_ui(!state.busy(), |ui| match state.step {
+                                PublishStep::Select => {
+                                    let (changed, next_action) = state.selection_ui(ui);
+                                    if changed {
+                                        state.invalidate_review();
+                                    }
+                                    action = next_action;
+                                }
+                                PublishStep::Resources => state.resource_review_ui(ui),
+                                PublishStep::Preview => unreachable!("阅读视图有独立正文滚动区"),
+                                PublishStep::Generate => action = state.generation_ui(ui),
+                            });
+                        });
+                }
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {
                     if ui
@@ -184,6 +224,7 @@ impl WorldeditApp {
     }
 
     pub(in crate::app) fn cancel_reader_publish(&mut self) -> bool {
+        self.reader_publish.page_directory = page_directory::PageDirectory::default();
         #[cfg(not(target_arch = "wasm32"))]
         if self.reader_publish.close_drain.is_some() {
             self.reader_publish.open = false;
