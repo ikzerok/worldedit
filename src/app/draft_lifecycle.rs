@@ -333,12 +333,12 @@ impl WorldeditApp {
                         return_to = names.first().copied();
                         cancel = true;
                     }
-                    if ui
-                        .add_enabled(
-                            !self.ime_composing,
-                            egui::Button::new("丢弃未应用输入并继续"),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !self.ime_composing,
+                        egui::Button::new("丢弃未应用输入并继续"),
+                    )
+                    .clicked()
                     {
                         discard = true;
                     }

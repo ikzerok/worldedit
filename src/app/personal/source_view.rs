@@ -1,5 +1,5 @@
 //! 只含显示参数、字符锚点与摘要；不持有源码，也不提交作者草稿。
-use super::Settings;
+use crate::theme::AppearancePreferences;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -16,7 +16,8 @@ pub(in crate::app) struct SourceView {
 struct Layout {
     width: f32,
     height: f32,
-    body_size: f32,
+    #[serde(rename = "body_size", alias = "source_size")]
+    source_size: f32,
     line_spacing: f32,
     wrap: bool,
 }
@@ -33,7 +34,8 @@ impl SourceFrame {
     pub(in crate::app) fn new(
         output: &egui::text_edit::TextEditOutput,
         viewport: egui::Rect,
-        settings: &Settings,
+        appearance: &AppearancePreferences,
+        wrap: bool,
     ) -> Self {
         Self {
             galley: output.galley.clone(),
@@ -43,9 +45,9 @@ impl SourceFrame {
             layout: Layout {
                 width: viewport.width(),
                 height: viewport.height(),
-                body_size: settings.body_size,
-                line_spacing: settings.line_spacing,
-                wrap: settings.source_wrap,
+                source_size: appearance.source_size,
+                line_spacing: appearance.line_spacing,
+                wrap,
             },
         }
     }

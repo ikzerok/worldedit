@@ -105,12 +105,12 @@ impl WorldeditApp {
                     );
                 }
                 ui.checkbox(&mut form.confirmed, "我确认删除此内容，而不是仅隐藏显示");
-                if ui
-                    .add_enabled(
-                        current && form.confirmed && form.impact.can_delete(),
-                        egui::Button::new("确认删除内容"),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    current && form.confirmed && form.impact.can_delete(),
+                    egui::Button::new("确认删除内容"),
+                )
+                .clicked()
                 {
                     let before = self.project.clone();
                     let result = form.apply(&mut self.project, self.version);

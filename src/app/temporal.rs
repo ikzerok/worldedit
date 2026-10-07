@@ -224,10 +224,10 @@ impl WorldeditApp {
                                 screen(Pos2::new(indent, *y)),
                                 Vec2::new(width - indent, bottom - y) * zoom,
                             );
-                            painter.rect_filled(band, 12, PANEL());
+                            painter.rect_filled(band, theme::shapes().document, PANEL());
                             painter.rect_stroke(
                                 band,
-                                12,
+                                theme::shapes().document,
                                 Stroke::new(1.0_f32, BORDER()),
                                 egui::StrokeKind::Inside,
                             );

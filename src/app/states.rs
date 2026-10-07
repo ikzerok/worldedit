@@ -72,7 +72,8 @@ impl WorldeditApp {
         theme::card().show(ui, |ui| {
             ui.label(RichText::new("状态资料").strong().size(19.0));
             ui.label(theme::muted("状态 ID · 用于引用和追踪变化"));
-            ui.add_enabled(
+            crate::theme::add_enabled(
+                ui,
                 original.is_none(),
                 egui::TextEdit::singleline(&mut draft.id).desired_width(f32::INFINITY),
             );

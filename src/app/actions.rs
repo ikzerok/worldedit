@@ -51,8 +51,7 @@ impl WorldeditApp {
                 self.saved_location = cfg!(not(target_arch = "wasm32"));
                 self.reset_views();
                 self.recompile();
-                self.tab = Tab::Timeline;
-                self.open_capabilities();
+                self.tab = Tab::Manuscript;
             }
             Pending::Close => {
                 self.map_canvas.discard_local_work();

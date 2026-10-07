@@ -11,7 +11,7 @@ struct Form {
 impl Form {
     fn new(options: CompileOptions) -> Self {
         let ctx = egui::Context::default();
-        crate::theme::install(&ctx);
+        let _theme = crate::theme::configure(&ctx, crate::theme::ThemeMode::System);
         ctx.style_mut(|style| style.animation_time = 0.0);
         let mut catalog = Catalog::default();
         for (kind, file) in [("character", "people.wl"), ("entity", "places.wl")] {

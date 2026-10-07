@@ -1,4 +1,10 @@
 //! 正文、结构与源码共用 core 按文件唯一的 WritingBuffer。
+mod composition_text;
+mod editors;
+mod input;
+mod input_registry;
+pub(in crate::app) use input_registry::register_input;
+mod prose;
 mod session;
 mod text_undo;
 use crate::theme;
@@ -6,7 +12,7 @@ pub(in crate::app) use session::fingerprint;
 pub(super) use session::WritingCursor;
 pub(in crate::app) use text_undo::{prepare_text_undo, remember_text_undo};
 use worldline_core::catalog::TargetRef;
-use worldline_core::manuscript::{WritingBlockKind, WritingBuffer};
+use worldline_core::manuscript::WritingBuffer;
 use worldline_core::project::Project;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -37,6 +43,13 @@ pub(super) struct ViewState {
     selection_mode: Option<Mode>,
     pending_cursor: Option<WritingCursor>,
     pending_focus: bool,
+    ime_active: bool,
+    composition: input::Composition,
+    raw_blocked_buttons: u8,
+    retained_inputs: std::collections::BTreeMap<prose::RetainedKey, prose::RetainedInput>,
+    composing_inputs:
+        std::collections::BTreeMap<prose::RetainedKey, composition_text::PendingInput>,
+    retained_clear_confirm: Option<prose::RetainedKey>,
 }
 
 #[derive(Default)]
@@ -54,57 +67,156 @@ pub(super) struct Typography {
     pub size: f32,
     pub spacing: f32,
     pub width: f32,
+    pub source_size: f32,
 }
 
-pub(super) fn draw(
+#[allow(clippy::too_many_arguments)]
+pub(super) fn draw_controls(
     ui: &mut egui::Ui,
     project: &Project,
     buffer: &mut WritingBuffer,
     target: &TargetRef,
+    title: &str,
     view: &mut ViewState,
     typography: Typography,
 ) -> Action {
     view.prepare_restore(buffer, target);
+    let input_busy = view.ime_active;
     let mut action = Action::default();
     let previous_mode = view.mode;
+    let narrow = ui.ctx().screen_rect().width() < 600.0 || ui.ctx().screen_rect().height() < 420.0;
+    let compact_title = typography.compact && theme::style_preset() != theme::StylePreset::Ledger;
     ui.horizontal_wrapped(|ui| {
         let identity = format!("{}:{}", target.kind, target.id);
-        ui.heading("正文")
-            .on_hover_text(&identity)
+        let heading = if compact_title {
+            let font = egui::TextStyle::Heading.resolve(ui.style());
+            let natural = ui.fonts(|fonts| {
+                fonts
+                    .layout_no_wrap(title.to_owned(), font, theme::TEXT())
+                    .size()
+                    .x
+            });
+            let width = natural.min((ui.available_width() * 0.25).clamp(72.0, 180.0));
+            ui.add_sized(
+                [width, ui.spacing().interact_size.y],
+                egui::Label::new(egui::RichText::new(title).heading().strong()).truncate(),
+            )
+        } else {
+            ui.heading("正文")
+        };
+        heading
+            .on_hover_text(format!("{title}\n{identity}"))
             .context_menu(|ui| {
                 if ui.button("复制来源对象身份").clicked() {
                     ui.ctx().copy_text(identity);
                     ui.close();
                 }
             });
-        ui.selectable_value(&mut view.mode, Mode::Prose, "写作");
-        ui.selectable_value(&mut view.mode, Mode::Structure, "结构");
-        ui.selectable_value(&mut view.mode, Mode::Source, "源码");
-        if ui
-            .add_enabled(
-                buffer.is_changed(),
-                egui::Button::new(if view.mode == Mode::Source {
-                    "应用源码草稿（可含诊断）"
-                } else {
-                    "应用正文草稿"
-                }),
-            )
-            .clicked()
-        {
-            action.apply = true;
-            action.source_mode = view.mode == Mode::Source;
-        }
-        if ui
-            .add_enabled(buffer.is_changed(), egui::Button::new("丢弃此文件草稿"))
-            .clicked()
-        {
-            view.discard_confirm = Some(buffer.path().to_owned());
+        if narrow {
+            // This menu includes a two-step discard confirmation. egui menus
+            // otherwise close on every click, hiding the second step immediately.
+            egui::containers::menu::MenuButton::new("正文工具")
+                .config(
+                    egui::containers::menu::MenuConfig::default()
+                        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+                )
+                .ui(ui, |ui| {
+                    let discard_was_pending = view.discard_confirm.is_some();
+                    ui.set_max_width((ui.ctx().screen_rect().width() - 32.0).min(360.0));
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                    egui::ScrollArea::vertical()
+                        .max_height(220.0)
+                        .show(ui, |ui| {
+                            draw_actions(ui, buffer, view, input_busy, &mut action);
+                            draw_status(ui, project, buffer, view, input_busy, &mut action, true);
+                        });
+                    if previous_mode != view.mode
+                        || action.apply
+                        || action.discard
+                        || action.comment
+                        || (discard_was_pending && view.discard_confirm.is_none())
+                    {
+                        ui.close();
+                    }
+                });
+            ui.label(theme::muted(if buffer.is_changed() {
+                "未应用"
+            } else {
+                "已应用"
+            }));
+        } else {
+            draw_actions(ui, buffer, view, input_busy, &mut action);
         }
     });
     if previous_mode != view.mode {
         view.selection_mode = None;
     }
-    if !typography.compact {
+    if !narrow {
+        draw_status(
+            ui,
+            project,
+            buffer,
+            view,
+            input_busy,
+            &mut action,
+            !typography.compact,
+        );
+    }
+    action
+}
+
+fn draw_actions(
+    ui: &mut egui::Ui,
+    buffer: &WritingBuffer,
+    view: &mut ViewState,
+    input_busy: bool,
+    action: &mut Action,
+) {
+    crate::theme::add_enabled_ui(ui, !input_busy, |ui| {
+        ui.selectable_value(&mut view.mode, Mode::Prose, "写作");
+        ui.selectable_value(&mut view.mode, Mode::Structure, "结构");
+        ui.selectable_value(&mut view.mode, Mode::Source, "源码");
+    });
+    if crate::theme::add_enabled(
+        ui,
+        buffer.is_changed() && !input_busy && !view.has_retained_for(buffer.path()),
+        egui::Button::new(if view.mode == Mode::Source {
+            "应用源码草稿（可含诊断）"
+        } else {
+            "应用正文草稿"
+        }),
+    )
+    .clicked()
+    {
+        action.apply = true;
+        action.source_mode = view.mode == Mode::Source;
+    }
+    if crate::theme::add_enabled(
+        ui,
+        buffer.is_changed() && !input_busy,
+        egui::Button::new("丢弃此文件草稿"),
+    )
+    .clicked()
+    {
+        view.discard_confirm = Some(buffer.path().to_owned());
+    }
+}
+
+fn draw_status(
+    ui: &mut egui::Ui,
+    project: &Project,
+    buffer: &WritingBuffer,
+    view: &mut ViewState,
+    input_busy: bool,
+    action: &mut Action,
+    source_caption: bool,
+) {
+    if input_busy {
+        ui.label(theme::muted(
+            "输入法组合中 · 请完成输入后再切换、应用或返回",
+        ));
+    }
+    if source_caption {
         theme::source_caption(ui, &project.root, buffer.path());
     }
     ui.horizontal_wrapped(|ui| {
@@ -126,8 +238,10 @@ pub(super) fn draw(
             theme::ERROR(),
             "将丢弃此源文件所有章节的未应用输入，工程原文不变。",
         );
-        ui.horizontal(|ui| {
-            if ui.button("确认丢弃正文草稿").clicked() {
+        ui.horizontal_wrapped(|ui| {
+            if crate::theme::add_enabled(ui, !input_busy, egui::Button::new("确认丢弃正文草稿"))
+                .clicked()
+            {
                 action.discard = true;
                 view.discard_confirm = None;
             }
@@ -142,135 +256,31 @@ pub(super) fn draw(
             "工程基线已变化；草稿完整保留，不能覆盖新内容。",
         );
     }
-    if view.mode == Mode::Source {
-        if !typography.compact {
-            ui.label(theme::muted(
-                "完整源码；与写作和结构视图共用一个文件草稿。无效输入不会丢失。",
-            ));
-        }
-        let mut source = buffer.source().to_owned();
-        let id = egui::Id::new(("writing-source", buffer.path(), &target.kind, &target.id));
-        view.restore_editor(ui, id, buffer, 0, &source);
-        let output = egui::TextEdit::multiline(&mut source)
-            .id(id)
-            .code_editor()
-            .desired_width(f32::INFINITY)
-            .desired_rows(18)
-            .show(ui);
-        if output.response.changed() {
-            buffer.replace_source(source.clone());
-        }
-        view.record_cursor(ui, &output, buffer, target, 0, &source);
-        view.pending_cursor = None;
-        return action;
-    }
-    let projection = match project.project_writing_buffer(buffer, target) {
-        Ok(projection) => projection,
-        Err(error) => {
-            view.pending_cursor = None;
-            ui.colored_label(theme::ERROR(), error);
-            if ui.button("在源码视图继续编辑").clicked() {
-                view.mode = Mode::Source;
-            }
-            return action;
-        }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn draw_document(
+    ui: &mut egui::Ui,
+    project: &Project,
+    buffer: &mut WritingBuffer,
+    target: &TargetRef,
+    title: &str,
+    view: &mut ViewState,
+    typography: Typography,
+    action: &mut Action,
+) {
+    let width = if view.mode == Mode::Prose {
+        typography.width
+    } else {
+        ui.available_width()
     };
-    if view.mode == Mode::Structure {
-        if !typography.compact {
-            ui.label(theme::muted(
-                "仅当前目标声明体；保留缩进、注释与所有复杂控制语句。",
-            ));
+    theme::document_surface_titled(ui, title, width, |ui| {
+        // max_rect follows the content origin, whereas clip_rect stays on screen.
+        // A saved offset must never add the same distance to the page's height.
+        ui.set_min_height(ui.available_height());
+        if !typography.compact && theme::style_preset() != theme::StylePreset::Ledger {
+            theme::panel_header(ui, title, "");
         }
-        let mut source = projection.source.clone();
-        let offset = projection.range.start;
-        let id = egui::Id::new(("writing-structure", buffer.path(), &target.kind, &target.id));
-        view.restore_editor(ui, id, buffer, offset, &source);
-        let output = egui::TextEdit::multiline(&mut source)
-            .id(id)
-            .code_editor()
-            .desired_width(f32::INFINITY)
-            .desired_rows(18)
-            .show(ui);
-        if output.response.changed() {
-            action.error = buffer
-                .replace_range(
-                    projection.generation,
-                    projection.range,
-                    &projection.source,
-                    &source,
-                )
-                .err();
-        }
-        view.record_cursor(ui, &output, buffer, target, offset, &source);
-        view.pending_cursor = None;
-        return action;
-    }
-    if !typography.compact {
-        ui.label(theme::muted(
-            "正文块可直接修改；内插、链接、转义和行标记保留为源文。结构不执行，可切换结构视图。",
-        ));
-    }
-    ui.set_max_width(typography.width.min(ui.available_width()).max(120.0));
-    if projection.blocks.is_empty() {
-        ui.label("此来源还没有正文，请在结构视图开始写作。");
-    }
-    for block in &projection.blocks {
-        match block.kind {
-            WritingBlockKind::Prose => {
-                let mut text = block.text.clone();
-                let font = egui::FontId::proportional(typography.size);
-                let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, width: f32| {
-                    let mut job = egui::text::LayoutJob::simple(
-                        text.as_str().to_owned(),
-                        font.clone(),
-                        theme::TEXT(),
-                        width,
-                    );
-                    for section in &mut job.sections {
-                        section.format.line_height = Some(typography.size * typography.spacing);
-                    }
-                    ui.fonts(|fonts| fonts.layout_job(job))
-                };
-                let id = egui::Id::new((
-                    "writing-prose",
-                    buffer.path(),
-                    &target.kind,
-                    &target.id,
-                    block.range.start,
-                ));
-                view.restore_editor(ui, id, buffer, block.range.start, &text);
-                let output = egui::TextEdit::multiline(&mut text)
-                    .id(id)
-                    .font(font.clone())
-                    .layouter(&mut layouter)
-                    .desired_width(f32::INFINITY)
-                    .desired_rows(2)
-                    .show(ui);
-                if output.response.changed() {
-                    action.error = buffer
-                        .replace_prose(projection.generation, block, &text)
-                        .err();
-                }
-                view.record_cursor(ui, &output, buffer, target, block.range.start, &text);
-                if output.response.changed() {
-                    break;
-                }
-            }
-            WritingBlockKind::Structure if !block.text.is_empty() => {
-                egui::CollapsingHeader::new(theme::muted(&block.label))
-                    .id_salt(("writing-structure-detail", buffer.path(), block.range.start))
-                    .default_open(false)
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::Label::new(egui::RichText::new(&block.text).monospace()).wrap(),
-                        );
-                    });
-            }
-            _ => {
-                ui.add_space(4.0);
-            }
-        }
-    }
-    view.pending_cursor = None;
-    action
+        editors::draw(ui, project, buffer, target, view, typography, action);
+    });
 }

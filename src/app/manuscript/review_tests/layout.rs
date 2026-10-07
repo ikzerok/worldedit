@@ -65,6 +65,7 @@ fn inline_chinese_links_share_one_layout_job_and_respect_all_typography_settings
     for size in [16.0, 28.0] {
         for spacing in [1.0, 1.45, 2.0] {
             let typography = Typography {
+                source_size: 14.0,
                 compact: false,
                 size,
                 spacing,
@@ -306,6 +307,7 @@ fn focused_native_size_shows_two_endings_before_scrolling_without_shrinking_body
     let (ctx, mut app) = app_with_source(source);
     app.personal.settings.focus = true;
     app.manuscript.narrow_preview = true;
+    let expected_size = app.personal.appearance().body_size;
     let output = settle(&ctx, &mut app, vec2(1188.0, 848.0));
     let mut endings = 0;
     let mut sources = 0;
@@ -321,7 +323,7 @@ fn focused_native_size_shows_two_endings_before_scrolling_without_shrinking_body
                         .format
                         .font_id
                         .size
-                        == 16.0));
+                        == expected_size));
                 }
                 if text.galley.job.text == "定位原文" {
                     sources += 1;

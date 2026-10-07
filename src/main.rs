@@ -60,9 +60,9 @@ fn native_options() -> eframe::NativeOptions {
                     .expect("内置 worldedit 图标应为有效 PNG"),
             )
             .with_inner_size([1280.0, 760.0])
-            .with_min_inner_size([1040.0, 660.0])
+            .with_min_inner_size([760.0, 540.0])
             .with_decorations(false)
-            .with_transparent(true)
+            .with_transparent(false)
             .with_title("worldedit · worldline 作者工作台"),
         persist_window: false,
         ..Default::default()

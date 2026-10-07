@@ -83,7 +83,7 @@ pub(super) fn source_button(
         source_key,
     ));
     let response = super::focus::widget(ui, id, |ui| {
-        ui.add_enabled(reason.is_none(), egui::Button::new(label).wrap())
+        crate::theme::add_enabled(ui, reason.is_none(), egui::Button::new(label).wrap())
     });
     access.ime_focus.observe(ui.ctx(), before, &response);
     access.focus.reveal(ui, &response);

@@ -1,8 +1,38 @@
 //! 一体化窗口控制,保留原生拖动、最大化和八方向缩放。
-use crate::theme::{self, BORDER, CARD, ERROR, MUTED, TEXT};
+use crate::theme::{self, ERROR, MUTED, TEXT};
 #[cfg(not(target_arch = "wasm32"))]
 use egui::CursorIcon;
 use egui::{Context, Pos2, Rect, Sense, Stroke, Vec2, ViewportCommand};
+
+/// 安静的工具条动作：保留 egui 的键盘/悬停状态，仅去掉静止时的等权描边。
+pub fn quiet_scope<R>(ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    // 不建立子 Ui：横向换行必须由父级按每个真实按钮的尺寸安排。
+    let original = ui.style().clone();
+    ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
+    ui.visuals_mut().widgets.inactive.weak_bg_fill = egui::Color32::TRANSPARENT;
+    let result = contents(ui);
+    ui.set_style(original);
+    result
+}
+
+pub fn quiet_button(ui: &mut egui::Ui, title: &str) -> egui::Response {
+    quiet_scope(ui, |ui| ui.button(title))
+}
+
+/// 菜单入口安静，弹出菜单恢复完整基础样式，不能让 checkbox 丢掉必要轮廓。
+pub fn quiet_menu<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    quiet_scope(ui, |ui| {
+        ui.menu_button(title, |ui| {
+            let style = ui.ctx().style();
+            ui.set_style(style);
+            contents(ui)
+        })
+    })
+}
 
 const CONTROL_SIZE: Vec2 = Vec2::splat(32.0);
 const CONTROL_GAP: f32 = 2.0;
@@ -17,12 +47,7 @@ pub fn controls(ui: &mut egui::Ui) -> bool {
         ui.ctx().screen_rect().right() - f32::from(TITLE_INSET + CONTROLS_WIDTH),
         anchor.top(),
     );
-    let (focused, maximized) = ui.input(|i| {
-        (
-            i.viewport().focused.unwrap_or(true),
-            i.viewport().maximized.unwrap_or(false),
-        )
-    });
+    let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
     for (index, label) in [
         "最小化",
         if maximized { "还原" } else { "最大化" },
@@ -43,19 +68,17 @@ pub fn controls(ui: &mut egui::Ui) -> bool {
         response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
         let center = rect.center();
         let highlighted = response.hovered() || response.has_focus();
-        let hover = ui
-            .ctx()
-            .animate_bool_with_time(response.id, highlighted, 0.12);
-        ui.painter().rect_filled(
-            rect.shrink(1.0),
-            7,
-            if index == 2 {
-                theme::error_background()
-            } else {
-                CARD()
-            }
-            .linear_multiply(hover),
-        );
+        if highlighted {
+            ui.painter().rect_filled(
+                rect.shrink(1.0),
+                theme::shapes().control,
+                if index == 2 {
+                    theme::error_background()
+                } else {
+                    theme::HOVER()
+                },
+            );
+        }
         let ink = Stroke::new(
             if response.is_pointer_button_down_on() {
                 1.5_f32
@@ -68,10 +91,8 @@ pub fn controls(ui: &mut egui::Ui) -> bool {
                 } else {
                     TEXT()
                 }
-            } else if focused {
-                MUTED()
             } else {
-                MUTED().gamma_multiply(0.6)
+                MUTED()
             },
         );
         match index {
@@ -112,8 +133,8 @@ pub fn controls(ui: &mut egui::Ui) -> bool {
         if response.has_focus() {
             ui.painter().rect_stroke(
                 rect.shrink(1.0),
-                7,
-                Stroke::new(1.0_f32, BORDER()),
+                theme::shapes().control,
+                Stroke::new(theme::focus_width(), theme::FOCUS()),
                 egui::StrokeKind::Inside,
             );
         }
@@ -256,15 +277,15 @@ pub fn title_frame(ctx: &Context) -> egui::Frame {
     }) {
         0
     } else {
-        14
+        theme::shapes().window
     };
-    theme::panel()
+    theme::chrome()
         // 预留右侧控件空间,让原有标题/工具栏调用顺序保持兼容。
         .inner_margin(egui::Margin {
             left: TITLE_INSET,
             right: TITLE_INSET + CONTROLS_WIDTH + 8,
-            top: 12,
-            bottom: 12,
+            top: 8,
+            bottom: 8,
         })
         .corner_radius(egui::CornerRadius {
             nw: radius,
@@ -272,10 +293,6 @@ pub fn title_frame(ctx: &Context) -> egui::Frame {
             sw: 0,
             se: 0,
         })
-}
-
-pub fn subtitle(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).color(MUTED()).size(12.0));
 }
 
 #[cfg(test)]
@@ -288,7 +305,7 @@ mod tests {
             for maximized in [false, true] {
                 for index in 0..3 {
                     let ctx = Context::default();
-                    theme::install(&ctx);
+                    let _theme = theme::configure(&ctx, theme::ThemeMode::Light);
                     // 从窗口右边缘定位,不依赖调用方把 controls 放在工具栏的哪一端。
                     let pointer = Pos2::new(width - 102.0 + index as f32 * 34.0, 28.0);
                     for phase in 0..4 {

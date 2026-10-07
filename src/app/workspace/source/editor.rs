@@ -3,6 +3,7 @@ use super::text::{active_mention, source_link_at_cursor, source_selection};
 use crate::app::personal::source_view::SourceFrame;
 use crate::theme;
 mod layout;
+mod mentions;
 mod problem_marker;
 mod selection_action;
 use std::path::PathBuf;
@@ -46,8 +47,23 @@ impl WorldeditApp {
         crate::app::writing_workspace::prepare_text_undo(ctx, id, &text);
         let target = self.jump.take();
         let mut changed = false;
-        let source_focused = ctx.memory(|memory| memory.has_focus(id));
+        let mut source_focused = ctx.memory(|memory| memory.has_focus(id));
         let ime_events = ctx.input(|input| input.events.clone());
+        let ime_frame = ime_events
+            .iter()
+            .any(|event| matches!(event, egui::Event::Ime(_)));
+        let ime_committed = ime_events
+            .iter()
+            .any(|event| matches!(event, egui::Event::Ime(egui::ImeEvent::Commit(_))));
+        if ime_frame
+            && ctx.memory(|memory| memory.had_focus_last_frame(id) && memory.focused().is_none())
+        {
+            ctx.memory_mut(|memory| memory.request_focus(id));
+            source_focused = true;
+        }
+        if ime_frame && source_focused {
+            crate::app::object_picker::consume_candidate_ime_keys(ctx);
+        }
         for event in &ime_events {
             match event {
                 egui::Event::Ime(egui::ImeEvent::Enabled | egui::ImeEvent::Preedit(_))
@@ -80,8 +96,8 @@ impl WorldeditApp {
         let mut selection_anchor = None;
         let mut source_link_action = None;
         let language_version = self.project.language_version_kind();
-        let body_size = self.personal.settings.body_size;
-        let line_height = body_size * self.personal.settings.line_spacing;
+        let body_size = self.personal.appearance().source_size;
+        let line_height = body_size * self.personal.appearance().line_spacing;
         let wrap = self.personal.settings.source_wrap;
         let problem_range = self.problem_source_range(&path);
         let previous_view = self
@@ -133,21 +149,20 @@ impl WorldeditApp {
                         };
                     let editor_state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
                     let editor_focused = ctx.memory(|memory| memory.has_focus(id));
-                    if editor_focused && !self.ime_composing {
+                    if editor_focused && !self.ime_composing && !ime_frame {
                         if let Some(range) = editor_state.cursor.char_range() {
                             let cursor_char = range.primary.index;
                             let mention = (range.primary.index == range.secondary.index)
                                 .then(|| active_mention(&text, cursor_char))
                                 .flatten()
-                                .filter(|(_, query)| !query.is_empty());
+                                .filter(|(_, query)| !query.is_empty())
+                                .filter(|(at, query)| {
+                                    self.mention_suppression.as_ref()
+                                        != Some(&(path.clone(), *at, query.clone()))
+                                });
                             if let Some((at_char, query)) = mention {
-                                let candidates = self
-                                    .snapshot
-                                    .as_ref()
-                                    .map(|snapshot| {
-                                        snapshot.result.analysis.catalog.search_objects(&query)
-                                    })
-                                    .unwrap_or_default();
+                                let page = self.mention_page(ctx, &path, at_char, &query, true);
+                                let candidates = page.items;
                                 if !candidates.is_empty() {
                                     let matches_current =
                                         self.mention_selection.as_ref().is_some_and(
@@ -197,7 +212,9 @@ impl WorldeditApp {
                                             Some((path.clone(), at_char, query.clone()));
                                     } else if ctx.input_mut(|input| {
                                         input.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
-                                    }) {
+                                    }) && !page.stale
+                                        && page.visible.contains(&candidates[selected_index].target)
+                                    {
                                         mention_action = Some((
                                             at_char,
                                             query.clone(),
@@ -240,7 +257,7 @@ impl WorldeditApp {
                     let mut output = egui::TextEdit::multiline(&mut text)
                         .id(id)
                         .code_editor()
-                        .font(egui::FontId::monospace(body_size))
+                        .font(theme::source_font(body_size))
                         .desired_width(if wrap {
                             ui.available_width().max(1.0)
                         } else {
@@ -295,7 +312,19 @@ impl WorldeditApp {
                             }
                         }
                     }
-                    let active = if self.ime_composing {
+                    // Commit 帧只准备浮层首次不可见测量，不能响应候选操作。
+                    let active = if self.ime_composing
+                        || (ime_frame && !ime_committed)
+                        || !self.source_mention_has_input(ctx, &path)
+                        || self.command_palette.open
+                        || self.search_open
+                        || self.personal.preferences_open
+                        || self
+                            .command_palette
+                            .focus_stack
+                            .iter()
+                            .any(|(kind, _)| *kind != "problems")
+                    {
                         None
                     } else {
                         output
@@ -306,6 +335,19 @@ impl WorldeditApp {
                             .and_then(|range| active_mention(&text, range.primary.index))
                             .filter(|(_, query)| !query.is_empty())
                     };
+                    if active.is_some() || self.ime_composing || ime_frame {
+                        ui.memory_mut(|memory| {
+                            memory.set_focus_lock_filter(
+                                id,
+                                egui::EventFilter {
+                                    tab: true,
+                                    horizontal_arrows: true,
+                                    vertical_arrows: true,
+                                    escape: true,
+                                },
+                            )
+                        });
+                    }
                     let active_key = active
                         .as_ref()
                         .map(|(at_char, query)| (path.clone(), *at_char, query.clone()));
@@ -332,18 +374,15 @@ impl WorldeditApp {
                     if let Some((at_char, query)) = active {
                         let key = (path.clone(), at_char, query.clone());
                         if self.mention_suppression.as_ref() != Some(&key) {
-                            if ctx.input_mut(|input| {
-                                input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)
-                            }) {
+                            if !ime_frame
+                                && ctx.input_mut(|input| {
+                                    input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)
+                                })
+                            {
                                 self.mention_suppression = Some(key);
                             } else {
-                                let candidates = self
-                                    .snapshot
-                                    .as_ref()
-                                    .map(|snapshot| {
-                                        snapshot.result.analysis.catalog.search_objects(&query)
-                                    })
-                                    .unwrap_or_default();
+                                let candidates =
+                                    self.mention_page(ctx, &path, at_char, &query, false).items;
                                 let index = self
                                     .mention_selection
                                     .as_ref()
@@ -370,9 +409,7 @@ impl WorldeditApp {
                                         .translate(output.galley_pos.to_vec2())
                                         .left_bottom(),
                                 );
-                                if !candidates.is_empty() {
-                                    mention_popup = Some((at_char, query, candidates, index));
-                                }
+                                mention_popup = Some((at_char, query, index));
                             }
                         }
                     }
@@ -410,8 +447,12 @@ impl WorldeditApp {
                             .translate(output.galley_pos.to_vec2());
                         ui.scroll_to_rect(rect, Some(egui::Align::Center));
                     }
-                    source_frame =
-                        Some(SourceFrame::new(&output, viewport, &self.personal.settings));
+                    source_frame = Some(SourceFrame::new(
+                        &output,
+                        viewport,
+                        self.personal.appearance(),
+                        wrap,
+                    ));
                 });
                 if restoring_scroll {
                     ui.scroll_to_rect(ui.clip_rect(), None);
@@ -427,49 +468,14 @@ impl WorldeditApp {
             self.personal.source_view = Some((path.clone(), view));
         }
         self.personal.source_scroll = [scroll_output.state.offset.x, scroll_output.state.offset.y];
-        if let (Some((at_char, query, candidates, selected_index)), Some(anchor)) =
+        if let (Some((at_char, query, selected_index)), Some(anchor)) =
             (mention_popup.take(), mention_anchor)
         {
-            let screen = ctx.screen_rect();
-            let pos = egui::pos2(
-                anchor.x.clamp(
-                    screen.left() + 8.0,
-                    (screen.right() - 440.0).max(screen.left() + 8.0),
-                ),
-                anchor.y.clamp(
-                    screen.top() + 8.0,
-                    (screen.bottom() - 120.0).max(screen.top() + 8.0),
-                ),
-            );
-            egui::Area::new(egui::Id::new(("source-mention-popup", &path)))
-                .order(egui::Order::Foreground)
-                .fixed_pos(pos)
-                .show(ctx, |ui| {
-                    egui::Frame::popup(ui.style()).show(ui, |ui| {
-                        ui.label(format!("引用 @{query}："));
-                        ui.horizontal_wrapped(|ui| {
-                            for (index, candidate) in candidates.into_iter().enumerate() {
-                                let label = format!(
-                                    "{} · {} · {}:{}",
-                                    super::super::super::catalog::kind_label(
-                                        &candidate.target.kind
-                                    ),
-                                    candidate.display,
-                                    candidate.target.kind,
-                                    candidate.target.id
-                                );
-                                if ui
-                                    .selectable_label(index == selected_index, &label)
-                                    .clicked()
-                                {
-                                    mention_action =
-                                        Some((at_char, query.clone(), candidate.target));
-                                }
-                            }
-                        });
-                        ui.label(theme::muted("↑ / ↓ 选择 · Enter 插入 · Esc 收起"));
-                    });
-                });
+            if let Some(target) =
+                self.mention_popup(ctx, &path, anchor, at_char, &query, selected_index)
+            {
+                mention_action = Some((at_char, query, target));
+            }
         }
         if let Some(selection) = self.source_selection_suggestion(
             ctx,

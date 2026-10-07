@@ -83,7 +83,8 @@ impl ReaderPublishState {
             .id_salt("reader-profile-save")
             .show(ui, |ui| {
                 ui.label("配置 ID（字母、数字、_ 或 -）");
-                ui.add_enabled(
+                crate::theme::add_enabled(
+                    ui,
                     self.profile.is_none(),
                     egui::TextEdit::singleline(&mut self.profile_id),
                 );

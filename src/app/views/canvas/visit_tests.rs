@@ -39,7 +39,7 @@ fn contrast(foreground: Color32, background: [f64; 3]) -> f64 {
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
 
-// Color32 存放预乘 sRGBA；按绘制顺序将卡片和阴影合成到不透明画布基色。
+// Color32 存放预乘 sRGBA；仅把文字之前实际覆盖该点的填充按绘制顺序合成。
 fn composite(foreground: Color32, background: [f64; 3]) -> [f64; 3] {
     let alpha = f64::from(foreground.a()) / 255.0;
     let front = rgb(foreground);
@@ -59,59 +59,120 @@ fn text_shapes(output: &egui::FullOutput) -> Vec<&egui::epaint::TextShape> {
 
 #[test]
 fn visit_marker_contrast_tracks_actual_node_fills_in_light_and_dark_states() {
-    for mode in [ThemeMode::Light, ThemeMode::Dark] {
-        let ctx = Context::default();
-        theme::configure(&ctx, mode);
-        for selected in [false, true] {
-            for hovered in [false, true] {
-                for search in ["", "不匹配的搜索"] {
-                    let rect = Rect::from_min_size(Pos2::new(30.0, 30.0), Vec2::new(WIDTH, HEIGHT));
-                    let output = ctx.run(RawInput::default(), |ctx| {
-                        egui::CentralPanel::default().show(ctx, |ui| {
-                            draw_node(
-                                ui.painter(),
-                                rect,
-                                &node(),
-                                selected,
-                                hovered,
-                                NodeHeading::Sequence,
-                                search,
-                            );
-                            draw_visit_marker(ui.painter(), rect, 1.0, 7);
-                        });
-                    });
-                    let mut surface = rgb(BG());
-                    let mut layers = 0;
-                    for shape in &output.shapes {
-                        if let Shape::Rect(fill) = &shape.shape {
-                            if (fill.rect == rect
-                                || fill.rect == rect.translate(Vec2::new(0.0, 4.0)))
-                                && fill.fill.a() > 0
-                            {
-                                surface = composite(fill.fill, surface);
-                                layers += 1;
-                            }
+    for palette in theme::PaletteId::ALL {
+        for mode in [ThemeMode::Light, ThemeMode::Dark] {
+            for style in [
+                theme::StylePreset::Studio,
+                theme::StylePreset::Manuscript,
+                theme::StylePreset::Technical,
+                theme::StylePreset::Focus,
+                theme::StylePreset::Ledger,
+            ] {
+                let ctx = Context::default();
+                let _theme = theme::configure_appearance(
+                    &ctx,
+                    &theme::AppearancePreferences {
+                        palette,
+                        theme: mode,
+                        style,
+                        ..Default::default()
+                    },
+                );
+                for selected in [false, true] {
+                    for hovered in [false, true] {
+                        for search in ["", "不匹配的搜索"] {
+                            assert_node_marker(&ctx, selected, hovered, search);
                         }
-                    }
-                    assert_eq!(layers, 2, "应读取实际节点阴影和卡片填充");
-                    let texts = text_shapes(&output);
-                    let marker = texts
-                        .iter()
-                        .find(|text| text.galley.job.text == "访问 ×7")
-                        .expect("访问次数必须保留明确文字，不能只靠颜色");
-                    assert!(!marker.galley.job.sections.is_empty());
-                    for section in &marker.galley.job.sections {
-                        let color = section.format.color;
-                        assert_eq!(color, SUCCESS());
-                        assert_eq!(color.a(), 255, "搜索淡出不应淡化访问次数");
-                        assert!(
-                            contrast(color, surface) >= 4.5,
-                            "{mode:?}, selected={selected}, hovered={hovered}, search={search:?}"
-                        );
                     }
                 }
             }
         }
+    }
+}
+fn assert_node_marker(ctx: &Context, selected: bool, hovered: bool, search: &str) {
+    let colors = theme::resolved(ctx).colors;
+    let rect = Rect::from_min_size(Pos2::new(30.0, 30.0), Vec2::new(WIDTH, HEIGHT));
+    let output = ctx.run(RawInput::default(), |ctx| {
+        egui::CentralPanel::default()
+            .frame(theme::panel().fill(colors.workspace))
+            .show(ctx, |ui| {
+                draw_node(
+                    ui.painter(),
+                    rect,
+                    &node(),
+                    selected,
+                    hovered,
+                    NodeHeading::Sequence,
+                    search,
+                );
+                draw_visit_marker(ui.painter(), rect, 1.0, 7);
+            });
+    });
+    let fills: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            Shape::Rect(fill) if fill.rect == rect && fill.fill.a() > 0 => Some(fill.fill),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        fills,
+        vec![if selected {
+            colors.selection
+        } else if hovered {
+            colors.hover
+        } else {
+            colors.document
+        }],
+        "节点必须使用真实的新表面状态填充"
+    );
+    assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape,
+        Shape::Rect(fill) if fill.rect == rect.translate(Vec2::new(0.0, 4.0)) && fill.fill.a() > 0)),
+        "新节点结构不应恢复旧的偏移阴影");
+    let (index, marker) = output
+        .shapes
+        .iter()
+        .enumerate()
+        .find_map(|(index, shape)| match &shape.shape {
+            Shape::Text(text) if text.galley.job.text == "访问 ×7" => Some((index, text)),
+            _ => None,
+        })
+        .expect("访问次数必须保留明确文字，不能只靠颜色");
+    let visible = marker
+        .visual_bounding_rect()
+        .intersect(output.shapes[index].clip_rect);
+    assert!(visible.is_positive(), "访问文字必须真实可见");
+    let point = visible.center();
+    let mut surface = [0.0; 3];
+    let mut opaque = false;
+    for shape in &output.shapes[..index] {
+        if let Shape::Rect(fill) = &shape.shape {
+            if shape.clip_rect.contains(point) && fill.rect.contains(point) {
+                surface = composite(fill.fill, surface);
+                opaque |= fill.fill.a() == 255;
+            }
+        }
+    }
+    assert!(opaque, "访问文字下必须有实际不透明表面；不能凭BG猜测");
+    // Technical's title band can cover the main node fill at this exact text position.
+    let actual_background =
+        if theme::resolved(ctx).preferences.style == theme::StylePreset::Technical {
+            colors.chrome
+        } else {
+            fills[0]
+        };
+    assert_eq!(surface, rgb(actual_background));
+    assert!(!marker.galley.job.sections.is_empty());
+    for section in &marker.galley.job.sections {
+        let color = section.format.color;
+        assert_eq!(color, colors.success);
+        assert_eq!(color.a(), 255, "搜索淡出不应淡化访问次数");
+        assert!(
+            contrast(color, surface) >= 4.5,
+            "{:?}: selected={selected}, hovered={hovered}, search={search:?}",
+            theme::resolved(ctx).preferences
+        );
     }
 }
 
@@ -119,7 +180,7 @@ fn visit_marker_contrast_tracks_actual_node_fills_in_light_and_dark_states() {
 fn zoomed_visit_marker_has_exact_count_in_unscaled_hover_text() {
     for mode in [ThemeMode::Light, ThemeMode::Dark] {
         let ctx = Context::default();
-        theme::configure(&ctx, mode);
+        let _theme = theme::configure(&ctx, mode);
         for zoom in [0.25, 0.5, 1.0, 1.6] {
             for count in [0, 1, 27, u32::MAX] {
                 let output = ctx.run(RawInput::default(), |ctx| {
@@ -156,7 +217,7 @@ fn zoomed_visit_marker_has_exact_count_in_unscaled_hover_text() {
 #[test]
 fn nodes_without_visit_counts_keep_no_coverage_label() {
     let ctx = Context::default();
-    theme::configure(&ctx, ThemeMode::Light);
+    let _theme = theme::configure(&ctx, ThemeMode::Light);
     let output = ctx.run(RawInput::default(), |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
             node_hover_ui(ui, &node(), None);

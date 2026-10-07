@@ -186,7 +186,8 @@ fn source_button(
     jump: &mut Option<EvidenceNavigationRequest>,
 ) {
     let reason = access.source_reason(source);
-    let response = ui.add_enabled(reason.is_none(), egui::Button::new(caption).small());
+    let response =
+        crate::theme::add_enabled(ui, reason.is_none(), egui::Button::new(caption).small());
     if response.clicked() {
         if let Some(source) = source {
             *jump = Some(EvidenceNavigationRequest {

@@ -3,7 +3,7 @@
 //! 全部按字节偏移工作(关键字与标记均为 ASCII,段落边界只落在 ASCII 边界上)。
 
 use egui::text::{LayoutJob, LayoutSection, TextFormat};
-use egui::{Color32, FontId};
+use egui::Color32;
 use worldline_core::LanguageVersion;
 
 const KEYWORDS: &[&str] = &[
@@ -58,44 +58,28 @@ const KEYWORDS: &[&str] = &[
 ];
 
 fn c_default() -> Color32 {
-    crate::theme::TEXT()
+    crate::theme::syntax_palette().plain
 }
 fn c_keyword() -> Color32 {
-    crate::theme::ACCENT()
+    crate::theme::syntax_palette().keyword
 }
 fn c_symbol() -> Color32 {
-    crate::theme::GOLD()
+    crate::theme::syntax_palette().reference
 }
 fn c_string() -> Color32 {
-    if crate::theme::is_light() {
-        Color32::from_rgb(34, 106, 49)
-    } else {
-        Color32::from_rgb(150, 220, 150)
-    }
+    crate::theme::syntax_palette().string
 }
 fn c_comment() -> Color32 {
-    crate::theme::MUTED()
+    crate::theme::syntax_palette().comment
 }
 fn c_divert() -> Color32 {
-    if crate::theme::is_light() {
-        Color32::from_rgb(146, 62, 19)
-    } else {
-        Color32::from_rgb(255, 150, 90)
-    }
+    crate::theme::syntax_palette().reference
 }
 fn c_tag() -> Color32 {
-    if crate::theme::is_light() {
-        Color32::from_rgb(106, 49, 155)
-    } else {
-        Color32::from_rgb(200, 160, 255)
-    }
+    crate::theme::syntax_palette().tag
 }
 fn c_interp() -> Color32 {
-    if crate::theme::is_light() {
-        Color32::from_rgb(0, 106, 103)
-    } else {
-        Color32::from_rgb(110, 220, 210)
-    }
+    crate::theme::syntax_palette().tag
 }
 
 /// 生成整段源码的 LayoutJob(逐行状态机,支持跨行块注释)。
@@ -103,7 +87,7 @@ pub fn layout_job(text: &str, size: f32, language_version: LanguageVersion) -> L
     if text.is_empty() {
         return LayoutJob::simple(
             String::new(),
-            FontId::monospace(size),
+            crate::theme::source_font(size),
             c_default(),
             f32::INFINITY,
         );
@@ -152,7 +136,7 @@ fn push(job: &mut LayoutJob, range: std::ops::Range<usize>, color: Color32, size
     job.sections.push(LayoutSection {
         leading_space: 0.0,
         byte_range: range,
-        format: TextFormat::simple(FontId::monospace(size), color),
+        format: TextFormat::simple(crate::theme::source_font(size), color),
     });
 }
 
@@ -357,7 +341,7 @@ fn inline(job: &mut LayoutJob, code: &str, from: usize, base: usize, size: f32) 
             }
             replacement.push(LayoutSection {
                 byte_range: pos..pos + 1,
-                format: TextFormat::simple(FontId::monospace(size), c_divert()),
+                format: TextFormat::simple(crate::theme::source_font(size), c_divert()),
                 leading_space: 0.0,
             });
             if pos + 1 < section.byte_range.end {

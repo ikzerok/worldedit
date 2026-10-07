@@ -23,7 +23,7 @@ fn selected_row_keeps_a_three_pixel_accent_boundary_without_keyboard_focus() {
     for mode in [theme::ThemeMode::Dark, theme::ThemeMode::Light] {
         for selected in [false, true] {
             let (ctx, app) = app();
-            theme::configure(&ctx, mode);
+            let _theme = theme::configure(&ctx, mode);
             let problem = app.problems.report.as_ref().unwrap().entries[0].clone();
             let mut row = egui::Rect::NOTHING;
             let output = ctx.run(Default::default(), |ctx| {

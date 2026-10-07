@@ -245,7 +245,8 @@ impl WorldeditApp {
             ui.label(theme::muted(
                 "关系 ID · 同一对端点可有多条关系，不能按名称合并",
             ));
-            ui.add_enabled(
+            crate::theme::add_enabled(
+                ui,
                 form.original.is_none(),
                 egui::TextEdit::singleline(&mut form.draft.id),
             );
@@ -261,9 +262,7 @@ impl WorldeditApp {
                 && kind.is_some()
                 && catalog.object(&form.draft.from).is_some()
                 && catalog.object(&form.draft.to).is_some();
-            if ui
-                .add_enabled(ready, theme::primary("应用独立关系"))
-                .clicked()
+            if crate::theme::add_enabled(ui, ready, theme::primary("应用独立关系")).clicked()
             {
                 let before = self.project.clone();
                 let result = form.apply(&mut self.project, self.version);
@@ -306,12 +305,12 @@ impl WorldeditApp {
                 kind_constraint(ui, "起点类型", &mut form.draft.from_kind);
                 kind_constraint(ui, "终点类型", &mut form.draft.to_kind);
                 ui.label(theme::muted("稳定 ID"));
-                ui.add_enabled(form.original.is_none(), egui::TextEdit::singleline(&mut form.draft.id));
+                crate::theme::add_enabled(ui, form.original.is_none(), egui::TextEdit::singleline(&mut form.draft.id));
                 let current = form.guard.is_current(&self.project, self.version);
                 if !current { ui.colored_label(theme::GOLD(), "工程已变化，请保留输入并重新打开后合并。"); }
                 if !self.project.language_version_kind().supports_relations() { ui.colored_label(theme::GOLD(), "关系类型需要显式启用语言 1.10 与 content.relations.v1，不会自动升级旧项目。"); }
                 if !self.project.language_version_kind().supports_relations() && ui.button("查看语言与资料能力…").clicked() { self.open_capabilities(); }
-                if ui.add_enabled(current && self.project.language_version_kind().supports_relations() && !form.draft.display.trim().is_empty(), theme::primary("应用关系类型")).clicked() {
+                if crate::theme::add_enabled(ui, current && self.project.language_version_kind().supports_relations() && !form.draft.display.trim().is_empty(), theme::primary("应用关系类型")).clicked() {
                     let before = self.project.clone();
                     let result = form.apply(&mut self.project, self.version);
                     applied = self.finish_content_command(before, result, "关系类型已更新；现在可以新建关系");

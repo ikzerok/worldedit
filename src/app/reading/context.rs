@@ -141,13 +141,13 @@ impl WorldeditApp {
                 }
                 let node = result.nodes.iter().find(|node| node.target == *target);
                 let display = node.map_or(target.id.as_str(), |node| node.display.as_str());
-                if ui
-                    .add_enabled(
-                        node.is_some_and(|node| node.exists),
-                        egui::Button::new(display),
-                    )
-                    .on_hover_text(format!("{}:{}", target.kind, target.id))
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    node.is_some_and(|node| node.exists),
+                    egui::Button::new(display),
+                )
+                .on_hover_text(format!("{}:{}", target.kind, target.id))
+                .clicked()
                 {
                     self.open_reading(target.clone());
                 }

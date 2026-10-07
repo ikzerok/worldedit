@@ -95,9 +95,10 @@ impl WorldeditApp {
                 if self.catalog_filter == "tag" && self.catalog_target.is_none() && editor.is_none() {
                     ui.heading("全部标签");
                     ui.label(theme::muted("点击标签即可编辑、给它添加标签，并查看关联对象。左侧搜索按名称、ID 或别名筛选。"));
-                    for object in catalog.search_objects(&self.catalog_query).into_iter().filter(|o| o.target.kind == "tag") {
+                    for object in self.applied_object_candidates(ui, &catalog, "tag-overview", &self.catalog_query, &["tag"]) {
                         let count = catalog.query(&object.target.id, false).len();
-                        if ui.button(format!("# {} · {} · {} 个关联对象", object.display, object.target.id, count)).clicked() {
+                        if ui.push_id((self.version, &self.catalog_query, &object.target.kind, &object.target.id), |ui|
+                            ui.button(format!("# {} · {} · {} 个关联对象", object.display, object.target.id, count))).inner.clicked() {
                             self.catalog_target = Some(object.target.clone());
                         }
                     }
@@ -108,7 +109,7 @@ impl WorldeditApp {
                 if let Some((original, draft)) = &mut editor {
                     theme::card().show(ui, |ui| {
                         ui.label(theme::muted("标签 ID · 引用身份"));
-                        ui.add_enabled(original.is_none(), egui::TextEdit::singleline(&mut draft.id).desired_width(f32::INFINITY));
+                        crate::theme::add_enabled(ui, original.is_none(), egui::TextEdit::singleline(&mut draft.id).desired_width(f32::INFINITY));
                         field(ui, "标签名称", &mut draft.display);
                         ui.label(theme::muted("说明"));
                         ui.add(egui::TextEdit::multiline(&mut draft.description).desired_rows(2).desired_width(f32::INFINITY));
@@ -126,7 +127,7 @@ impl WorldeditApp {
                             ui.label(theme::muted("引用路径")); ui.label(&asset.path);
                             theme::source_path(ui, &self.project.root, std::path::Path::new(&asset.resolved_path));
                             ui.horizontal_wrapped(|ui| {
-                                if ui.add_enabled(asset.available, egui::Button::new(crate::media::OPEN_REFERENCE_LABEL)).clicked() {
+                                if crate::theme::add_enabled(ui, asset.available, egui::Button::new(crate::media::OPEN_REFERENCE_LABEL)).clicked() {
                                     if let Err(error) = crate::media::open_reference(&self.project.root, std::path::Path::new(&asset.resolved_path)) { self.io_error = Some(error); }
                                 }
                                 if ui.button("复制路径").clicked() { ui.ctx().copy_text(asset.resolved_path.clone()); }

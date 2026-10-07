@@ -9,29 +9,29 @@ impl MapCanvas {
             let enabled = self.snapshot.measurement.is_some()
                 && self.measurement.calibration.is_none()
                 && !(self.is_edit_mode() && self.svg_import.open);
-            if ui
-                .add_enabled(
-                    enabled,
-                    egui::Button::new("尺子 · 只读").selected(self.measurement.ruler),
-                )
-                .on_disabled_hover_text("先在编辑展示中完成两点校准；当前校准须先确认或取消")
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                enabled,
+                egui::Button::new("尺子 · 只读").selected(self.measurement.ruler),
+            )
+            .on_disabled_hover_text("先在编辑展示中完成两点校准；当前校准须先确认或取消")
+            .clicked()
             {
                 self.set_ruler(!self.measurement.ruler);
             }
             if self.is_edit_mode()
                 && self.measurement.calibration.is_none()
-                && ui
-                    .add_enabled(
-                        !self.has_uncommitted_work() && !self.measurement_blocked,
-                        egui::Button::new(if self.snapshot.measurement.is_some() {
-                            "重新校准"
-                        } else {
-                            "两点校准"
-                        }),
-                    )
-                    .on_disabled_hover_text("请先完成或取消当前绘制和表单")
-                    .clicked()
+                && crate::theme::add_enabled(
+                    ui,
+                    !self.has_uncommitted_work() && !self.measurement_blocked,
+                    egui::Button::new(if self.snapshot.measurement.is_some() {
+                        "重新校准"
+                    } else {
+                        "两点校准"
+                    }),
+                )
+                .on_disabled_hover_text("请先完成或取消当前绘制和表单")
+                .clicked()
             {
                 self.begin_calibration();
             }
@@ -88,7 +88,7 @@ impl MapCanvas {
             "校准草稿已保留 · 返回编辑展示后可继续"
         });
         let draft = self.measurement.calibration.as_mut().unwrap();
-        ui.add_enabled_ui(editing, |ui| {
+        crate::theme::add_enabled_ui(ui, editing, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(match draft.points.len() {
                     0 => "在地图内点选参照点 A",
@@ -131,13 +131,13 @@ impl MapCanvas {
         let mut confirm = false;
         let mut cancel = false;
         ui.horizontal_wrapped(|ui| {
-            confirm = ui
-                .add_enabled(
-                    editing && validation.is_ok() && !unchanged,
-                    egui::Button::new("确认保存校准"),
-                )
-                .on_hover_text("提交一个可撤销的展示命令；保存工程后保留校准")
-                .clicked();
+            confirm = crate::theme::add_enabled(
+                ui,
+                editing && validation.is_ok() && !unchanged,
+                egui::Button::new("确认保存校准"),
+            )
+            .on_hover_text("提交一个可撤销的展示命令；保存工程后保留校准")
+            .clicked();
             cancel = ui.button("取消校准").clicked();
             ui.label(crate::theme::muted("Esc 取消"));
         });

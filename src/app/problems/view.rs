@@ -82,17 +82,23 @@ pub(super) fn role_label(role: worldline_core::problems::ProblemSourceRole) -> &
 
 pub(super) fn reading_job(
     text: &str,
-    settings: &crate::app::personal::Settings,
+    settings: &crate::theme::AppearancePreferences,
     monospace: bool,
 ) -> egui::text::LayoutJob {
     let font = if monospace {
-        egui::FontId::monospace(settings.body_size)
+        theme::source_font(settings.source_size)
     } else {
-        egui::FontId::proportional(settings.body_size)
+        theme::body_font(settings.body_size)
     };
     let mut job = egui::text::LayoutJob::simple(text.into(), font, theme::TEXT(), f32::INFINITY);
     for section in &mut job.sections {
-        section.format.line_height = Some(settings.body_size * settings.line_spacing);
+        section.format.line_height = Some(
+            if monospace {
+                settings.source_size
+            } else {
+                settings.body_size
+            } * settings.line_spacing,
+        );
     }
     job
 }
@@ -100,7 +106,7 @@ pub(super) fn reading_job(
 pub(super) fn reading_label(
     ui: &mut egui::Ui,
     text: &str,
-    settings: &crate::app::personal::Settings,
+    settings: &crate::theme::AppearancePreferences,
     monospace: bool,
 ) {
     ui.add(egui::Label::new(reading_job(text, settings, monospace)).wrap());
@@ -112,7 +118,7 @@ pub(super) fn location_ui(
     scope: egui::Id,
     location: &ProblemLocation,
     current: bool,
-    settings: &crate::app::personal::Settings,
+    settings: &crate::theme::AppearancePreferences,
 ) -> bool {
     ui.strong(label);
     let text = location_label(location);
@@ -284,7 +290,7 @@ pub(super) fn detail_button(
     label: &str,
     enabled: bool,
 ) -> egui::Response {
-    ui.add_enabled_ui(enabled, |ui| {
+    crate::theme::add_enabled_ui(ui, enabled, |ui| {
         let painted = ui.add(egui::Button::new(label).small().sense(egui::Sense::hover()));
         let response = ui.interact(painted.rect, id, egui::Sense::click());
         if response.has_focus() || response.hovered() {

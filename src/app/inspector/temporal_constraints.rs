@@ -202,7 +202,8 @@ fn predecessor_row(
         let response = ui
             .scope(|ui| {
                 ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-                ui.add_enabled(
+                crate::theme::add_enabled(
+                    ui,
                     writable || selected,
                     egui::Checkbox::new(&mut selected, &identity),
                 )

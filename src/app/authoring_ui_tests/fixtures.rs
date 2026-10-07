@@ -9,9 +9,11 @@ pub(super) fn app() -> (egui::Context, WorldeditApp) {
 
 fn app_in_directory(directory: &std::path::Path) -> (egui::Context, WorldeditApp) {
     let ctx = egui::Context::default();
-    ctx.style_mut(|style| style.animation_time = 0.0);
     let creation = eframe::CreationContext::_new_kittest(ctx.clone());
     let mut app = WorldeditApp::new(&creation, None);
+    // 初始化后通过真实偏好禁动画；App安装主题不得覆盖测试的确定性时序。
+    app.personal.settings.appearance.reduce_motion = true;
+    let _theme = crate::theme::configure_appearance(&ctx, app.personal.appearance());
     let root = directory.join(format!(
         "worldedit-form-ui-{}-{}-{}",
         std::process::id(),

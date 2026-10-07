@@ -4302,7 +4302,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "worldedit"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "eframe",
  "egui",
@@ -4322,7 +4322,7 @@ dependencies = [
 
 [[package]]
 name = "worldline-core"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "libc",
  "quick-xml",
@@ -4335,7 +4335,7 @@ dependencies = [
 
 [[package]]
 name = "worldline-runtime"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "self_cell",
  "serde",

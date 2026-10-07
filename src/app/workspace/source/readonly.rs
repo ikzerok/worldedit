@@ -72,7 +72,7 @@ impl WorldeditApp {
         }
         self.personal.restore_source = false;
         let output = scroll.show(ui, |ui| {
-            ui.add_enabled_ui(!read_only, |ui| {
+            crate::theme::add_enabled_ui(ui, !read_only, |ui| {
                 let mut output = egui::TextEdit::multiline(&mut text)
                     .id(id)
                     .code_editor()

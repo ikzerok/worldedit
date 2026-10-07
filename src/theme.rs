@@ -1,310 +1,196 @@
-//! 作者工作台的统一色彩、间距与控件样式。
-use egui::{Color32, FontId, RichText, Stroke, TextStyle, Vec2};
-
+//! v0.30 语义色、结构、密度与排版。设备偏好经每 Context 解析后使用。
+use egui::{Color32, FontId, RichText, Stroke, Vec2};
+mod availability;
+mod geometry;
+mod installation;
+mod palette;
+mod preferences;
+mod resolved;
 mod sources;
+mod surfaces;
+#[cfg(target_arch = "wasm32")]
+mod web_shell;
+#[cfg(test)]
+pub use installation::configure;
+pub use installation::{resolved, FrameThemeGuard};
+pub fn configure_appearance(ctx: &egui::Context, p: &AppearancePreferences) -> FrameThemeGuard {
+    installation::configure_appearance(ctx, p)
+}
+pub use availability::{add_enabled, add_enabled_ui, add_enabled_with_colors, disable};
+pub use geometry::{document_geometry, DocumentGeometry};
+pub use palette::{Colors, SyntaxPalette};
+pub(crate) use preferences::bounded;
+pub use preferences::{
+    AccentChoice, AppearancePreferences, BodyFamily, Density, PaletteId, PaletteModeSupport,
+    StylePreset, ThemeMode,
+};
+pub use resolved::{resolve, Metrics, ResolvedTheme, Shapes};
 pub use sources::{relative_source, source_caption, source_path, technical_value};
+pub use surfaces::{
+    card, chrome, index_panel, page_heading, panel, panel_header, popup, selection_frame, toolbar,
+};
+
+pub fn document_surface<R>(
+    ui: &mut egui::Ui,
+    max_width: f32,
+    contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    document_surface_titled(ui, "内容", max_width, contents)
+}
+pub fn document_surface_titled<R>(
+    ui: &mut egui::Ui,
+    label: &str,
+    max_width: f32,
+    contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    surfaces::document_surface_titled(ui, label, max_width, contents)
+}
 
 pub const SPACE_XS: f32 = 4.0;
 pub const SPACE_SM: f32 = 8.0;
 pub const SPACE_MD: f32 = 12.0;
 pub const SPACE_LG: f32 = 16.0;
 pub const SPACE_XL: f32 = 24.0;
-pub const CONTROL_HEIGHT: f32 = 32.0;
+#[cfg(test)]
+pub const CONTROL_HEIGHT: f32 = 30.0;
 pub const INDEX_WIDTH: f32 = 232.0;
 pub const INSPECTOR_WIDTH: f32 = 288.0;
 pub const BODY_SIZE: f32 = 14.0;
-pub const META_SIZE: f32 = 12.0;
+pub const META_SIZE: f32 = 13.0;
 pub const HEADING_SIZE: f32 = 22.0;
 
-thread_local! { static LIGHT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum ThemeMode {
-    #[default]
-    Dark,
-    Light,
-    System,
+macro_rules! color_role {
+    ($($name:ident => $field:ident),+ $(,)?) => {$(
+        #[allow(non_snake_case)]
+        pub fn $name() -> Color32 { installation::current().colors.$field }
+    )+};
 }
-
-#[allow(non_snake_case)]
-pub fn BG() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(248, 249, 252)
-    } else {
-        Color32::from_rgb(22, 23, 27)
-    }
+color_role! {
+    BG => workspace, CHROME => chrome, NAVIGATION => chrome, PANEL => panel,
+    DOCUMENT => document, CARD => raised, TEXT => text, MUTED => secondary,
+    BORDER => subtle_border, CONTROL_BORDER => control_border, ACCENT => accent,
+    HOVER => hover, SELECTION => selection, FOCUS => focus,
+    BLUE => info, GOLD => warning, ERROR => danger, WARNING => warning,
+    SUCCESS => success, ANCHOR => success,
 }
-#[allow(non_snake_case)]
-pub fn PANEL() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(242, 244, 248)
-    } else {
-        Color32::from_rgb(29, 30, 35)
-    }
-}
-#[allow(non_snake_case)]
-pub fn CARD() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(255, 255, 255)
-    } else {
-        Color32::from_rgb(38, 40, 46)
-    }
-}
-#[allow(non_snake_case)]
-pub fn BORDER() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(190, 197, 209)
-    } else {
-        Color32::from_rgb(53, 55, 63)
-    }
-}
-#[allow(non_snake_case)]
-pub fn TEXT() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(31, 38, 50)
-    } else {
-        Color32::from_rgb(237, 239, 245)
-    }
-}
-#[allow(non_snake_case)]
-pub fn MUTED() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(79, 91, 110)
-    } else {
-        Color32::from_rgb(156, 160, 172)
-    }
-}
-#[allow(non_snake_case)]
-pub fn ACCENT() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(27, 81, 158)
-    } else {
-        Color32::from_rgb(143, 183, 248)
-    }
-}
-#[allow(non_snake_case)]
-pub fn BLUE() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(36, 87, 152)
-    } else {
-        Color32::from_rgb(151, 179, 226)
-    }
-}
-#[allow(non_snake_case)]
-pub fn GOLD() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(113, 75, 13)
-    } else {
-        Color32::from_rgb(217, 188, 142)
-    }
-}
-#[allow(non_snake_case)]
-pub fn ERROR() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(166, 38, 48)
-    } else {
-        Color32::from_rgb(235, 143, 150)
-    }
-}
-
-/// 警告与运行范围说明；必须同时保留具体文字原因。
-#[allow(non_snake_case)]
-pub fn WARNING() -> Color32 {
-    GOLD()
-}
-
-/// 已正常结束等成功结果；不能仅用颜色表示完成。
-#[allow(non_snake_case)]
-pub fn SUCCESS() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(30, 109, 48)
-    } else {
-        Color32::from_rgb(130, 220, 130)
-    }
-}
-
-/// 运行锚点记录，保留 ◆、记录种类与名称作为非颜色标识。
-#[allow(non_snake_case)]
-pub fn ANCHOR() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(14, 105, 81)
-    } else {
-        Color32::from_rgb(120, 220, 190)
-    }
-}
-
-/// 错误文字与关闭悬停共用的可读背景；亮色不沿用深红底。
-pub fn error_background() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(255, 232, 235)
-    } else {
-        Color32::from_rgb(65, 36, 44)
-    }
-}
-
-/// 当前来源的温和强调，与用户TextEdit选区分别绘制。
-pub fn problem_source_background() -> Color32 {
-    if LIGHT.get() {
-        Color32::from_rgb(233, 241, 251)
-    } else {
-        Color32::from_rgb(34, 40, 47)
-    }
-}
-
+#[cfg(test)]
 pub fn is_light() -> bool {
-    LIGHT.get()
+    installation::current().light
 }
-
-pub fn configure(ctx: &egui::Context, mode: ThemeMode) {
-    let light = match mode {
-        ThemeMode::Dark => false,
-        ThemeMode::Light => true,
-        ThemeMode::System => ctx.system_theme() == Some(egui::Theme::Light),
-    };
-    let previous = LIGHT.replace(light);
-    let key = egui::Id::new("worldedit.theme.installed");
-    let installed = ctx.data(|data| data.get_temp::<bool>(key)).unwrap_or(false);
-    if previous != light || !installed {
-        install(ctx);
-        ctx.data_mut(|data| data.insert_temp(key, true));
-    }
+pub fn metrics() -> Metrics {
+    installation::current().metrics
 }
-
-pub fn install(ctx: &egui::Context) {
-    let light = LIGHT.get();
-    ctx.set_theme(if light {
-        egui::Theme::Light
-    } else {
-        egui::Theme::Dark
-    });
-    let mut style = (*ctx.style()).clone();
-    style.visuals = if light {
-        egui::Visuals::light()
-    } else {
-        egui::Visuals::dark()
-    };
-    style.visuals.override_text_color = Some(TEXT());
-    style.visuals.panel_fill = PANEL();
-    style.visuals.window_fill = PANEL();
-    style.visuals.extreme_bg_color = BG();
-    style.visuals.faint_bg_color = CARD();
-    style.visuals.window_corner_radius = 14.into();
-    style.visuals.window_stroke = Stroke::new(1.0_f32, BORDER());
-    style.visuals.selection.bg_fill = if light {
-        Color32::from_rgb(207, 224, 249)
-    } else {
-        Color32::from_rgb(39, 51, 70)
-    };
-    style.visuals.selection.stroke = Stroke::new(1.0_f32, ACCENT());
-    for widget in [
-        &mut style.visuals.widgets.inactive,
-        &mut style.visuals.widgets.active,
-        &mut style.visuals.widgets.hovered,
-        &mut style.visuals.widgets.noninteractive,
-    ] {
-        widget.corner_radius = 8.into();
-        widget.bg_stroke = Stroke::new(1.0_f32, BORDER());
-        widget.fg_stroke = Stroke::new(1.0_f32, TEXT());
-        widget.expansion = 0.0;
-    }
-    style.visuals.widgets.inactive.bg_fill = CARD();
-    style.visuals.widgets.inactive.weak_bg_fill = CARD();
-    // 未选checkbox与卡片同色时仍须有轮廓；不改变整个工作台的边框色。
-    let control_outline = if light {
-        Color32::from_rgb(105, 117, 136)
-    } else {
-        Color32::from_rgb(128, 136, 153)
-    };
-    style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, control_outline);
-    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, control_outline);
-    style.visuals.disabled_alpha = 0.65;
-    style.visuals.widgets.hovered.bg_fill = if light {
-        Color32::from_rgb(226, 233, 244)
-    } else {
-        Color32::from_rgb(49, 52, 61)
-    };
-    style.visuals.widgets.hovered.weak_bg_fill = style.visuals.widgets.hovered.bg_fill;
-    style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.5_f32, ACCENT());
-    style.visuals.widgets.active.bg_fill = if light {
-        Color32::from_rgb(208, 222, 245)
-    } else {
-        Color32::from_rgb(39, 51, 70)
-    };
-    style.visuals.widgets.active.weak_bg_fill = style.visuals.widgets.active.bg_fill;
-    style.visuals.widgets.active.bg_stroke = Stroke::new(2.0_f32, ACCENT());
-    style.visuals.hyperlink_color = ACCENT();
-    style.animation_time = 0.12;
-    style.spacing.item_spacing = Vec2::splat(SPACE_SM);
-    style.spacing.button_padding = Vec2::new(10.0, 6.0);
-    style.spacing.interact_size = Vec2::new(36.0, CONTROL_HEIGHT);
-    style.spacing.window_margin = egui::Margin::same(20);
-    style
-        .text_styles
-        .insert(TextStyle::Body, FontId::proportional(BODY_SIZE));
-    style
-        .text_styles
-        .insert(TextStyle::Button, FontId::proportional(BODY_SIZE));
-    style
-        .text_styles
-        .insert(TextStyle::Heading, FontId::proportional(HEADING_SIZE));
-    style
-        .text_styles
-        .insert(TextStyle::Small, FontId::proportional(META_SIZE));
-    ctx.set_style(style);
+pub fn focus_width() -> f32 {
+    installation::current().focus_width
 }
-
-pub fn muted(text: impl Into<String>) -> RichText {
-    RichText::new(text).color(MUTED()).size(META_SIZE)
+pub fn shapes() -> Shapes {
+    installation::current().shapes
 }
-pub fn primary(text: &str) -> egui::Button<'_> {
-    egui::Button::new(RichText::new(text).color(BG()).strong()).fill(ACCENT())
+pub fn style_preset() -> StylePreset {
+    installation::current().preferences.style
 }
-pub fn panel() -> egui::Frame {
-    egui::Frame::new().fill(PANEL()).inner_margin(18)
+pub fn syntax_palette() -> SyntaxPalette {
+    installation::current().syntax
 }
-pub fn card() -> egui::Frame {
-    egui::Frame::new()
-        .fill(CARD())
-        .corner_radius(12)
-        .inner_margin(SPACE_LG as i8)
-        .stroke(Stroke::new(1.0_f32, BORDER()))
+pub fn body_font(size: f32) -> FontId {
+    let mut font = installation::current().type_roles.body;
+    font.size = size;
+    font
 }
-
-/// 集合索引与文档/画布表面分开，窄栏采用较小内边距。
-pub fn index_panel() -> egui::Frame {
-    egui::Frame::new()
-        .fill(PANEL())
-        .inner_margin(SPACE_MD as i8)
+pub fn source_font(size: f32) -> FontId {
+    let mut font = installation::current().type_roles.source;
+    font.size = size;
+    font
 }
-
 pub fn canvas_background() -> Color32 {
     BG()
 }
-
 pub fn document_background() -> Color32 {
-    CARD()
+    DOCUMENT()
 }
-
-/// 同一节奏用于功能页标题；说明自动换行，不挤占右侧操作空间。
-pub fn page_heading(ui: &mut egui::Ui, title: &str, subtitle: &str) {
-    ui.heading(title);
-    if !subtitle.is_empty() {
-        ui.add(egui::Label::new(muted(subtitle)).wrap());
+pub fn error_background() -> Color32 {
+    installation::current().colors.invalid_background
+}
+pub fn problem_source_background() -> Color32 {
+    HOVER()
+}
+pub fn muted(text: impl Into<String>) -> RichText {
+    RichText::new(text).color(MUTED()).size(META_SIZE)
+}
+pub fn primary(text: &str) -> impl egui::Widget + '_ {
+    move |ui: &mut egui::Ui| {
+        let theme = resolved(ui.ctx());
+        let c = theme.colors;
+        let enabled = ui.is_enabled();
+        let response = ui
+            .scope(|ui| {
+                let visuals = ui.visuals_mut();
+                for (state, fill) in [
+                    (&mut visuals.widgets.inactive, c.accent),
+                    (&mut visuals.widgets.hovered, c.accent_hover),
+                    (&mut visuals.widgets.active, c.accent_hover),
+                    (&mut visuals.widgets.open, c.accent),
+                ] {
+                    state.bg_fill = if enabled { fill } else { c.hover };
+                    state.weak_bg_fill = state.bg_fill;
+                    state.bg_stroke =
+                        Stroke::new(1.0_f32, if enabled { fill } else { c.control_border });
+                    state.fg_stroke =
+                        Stroke::new(1.0_f32, if enabled { c.on_accent } else { c.disabled });
+                }
+                ui.add(
+                    egui::Button::new(
+                        RichText::new(text)
+                            .color(if enabled { c.on_accent } else { c.disabled })
+                            .strong(),
+                    )
+                    .corner_radius(theme.shapes.control)
+                    .frame(true),
+                )
+            })
+            .inner;
+        if response.has_focus() {
+            ui.painter().rect_stroke(
+                response.rect.shrink(2.0),
+                theme.shapes.control,
+                Stroke::new(theme.focus_width, c.on_accent),
+                egui::StrokeKind::Inside,
+            );
+        }
+        response
     }
-    ui.add_space(SPACE_SM);
 }
-
-/// 密集工具区与阅读区分开，窄面板时自然换行。
-pub fn toolbar<R>(ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    let result = ui
-        .horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
-            contents(ui)
+/// egui 0.32 shares the rail color with inactive widget fill; scope that override
+/// to sliders so checkbox/input surfaces retain their own contrast relationships.
+pub fn slider(ui: &mut egui::Ui, slider: egui::Slider<'_>) -> egui::Response {
+    let theme = resolved(ui.ctx());
+    let response = ui
+        .scope(|ui| {
+            ui.visuals_mut().widgets.inactive.bg_fill = theme.colors.control_border;
+            ui.spacing_mut().slider_rail_height = 4.0;
+            ui.add(slider)
         })
         .inner;
-    ui.add_space(SPACE_SM);
-    result
+    selection_frame(ui, &response, false);
+    if response.gained_focus() {
+        response.scroll_to_me(Some(egui::Align::Center));
+    }
+    response
 }
-
+#[cfg(test)]
+mod contract_tests;
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod extension_tests;
+#[cfg(test)]
+mod state_render_tests;
+
+#[cfg(test)]
+mod reviewed_tokens_tests;
+#[cfg(test)]
+mod stylized_tests;
+
+#[cfg(test)]
+mod availability_tests;

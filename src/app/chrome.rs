@@ -2,112 +2,153 @@ use super::*;
 use crate::theme::{self, *};
 use worldline_core::Severity;
 
+mod menus;
+
 impl WorldeditApp {
     pub(super) fn top_bar(&mut self, ctx: &egui::Context) {
+        self.navigation_drawer_shortcut(ctx);
         egui::TopBottomPanel::top("top")
             .frame(crate::chrome::title_frame(ctx))
             .show(ctx, |ui| {
                 crate::chrome::title_drag(ui);
                 ui.horizontal(|ui| {
-                    let close = ui.horizontal(crate::chrome::controls).inner;
-                    if close {
+                    if ui.horizontal(crate::chrome::controls).inner {
                         self.request_action(Pending::Close, ctx);
                     }
-                    ui.add_space(16.0);
-                    ui.label(
-                        egui::RichText::new("worldedit")
-                            .strong()
-                            .size(18.0)
-                            .color(TEXT()),
-                    );
-                    ui.add_space(12.0);
-                    if ui.available_width() > 950.0 {
-                        crate::chrome::subtitle(ui, "世界创作工作台");
-                    }
+                    ui.label(egui::RichText::new("worldedit").size(13.0).color(MUTED()));
+                    ui.add_space(10.0);
+                    let search_width = if ui.available_width() > 620.0 {
+                        230.0
+                    } else {
+                        94.0
+                    };
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        self.edit_menu(ui);
-                        self.workspace_view_menu(ui);
-                        self.compact_navigation_menu(ui);
-                        ui.menu_button("工程", |ui| {
-                            if ui.button("语言与资料能力…").clicked() {
-                                self.open_capabilities();
-                                ui.close();
-                            }
-                            if ui.button("管理工程模板").clicked() {
-                                self.tab = Tab::Templates;
-                                ui.close();
-                            }
-                            if ui.button("本地化工作台").clicked() {
-                                self.tab = Tab::Localization;
-                                ui.close();
-                            }
-                            if ui.button("检查点历史…").clicked() {
-                                self.tab = Tab::CheckpointHistory;
-                                ui.close();
-                            }
-                            if ui.button("新建世界").clicked() {
-                                self.request_action(Pending::New, ctx);
-                                ui.close();
-                            }
-                            if ui.button("打开文件夹…").clicked() {
-                                self.open_dialog(ctx, true);
-                                ui.close();
-                            }
-                            if ui.button("选择工作区…  Ctrl+O").clicked() {
-                                self.open_dialog(ctx, false);
-                                ui.close();
-                            }
-                            if ui.button("另存工程…").clicked() {
-                                self.directory_dialog(false);
-                                ui.close();
-                            }
-                            if ui.button("世界资料导入…").clicked() {
-                                self.open_catalog_import();
-                                ui.close();
-                            }
-                            if ui.button("导入 Markdown…").clicked() {
-                                ui.close();
-                                self.markdown_import_wizard =
-                                    Some(markdown_import_ui::Wizard::default());
-                            }
-                            if ui.button("从磁盘重新载入").clicked() {
-                                self.request_action(Pending::Open(self.project.entry.clone()), ctx);
-                                ui.close();
-                            }
-                            #[cfg(not(target_arch = "wasm32"))]
-                            if ui.button("查看冲突差异").clicked() {
-                                self.conflict_view =
-                                    conflicts::ConflictView::capture(&self.project);
-                                ui.close();
-                            }
-                        });
-                        self.export_publish_menu(ui);
                         if ui
-                            .add(theme::primary("保存全部"))
-                            .on_hover_text("Ctrl+S · 保存工程中的全部修改")
+                            .add_sized(
+                                [search_width, theme::metrics().control_height],
+                                egui::Button::new(if search_width > 100.0 {
+                                    "查找对象 / 命令    Ctrl/Cmd+P"
+                                } else {
+                                    "查找对象"
+                                })
+                                .fill(theme::DOCUMENT())
+                                .stroke(egui::Stroke::new(1.0_f32, theme::CONTROL_BORDER())),
+                            )
+                            .on_hover_text(
+                                "按名称、类型、别名或来源寻找对象；任务命令可在面板内切换",
+                            )
                             .clicked()
                         {
-                            self.save();
+                            self.open_commands(ctx, false);
                         }
-                        if ui
-                            .button("搜索")
-                            .on_hover_text("搜索所有文件 · Ctrl+Shift+F")
-                            .clicked()
-                        {
-                            self.open_search(ctx, true, false);
-                        }
-                        if ui.button("▶ 试玩").clicked() {
-                            self.tab = Tab::Play;
-                        }
+                        let available = egui::vec2(
+                            ui.available_width().max(0.0),
+                            theme::metrics().control_height,
+                        );
+                        ui.allocate_ui_with_layout(
+                            available,
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                ui.set_clip_rect(ui.clip_rect().intersect(ui.max_rect()));
+                                let title = self
+                                    .snapshot
+                                    .as_ref()
+                                    .and_then(|snapshot| snapshot.result.analysis.world.as_ref())
+                                    .map(|world| world.display.clone())
+                                    .or_else(|| {
+                                        self.project
+                                            .root
+                                            .file_name()
+                                            .map(|name| name.to_string_lossy().into_owned())
+                                    })
+                                    .unwrap_or_else(|| "未命名作品".into());
+                                let dirty =
+                                    self.has_open_authoring_form() || self.project.is_dirty();
+                                let caption =
+                                    format!("{}{}", if dirty { "●  " } else { "" }, title);
+                                ui.add_sized(
+                                    [
+                                        ui.available_width().max(0.0),
+                                        theme::metrics().control_height,
+                                    ],
+                                    egui::Label::new(
+                                        egui::RichText::new(caption).strong().size(16.0),
+                                    )
+                                    .truncate(),
+                                )
+                                .on_hover_text(format!(
+                                    "{}\n{}",
+                                    title,
+                                    self.project.root.display()
+                                ));
+                            },
+                        );
                     });
                 });
             });
+        let technical = theme::style_preset() == theme::StylePreset::Technical;
+        egui::TopBottomPanel::top("workbench-actions")
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::CHROME())
+                    .inner_margin(egui::Margin::symmetric(14, if technical { 3 } else { 6 })),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(7.0, 5.0);
+                    self.compact_navigation_menu(ui);
+                    if ui
+                        .add(theme::primary("保存全部"))
+                        .on_hover_text("Ctrl/Cmd+S · 保存工程中全部已应用修改；不自动应用草稿")
+                        .clicked()
+                    {
+                        self.save();
+                    }
+                    if crate::chrome::quiet_button(ui, "▶ 试玩").clicked() {
+                        self.switch_tab(Tab::Play);
+                    }
+                    if crate::chrome::quiet_button(ui, "搜索")
+                        .on_hover_text("查找正文与源文件 · Ctrl/Cmd+Shift+F")
+                        .clicked()
+                    {
+                        self.open_search(ctx, true, false);
+                    }
+                    ui.separator();
+                    self.export_publish_menu(ui);
+                    self.project_menu(ui);
+                    self.edit_menu(ui);
+                    self.workspace_view_menu(ui);
+                    if crate::chrome::quiet_button(ui, "外观")
+                        .on_hover_text("配色、工作台风格、密度与文字；仅此设备")
+                        .clicked()
+                    {
+                        self.personal.preferences_open = true;
+                    }
+                });
+                if technical {
+                    ui.painter().hline(
+                        ui.max_rect().x_range(),
+                        ui.max_rect().bottom(),
+                        egui::Stroke::new(1.0_f32, theme::BORDER()),
+                    );
+                }
+            });
+        if let Some(warning) = self.personal.storage_warning() {
+            egui::TopBottomPanel::top("personal-storage-warning")
+                .frame(theme::panel())
+                .show(ctx, |ui| {
+                    ui.colored_label(theme::WARNING(), warning);
+                    ui.label(theme::muted(
+                        "本次外观仍可使用；原设置内容已保留，没有被默认值覆盖",
+                    ));
+                });
+        }
         if let Some(error) = self.io_error.clone() {
             egui::TopBottomPanel::top("error")
                 .frame(theme::panel().fill(theme::error_background()))
                 .show(ctx, |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.colored_label(ERROR(), error);
+                        ui.colored_label(ERROR(), format!("无法完成操作 · {error}"));
                         #[cfg(not(target_arch = "wasm32"))]
                         if ui.small_button("查看冲突差异").clicked() {
                             self.conflict_view = conflicts::ConflictView::capture(&self.project);
@@ -120,7 +161,7 @@ impl WorldeditApp {
         }
     }
     fn export_publish_menu(&mut self, ui: &mut egui::Ui) {
-        ui.menu_button("导出与发布", |ui| {
+        crate::chrome::quiet_menu(ui, "导出与发布", |ui| {
             if ui.button("发布给读者").clicked() {
                 self.open_reader_publish();
                 ui.close();
@@ -148,14 +189,14 @@ impl WorldeditApp {
         egui::TopBottomPanel::bottom("status")
             .frame(
                 egui::Frame::new()
-                    .fill(BG())
+                    .fill(theme::CHROME())
                     .corner_radius(egui::CornerRadius {
                         nw: 0,
                         ne: 0,
-                        sw: 12,
-                        se: 12,
+                        sw: theme::shapes().window,
+                        se: theme::shapes().window,
                     })
-                    .inner_margin(egui::Margin::symmetric(18, 8)),
+                    .inner_margin(egui::Margin::symmetric(14, 5)),
             )
             .show(ctx, |ui| {
                 // 先给右侧固定操作真实空间，再把剩余宽度交给左侧状态与长回执。
@@ -164,21 +205,21 @@ impl WorldeditApp {
                         "WORLDLINE {}  ·  UTF-8",
                         self.project.language_version()
                     )));
-                    if ui
-                        .add_enabled(
-                            !self.redo.is_empty() || !self.search_state.redo.is_empty(),
-                            egui::Button::new("重做").small(),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !self.redo.is_empty() || !self.search_state.redo.is_empty(),
+                        egui::Button::new("重做").small(),
+                    )
+                    .clicked()
                     {
                         self.edit_undo(true);
                     }
-                    if ui
-                        .add_enabled(
-                            !self.history.is_empty() || !self.search_state.undo.is_empty(),
-                            egui::Button::new("撤销").small(),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !self.history.is_empty() || !self.search_state.undo.is_empty(),
+                        egui::Button::new("撤销").small(),
+                    )
+                    .clicked()
                     {
                         self.edit_undo(false);
                     }
@@ -240,5 +281,7 @@ impl WorldeditApp {
     }
 }
 
+#[cfg(test)]
+mod layout_tests;
 #[cfg(test)]
 mod tests;

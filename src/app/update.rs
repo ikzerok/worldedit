@@ -21,6 +21,10 @@ fn frame_profile_input_active(ctx: &egui::Context) -> bool {
     })
 }
 impl eframe::App for WorldeditApp {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        self.manuscript_raw_input_hook(ctx, raw);
+    }
+
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.catalog_workbench.save_favorites(storage);
         self.personal.save(storage);
@@ -33,12 +37,25 @@ impl eframe::App for WorldeditApp {
         false
     }
 
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0; 4]
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        egui::Rgba::from(visuals.panel_fill).to_array()
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.reader_app_close_pending() {
+        let closing = self.reader_app_close_pending();
+        let appearance_shortcuts_blocked = self.ime_composing
+            || self.command_palette.ime
+            || ctx.input(|input| {
+                input
+                    .events
+                    .iter()
+                    .any(|event| matches!(event, egui::Event::Ime(_)))
+            });
+        if !closing && !appearance_shortcuts_blocked {
+            self.personal.appearance_shortcuts(ctx);
+        }
+        let _theme = crate::theme::configure_appearance(ctx, self.personal.appearance());
+        if closing {
             if self.poll_reader_app_close(ctx) {
                 self.allow_close = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -61,7 +78,6 @@ impl eframe::App for WorldeditApp {
         }
         self.capture_new_draft_baselines();
         self.frame_dirty_drafts = self.dirty_draft_names();
-        crate::theme::configure(ctx, self.personal.settings.theme);
         if self.personal.pending_restore {
             self.restore_personal_view(ctx);
         }
@@ -184,7 +200,7 @@ impl eframe::App for WorldeditApp {
         self.problems_panel(ctx);
         if self.personal.settings.navigation
             && !self.personal.settings.focus
-            && !self.compact_reference_navigation(ctx)
+            && !self.compact_workspace_navigation(ctx)
         {
             self.sidebar(ctx);
         }
@@ -194,7 +210,7 @@ impl eframe::App for WorldeditApp {
             self.poll_comparison(ctx);
         }
         self.review_navigation_guard(ctx);
-        object_picker::set_workspace_root(ctx, &self.project.root);
+        object_picker::set_workspace_snapshot(ctx, &self.project.root, self.version);
         match self.tab {
             Tab::Timeline | Tab::Graph => {
                 self.event_inspector(ctx);
@@ -229,7 +245,7 @@ impl eframe::App for WorldeditApp {
             Tab::CheckpointHistory => self.checkpoint_history_tab(ctx),
         }
         self.dialogs(ctx);
-        object_picker::set_workspace_root(ctx, &self.project.root);
+        object_picker::set_workspace_snapshot(ctx, &self.project.root, self.version);
         self.source_outline_window(ctx);
         self.source_jump_window(ctx);
         self.project_search(ctx);
@@ -238,6 +254,7 @@ impl eframe::App for WorldeditApp {
         self.preferences_window(ctx);
         self.draft_exit_dialog(ctx);
         self.reading_window(ctx);
+        self.navigation_drawer_window(ctx);
         self.wiki_editor_window(ctx);
         self.entity_editor_window(ctx);
         self.relation_editor_window(ctx);

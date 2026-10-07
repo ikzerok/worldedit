@@ -13,7 +13,7 @@ pub(super) fn frame(
             ..Default::default()
         },
         |ctx| {
-            crate::theme::configure(ctx, app.personal.settings.theme);
+            let _theme = crate::theme::configure(ctx, app.personal.settings.theme);
             app.author_shortcuts(ctx);
             app.top_bar(ctx);
             app.status_bar(ctx);

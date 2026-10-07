@@ -121,12 +121,12 @@ impl WorldeditApp {
                     if ui.button("时间问题与比较").clicked() {
                         self.open_temporal_issues(ctx);
                     }
-                    if ui
-                        .add_enabled(
-                            !self.personal.history.is_empty(),
-                            egui::Button::new("返回作者位置"),
-                        )
-                        .clicked()
+                    if crate::theme::add_enabled(
+                        ui,
+                        !self.personal.history.is_empty(),
+                        egui::Button::new("返回作者位置"),
+                    )
+                    .clicked()
                     {
                         self.author_back(ctx);
                     }

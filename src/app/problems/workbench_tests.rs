@@ -69,7 +69,7 @@ fn current_problem_identity_survives_cursor_and_appearance_then_expires_on_edit(
                 for mode in [theme::ThemeMode::Dark, theme::ThemeMode::Light] {
                     app.personal.settings.body_size = font;
                     app.personal.settings.source_wrap = wrap;
-                    theme::configure(&ctx, mode);
+                    let _theme = theme::configure(&ctx, mode);
                     let before = egui::TextEdit::load_state(&ctx, id)
                         .unwrap()
                         .cursor

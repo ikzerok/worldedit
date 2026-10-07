@@ -92,10 +92,10 @@ impl WorldeditApp {
                             else { "只读预览 · 应用后仍需保存全部" };
                         ui.label(status);
                         ui.horizontal_wrapped(|ui| {
-                            let response = ui.add_enabled(form.root == self.project.root, egui::Button::new("预览实体移源"));
+                            let response = crate::theme::add_enabled(ui, form.root == self.project.root, egui::Button::new("预览实体移源"));
                             form.preview_focus = Some(response.id);
                             preview |= response.clicked() && !ime_busy;
-                            let response = ui.add_enabled(can_apply, theme::primary("应用实体移源"));
+                            let response = crate::theme::add_enabled(ui, can_apply, theme::primary("应用实体移源"));
                             form.apply_focus = Some(response.id);
                             apply = response.clicked() && !ime_busy;
                             let response = ui.button("取消移源");

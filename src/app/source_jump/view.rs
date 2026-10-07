@@ -117,15 +117,14 @@ impl WorldeditApp {
                         .as_ref()
                         .is_some_and(|review| review.preview.is_ok());
                 ui.horizontal_wrapped(|ui| {
-                    navigate = ui
-                        .add_enabled(ready, egui::Button::new("定位并收起"))
-                        .clicked()
-                        || (ready && enter);
+                    navigate =
+                        crate::theme::add_enabled(ui, ready, egui::Button::new("定位并收起"))
+                            .clicked()
+                            || (ready && enter);
                     if ui.button("取消").clicked() {
                         close = true;
                     }
-                    if ui
-                        .add_enabled(!blocked, egui::Button::new("重新预览"))
+                    if crate::theme::add_enabled(ui, !blocked, egui::Button::new("重新预览"))
                         .clicked()
                     {
                         self.refresh_source_jump(true);
@@ -197,7 +196,7 @@ impl WorldeditApp {
                                     let (position, galley, _) = egui::Label::new(
                                         egui::RichText::new(preview_text(preview))
                                             .monospace()
-                                            .size(self.personal.settings.body_size),
+                                            .size(self.personal.appearance().body_size),
                                     )
                                     .wrap()
                                     .layout_in_ui(ui);

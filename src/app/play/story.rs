@@ -86,8 +86,7 @@ impl WorldeditApp {
                             play.paused = true;
                             self.play_keyboard.cancel();
                         }
-                        if ui
-                            .add_enabled(!play.ended && !play.stopped, egui::Button::new("■ 停止"))
+                        if crate::theme::add_enabled(ui, !play.ended && !play.stopped, egui::Button::new("■ 停止"))
                             .clicked()
                         {
                             play.paused = true;

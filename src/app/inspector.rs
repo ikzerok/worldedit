@@ -96,15 +96,9 @@ impl WorldeditApp {
             .frame(theme::panel())
             .show(ctx, |ui| {
                 let Some(mut editor) = self.event_editor.take() else {
-                    ui.label(RichText::new("事件详情").strong().size(17.0));
-                    ui.add_space(18.0);
-                    theme::card().show(ui, |ui| {
-                        ui.label(RichText::new("开始编织你的世界").color(ACCENT()));
-                        ui.label(theme::muted(
-                            "点击卡片编辑内容与人物。时段内用连线添加先后约束,未连接的事件保持自由。",
-                        ));
-                    });
-                    ui.add_space(10.0);
+                    theme::panel_header(ui, "事件详情", "尚未选择事件");
+                    ui.label("选择画布中的事件，查看正文、人物与先后要求。");
+                    ui.add_space(theme::metrics().section_gap);
                     if ui.add(theme::primary("＋ 新建事件")).clicked() {
                         self.new_event(None);
                     }
@@ -115,7 +109,7 @@ impl WorldeditApp {
                 let mut close = false;
                 let mut apply = false;
                 let mut delete = false;
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.label(
                         RichText::new(if editor.original.is_some() {
                             "事件详情"
@@ -125,7 +119,7 @@ impl WorldeditApp {
                         .strong()
                         .size(17.0),
                     );
-                    if ui.add_enabled(temporal_ready, theme::primary("应用更改")).clicked() { apply = true; }
+                    if crate::theme::add_enabled(ui, temporal_ready, theme::primary("应用更改")).clicked() { apply = true; }
                     if ui.small_button("取消编辑").clicked() {
                         close = true;
                     }
@@ -142,7 +136,7 @@ impl WorldeditApp {
                     .id_salt("event-form")
                     .show(ui, |ui| {
                         ui.label(theme::muted("事件 ID"));
-                        ui.add_enabled(
+                        crate::theme::add_enabled(ui,
                             editor.original.is_none(),
                             egui::TextEdit::singleline(&mut editor.draft.id)
                                 .desired_width(f32::INFINITY),
@@ -167,7 +161,7 @@ impl WorldeditApp {
                             )
                             .show_ui(ui, |ui| {
                                 for path in self.project.documents.keys() {
-                                    ui.add_enabled_ui(editor.original.is_none(), |ui| {
+                                    crate::theme::add_enabled_ui(ui, editor.original.is_none(), |ui| {
                                         ui.selectable_value(
                                             &mut editor.path,
                                             path.clone(),
@@ -261,10 +255,11 @@ impl WorldeditApp {
                                 .desired_width(f32::INFINITY).show(ui);
                         ui.menu_button("插入对象链接（名称或别名）", |ui| {
                             ui.text_edit_singleline(&mut self.link_query);
-                            let candidates = self.snapshot.as_ref().map(|s| s.result.analysis.catalog.search_objects(&self.link_query)).unwrap_or_default();
+                            let candidates = self.snapshot.as_ref().map(|s| self.applied_object_candidates(ui, &s.result.analysis.catalog,
+                                "event-body-link", &self.link_query, &[])).unwrap_or_default();
                             egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
                                 for object in candidates {
-                                    if ui.button(format!("{} · {} ({})", super::catalog::kind_label(&object.target.kind), object.display, object.target.id)).clicked() {
+                                    if super::object_picker::candidate_row_at_revision(ui, &object, Some(&self.project.root), false, (self.version, &self.link_query)).clicked() {
                                         let file = editor.path.to_string_lossy();
                                         let source = worldline_core::navigation::link_source(&object.target, &object.display, &file)
                                             .or_else(|_| worldline_core::navigation::link_source(&object.target, &object.target.id, &file));
@@ -283,8 +278,7 @@ impl WorldeditApp {
                                 }
                             });
                         });
-                        apply |= ui
-                            .add_enabled(
+                        apply |= crate::theme::add_enabled(ui,
                                 temporal_ready,
                                 theme::primary(if editor.original.is_some() {
                                     "应用更改"

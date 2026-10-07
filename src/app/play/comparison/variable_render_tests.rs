@@ -57,7 +57,7 @@ fn variable_write_long_unicode_value_is_explicitly_truncated_and_expandable_at_n
         crate::theme::ThemeMode::Dark,
         crate::theme::ThemeMode::Light,
     ] {
-        crate::theme::configure(&ctx, theme);
+        let _theme = crate::theme::configure(&ctx, theme);
         draw(&ctx, &mut app, vec![]);
         let output = draw(&ctx, &mut app, vec![]);
         let text = text(&output);

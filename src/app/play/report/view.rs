@@ -72,7 +72,7 @@ impl WorldeditApp {
                 ui.label("这是已验证的单条试玩区段；未探索分支不代表不可达，也不授予读者发布权限。");
                 ui.separator();
                 let before = (state.route, state.max_steps, state.time_budget_ms);
-                ui.add_enabled_ui(state.job.is_none(), |ui| {
+                crate::theme::add_enabled_ui(ui, state.job.is_none(), |ui| {
                     let route_name = match state.route {
                         ReportRoute::Live => "当前试玩路径（生成时捕获）".to_owned(),
                         ReportRoute::Saved(index) => self.replay_debugger.saved_paths.get(index)
@@ -111,7 +111,7 @@ impl WorldeditApp {
                         focus.reveal(ui, &scope.header_response, scope.header_response.rect);
                         focus.widget(ui, |ui| ui.checkbox(&mut state.scope_confirmed, "我确认仅验证已应用稿，以上草稿仍保留且不进入报告"));
                     }
-                    generate = focus.widget(ui, |ui| ui.add_enabled(inputs.is_empty() || state.scope_confirmed,
+                    generate = focus.widget(ui, |ui| crate::theme::add_enabled(ui, inputs.is_empty() || state.scope_confirmed,
                         theme::primary("生成并预览已验证报告"))).clicked();
                 });
                 if before != (state.route, state.max_steps, state.time_budget_ms) {
@@ -173,7 +173,7 @@ impl WorldeditApp {
                             .hint_text("工作区外的绝对完整路径，以 .md 结尾").desired_width(370.0)));
                         browse = focus.widget(ui, |ui| ui.button("系统选择器（可选）")).clicked();
                     });
-                    ui.add_enabled_ui(current && selected && state.privacy_confirmed && state.job.is_none(), |ui| {
+                    crate::theme::add_enabled_ui(ui, current && selected && state.privacy_confirmed && state.job.is_none(), |ui| {
                         ui.horizontal_wrapped(|ui| {
                             copy = focus.widget(ui, |ui| ui.button("复制 Markdown")).clicked();
                             #[cfg(not(target_arch = "wasm32"))]

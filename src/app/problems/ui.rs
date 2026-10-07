@@ -61,12 +61,12 @@ impl WorldeditApp {
                             self.problems.narrow_detail = false;
                             self.problems.focus_list = true;
                         }
-                        if ui
-                            .add_enabled(
-                                self.problems.selected.is_some(),
-                                egui::Button::selectable(self.problems.narrow_detail, "选中详情 →"),
-                            )
-                            .clicked()
+                        if crate::theme::add_enabled(
+                            ui,
+                            self.problems.selected.is_some(),
+                            egui::Button::selectable(self.problems.narrow_detail, "选中详情 →"),
+                        )
+                        .clicked()
                         {
                             self.problems.narrow_detail = true;
                         }
@@ -213,15 +213,15 @@ impl WorldeditApp {
                 };
             }
             let mut path = self.problems.query.path.clone().unwrap_or_default();
-            if ui
-                .add_enabled(
-                    !self.problems.current_file,
-                    egui::TextEdit::singleline(&mut path)
-                        .id_salt("problems-path")
-                        .hint_text("完整相对路径")
-                        .desired_width(160.),
-                )
-                .changed()
+            if crate::theme::add_enabled(
+                ui,
+                !self.problems.current_file,
+                egui::TextEdit::singleline(&mut path)
+                    .id_salt("problems-path")
+                    .hint_text("完整相对路径")
+                    .desired_width(160.),
+            )
+            .changed()
             {
                 self.problems.query.path = (!path.is_empty()).then_some(path);
             }
@@ -262,18 +262,21 @@ impl WorldeditApp {
                     page.matched
                 )
             }));
-            if ui
-                .add_enabled(
-                    !self.problems.previous_pages.is_empty(),
-                    egui::Button::new("← 前页"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                !self.problems.previous_pages.is_empty(),
+                egui::Button::new("← 前页"),
+            )
+            .clicked()
             {
                 self.problem_page(true);
             }
-            if ui
-                .add_enabled(page.next_cursor.is_some(), egui::Button::new("后页 →"))
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                page.next_cursor.is_some(),
+                egui::Button::new("后页 →"),
+            )
+            .clicked()
             {
                 self.problem_page(false);
             }
@@ -290,7 +293,7 @@ impl WorldeditApp {
         }
         // 聚焦提示始终占相同空间，避免Tab移出时改变面板高度和控件布局而丢焦点。
         ui.label(theme::muted("列表聚焦后：↑↓选择 · Enter定位 · Esc返回"));
-        let font = self.personal.settings.body_size;
+        let font = self.personal.appearance().body_size;
         let row_height = font * 2.5 + 8.;
         self.problems.rendered_rows = 0;
         let mut scroll = egui::ScrollArea::vertical()
@@ -396,10 +399,12 @@ impl WorldeditApp {
         // 为保存状态与长回执保留真实宽度；窄窗只截断入口文字，完整信息仍可悬停或打开。
         let width = (ui.available_width() * 0.58).clamp(0., 540.);
         if action_clicked(
-            ui.add_sized(
-                [width, ui.spacing().interact_size.y],
-                egui::Button::new(&full).small().truncate(),
-            )
+            crate::chrome::quiet_scope(ui, |ui| {
+                ui.add_sized(
+                    [width, ui.spacing().interact_size.y],
+                    egui::Button::new(&full).small().truncate(),
+                )
+            })
             .on_hover_text(full),
         ) {
             self.open_problems(ui.ctx());

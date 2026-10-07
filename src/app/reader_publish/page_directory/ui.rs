@@ -41,8 +41,7 @@ impl PageDirectory {
             self.matches.len()
         ));
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(self.page > 0, egui::Button::new("上一组结果"))
+            if crate::theme::add_enabled(ui, self.page > 0, egui::Button::new("上一组结果"))
                 .clicked()
             {
                 self.set_page(self.page - 1);
@@ -56,12 +55,12 @@ impl PageDirectory {
                 },
                 self.page_count()
             ));
-            if ui
-                .add_enabled(
-                    self.page + 1 < self.page_count(),
-                    egui::Button::new("下一组结果"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                self.page + 1 < self.page_count(),
+                egui::Button::new("下一组结果"),
+            )
+            .clicked()
             {
                 self.set_page(self.page + 1);
             }

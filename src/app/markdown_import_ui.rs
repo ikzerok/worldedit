@@ -1,4 +1,6 @@
 //! 桌面 Markdown 迁移向导；解析、冲突与写入都由 worldline-core 承担。
+#[cfg(test)]
+mod appearance_tests;
 mod apply;
 mod input;
 mod plan;

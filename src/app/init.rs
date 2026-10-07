@@ -14,13 +14,14 @@ pub(super) fn draft_root() -> PathBuf {
 impl WorldeditApp {
     pub fn new(cc: &eframe::CreationContext<'_>, initial_file: Option<PathBuf>) -> Self {
         install_cjk_fonts(&cc.egui_ctx);
-        theme::configure(&cc.egui_ctx, theme::ThemeMode::Dark);
+        let personal = personal::PersonalState::restore(cc.storage);
+        let _theme = theme::configure_appearance(&cc.egui_ctx, personal.appearance());
         let project = Project::new(&draft_root());
         let mut app = Self {
             problems: problems::ProblemsState::default(),
             active_file: project.entry.clone(),
             project,
-            personal: personal::PersonalState::restore(cc.storage),
+            personal,
             command_palette: commands::CommandPalette::default(),
             source_outline: source_outline::OutlineState::default(),
             source_jump: source_jump::JumpState::default(),
@@ -46,7 +47,7 @@ impl WorldeditApp {
             frame_profile: frame_profile::FrameProfiler::from_env(),
             stale_form: false,
             message: None,
-            tab: Tab::Timeline,
+            tab: Tab::Manuscript,
             jump: None,
             play: None,
             play_confirmation: None,

@@ -3,6 +3,8 @@ use super::catalog::kind_label;
 use super::{Tab, WorldeditApp};
 use crate::theme::{self, *};
 use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
+mod labels;
+use labels::DisplayLabels;
 use worldline_core::catalog::TargetRef;
 use worldline_core::graph_views::{self, GraphViewCommand};
 use worldline_core::{RelationDirection, RelationQueryDirection};
@@ -11,13 +13,6 @@ const NODE_SIZE: Vec2 = Vec2::new(132.0, 44.0);
 
 fn target_key(target: &TargetRef) -> String {
     worldline_core::graph_views::position_key(target)
-}
-
-fn display<'a>(catalog: &'a worldline_core::Catalog, target: &'a TargetRef) -> &'a str {
-    catalog
-        .object(target)
-        .map(|object| object.display.as_str())
-        .unwrap_or(&target.id)
 }
 
 fn node_color(kind: &str) -> Color32 {
@@ -98,9 +93,12 @@ impl WorldeditApp {
 
     fn network_toolbar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(self.network_state.can_back(), egui::Button::new("← 返回"))
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                self.network_state.can_back(),
+                egui::Button::new("← 返回"),
+            )
+            .clicked()
             {
                 self.network_state.back();
             }
@@ -243,7 +241,8 @@ impl WorldeditApp {
         let Some(snapshot) = &self.snapshot else {
             return;
         };
-        let catalog = snapshot.result.analysis.catalog.clone();
+        let catalog = &snapshot.result.analysis.catalog;
+        let labels = DisplayLabels::new(catalog);
         let edges = self
             .network_state
             .result
@@ -252,13 +251,14 @@ impl WorldeditApp {
             .unwrap_or_default();
         ui.separator();
         ui.label(RichText::new(format!("明确关系 · {}", edges.len())).strong());
+        let mut open_relation = None;
         for edge in edges {
             ui.push_id(("network-edge", &edge.id), |ui| {
                 let hidden = self.network_state.hidden.contains(&edge.id);
                 ui.horizontal_wrapped(|ui| {
                     ui.label(if hidden { "○" } else { "●" });
                     if ui.link(format!("{} · {}", edge.label, edge.id)).clicked() {
-                        self.open_reading(TargetRef::new("relation", &edge.id));
+                        open_relation = Some(TargetRef::new("relation", &edge.id));
                     }
                     if ui
                         .small_button(if hidden { "显示" } else { "隐藏" })
@@ -273,8 +273,8 @@ impl WorldeditApp {
                 });
                 ui.label(theme::muted(format!(
                     "{} → {}{}",
-                    display(&catalog, &edge.from_ref),
-                    display(&catalog, &edge.to_ref),
+                    labels.get(&edge.from_ref),
+                    labels.get(&edge.to_ref),
                     if edge.direction == RelationDirection::Undirected {
                         "（无向）"
                     } else {
@@ -283,14 +283,17 @@ impl WorldeditApp {
                 )));
             });
         }
+        if let Some(target) = open_relation {
+            self.open_reading(target);
+        }
     }
 
     fn network_canvas(&mut self, ui: &mut egui::Ui) {
         let Some(snapshot) = &self.snapshot else {
             return;
         };
-        let catalog = snapshot.result.analysis.catalog.clone();
-        self.network_state.refresh(&catalog, self.version);
+        let catalog = &snapshot.result.analysis.catalog;
+        self.network_state.refresh(catalog, self.version);
         let result = self.network_state.result.clone();
         let desired = ui.available_size().max(Vec2::new(320.0, 280.0));
         let (response, painter) = ui.allocate_painter(desired, Sense::drag());
@@ -335,6 +338,7 @@ impl WorldeditApp {
             );
             return;
         };
+        let labels = DisplayLabels::new(catalog);
         for edge in &result.edges {
             if self.network_state.hidden.contains(&edge.id) {
                 continue;
@@ -398,10 +402,20 @@ impl WorldeditApp {
             if node_response.double_clicked() {
                 self.network_state.enter(node.target.clone());
             }
-            painter.rect_filled(node_rect, 7.0, CARD());
+            painter.rect_filled(
+                node_rect,
+                theme::shapes().control,
+                if self.network_selected.as_ref() == Some(&node.target) {
+                    theme::SELECTION()
+                } else if node_response.hovered() {
+                    theme::HOVER()
+                } else {
+                    theme::DOCUMENT()
+                },
+            );
             painter.rect_stroke(
                 node_rect,
-                7.0,
+                theme::shapes().control,
                 Stroke::new(
                     if self.network_selected.as_ref() == Some(&node.target) {
                         2.8_f32
@@ -412,9 +426,25 @@ impl WorldeditApp {
                 ),
                 egui::StrokeKind::Inside,
             );
+            node_response.widget_info(|| {
+                egui::WidgetInfo::selected(
+                    egui::WidgetType::SelectableLabel,
+                    true,
+                    self.network_selected.as_ref() == Some(&node.target),
+                    labels.get(&node.target),
+                )
+            });
+            if node_response.has_focus() {
+                painter.rect_stroke(
+                    node_rect.expand(3.0),
+                    theme::shapes().control,
+                    Stroke::new(theme::focus_width(), theme::FOCUS()),
+                    egui::StrokeKind::Outside,
+                );
+            }
             node_response.on_hover_text(format!(
                 "{} · {}:{}",
-                display(&catalog, &node.target),
+                labels.get(&node.target),
                 node.target.kind,
                 node.target.id
             ));
@@ -422,7 +452,7 @@ impl WorldeditApp {
             node_painter.text(
                 node_rect.center() - Vec2::new(0.0, 7.0),
                 egui::Align2::CENTER_CENTER,
-                display(&catalog, &node.target),
+                labels.get(&node.target),
                 egui::FontId::proportional(14.0),
                 TEXT(),
             );
@@ -465,7 +495,7 @@ impl WorldeditApp {
                             if let Some(catalog) = self
                                 .snapshot
                                 .as_ref()
-                                .map(|snapshot| snapshot.result.analysis.catalog.clone())
+                                .map(|snapshot| &snapshot.result.analysis.catalog)
                             {
                                 let mut center = self.network_state.focus.clone();
                                 if super::object_picker::object_picker(
@@ -473,7 +503,7 @@ impl WorldeditApp {
                                     "network-focus-picker",
                                     "搜索中心对象",
                                     &mut center,
-                                    &catalog,
+                                    catalog,
                                     &[],
                                 ) {
                                     if let Some(target) = center {
@@ -524,24 +554,24 @@ impl WorldeditApp {
                 if !self.topic_views(ui) {
                     self.network_toolbar(ui);
                     ui.horizontal_wrapped(|ui| {
-                        if ui
-                            .add_enabled(
-                                self.network_state.can_previous(),
-                                egui::Button::new("上一页"),
-                            )
-                            .clicked()
+                        if crate::theme::add_enabled(
+                            ui,
+                            self.network_state.can_previous(),
+                            egui::Button::new("上一页"),
+                        )
+                        .clicked()
                         {
                             self.network_state.previous_page();
                         }
-                        if ui
-                            .add_enabled(
-                                self.network_state
-                                    .result
-                                    .as_ref()
-                                    .is_some_and(|result| result.continuation.is_some()),
-                                egui::Button::new("下一页"),
-                            )
-                            .clicked()
+                        if crate::theme::add_enabled(
+                            ui,
+                            self.network_state
+                                .result
+                                .as_ref()
+                                .is_some_and(|result| result.continuation.is_some()),
+                            egui::Button::new("下一页"),
+                        )
+                        .clicked()
                         {
                             self.network_state.next_page();
                         }

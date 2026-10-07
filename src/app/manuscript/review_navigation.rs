@@ -25,14 +25,9 @@ pub(super) struct ReviewNavigation {
 impl WorldeditApp {
     pub(super) fn review_input_blocker(&self, ctx: &egui::Context) -> Option<String> {
         if self.ime_composing
-            || self.command_palette.ime
-            || self.command_palette.ime_frame
-            || ctx.input(|input| {
-                input
-                    .events
-                    .iter()
-                    .any(|event| matches!(event, egui::Event::Ime(_)))
-            })
+            || self.manuscript.writing_view.input_blocked(ctx)
+            || (self.command_palette.open
+                && (self.command_palette.ime || self.command_palette.ime_frame))
         {
             return Some("请先完成输入法组合；当前位置和输入已保留".into());
         }

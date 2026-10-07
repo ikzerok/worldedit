@@ -114,8 +114,8 @@ impl MapCanvas {
                 &painter,
                 draft,
                 &MapStyle {
-                    stroke: Color32::from_rgb(255, 210, 90),
-                    fill: Color32::from_rgba_unmultiplied(255, 210, 90, 52),
+                    stroke: crate::theme::FOCUS(),
+                    fill: crate::theme::ACCENT().gamma_multiply(0.12),
                     width: 2.0,
                 },
                 &self.camera,
@@ -132,7 +132,7 @@ impl MapCanvas {
                 egui::Align2::CENTER_CENTER,
                 "当前地图没有可显示内容",
                 egui::FontId::proportional(15.0),
-                Color32::from_gray(145),
+                crate::theme::MUTED(),
             );
         }
     }

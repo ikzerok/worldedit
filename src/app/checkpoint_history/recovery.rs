@@ -213,9 +213,12 @@ pub(super) fn draw_restore_confirmation(
             );
         }
         ui.horizontal(|ui| {
-            if ui
-                .add_enabled(baseline_current, theme::primary("确认恢复此工程检查点"))
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                baseline_current,
+                theme::primary("确认恢复此工程检查点"),
+            )
+            .clicked()
             {
                 *action = Some(Action::ConfirmRestore);
             }

@@ -48,9 +48,12 @@ pub(super) fn fields(ui: &mut egui::Ui, style: &mut SceneStyle) -> bool {
                     }
                 });
             }
-            if ui
-                .add_enabled(array.len() < MAX_DASH_ENTRIES, egui::Button::new("＋数值"))
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                array.len() < MAX_DASH_ENTRIES,
+                egui::Button::new("＋数值"),
+            )
+            .clicked()
             {
                 array.push(6.0);
                 changed = true;

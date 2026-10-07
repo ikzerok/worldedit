@@ -99,7 +99,7 @@ impl WorldeditApp {
                     let required = self.project.required_features();
                     for capability in feature_capabilities() {
                         let mut selected = state.features.contains(capability.id);
-                        if ui.add_enabled(!required.iter().any(|id| id == capability.id),
+                        if crate::theme::add_enabled(ui, !required.iter().any(|id| id == capability.id),
                             egui::Checkbox::new(&mut selected, format!("{} · {}", capability.title, capability.id))).changed() {
                             changed = true;
                             if selected { state.features.insert(capability.id.into()); }
@@ -144,10 +144,10 @@ impl WorldeditApp {
                 }
                 });
                 ui.separator();
-                preview = ui.add_enabled(blockers.is_empty(), egui::Button::new("预览全稿兼容影响")).clicked();
+                preview = crate::theme::add_enabled(ui, blockers.is_empty(), egui::Button::new("预览全稿兼容影响")).clicked();
                 if let Some(plan) = &state.plan {
                     ui.checkbox(&mut state.acknowledged, "我已查看兼容影响；旧存档/检查点须匹配指纹，入口轨迹须重新严格验证");
-                    apply = ui.add_enabled(plan.can_apply && state.acknowledged && blockers.is_empty(),
+                    apply = crate::theme::add_enabled(ui, plan.can_apply && state.acknowledged && blockers.is_empty(),
                         theme::primary("确认启用（不自动保存）")).clicked();
                 }
                 if let Some(error) = &state.error { ui.colored_label(theme::ERROR(), error); }

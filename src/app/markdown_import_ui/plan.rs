@@ -221,16 +221,10 @@ fn show_pager(
     ui.horizontal(|ui| {
         let end = (offset + page_size).min(total);
         ui.label(format!("显示 {}–{} / {total}", offset + 1, end));
-        if ui
-            .add_enabled(offset > 0, egui::Button::new("上一页"))
-            .clicked()
-        {
+        if crate::theme::add_enabled(ui, offset > 0, egui::Button::new("上一页")).clicked() {
             *next_offset = offset.saturating_sub(page_size);
         }
-        if ui
-            .add_enabled(end < total, egui::Button::new("下一页"))
-            .clicked()
-        {
+        if crate::theme::add_enabled(ui, end < total, egui::Button::new("下一页")).clicked() {
             *next_offset = end;
         }
     });

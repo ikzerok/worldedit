@@ -38,6 +38,8 @@ impl WorldeditApp {
             ("source-jump", self.source_jump.open),
             ("search", self.search_open),
             ("commands", self.command_palette.open),
+            ("compact-references", self.compact_reference_open(ctx)),
+            ("navigation-drawer", self.navigation_drawer_open(ctx)),
             ("preferences", self.personal.preferences_open),
             ("reader", self.reader_publish.open),
             ("playthrough-report", self.playthrough_report.open),

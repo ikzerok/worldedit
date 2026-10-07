@@ -1,13 +1,13 @@
 //! 命中摘录只使用core有界切片与局部范围；省略说明绝不混进原文字节。
 use super::view::{detail_button, focus_action, reading_job, reading_label, role_label};
-use crate::{app::personal::Settings, theme};
+use crate::theme::{self, AppearancePreferences};
 use worldline_core::problems::{ProblemContextVisibility, ProblemLocation};
 
 pub(super) fn source_excerpt(
     ui: &mut egui::Ui,
     scope: egui::Id,
     location: &ProblemLocation,
-    settings: &Settings,
+    settings: &AppearancePreferences,
 ) {
     let Some(context) = location
         .context
@@ -141,7 +141,7 @@ mod tests {
         }
     }
 
-    fn paint(location: &ProblemLocation, settings: &Settings) -> egui::FullOutput {
+    fn paint(location: &ProblemLocation, settings: &AppearancePreferences) -> egui::FullOutput {
         let ctx = egui::Context::default();
         ctx.run(Default::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -153,8 +153,9 @@ mod tests {
     #[test]
     fn excerpt_uses_exact_local_hit_and_reading_size_without_inserting_ellipsis() {
         let location = location();
-        let settings = Settings {
+        let settings = AppearancePreferences {
             body_size: 28.,
+            source_size: 28.,
             line_spacing: 1.8,
             ..Default::default()
         };
@@ -198,7 +199,7 @@ mod tests {
             } else {
                 location.context = None;
             }
-            let output = paint(&location, &Settings::default());
+            let output = paint(&location, &AppearancePreferences::default());
             for shape in &output.shapes {
                 if let egui::Shape::Text(shape) = &shape.shape {
                     assert!(shape

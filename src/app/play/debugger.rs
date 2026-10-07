@@ -76,12 +76,12 @@ pub(super) fn render_debugger_controls(
     {
         debugger.explanations = None;
     }
-    if ui
-        .add_enabled(
-            actual_evidence.is_some(),
-            egui::Button::new("解释当前条件（只读）"),
-        )
-        .clicked()
+    if crate::theme::add_enabled(
+        ui,
+        actual_evidence.is_some(),
+        egui::Button::new("解释当前条件（只读）"),
+    )
+    .clicked()
     {
         debugger.explanations = actual_evidence.map(<[_]>::to_vec);
     }
@@ -124,7 +124,8 @@ pub(super) fn render_debugger_controls(
         .selected_path
         .is_some_and(|index| debugger.saved_paths.get(index).is_some());
     ui.horizontal(|ui| {
-        let replay = ui.add_enabled(
+        let replay = crate::theme::add_enabled(
+            ui,
             can_replay && has_path && debugger.job.is_none(),
             egui::Button::new("▶ 重放所选路径"),
         );
@@ -258,13 +259,13 @@ pub(super) fn render_debugger_controls(
                 "失败位置：{} · 第 {} 行",
                 location.node, location.line
             ));
-            *failure_jump |= ui
-                .add_enabled(
-                    debugger.result_version == Some(current_version),
-                    egui::Button::new("跳转到失败位置"),
-                )
-                .on_disabled_hover_text("编辑稿已变化，请重新重放后定位")
-                .clicked();
+            *failure_jump |= crate::theme::add_enabled(
+                ui,
+                debugger.result_version == Some(current_version),
+                egui::Button::new("跳转到失败位置"),
+            )
+            .on_disabled_hover_text("编辑稿已变化，请重新重放后定位")
+            .clicked();
         } else if matches!(
             result.status,
             ReplayStatus::Diverged { .. } | ReplayStatus::StoryFailed { .. }

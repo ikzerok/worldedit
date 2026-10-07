@@ -2,6 +2,48 @@ use super::*;
 use crate::theme;
 use worldline_core::manuscript::ManuscriptIndex;
 
+#[derive(Clone, Copy)]
+pub(super) struct MetadataAccess {
+    pub editable: bool,
+    pub actions_enabled: bool,
+    pub receiver: Option<egui::Id>,
+}
+
+impl MetadataAccess {
+    pub(super) fn field_enabled(self, id: egui::Id) -> bool {
+        self.editable || self.receiver == Some(id)
+    }
+
+    pub(super) fn restrict_guarded_input(self, ctx: &egui::Context) {
+        if !self.editable && self.receiver.is_some() {
+            // A guarded field may finish its existing IME exchange, but this
+            // exception must not also accept ordinary edits in that same frame.
+            // No events are replayed; IME, pointer and window lifecycle remain.
+            ctx.input_mut(|input| {
+                input.events.retain(|event| {
+                    !matches!(
+                        event,
+                        egui::Event::Text(_)
+                            | egui::Event::Paste(_)
+                            | egui::Event::Cut
+                            | egui::Event::Key { .. }
+                    )
+                })
+            });
+        }
+    }
+}
+
+pub(super) fn owns_receiver(root: &std::path::Path, local: &LocalBook, owner: egui::Id) -> bool {
+    let book = &local.draft.id;
+    owner == egui::Id::new(("manuscript-book-title", root, book))
+        || local.selected_entry.as_ref().is_some_and(|entry| {
+            ["title", "summary", "status", "goal"].iter().any(|role| {
+                owner == egui::Id::new(("manuscript-entry-field", root, book, entry, role))
+            })
+        })
+}
+
 pub(super) fn selected_section(local: &LocalBook) -> Option<String> {
     local.selected_entry.as_deref().and_then(|id| {
         local
@@ -26,6 +68,7 @@ pub(super) fn draw_entry_editor(
     index: &ManuscriptIndex,
     pending_remove: &mut Option<String>,
     root: &std::path::Path,
+    access: MetadataAccess,
 ) {
     let Some(id) = local.selected_entry.clone() else {
         ui.label("选择章节或分节以编辑编排。");
@@ -34,12 +77,32 @@ pub(super) fn draw_entry_editor(
     let Some(position) = local.draft.entries.iter().position(|entry| entry.id == id) else {
         return;
     };
-    ui.heading("编排与来源");
-    ui.label(theme::muted(format!("稳定 ID：{}", id)));
+    let book = local.draft.id.clone();
+    let field = |role| egui::Id::new(("manuscript-entry-field", root, &book, &id, role));
+    ui.label("章名 / 分节名");
     let entry = &mut local.draft.entries[position];
-    local.changed |= ui.text_edit_singleline(&mut entry.title).changed();
+    let title = theme::add_enabled(
+        ui,
+        access.field_enabled(field("title")),
+        egui::TextEdit::singleline(&mut entry.title).id(field("title")),
+    );
+    super::super::writing_workspace::register_input(&title);
+    local.changed |= title.changed();
+    egui::CollapsingHeader::new("稳定身份")
+        .id_salt(("manuscript-entry-identity", &id))
+        .show(ui, |ui| {
+            ui.label(theme::muted(format!("编排 ID：{id}")));
+        });
     ui.label("摘要");
-    optional_text(ui, &mut entry.summary, &mut local.changed, "章节摘要", true);
+    optional_text(
+        ui,
+        &mut entry.summary,
+        &mut local.changed,
+        "章节摘要",
+        true,
+        field("summary"),
+        access.field_enabled(field("summary")),
+    );
     ui.horizontal(|ui| {
         ui.label("状态");
         optional_text(
@@ -48,6 +111,8 @@ pub(super) fn draw_entry_editor(
             &mut local.changed,
             "draft / revised / final",
             false,
+            field("status"),
+            access.field_enabled(field("status")),
         );
     });
     ui.horizontal(|ui| {
@@ -58,27 +123,35 @@ pub(super) fn draw_entry_editor(
             &mut local.changed,
             "数字或目标说明",
             false,
+            field("goal"),
+            access.field_enabled(field("goal")),
         );
     });
     if entry.kind == ManuscriptEntryKind::Chapter {
         ui.label("正文引用（必须明确选择）");
-        local.changed |= super::super::object_picker::object_picker(
-            ui,
-            ("manuscript-target", &id),
-            "正文来源",
-            &mut entry.target_ref,
-            catalog,
-            &["event", "scene", "entity", "fragment"],
-        );
+        local.changed |= theme::add_enabled_ui(ui, access.actions_enabled, |ui| {
+            super::super::object_picker::object_picker(
+                ui,
+                ("manuscript-target", &id),
+                "正文来源",
+                &mut entry.target_ref,
+                catalog,
+                &["event", "scene", "entity", "fragment"],
+            )
+        })
+        .inner;
         ui.label("视角人物");
-        local.changed |= super::super::object_picker::object_picker(
-            ui,
-            ("manuscript-pov", &id),
-            "视角人物",
-            &mut entry.pov,
-            catalog,
-            &["character"],
-        );
+        local.changed |= theme::add_enabled_ui(ui, access.actions_enabled, |ui| {
+            super::super::object_picker::object_picker(
+                ui,
+                ("manuscript-pov", &id),
+                "视角人物",
+                &mut entry.pov,
+                catalog,
+                &["character"],
+            )
+        })
+        .inner;
         if let Some(source) = index
             .entries
             .iter()
@@ -113,76 +186,78 @@ pub(super) fn draw_entry_editor(
             }
         }
     }
-    ui.horizontal(|ui| {
-        if ui.button("上移").clicked() {
-            local.changed |= move_entry(&mut local.draft.entries, &id, -1);
+    theme::add_enabled_ui(ui, access.actions_enabled, |ui| {
+        ui.horizontal(|ui| {
+            if ui.button("上移").clicked() {
+                local.changed |= move_entry(&mut local.draft.entries, &id, -1);
+            }
+            if ui.button("下移").clicked() {
+                local.changed |= move_entry(&mut local.draft.entries, &id, 1);
+            }
+            if ui.button("删除编排项").clicked() {
+                *pending_remove = Some(id.clone());
+            }
+        });
+        let current_parent = local
+            .draft
+            .entries
+            .iter()
+            .find(|entry| entry.id == id)
+            .and_then(|entry| entry.parent_id.clone());
+        let mut selected_parent = current_parent.clone();
+        let forbidden = local.draft.entry_subtree(&id).unwrap_or_default();
+        egui::ComboBox::from_id_salt(("manuscript-move", &id))
+            .selected_text(
+                current_parent
+                    .as_deref()
+                    .map(|id| format!("移动到分节：{id}"))
+                    .unwrap_or_else(|| "移动到分节：根目录".into()),
+            )
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut selected_parent, None, "根目录");
+                for entry in local.draft.entries.iter().filter(|entry| {
+                    entry.kind == ManuscriptEntryKind::Section && !forbidden.contains(&entry.id)
+                }) {
+                    ui.selectable_value(
+                        &mut selected_parent,
+                        Some(entry.id.clone()),
+                        format!("{} · {}", entry.title, entry.id),
+                    );
+                }
+            });
+        if selected_parent != current_parent {
+            match local.draft.move_to_section(&id, selected_parent.as_deref()) {
+                Ok(changed) => local.changed |= changed,
+                Err(error) => {
+                    ui.colored_label(theme::ERROR(), error);
+                }
+            }
         }
-        if ui.button("下移").clicked() {
-            local.changed |= move_entry(&mut local.draft.entries, &id, 1);
-        }
-        if ui.button("删除编排项").clicked() {
-            *pending_remove = Some(id.clone());
+        if pending_remove.as_deref() == Some(&id) {
+            let affected = local.draft.entry_subtree(&id).unwrap_or_default();
+            ui.colored_label(
+                theme::ERROR(),
+                format!(
+                    "移除 {} 个编排项：{}。不会删除任何源码、人物或事件。",
+                    affected.len(),
+                    affected.join("、")
+                ),
+            );
+            ui.horizontal(|ui| {
+                if ui.button("确认只删除编排").clicked() {
+                    if local.draft.remove_entry_subtree(&id).is_ok() {
+                        local.changed = true;
+                        local.selected_entry =
+                            local.draft.entries.first().map(|entry| entry.id.clone());
+                    }
+                    *pending_remove = None;
+                }
+                if ui.button("取消删除").clicked() {
+                    *pending_remove = None;
+                }
+            });
         }
     });
-    let current_parent = local
-        .draft
-        .entries
-        .iter()
-        .find(|entry| entry.id == id)
-        .and_then(|entry| entry.parent_id.clone());
-    let mut selected_parent = current_parent.clone();
-    let forbidden = local.draft.entry_subtree(&id).unwrap_or_default();
-    egui::ComboBox::from_id_salt(("manuscript-move", &id))
-        .selected_text(
-            current_parent
-                .as_deref()
-                .map(|id| format!("移动到分节：{id}"))
-                .unwrap_or_else(|| "移动到分节：根目录".into()),
-        )
-        .show_ui(ui, |ui| {
-            ui.selectable_value(&mut selected_parent, None, "根目录");
-            for entry in local.draft.entries.iter().filter(|entry| {
-                entry.kind == ManuscriptEntryKind::Section && !forbidden.contains(&entry.id)
-            }) {
-                ui.selectable_value(
-                    &mut selected_parent,
-                    Some(entry.id.clone()),
-                    format!("{} · {}", entry.title, entry.id),
-                );
-            }
-        });
-    if selected_parent != current_parent {
-        match local.draft.move_to_section(&id, selected_parent.as_deref()) {
-            Ok(changed) => local.changed |= changed,
-            Err(error) => {
-                ui.colored_label(theme::ERROR(), error);
-            }
-        }
-    }
-    if pending_remove.as_deref() == Some(&id) {
-        let affected = local.draft.entry_subtree(&id).unwrap_or_default();
-        ui.colored_label(
-            theme::ERROR(),
-            format!(
-                "移除 {} 个编排项：{}。不会删除任何源码、人物或事件。",
-                affected.len(),
-                affected.join("、")
-            ),
-        );
-        ui.horizontal(|ui| {
-            if ui.button("确认只删除编排").clicked() {
-                if local.draft.remove_entry_subtree(&id).is_ok() {
-                    local.changed = true;
-                    local.selected_entry =
-                        local.draft.entries.first().map(|entry| entry.id.clone());
-                }
-                *pending_remove = None;
-            }
-            if ui.button("取消删除").clicked() {
-                *pending_remove = None;
-            }
-        });
-    }
 }
 
 fn optional_text(
@@ -191,6 +266,8 @@ fn optional_text(
     changed: &mut bool,
     hint: &str,
     multiline: bool,
+    id: egui::Id,
+    enabled: bool,
 ) {
     let mut text = value.clone().unwrap_or_default();
     let edit = if multiline {
@@ -198,10 +275,13 @@ fn optional_text(
     } else {
         egui::TextEdit::singleline(&mut text)
     };
-    if ui
-        .add(edit.hint_text(hint).desired_width(f32::INFINITY))
-        .changed()
-    {
+    let response = theme::add_enabled(
+        ui,
+        enabled,
+        edit.id(id).hint_text(hint).desired_width(f32::INFINITY),
+    );
+    super::super::writing_workspace::register_input(&response);
+    if response.changed() {
         *value = (!text.is_empty()).then_some(text);
         *changed = true;
     }

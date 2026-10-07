@@ -1,16 +1,16 @@
 use super::*;
-use egui::{Event, Pos2, Rect};
+use egui::{Event, Pos2, Rect, TextStyle};
 
 #[test]
 fn roles_keep_shared_metrics_and_distinct_surfaces_in_both_themes() {
     for mode in [ThemeMode::Dark, ThemeMode::Light] {
         let ctx = egui::Context::default();
-        configure(&ctx, mode);
+        let _theme = configure(&ctx, mode);
         assert_eq!(ctx.style().spacing.interact_size.y, CONTROL_HEIGHT);
         assert_eq!(ctx.style().text_styles[&TextStyle::Body].size, BODY_SIZE);
         assert_eq!(ctx.style().text_styles[&TextStyle::Small].size, META_SIZE);
         assert_ne!(canvas_background(), document_background());
-        assert_eq!(index_panel().fill, PANEL());
+        assert_eq!(index_panel().fill, NAVIGATION());
         let metrics = [SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG, SPACE_XL];
         assert!(metrics.windows(2).all(|pair| pair[0] < pair[1]));
     }
@@ -66,11 +66,11 @@ fn semantic_text_tokens_are_readable_on_their_play_surfaces_in_every_theme() {
                 ..Default::default()
             },
             |ctx| {
-                configure(ctx, mode);
+                let _theme = configure(ctx, mode);
                 assert_eq!(
                     is_light(),
                     mode == ThemeMode::Light
-                        || (mode == ThemeMode::System && system == Some(egui::Theme::Light))
+                        || (mode == ThemeMode::System && system != Some(egui::Theme::Dark))
                 );
                 for foreground in [TEXT(), MUTED(), WARNING(), ERROR(), SUCCESS(), ANCHOR()] {
                     for background in [BG(), PANEL(), CARD()] {
@@ -82,7 +82,7 @@ fn semantic_text_tokens_are_readable_on_their_play_surfaces_in_every_theme() {
                 }
                 assert!(contrast(ERROR(), error_background()) >= 4.5);
                 assert_eq!(ctx.style().visuals.panel_fill, PANEL());
-                assert_eq!(ctx.style().visuals.window_fill, PANEL());
+                assert_eq!(ctx.style().visuals.window_fill, CARD());
             },
         );
     }
@@ -104,8 +104,11 @@ fn draw(
         |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 card().show(ui, |ui| {
-                    response =
-                        Some(ui.add_enabled(enabled, egui::Checkbox::new(checked, "解决批注")));
+                    response = Some(super::add_enabled(
+                        ui,
+                        enabled,
+                        egui::Checkbox::new(checked, "解决批注"),
+                    ));
                 });
             });
         },
@@ -138,7 +141,7 @@ fn outline(output: &egui::FullOutput, response: &egui::Response) -> Stroke {
 fn dark_and_light_control_states_keep_outlines_and_distinct_focus_widths() {
     for mode in [ThemeMode::Dark, ThemeMode::Light] {
         let ctx = egui::Context::default();
-        configure(&ctx, mode);
+        let _theme = configure(&ctx, mode);
         let visuals = ctx.style().visuals.clone();
         assert!(contrast(visuals.widgets.inactive.bg_stroke.color, CARD()) >= 3.0);
         assert_eq!(visuals.widgets.inactive.bg_stroke.width, 1.0);
@@ -148,6 +151,17 @@ fn dark_and_light_control_states_keep_outlines_and_distinct_focus_widths() {
         let mut checked = false;
         let (output, response) = draw(&ctx, &mut checked, true, vec![]);
         let inactive = outline(&output, &response);
+        let inactive_fill = checkbox_rect(
+            &output
+                .shapes
+                .iter()
+                .find(|s| checkbox_rect(&s.shape, response.rect).is_some())
+                .unwrap()
+                .shape,
+            response.rect,
+        )
+        .unwrap()
+        .fill;
         assert_eq!(inactive.width, 1.0);
         let (output, response) = draw(
             &ctx,
@@ -163,7 +177,22 @@ fn dark_and_light_control_states_keep_outlines_and_distinct_focus_widths() {
         let (output, response) = draw(&ctx, &mut checked, false, vec![]);
         let disabled = outline(&output, &response);
         assert!(disabled.width >= 1.0 && disabled.color.a() > 0);
-        assert!(disabled.color.a() < inactive.color.a(), "禁用态仍应弱化");
+        assert_eq!(disabled.color.a(), 255, "不可用边界不以透明度降低可读性");
+        let disabled_fill = checkbox_rect(
+            &output
+                .shapes
+                .iter()
+                .find(|s| checkbox_rect(&s.shape, response.rect).is_some())
+                .unwrap()
+                .shape,
+            response.rect,
+        )
+        .unwrap()
+        .fill;
+        assert_ne!(
+            disabled_fill, inactive_fill,
+            "禁用表面须与可用静止态有真实区别"
+        );
         assert!(!response.enabled());
         assert!(!checked);
     }
@@ -173,7 +202,7 @@ fn dark_and_light_control_states_keep_outlines_and_distinct_focus_widths() {
 fn disabled_checkbox_ignores_clicks_and_checked_state_has_noncolor_mark() {
     for mode in [ThemeMode::Dark, ThemeMode::Light] {
         let ctx = egui::Context::default();
-        configure(&ctx, mode);
+        let _theme = configure(&ctx, mode);
         let mut checked = false;
         let (_, response) = draw(&ctx, &mut checked, false, vec![]);
         let point = response.rect.center();
@@ -230,7 +259,7 @@ fn problem_reading_text_and_focus_pass_actual_selected_hovered_active_surfaces()
                 ..Default::default()
             },
             |ctx| {
-                configure(ctx, mode);
+                let _theme = configure(ctx, mode);
                 let visuals = ctx.style().visuals.clone();
                 for surface in [
                     PANEL(),

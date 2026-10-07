@@ -20,11 +20,11 @@ impl MapCanvas {
                     Color32::WHITE,
                 );
             } else {
-                painter.rect_filled(rect, 0.0, Color32::from_gray(38));
+                painter.rect_filled(rect, 0.0, crate::theme::error_background());
                 painter.rect_stroke(
                     rect,
                     0.0,
-                    Stroke::new(1.0_f32, Color32::from_gray(85)),
+                    Stroke::new(1.0_f32, crate::theme::CONTROL_BORDER()),
                     StrokeKind::Inside,
                 );
                 painter.text(
@@ -35,7 +35,7 @@ impl MapCanvas {
                         .map(String::as_str)
                         .unwrap_or("栅格资源不可用"),
                     egui::FontId::proportional(12.0),
-                    Color32::from_gray(150),
+                    crate::theme::ERROR(),
                 );
             }
         }
@@ -287,10 +287,12 @@ pub(super) fn draw_control_points(
     viewport: Rect,
 ) {
     let draw = |painter: &egui::Painter, point: &NormalizedPoint| {
-        painter.circle_filled(
-            camera.normalized_to_screen(point.as_pos2(), viewport),
-            4.0,
-            Color32::from_rgb(255, 210, 90),
+        let point = camera.normalized_to_screen(point.as_pos2(), viewport);
+        painter.circle_filled(point, 5.0, crate::theme::DOCUMENT());
+        painter.circle_stroke(
+            point,
+            5.0,
+            Stroke::new(crate::theme::focus_width(), crate::theme::FOCUS()),
         );
     };
     match geometry {

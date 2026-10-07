@@ -76,10 +76,10 @@ impl super::super::WorldeditApp {
         egui::Window::new("导出矢量 SVG").id(egui::Id::new("scene-vector-export")).default_width(640.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 cancel = ui.button("关闭 / 取消").clicked();
-                if ui.add_enabled(current && form.source.is_some(), egui::Button::new("复制完整 SVG")).clicked() {
+                if crate::theme::add_enabled(ui, current && form.source.is_some(), egui::Button::new("复制完整 SVG")).clicked() {
                     ctx.copy_text(form.source.as_ref().expect("enabled source").clone());
                 }
-                if ui.add_enabled(current && form.source.is_some() && form.job.is_none(), crate::theme::primary("保存 SVG…")).clicked() {
+                if crate::theme::add_enabled(ui, current && form.source.is_some() && form.job.is_none(), crate::theme::primary("保存 SVG…")).clicked() {
                     #[cfg(not(target_arch = "wasm32"))]
                     match SvgExportJob::pick(format!("{}.svg", form.map_id), ctx) { Ok(job) => form.job = Some(job), Err(error) => form.error = Some(error) }
                     #[cfg(target_arch = "wasm32")]

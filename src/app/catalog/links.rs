@@ -127,8 +127,7 @@ impl WorldeditApp {
                             .marks
                             .iter()
                             .any(|m| m.inline && &m.target == target && m.values.contains(id));
-                        if ui
-                            .add_enabled(!inline, egui::Button::new("×").small())
+                        if crate::theme::add_enabled(ui, !inline, egui::Button::new("×").small())
                             .on_hover_text("移除此标签的直接引用")
                             .clicked()
                         {
@@ -173,9 +172,12 @@ impl WorldeditApp {
                         .hint_text("标签名称，例如：伏笔")
                         .desired_width(f32::INFINITY),
                 );
-                if ui
-                    .add_enabled(!name.trim().is_empty(), egui::Button::new("创建并添加"))
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    !name.trim().is_empty(),
+                    egui::Button::new("创建并添加"),
+                )
+                .clicked()
                 {
                     let display = name.trim();
                     let existing = catalog

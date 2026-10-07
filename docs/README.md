@@ -1,10 +1,11 @@
 # worldedit 使用文档
 
-当前产品版本为 0.20.0；完整功能与验证状态见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+本文对应 0.30 候选；本轮功能与验证状态见 [0.30 版本说明](releases/v0.30.0.md)，已发布历史见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
 
 ## 开始创作
 
 - [安装与启动](../README.md#安装与启动)、[工作区](workspace.md)：目录、素材、保存、冲突与完整备份
+- [从空白作品开始写作](start-writing-0.30.md)：书名、章名、正文来源、创建计划和直接起笔
 - [作者工作区](author-workspace.md)、[正文与书稿](manuscript-workspace.md)：写作、结构、源码、布局和草稿保护
 - [显式创作与能力](explicit-authoring-0.14.md)：已应用稿、未应用稿、试玩与能力确认
 - [查找与作者位置](search-author-context.md)、[逐处审阅后替换](selective-replace.md)、[资料旁查](reading-panels.md)、[作者反馈](author-feedback.md)
@@ -45,9 +46,10 @@ v3 对象包含其别名与受限类型结构；属性、地图图元、章节�
 
 ## 界面、自动化与构建
 
-- [共同视觉系统](visual-system-0.15.md)：导航、索引、内容、检查器、主题和长路径
+- [设备外观](appearance-0.30.md)、[作者工作台](workbench-shell-0.30.md)：五种结构、十组十七套配色、预览撤回、自定义与窄窗
+- [一致对象检索](object-navigation-0.30.md)：共同 core 候选、筛选分页、完整身份和过期保护
 - [CLI/RPC 覆盖表](cli-coverage.md)：哪些功能可独立调用，哪些仍属于运行中编辑器
 - [配对构建](paired-ci.md)、[发布流程](release.md)、[性能目标与探针](performance.md)
 - [worldline 规范索引](../../worldline/spec/README.md)：语言、地图、机器协议和公开选择的共同真源
 
-当前 0.20 的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。
+当前 0.30 候选的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。

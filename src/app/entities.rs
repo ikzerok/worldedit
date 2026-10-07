@@ -145,8 +145,7 @@ impl WorldeditApp {
                         }
                     }
                     ui.horizontal_wrapped(|ui| {
-                        apply_requested |= ui
-                            .add_enabled(can_apply, theme::primary("应用资料"))
+                        apply_requested |= crate::theme::add_enabled(ui, can_apply, theme::primary("应用资料"))
                             .clicked();
                         if ui.button("取消").clicked() {
                             cancelled = true;
@@ -232,7 +231,7 @@ impl WorldeditApp {
                     });
                     egui::CollapsingHeader::new("稳定身份与来源文件").show(ui, |ui| {
                         ui.label("显示名称和分类可修改；已有 ID 保持不变，避免断开引用。");
-                        ui.add_enabled(
+                        crate::theme::add_enabled(ui,
                             form.original.is_none(),
                             egui::TextEdit::singleline(&mut form.draft.id),
                         );

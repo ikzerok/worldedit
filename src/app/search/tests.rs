@@ -330,7 +330,9 @@ fn search_object_names_follow_valid_draft_and_invalid_draft_labels_applied_catal
     app.manuscript.restore_writing_buffers(&[buffer]);
     app.open_search(&ctx, true, false);
     app.project_query = "未应用新显示名".into();
-    let (objects, warning) = app.search_objects_in_current_drafts();
+    let view = app.search_objects_in_current_drafts();
+    let warning = view.warning;
+    let objects = view.page.unwrap().items;
     assert!(warning.is_none(), "{:?}", warning);
     assert_eq!(objects.len(), 1);
     assert_eq!(objects[0].display, "未应用新显示名");
@@ -343,7 +345,9 @@ fn search_object_names_follow_valid_draft_and_invalid_draft_labels_applied_catal
         .unwrap()
         .replace_source("event start as \"坏稿\"\n  freshneedle {unfinished\n".into());
     app.project_query = "原显示名".into();
-    let (objects, warning) = app.search_objects_in_current_drafts();
+    let view = app.search_objects_in_current_drafts();
+    let warning = view.warning;
+    let objects = view.page.unwrap().items;
     assert_eq!(objects.len(), 1);
     assert!(warning.unwrap().contains("已应用版本"));
     app.navigate_search_object(&ctx, &objects[0], true);

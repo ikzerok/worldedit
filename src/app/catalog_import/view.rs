@@ -37,13 +37,13 @@ impl ImportState {
             ui.heading("世界资料导入");
             ui.horizontal_wrapped(|ui| {
                 ui.selectable_value(&mut self.step, Step::Mapping, "1 · 来源与列映射");
-                ui.add_enabled_ui(self.plan.is_some(), |ui| {
+                crate::theme::add_enabled_ui(ui, self.plan.is_some(), |ui| {
                     ui.selectable_value(&mut self.step, Step::Review, "2 · 逐行审阅");
                 });
             });
             ui.horizontal_wrapped(|ui| {
-                if ui.add_enabled(!ime, egui::Button::new("选择 CSV 快照…")).clicked() { action = FooterAction::ChooseFile; }
-                if ui.add_enabled(!ime, egui::Button::new("返回资料库（保留输入）")).clicked() { app.switch_tab(Tab::Catalog); }
+                if crate::theme::add_enabled(ui, !ime, egui::Button::new("选择 CSV 快照…")).clicked() { action = FooterAction::ChooseFile; }
+                if crate::theme::add_enabled(ui, !ime, egui::Button::new("返回资料库（保留输入）")).clicked() { app.switch_tab(Tab::Catalog); }
             });
             #[cfg(not(target_arch = "wasm32"))]
             ui.collapsing("按完整文件路径读取 CSV（备用）", |ui| {
@@ -51,7 +51,7 @@ impl ImportState {
                 let path = ui.add(egui::TextEdit::singleline(&mut self.native_path)
                     .hint_text("完整 CSV 文件路径").desired_width(ui.available_width()));
                 if path.changed() { self.invalidate(); }
-                if ui.add_enabled(!ime && self.job.is_none(), egui::Button::new("读取此路径 CSV")).clicked() {
+                if crate::theme::add_enabled(ui, !ime && self.job.is_none(), egui::Button::new("读取此路径 CSV")).clicked() {
                     action = FooterAction::ReadPath;
                 }
             });
@@ -129,55 +129,56 @@ impl ImportState {
     ) {
         ui.separator();
         if self.step == Step::Review && !self.submitted {
-            ui.add_enabled_ui(!ime && !self.stale && self.job.is_none(), |ui| {
+            crate::theme::add_enabled_ui(ui, !ime && !self.stale && self.job.is_none(), |ui| {
                 ui.checkbox(&mut self.acknowledged, "已审阅整批字段差异与存档影响");
             });
         }
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(
-                    !ime && self.job.is_none() && !self.source_name.is_empty(),
-                    egui::Button::new(if self.table.is_none() {
-                        "读取快照"
-                    } else {
-                        "刷新预览"
-                    }),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                !ime && self.job.is_none() && !self.source_name.is_empty(),
+                egui::Button::new(if self.table.is_none() {
+                    "读取快照"
+                } else {
+                    "刷新预览"
+                }),
+            )
+            .clicked()
             {
                 *action = FooterAction::Preview;
             }
             if self.job.is_some()
-                && ui
-                    .add_enabled(!ime, egui::Button::new("取消检查"))
-                    .clicked()
+                && crate::theme::add_enabled(ui, !ime, egui::Button::new("取消检查")).clicked()
             {
                 *action = FooterAction::Cancel;
             }
-            if ui
-                .add_enabled(!ime && self.can_apply(app), theme::primary("确认整批应用"))
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                !ime && self.can_apply(app),
+                theme::primary("确认整批应用"),
+            )
+            .clicked()
             {
                 *action = FooterAction::Apply;
             }
             if self.submitted
-                && ui
-                    .add_enabled(
-                        !ime && app.project.is_dirty(),
-                        egui::Button::new("保存全部"),
-                    )
-                    .clicked()
+                && crate::theme::add_enabled(
+                    ui,
+                    !ime && app.project.is_dirty(),
+                    egui::Button::new("保存全部"),
+                )
+                .clicked()
             {
                 *action = FooterAction::Save;
             }
-            if ui
-                .add_enabled(
-                    !ime && (!self.source_name.is_empty()
-                        || self.replacement.is_some()
-                        || self.has_unsubmitted_work()),
-                    egui::Button::new("丢弃导入输入…"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                !ime && (!self.source_name.is_empty()
+                    || self.replacement.is_some()
+                    || self.has_unsubmitted_work()),
+                egui::Button::new("丢弃导入输入…"),
+            )
+            .clicked()
             {
                 *action = FooterAction::Discard;
             }
@@ -200,20 +201,18 @@ impl ImportState {
                 "已选择另一份 CSV；替换将清除当前列映射与预览，工程原文不变。",
             );
             ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(
-                        !ime && self.job.is_none(),
-                        egui::Button::new("确认替换导入快照"),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    !ime && self.job.is_none(),
+                    egui::Button::new("确认替换导入快照"),
+                )
+                .clicked()
                 {
                     if let Some((name, csv)) = self.replacement.take() {
                         self.accept_file(name, csv, ctx);
                     }
                 }
-                if ui
-                    .add_enabled(!ime, egui::Button::new("保留当前快照"))
-                    .clicked()
+                if crate::theme::add_enabled(ui, !ime, egui::Button::new("保留当前快照")).clicked()
                 {
                     self.replacement = None;
                 }
@@ -234,15 +233,12 @@ impl ImportState {
                 "将丢弃此处 CSV 快照、映射和预览；已应用的工程修改不受影响。",
             );
             ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(!ime, egui::Button::new("确认丢弃导入输入"))
+                if crate::theme::add_enabled(ui, !ime, egui::Button::new("确认丢弃导入输入"))
                     .clicked()
                 {
                     self.discard();
                 }
-                if ui
-                    .add_enabled(!ime, egui::Button::new("取消丢弃"))
-                    .clicked()
+                if crate::theme::add_enabled(ui, !ime, egui::Button::new("取消丢弃")).clicked()
                 {
                     self.discard_confirm = false;
                 }

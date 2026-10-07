@@ -118,7 +118,7 @@ fn temporal_form_small_light_and_dark_layout_keeps_actions_identity_filter_and_s
     for (size, dark) in [(vec2(1040.0, 660.0), false), (vec2(1188.0, 848.0), true)] {
         let mut h = Harness::new("1.13");
         h.size = size;
-        crate::theme::configure(
+        let _theme = crate::theme::configure(
             &h.ctx,
             if dark {
                 crate::theme::ThemeMode::Dark

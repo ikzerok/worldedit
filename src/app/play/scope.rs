@@ -110,23 +110,16 @@ impl WorldeditApp {
                 )
             })
             .collect();
-        // WritingBuffer 以源文件为唯一身份；同源多章不重复，编排变化不阻断。
-        for buffer in self
-            .manuscript
-            .writing_buffers()
-            .iter()
-            .filter(|b| b.is_changed())
-        {
-            inputs.push(UnappliedInput {
-                kind: "书稿 / 正文草稿",
-                source: buffer
-                    .path()
-                    .strip_prefix(&self.project.root)
-                    .unwrap_or(buffer.path())
-                    .display()
-                    .to_string(),
-            });
-        }
+        // 仅正文缓冲、待新建 event 和受保护输入参与；纯引用/排序不阻断执行。
+        inputs.extend(
+            self.manuscript
+                .runtime_drafts(&self.project.root)
+                .into_keys()
+                .map(|source| UnappliedInput {
+                    kind: "书稿 / 正文草稿",
+                    source,
+                }),
+        );
         inputs.sort_by(|a, b| (a.kind, &a.source).cmp(&(b.kind, &b.source)));
         inputs.dedup();
         inputs
@@ -146,6 +139,7 @@ impl WorldeditApp {
 
     fn play_draft_signature(&self) -> String {
         let mut values = BTreeMap::new();
+        let manuscript_drafts = self.manuscript.runtime_drafts(&self.project.root);
         for input in self.unapplied_play_inputs() {
             let signature = match input.kind {
                 "世界资料导入" => Some(self.catalog_import.input_signature()),
@@ -227,22 +221,7 @@ impl WorldeditApp {
                         &self.ime_source_baseline
                     )
                 )),
-                "书稿 / 正文草稿" => Some(format!(
-                    "{:?}",
-                    self.manuscript
-                        .writing_buffers()
-                        .iter()
-                        .filter(|b| b.is_changed())
-                        .map(|b| (
-                            b.path().to_owned(),
-                            (
-                                b.baseline().to_owned(),
-                                b.generation(),
-                                b.source().to_owned()
-                            )
-                        ))
-                        .collect::<BTreeMap<_, _>>()
-                )),
+                "书稿 / 正文草稿" => manuscript_drafts.get(&input.source).cloned(),
                 _ => Some(input.source.clone()),
             };
             values.insert((input.kind, input.source), signature);
@@ -358,7 +337,11 @@ impl WorldeditApp {
         }
     }
 
-    fn confirm_play_scope(&mut self, ctx: &egui::Context, shown: PlayConfirmation) {
+    pub(in crate::app) fn confirm_play_scope(
+        &mut self,
+        ctx: &egui::Context,
+        shown: PlayConfirmation,
+    ) {
         let Some(mut current) = self.refresh_play_confirmation(&shown) else {
             self.run_scope_notice(
                 shown.action,
@@ -441,9 +424,9 @@ impl WorldeditApp {
                 ui.label("当前已无执行相关的未应用输入；仍需重新确认本次范围。");
             }
             ui.horizontal_wrapped(|ui| {
-                proceed = ui
-                    .add_enabled(!changed, theme::primary("明确运行已应用稿"))
-                    .clicked();
+                proceed =
+                    crate::theme::add_enabled(ui, !changed, theme::primary("明确运行已应用稿"))
+                        .clicked();
                 cancel = ui.button("取消运行").clicked();
             });
         });

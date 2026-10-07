@@ -10,16 +10,11 @@ pub(super) fn page_range(
     let pages = count.div_ceil(PAGE_SIZE).max(1);
     *page = (*page).min(pages - 1);
     ui.horizontal_wrapped(|ui| {
-        if ui
-            .add_enabled(*page > 0, egui::Button::new("上一页"))
-            .clicked()
-        {
+        if crate::theme::add_enabled(ui, *page > 0, egui::Button::new("上一页")).clicked() {
             *page -= 1;
         }
         ui.label(format!("第 {} / {} 页 · 共 {} 项", *page + 1, pages, count));
-        if ui
-            .add_enabled(*page + 1 < pages, egui::Button::new("下一页"))
-            .clicked()
+        if crate::theme::add_enabled(ui, *page + 1 < pages, egui::Button::new("下一页")).clicked()
         {
             *page += 1;
         }
@@ -260,15 +255,12 @@ impl ReaderPublishState {
                 continue;
             }
             let mut checked = self.attachments.contains(&choice.id);
-            if ui
-                .add_enabled(
-                    choice.available,
-                    egui::Checkbox::new(
-                        &mut checked,
-                        format!("{} ({})", choice.display, choice.id),
-                    ),
-                )
-                .changed()
+            if crate::theme::add_enabled(
+                ui,
+                choice.available,
+                egui::Checkbox::new(&mut checked, format!("{} ({})", choice.display, choice.id)),
+            )
+            .changed()
             {
                 if checked {
                     self.attachments.insert(choice.id.clone());

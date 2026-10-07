@@ -65,7 +65,7 @@ pub(super) fn choice_cards(
                     .default_open(!choice.enable_condition.is_empty())
                     .show(ui, |ui| {
                         if !locked_choices { ui.label(theme::muted("需显式语言 1.12；旧工程不会自动升级。")); }
-                        ui.add_enabled_ui(locked_choices, |ui| {
+                        crate::theme::add_enabled_ui(ui, locked_choices, |ui| {
                             ui.label("可选条件（空值不锁定）");
                             ui.add(egui::TextEdit::singleline(&mut choice.enable_condition)
                                 .hint_text("例如 has(inventory, silver_key)").desired_width(f32::INFINITY));

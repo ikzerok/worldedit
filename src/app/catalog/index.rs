@@ -1,5 +1,5 @@
 //! 资料索引：空间不足时使用可关闭抽屉，主编辑区保留可读宽度。
-use super::{kind_label, WorldeditApp};
+use super::WorldeditApp;
 use egui::RichText;
 use worldline_core::catalog::Catalog;
 impl WorldeditApp {
@@ -28,34 +28,31 @@ impl WorldeditApp {
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(8.0);
+        let allowed = if self.catalog_filter.is_empty() {
+            Vec::new()
+        } else {
+            vec![self.catalog_filter.as_str()]
+        };
+        let objects = self.applied_object_candidates(
+            ui,
+            catalog,
+            "catalog-index",
+            &self.catalog_query,
+            &allowed,
+        );
         egui::ScrollArea::vertical()
             .id_salt("catalog-items")
             .show(ui, |ui| {
-                for object in &catalog.search_objects(&self.catalog_query) {
-                    if !self.catalog_filter.is_empty() && object.target.kind != self.catalog_filter
-                    {
-                        continue;
-                    }
+                for object in &objects {
                     let selected = self.catalog_target.as_ref() == Some(&object.target);
-                    if ui
-                        .add_sized(
-                            [ui.available_width(), 48.0],
-                            egui::Button::selectable(
-                                selected,
-                                format!(
-                                    "{}\n{} · {}",
-                                    object.display,
-                                    kind_label(&object.target.kind),
-                                    object.target.id
-                                ),
-                            ),
-                        )
-                        .on_hover_text(format!(
-                            "{} · {}",
-                            kind_label(&object.target.kind),
-                            object.target.id
-                        ))
-                        .clicked()
+                    if super::super::object_picker::candidate_row_at_revision(
+                        ui,
+                        object,
+                        Some(&self.project.root),
+                        selected,
+                        (self.version, &self.catalog_query, &self.catalog_filter),
+                    )
+                    .clicked()
                     {
                         if self.prevent_catalog_switch() {
                             continue;

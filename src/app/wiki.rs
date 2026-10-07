@@ -76,13 +76,23 @@ pub(super) fn keyword_inline(
     let mut end = 0;
     for found in index.find_with_links(text, links) {
         if found.start > end {
-            ui.add(egui::Label::new(RichText::new(&text[end..found.start]).size(size)).wrap());
+            ui.add(
+                egui::Label::new(
+                    RichText::new(&text[end..found.start]).font(theme::body_font(size)),
+                )
+                .wrap(),
+            );
         }
         let label = &text[found.start..found.end];
         ui.push_id(found.start, |ui| {
             if found.targets.len() == 1 {
                 if ui
-                    .link(RichText::new(label).size(size).color(ACCENT()).underline())
+                    .link(
+                        RichText::new(label)
+                            .font(theme::body_font(size))
+                            .color(ACCENT())
+                            .underline(),
+                    )
                     .on_hover_text("查看 Wiki 释义与出现位置")
                     .clicked()
                 {
@@ -91,7 +101,10 @@ pub(super) fn keyword_inline(
             } else {
                 ui.spacing_mut().button_padding = egui::Vec2::ZERO;
                 ui.menu_button(
-                    RichText::new(label).size(size).color(ACCENT()).underline(),
+                    RichText::new(label)
+                        .font(theme::body_font(size))
+                        .color(ACCENT())
+                        .underline(),
                     |ui| {
                         ui.label(theme::muted("同名词条，请选择要查看的释义"));
                         for target in &found.targets {
@@ -117,7 +130,7 @@ pub(super) fn keyword_inline(
         end = found.end;
     }
     if end < text.len() {
-        ui.add(egui::Label::new(RichText::new(&text[end..]).size(size)).wrap());
+        ui.add(egui::Label::new(RichText::new(&text[end..]).font(theme::body_font(size))).wrap());
     }
     selected
 }
@@ -299,35 +312,32 @@ impl WorldeditApp {
                         .desired_width(f32::INFINITY),
                 );
                 ui.add_space(8.0);
-                let objects = catalog.search_objects(&self.wiki_query);
-                ui.label(theme::muted(format!("{} 个词条", objects.len())));
+                let objects = self.applied_object_candidates(
+                    ui,
+                    &catalog,
+                    "wiki-index",
+                    &self.wiki_query,
+                    &[],
+                );
                 egui::ScrollArea::vertical()
                     .id_salt("wiki-entries")
                     .show(ui, |ui| {
-                        for object in objects {
-                            ui.push_id((&object.target.kind, &object.target.id), |ui| {
-                                if ui
-                                    .add_sized(
-                                        [ui.available_width(), 38.0],
-                                        egui::Button::selectable(
-                                            self.wiki_target.as_ref() == Some(&object.target),
-                                            &object.display,
-                                        ),
-                                    )
-                                    .clicked()
-                                {
-                                    self.wiki_target = Some(object.target.clone());
-                                    self.alias_input.clear();
-                                }
-                                ui.label(theme::muted(format!(
-                                    "{} · {}",
-                                    super::catalog::kind_label(&object.target.kind),
-                                    object.target.id
-                                )));
-                            });
+                        for object in &objects {
+                            if super::object_picker::candidate_row_at_revision(
+                                ui,
+                                object,
+                                Some(&self.project.root),
+                                self.wiki_target.as_ref() == Some(&object.target),
+                                (self.version, &self.wiki_query),
+                            )
+                            .clicked()
+                            {
+                                self.wiki_target = Some(object.target.clone());
+                                self.alias_input.clear();
+                            }
                         }
-                        if catalog.search_objects(&self.wiki_query).is_empty() {
-                            ui.label("没有匹配的词条，可用正文上方按钮创建。");
+                        if objects.is_empty() {
+                            ui.label("此页没有可用词条");
                         }
                     });
             });
@@ -394,12 +404,12 @@ impl WorldeditApp {
                     "词条打开后工程已更新。请复制需要保留的输入，关闭并重新打开词条后合并。",
                 );
             }
-            if ui
-                .add_enabled(
-                    !stale && !editor.draft.display.trim().is_empty(),
-                    theme::primary("应用词条"),
-                )
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                !stale && !editor.draft.display.trim().is_empty(),
+                theme::primary("应用词条"),
+            )
+            .clicked()
             {
                 editor.draft.display = editor.draft.display.trim().into();
                 let aliases: Vec<_> = editor

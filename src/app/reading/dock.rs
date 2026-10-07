@@ -2,7 +2,9 @@
 use crate::app::WorldeditApp;
 impl WorldeditApp {
     pub(in crate::app) fn docked_reading(&mut self, ctx: &egui::Context) {
-        if !self.personal.settings.references_visible || !self.personal.settings.dock_references {
+        if !self.personal.settings.references_visible
+            || (!self.personal.settings.dock_references && !self.focus_style())
+        {
             return;
         }
         let ids = self.reading_panels.ids();
@@ -11,6 +13,10 @@ impl WorldeditApp {
         }
         if !ids.contains(&self.selected_reading_panel.unwrap_or(u64::MAX)) {
             self.selected_reading_panel = ids.first().copied();
+        }
+        if self.compact_reference_mode(ctx) {
+            self.compact_reference_bar(ctx);
+            return;
         }
         let dual = ids.len() == 2 && ctx.available_rect().width() >= 1450.0;
         let width = if dual {
@@ -59,7 +65,7 @@ impl WorldeditApp {
             output.response.rect.width()
         };
     }
-    fn docked_reading_content(&mut self, ui: &mut egui::Ui, id: u64) {
+    pub(super) fn docked_reading_content(&mut self, ui: &mut egui::Ui, id: u64) {
         let Some(panel) = self.reading_panels.get(id) else {
             return;
         };
@@ -68,9 +74,7 @@ impl WorldeditApp {
         self.active_reading_panel = Some(id);
         ui.push_id(("dock-reference", id), |ui| {
             ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(can_back, egui::Button::new("← 上一条"))
-                    .clicked()
+                if crate::theme::add_enabled(ui, can_back, egui::Button::new("← 上一条")).clicked()
                 {
                     self.reading_panels.back(id);
                 }
@@ -83,12 +87,12 @@ impl WorldeditApp {
                 .show(ui, |ui| {
                     ui.set_max_width(
                         self.personal
-                            .settings
+                            .appearance()
                             .reading_width
                             .min(ui.available_width()),
                     );
-                    ui.spacing_mut().item_spacing.y = (self.personal.settings.body_size
-                        * (self.personal.settings.line_spacing - 1.0))
+                    ui.spacing_mut().item_spacing.y = (self.personal.appearance().body_size
+                        * (self.personal.appearance().line_spacing - 1.0))
                         .max(4.0);
                     self.reading_content(ui, target);
                 });

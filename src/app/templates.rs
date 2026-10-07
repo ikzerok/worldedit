@@ -341,35 +341,14 @@ fn render_reference_field(
         PropertyValue::Ref(target) => Some(target.clone()),
         _ => None,
     });
-    let candidates = catalog
-        .objects
-        .iter()
-        .filter(|object| object.target.kind == target_kind)
-        .filter(|object| {
-            field
-                .target_entity_type
-                .as_deref()
-                .is_none_or(|entity_type| {
-                    catalog
-                        .entities
-                        .get(&object.target.id)
-                        .is_some_and(|entity| entity.entity_type == entity_type)
-                })
-        })
-        .collect::<Vec<_>>();
     let mut selected = old.clone();
-    let eligible = Catalog {
-        objects: candidates.into_iter().cloned().collect(),
-        aliases: catalog.aliases.clone(),
-        ..Default::default()
-    };
-    super::object_picker::object_picker(
+    super::object_picker::object_picker_typed(
         ui,
         ("project-template-reference", &field.id, key),
         label,
         &mut selected,
-        &eligible,
-        &[target_kind],
+        catalog,
+        &super::object_picker::filter(&[target_kind], field.target_entity_type.as_deref()),
     );
     if selected != old {
         if let Some(target) = selected {

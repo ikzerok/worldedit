@@ -2,6 +2,7 @@
 mod content;
 mod context;
 pub(super) use context::ContextCache;
+mod compact;
 mod dock;
 use super::catalog::kind_label;
 use super::WorldeditApp;
@@ -139,7 +140,9 @@ impl WorldeditApp {
                                 if ui
                                     .link(
                                         RichText::new(&part.text)
-                                            .size(self.personal.settings.body_size)
+                                            .font(theme::body_font(
+                                                self.personal.appearance().body_size,
+                                            ))
                                             .color(theme::ACCENT())
                                             .underline(),
                                     )
@@ -149,7 +152,11 @@ impl WorldeditApp {
                                     self.open_reading(target);
                                 }
                             } else {
-                                self.wiki_inline(ui, &part.text, self.personal.settings.body_size);
+                                self.wiki_inline(
+                                    ui,
+                                    &part.text,
+                                    self.personal.appearance().body_size,
+                                );
                             }
                         });
                     }
@@ -178,7 +185,11 @@ impl WorldeditApp {
 
     pub(super) fn reading_window(&mut self, ctx: &egui::Context) {
         self.transient_reading_window(ctx);
-        if self.personal.settings.references_visible && !self.personal.settings.dock_references {
+        self.compact_reference_window(ctx);
+        if self.personal.settings.references_visible
+            && !self.personal.settings.dock_references
+            && !self.focus_style()
+        {
             self.pinned_reading_windows(ctx);
         }
     }
@@ -195,6 +206,9 @@ impl WorldeditApp {
             .open(&mut open)
             .default_width(720.0)
             .default_height(660.0)
+            .max_width((ctx.screen_rect().width() - 24.0).max(240.0))
+            .max_height((ctx.screen_rect().height() - 48.0).max(160.0))
+            .constrain_to(ctx.screen_rect().shrink(8.0))
             .resizable(true)
             .vscroll(true)
             .show(ctx, |ui| {
@@ -206,12 +220,12 @@ impl WorldeditApp {
                     keyboard_return = true;
                     return;
                 }
-                if ui
-                    .add_enabled(
-                        self.reading_panels.ids().len() < super::reading_state::PANEL_LIMIT,
-                        egui::Button::new("钉住旁查"),
-                    )
-                    .clicked()
+                if crate::theme::add_enabled(
+                    ui,
+                    self.reading_panels.ids().len() < super::reading_state::PANEL_LIMIT,
+                    egui::Button::new("钉住旁查"),
+                )
+                .clicked()
                 {
                     self.selected_reading_panel = self.reading_panels.pin(target.clone());
                     self.personal.settings.references_visible = true;
@@ -269,6 +283,8 @@ impl WorldeditApp {
             .default_pos(egui::pos2(40.0 + index as f32 * 440.0, 90.0))
             .default_width(420.0)
             .default_height(460.0)
+            .max_width((ctx.screen_rect().width() - 24.0).max(240.0))
+            .constrain_to(ctx.screen_rect().shrink(8.0))
             .max_height((ctx.screen_rect().height() - 140.0).max(200.0))
             .resizable(true)
             .vscroll(true)
@@ -283,8 +299,7 @@ impl WorldeditApp {
                             );
                         }
                     }
-                    if ui
-                        .add_enabled(can_back, egui::Button::new("← 返回"))
+                    if crate::theme::add_enabled(ui, can_back, egui::Button::new("← 返回"))
                         .clicked()
                     {
                         self.reading_panels.back(id);

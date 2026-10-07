@@ -190,7 +190,8 @@ impl Renderer<'_> {
     fn body(&mut self, ui: &mut egui::Ui, node: &ReviewNode) {
         if let Some(speaker) = &node.speaker {
             ui.horizontal_wrapped(|ui| {
-                let response = ui.add_enabled(
+                let response = crate::theme::add_enabled(
+                    ui,
                     self.blocked.is_none(),
                     egui::Button::new(egui::RichText::new(&speaker.display).strong()).frame(false),
                 );
@@ -242,12 +243,12 @@ impl Renderer<'_> {
             self.blocked
                 .unwrap_or("定位同一文件草稿的真实范围；不应用或保存。Alt+Left 返回")
         );
-        let response = ui
-            .add_enabled(
-                self.blocked.is_none(),
-                egui::Button::new("定位原文").small(),
-            )
-            .on_hover_text(detail);
+        let response = crate::theme::add_enabled(
+            ui,
+            self.blocked.is_none(),
+            egui::Button::new("定位原文").small(),
+        )
+        .on_hover_text(detail);
         if response.clicked() {
             self.actions.source = Some(ReviewRequest {
                 key: self.key.into(),
@@ -286,7 +287,7 @@ pub(super) fn paragraph_job(
             &part.text,
             0.0,
             egui::TextFormat {
-                font_id: egui::FontId::proportional(typography.size),
+                font_id: theme::body_font(typography.size),
                 color: if part.target.is_some() {
                     theme::ACCENT()
                 } else {
@@ -347,13 +348,13 @@ fn paragraph(
                 continue;
             }
             seen.push(target.clone());
-            let response = ui
-                .add_enabled(
-                    blocked.is_none(),
-                    egui::Button::new(egui::RichText::new(format!("旁查 {}", part.text)).small())
-                        .wrap(),
-                )
-                .on_hover_text(format!("{}:{}", target.kind, target.id));
+            let response = crate::theme::add_enabled(
+                ui,
+                blocked.is_none(),
+                egui::Button::new(egui::RichText::new(format!("旁查 {}", part.text)).small())
+                    .wrap(),
+            )
+            .on_hover_text(format!("{}:{}", target.kind, target.id));
             if response.clicked() {
                 actions.reference = Some(target.clone());
             }

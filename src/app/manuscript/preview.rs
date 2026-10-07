@@ -159,16 +159,18 @@ pub(super) fn draw_reader_preview(
         }
         let old_offset = app.manuscript.review_page_offset;
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(page.offset > 0, egui::Button::new("上一批章节"))
+            if crate::theme::add_enabled(ui, page.offset > 0, egui::Button::new("上一批章节"))
                 .clicked()
             {
                 app.manuscript.review_page_offset =
                     page.offset.saturating_sub(REVIEW_CHAPTERS_PER_PAGE);
             }
-            if ui
-                .add_enabled(page.next_offset.is_some(), egui::Button::new("下一批章节"))
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                page.next_offset.is_some(),
+                egui::Button::new("下一批章节"),
+            )
+            .clicked()
             {
                 app.manuscript.review_page_offset = page.next_offset.unwrap_or(page.offset);
             }
@@ -208,6 +210,12 @@ pub(super) fn draw_reader_preview(
         .iter()
         .filter_map(|(_, _, target)| target.clone())
         .collect();
+    if app.manuscript.writing_view.has_retained_input() {
+        ui.colored_label(
+            theme::WARNING(),
+            "有受保护的输入尚未插入正文；下方审稿不包含这部分保留输入。",
+        );
+    }
     let buffers = app.manuscript.writing_buffers();
     app.manuscript
         .preview_cache
@@ -247,10 +255,11 @@ pub(super) fn draw_reader_preview(
     }).collect();
     let key = cache.key.clone();
     let typography = super::super::writing_workspace::Typography {
-        compact: app.personal.settings.focus,
-        size: app.personal.settings.body_size,
-        spacing: app.personal.settings.line_spacing,
-        width: app.personal.settings.reading_width,
+        compact: app.manuscript_focus_layout(),
+        size: app.personal.appearance().body_size,
+        spacing: app.personal.appearance().line_spacing,
+        width: app.personal.appearance().reading_width,
+        source_size: app.personal.appearance().source_size,
     };
     let blocked = app.review_input_blocker(ui.ctx());
     let mut actions = super::review_render::Actions::default();
@@ -272,15 +281,16 @@ pub(super) fn draw_reader_preview(
         state.store(ui.ctx(), id);
         scroll = scroll.vertical_scroll_offset(offset).animated(false);
     }
+    let ledger = theme::style_preset() == theme::StylePreset::Ledger;
     let output = scroll.show(ui, |ui| {
-        let width = typography.width.min(ui.available_width()).max(1.0);
-        ui.vertical_centered(|ui| {
-            ui.set_max_width(width);
-            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                for (id, title, target, projection, current, error) in lines {
-                    ui.push_id((id, "reader"), |ui| {
-                        ui.separator();
-                        ui.label(egui::RichText::new(title).strong());
+        let content = |ui: &mut egui::Ui| {
+            for (id, title, target, projection, current, error) in lines {
+                ui.push_id((id, "reader"), |ui| {
+                    let chapter = |ui: &mut egui::Ui| {
+                        if !ledger {
+                            ui.separator();
+                            ui.label(egui::RichText::new(&title).strong());
+                        }
                         if let Some(error) = &error {
                             ui.colored_label(theme::ERROR(), format!("本章审稿未完成 · {error}"));
                             if projection.is_some() {
@@ -311,13 +321,23 @@ pub(super) fn draw_reader_preview(
                             reason,
                             &mut actions,
                         );
-                    });
-                }
-                if targets.is_empty() {
-                    ui.label(theme::muted("请选择带正文来源的章节。"));
-                }
-            });
-        });
+                    };
+                    if ledger {
+                        theme::document_surface_titled(ui, &title, typography.width, chapter);
+                    } else {
+                        chapter(ui);
+                    }
+                });
+            }
+            if targets.is_empty() {
+                ui.label(theme::muted("请选择带正文来源的章节。"));
+            }
+        };
+        if ledger {
+            content(ui);
+        } else {
+            theme::document_surface(ui, typography.width, content);
+        }
     });
     app.manuscript.review_scroll_y = output.state.offset.y;
     if let Some(request) = actions.source {
