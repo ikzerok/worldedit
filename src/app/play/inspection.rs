@@ -226,81 +226,79 @@ impl WorldeditApp {
                     }
                 });
                 ui.separator();
-                egui::ScrollArea::vertical()
-                    .id_salt("live-state-inspection-rows")
-                    .max_height((size.y - 300.0).max(120.0))
-                    .show(ui, |ui| {
-                        if page.items.is_empty() {
-                            ui.label("此筛选无匹配项；不代表路径或其他状态没有问题");
-                        }
-                        for item in &page.items {
-                            ui.push_id(&item.key, |ui| {
-                                ui.group(|ui| {
-                                    let title = format!(
-                                        "{} · {}{}",
-                                        group(item.key.group),
-                                        item.key.name,
-                                        item.fragment
-                                            .as_ref()
-                                            .map(|name| format!(
-                                                " · {name} 调用 #{}",
-                                                item.key.call_id.unwrap_or(0)
-                                            ))
-                                            .unwrap_or_default()
-                                    );
-                                    if ui
-                                        .selectable_label(
-                                            inspector.selected.as_ref() == Some(&item.key),
-                                            title,
-                                        )
-                                        .clicked()
-                                    {
-                                        inspector.selected = Some(item.key.clone());
-                                    }
-                                    let change = match inspector.query.compare_to {
-                                        InspectionBaseline::First => item.first_change,
-                                        InspectionBaseline::Previous => item.previous_change,
-                                    };
-                                    ui.label(change_label(change));
-                                    if ui.available_width() >= 620.0 {
-                                        ui.columns(3, |columns| {
-                                            cell(&mut columns[0], "首次", &item.first);
-                                            cell(&mut columns[1], "上次", &item.previous);
-                                            cell(&mut columns[2], "当前", &item.current);
-                                        });
-                                    } else {
-                                        cell(ui, "当前", &item.current);
-                                        cell(ui, "上次", &item.previous);
-                                        cell(ui, "首次", &item.first);
-                                    }
-                                    let reason = source_reason.as_deref().or_else(|| {
-                                        item.source.is_none().then_some("局部值暂无可验证声明来源")
+                // 窗口统一滚动；嵌套同向滚动会让窄窗内的值和来源按钮互相截获滚轮。
+                ui.push_id("live-state-inspection-rows", |ui| {
+                    if page.items.is_empty() {
+                        ui.label("此筛选无匹配项；不代表路径或其他状态没有问题");
+                    }
+                    for item in &page.items {
+                        ui.push_id(&item.key, |ui| {
+                            ui.group(|ui| {
+                                let title = format!(
+                                    "{} · {}{}",
+                                    group(item.key.group),
+                                    item.key.name,
+                                    item.fragment
+                                        .as_ref()
+                                        .map(|name| format!(
+                                            " · {name} 调用 #{}",
+                                            item.key.call_id.unwrap_or(0)
+                                        ))
+                                        .unwrap_or_default()
+                                );
+                                if ui
+                                    .selectable_label(
+                                        inspector.selected.as_ref() == Some(&item.key),
+                                        title,
+                                    )
+                                    .clicked()
+                                {
+                                    inspector.selected = Some(item.key.clone());
+                                }
+                                let change = match inspector.query.compare_to {
+                                    InspectionBaseline::First => item.first_change,
+                                    InspectionBaseline::Previous => item.previous_change,
+                                };
+                                ui.label(change_label(change));
+                                if ui.available_width() >= 620.0 {
+                                    ui.columns(3, |columns| {
+                                        cell(&mut columns[0], "首次", &item.first);
+                                        cell(&mut columns[1], "上次", &item.previous);
+                                        cell(&mut columns[2], "当前", &item.current);
                                     });
-                                    let label = if item.key.group == InspectionGroup::State {
-                                        "定位状态声明"
-                                    } else {
-                                        "定位变量声明"
-                                    };
-                                    let response = theme::add_enabled(
-                                        ui,
-                                        reason.is_none(),
-                                        egui::Button::new(label),
-                                    );
-                                    if response.clicked() {
-                                        source_request =
-                                            item.source.clone().map(|source| SourceRequest {
-                                                stamp: page.stamp,
-                                                key: item.key.clone(),
-                                                source,
-                                            });
-                                    }
-                                    if let Some(reason) = reason {
-                                        response.on_hover_text(reason);
-                                    }
+                                } else {
+                                    cell(ui, "当前", &item.current);
+                                    cell(ui, "上次", &item.previous);
+                                    cell(ui, "首次", &item.first);
+                                }
+                                let reason = source_reason.as_deref().or_else(|| {
+                                    item.source.is_none().then_some("局部值暂无可验证声明来源")
                                 });
+                                let label = if item.key.group == InspectionGroup::State {
+                                    "定位状态声明"
+                                } else {
+                                    "定位变量声明"
+                                };
+                                let response = theme::add_enabled(
+                                    ui,
+                                    reason.is_none(),
+                                    egui::Button::new(label),
+                                );
+                                if response.clicked() {
+                                    source_request =
+                                        item.source.clone().map(|source| SourceRequest {
+                                            stamp: page.stamp,
+                                            key: item.key.clone(),
+                                            source,
+                                        });
+                                }
+                                if let Some(reason) = reason {
+                                    response.on_hover_text(reason);
+                                }
                             });
-                        }
-                    });
+                        });
+                    }
+                });
                 ui.label(theme::muted(
                     "值差异不说明写入因果；同值写入也可能发生。声明位置不是最后写入位置",
                 ));
