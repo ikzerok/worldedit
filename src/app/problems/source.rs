@@ -127,6 +127,25 @@ impl WorldeditApp {
             .map(|range| range.start..range.end)
     }
 
+    pub(in crate::app) fn problem_source_status(
+        &self,
+        path: &Path,
+    ) -> Option<(&'static str, egui::Color32)> {
+        let source = self
+            .problems
+            .source
+            .as_ref()
+            .filter(|source| source.path == path)?;
+        Some(if self.problem_source_current(source) {
+            (
+                severity_label(source.severity),
+                severity_color(source.severity),
+            )
+        } else {
+            ("待重检", theme::GOLD())
+        })
+    }
+
     pub(in crate::app) fn problem_source_summary(&mut self, ui: &mut egui::Ui, path: &Path) {
         let Some(source) = self
             .problems

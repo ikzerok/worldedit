@@ -6,6 +6,8 @@ use crate::theme::{
 };
 use egui::{Event, Pos2, Rect, Vec2};
 use worldline_runtime::{InspectionChange, Value};
+#[path = "layout_tests/source_readability.rs"]
+mod source_readability;
 
 const STYLES: [StylePreset; 5] = [
     StylePreset::Studio,

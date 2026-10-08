@@ -7,15 +7,43 @@ impl WorldeditApp {
         ui: &mut egui::Ui,
         relative: &str,
     ) -> egui::Response {
+        self.source_position_heading(ctx, ui, relative, false)
+    }
+
+    pub(in crate::app) fn source_jump_compact_heading(
+        &mut self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        relative: &str,
+    ) -> egui::Response {
+        self.source_position_heading(ctx, ui, relative, true)
+    }
+
+    fn source_position_heading(
+        &mut self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        relative: &str,
+        compact: bool,
+    ) -> egui::Response {
         let position = self.source_jump_position(ctx);
         let caption = position
             .as_ref()
             .map(|position| format!("第 {} 行 · 第 {} 列", position.line, position.column))
             .unwrap_or_else(|_| "行列暂不可用".into());
+        let button_caption = if compact {
+            position
+                .as_ref()
+                .map(|position| format!("{}:{}", position.line, position.column))
+                .unwrap_or_else(|_| "行列…".into())
+        } else {
+            caption.clone()
+        };
         let hint = format!("{caption}\n{}", position.err().unwrap_or_else(|| "跳转到行列 · Ctrl+G（Mac 为 Control+G）\n行列从 1 开始；列按 Unicode 标量计数，Tab 为 1 列".into()));
         // 始终预留同一入口宽度；位数、不可用提示与长文件名不挤走正文。
-        let width =
-            (ui.text_style_height(&egui::TextStyle::Body) * 14.0).min(ui.available_width() * 0.58);
+        let width = (ui.text_style_height(&egui::TextStyle::Body)
+            * if compact { 6.0 } else { 14.0 })
+        .min(ui.available_width() * 0.58);
         let height = ui
             .text_style_height(&egui::TextStyle::Heading)
             .max(ui.spacing().interact_size.y);
@@ -48,7 +76,7 @@ impl WorldeditApp {
             .add(egui::Label::new(egui::RichText::new(relative).heading()).truncate())
             .on_hover_text(relative);
         let response = ui
-            .place(position_rect, egui::Button::new(caption).truncate())
+            .place(position_rect, egui::Button::new(button_caption).truncate())
             .on_hover_text(hint);
         if response.clicked() {
             self.open_source_jump(ctx);
