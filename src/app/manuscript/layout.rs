@@ -31,6 +31,11 @@ impl super::super::WorldeditApp {
             .as_ref()
             .and_then(|id| local.draft.entries.iter().find(|entry| &entry.id == id))
             .cloned();
+        if selected.is_none() {
+            ui.label("请选择身份明确的章节；原选择已失效时不会自动打开同名替身。");
+            self.manuscript_orphaned_drafts(ui);
+            return None;
+        }
         if let Some(entry) = selected
             .as_ref()
             .filter(|entry| entry.kind != ManuscriptEntryKind::Chapter)

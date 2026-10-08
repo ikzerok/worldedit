@@ -2,6 +2,7 @@
 use super::tests::{app, frame};
 use crate::app::Tab;
 use std::path::Path;
+mod compact;
 
 #[test]
 fn same_basename_primary_related_and_back_preserve_exact_source_identity() {

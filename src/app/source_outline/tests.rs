@@ -5,6 +5,7 @@ use egui::{
     Context, Event, Key, Modifiers, Rect, Vec2,
 };
 use std::sync::atomic::{AtomicUsize, Ordering};
+mod compact;
 mod geometry;
 mod lifecycle;
 

@@ -1,9 +1,10 @@
 //! 普通源码的单文件结构；所有声明、层级与字节范围只读 core 正式投影。
+mod heading;
 #[cfg(test)]
 mod tests;
 mod view;
 use super::{Tab, WorldeditApp};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use worldline_core::source_outline::{SourceOutline, SourceOutlineEntry, SourceOutlineStatus};
 
 #[derive(Default)]
@@ -210,76 +211,5 @@ impl WorldeditApp {
         self.close_source_outline(ctx);
         super::search::request_diagnostic_selection(ctx, self.active_file.clone(), source, range);
         true
-    }
-    pub(in crate::app) fn source_outline_heading(
-        &mut self,
-        ctx: &egui::Context,
-        ui: &mut egui::Ui,
-        path: &Path,
-        relative: &str,
-    ) {
-        self.refresh_source_outline(false);
-        let current = self.source_outline_current(ctx);
-        let subtitle = if self.source_outline_blocked(ctx) {
-            "编辑位置 · 输入法组合或未提交稿，结构定位暂不可用".to_owned()
-        } else if let Some(cache) = &self.source_outline.cache {
-            if cache.outline.status != SourceOutlineStatus::Ready {
-                format!(
-                    "编辑位置 · {}",
-                    cache
-                        .outline
-                        .message
-                        .as_deref()
-                        .unwrap_or("当前稿结构暂不可用")
-                )
-            } else if let Some(entry) = current.and_then(|index| cache.outline.entries.get(index)) {
-                format!("编辑位置 · {}\n{}", entry.display, metadata(entry))
-            } else {
-                "编辑位置 · 文件正文 / 空白（无所属声明）".into()
-            }
-        } else {
-            "编辑位置 · 当前稿结构暂不可用".into()
-        };
-        self.source_jump_heading(ctx, ui, relative);
-        // 光标变动只更新提示文字，不能把源码的鼠标坐标和滚动视口挤走。
-        // 提示区保持两行预算；完整长名与身份始终可用下方按钮/快捷键打开查看。
-        let context_height = ui.text_style_height(&egui::TextStyle::Body) * 2.0;
-        egui::ScrollArea::vertical()
-            .id_salt(("source-outline-context", path))
-            .max_height(context_height)
-            .min_scrolled_height(context_height)
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.add(egui::Label::new(crate::theme::muted(&subtitle)).wrap());
-            });
-        ui.add_space(crate::theme::SPACE_SM);
-        ui.horizontal_wrapped(|ui| {
-            let shortcut = if ctx.os() == egui::os::OperatingSystem::Mac {
-                "⌘⇧O"
-            } else {
-                "Ctrl+Shift+O"
-            };
-            if ui.button(format!("本文件结构  {shortcut}")).clicked() {
-                self.open_source_outline(ctx);
-            }
-            if crate::theme::add_enabled(ui,
-                    !self.personal.history.is_empty() && !self.source_outline_blocked(ctx),
-                    egui::Button::new("返回作者位置"),
-                )
-                .on_hover_text("Alt+← · 原文版本一致才恢复选区和滚动")
-                .clicked()
-            {
-                self.author_back(ctx);
-            }
-            if crate::theme::add_enabled(ui, !self.ime_composing, egui::Button::new("为当前选区添加批注"))
-                .clicked()
-            {
-                self.comment_current_selection(ctx);
-            }
-            ui.label(crate::theme::muted("Ctrl+S 保存"))
-                .on_hover_text("当前缓冲区与整个工程一起编译；Ctrl+Enter 打开源码引用或按选中文本建档；Ctrl+S 保存全部文件");
-        });
-        // 当前对象仅是声明归属；不依赖目录选择、试玩或上一轮运行状态。
-        debug_assert_eq!(path, self.active_file);
     }
 }

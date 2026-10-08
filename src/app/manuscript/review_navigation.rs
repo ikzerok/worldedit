@@ -72,6 +72,9 @@ impl WorldeditApp {
         if let Some(reason) = self.review_input_blocker(ctx) {
             return Err(reason);
         }
+        // 点击是明确导航动作：先说明真实外部冲突，再检查快照是否过期。
+        // 仍核对完整库存，包括未点击的人物、附件、manifest和编排。
+        self.project.verify_review_navigation()?;
         let buffers = self.manuscript.writing_buffers();
         let cache = &self.manuscript.preview_cache;
         if request.key != cache.key
@@ -83,8 +86,6 @@ impl WorldeditApp {
         {
             return Err("此审稿来源已过期，请等待当前稿重新生成；未离开当前位置".into());
         }
-        // 一次性核对完整库存与保存基线，覆盖未点中的源码、manifest、编排和新文件。
-        self.project.verify_review_navigation()?;
         let compiled = self.project.compile_writing_drafts(&buffers)?;
         validate_review_source(&compiled, &request.review, &request.source)
             .map_err(|error| error.to_string())?;

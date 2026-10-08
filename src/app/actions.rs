@@ -3,6 +3,10 @@ use std::path::Path;
 
 impl WorldeditApp {
     pub(super) fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
+        if self.template_manager.composition_blocks_actions(ctx) {
+            self.message = Some("模板定义仍在输入法组合中；请先完成输入，原字段已保留。".into());
+            return;
+        }
         if self.has_open_authoring_form() {
             self.draft_action = Some(action);
             self.message = Some(

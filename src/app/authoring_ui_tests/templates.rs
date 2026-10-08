@@ -1,4 +1,7 @@
 use super::*;
+mod designer;
+mod ime;
+mod native_input;
 
 #[test]
 fn project_template_manager_browses_builtin_and_project_templates_without_writing() {
@@ -69,6 +72,7 @@ fn project_template_replacement_requires_preview_and_confirm_and_keeps_instances
     {"id": "memo", "key": "memo", "label": "Memo", "type": "number", "required": false}
   ]
 }"#;
+    click(&ctx, &mut app, 17, "高级 JSON");
     replace_text_area(&ctx, &mut app, 17, "\"type\":\"text\"", replacement);
     click(&ctx, &mut app, 17, "预览导入 / 替换");
     let preview_text = rendered_text_in_window(&ctx, &mut app, 17, "类型变化");
@@ -319,6 +323,7 @@ fn stale_project_template_preview_is_rejected_and_keeps_the_json_draft() {
     click(&ctx, &mut app, 18, "工程模板");
     click(&ctx, &mut app, 17, "Typed fields · project:typed");
     let replacement = r#"{"schema_version":1,"id":"project:typed","title":"Updated draft","applies_to":{"kind":"entity","entity_type":"place"},"fields":[{"id":"memo","key":"memo","label":"Memo","type":"text","required":false}]}"#;
+    click(&ctx, &mut app, 17, "高级 JSON");
     replace_text_area(
         &ctx,
         &mut app,

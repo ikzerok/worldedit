@@ -5,7 +5,11 @@ use egui::{pos2, vec2, Event, RawInput, Rect};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use worldline_core::project::Project;
 mod layout;
+mod list_geometry;
 mod navigation;
+mod navigation_input;
+mod navigation_matrix;
+mod scalable_navigation;
 
 const SOURCE: &str = concat!(
     "let public = true\nlet rescue = false\ncharacter lin as \"林芜\"\n",

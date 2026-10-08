@@ -159,11 +159,12 @@ impl WorldeditApp {
     }
 
     pub(super) fn recompile(&mut self) {
+        self.manuscript.invalidate_query_cache();
         self.version += 1;
         self.map_revision.content_generation = self.map_revision.content_generation.wrapping_add(1);
         self.map_canvas.invalidate_rasters();
         let result = self.project.compile();
-        let template_index = self.project.template_index();
+        let template_index = self.project.template_index_with_content(&result);
         let wiki = worldline_core::wiki::KeywordIndex::new(&result);
         let map_index =
             worldline_core::presentation_commands::map_index_with_content(&self.project, &result);
@@ -318,6 +319,7 @@ impl WorldeditApp {
         self.comparison = play::comparison::ComparisonState::default();
         self.playthrough_report = play::report::PlaythroughReportState::default();
         self.replay_debugger.explanations = None;
+        self.replay_debugger.inspection = Default::default();
         self.event_editor = None;
         self.character_editor = None;
         self.world_editor = None;

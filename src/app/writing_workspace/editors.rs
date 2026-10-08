@@ -45,7 +45,7 @@ pub(super) fn draw(
         retained_notice(ui, view);
         return;
     }
-    let projection = match project.project_writing_buffer(buffer, target) {
+    let projection = match view.projection_cache.get(project, buffer, target) {
         Ok(projection) => projection,
         Err(error) => {
             view.pending_cursor = None;
@@ -94,7 +94,7 @@ pub(super) fn draw(
             || {
                 buffer.replace_range(
                     projection.generation,
-                    projection.range,
+                    projection.range.clone(),
                     &projection.source,
                     &source,
                 )

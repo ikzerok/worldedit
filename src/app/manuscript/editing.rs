@@ -247,8 +247,7 @@ pub(super) fn draw_entry_editor(
                 if ui.button("确认只删除编排").clicked() {
                     if local.draft.remove_entry_subtree(&id).is_ok() {
                         local.changed = true;
-                        local.selected_entry =
-                            local.draft.entries.first().map(|entry| entry.id.clone());
+                        local.selected_entry = None;
                     }
                     *pending_remove = None;
                 }

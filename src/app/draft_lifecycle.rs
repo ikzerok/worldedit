@@ -252,6 +252,10 @@ impl WorldeditApp {
         if self.catalog_import.has_unsubmitted_work() {
             names.push("世界资料导入");
         }
+        if self.template_manager.has_unsubmitted_work() || self.template_manager.composition_busy()
+        {
+            names.push("工程模板草稿");
+        }
         names.retain(|kind| !self.pristine_new_draft(kind));
         names
     }
@@ -306,6 +310,7 @@ impl WorldeditApp {
         self.schema_ui = schema_ui::SchemaUiState::default();
         self.localization_ui = localization_ui::LocalizationUiState::default();
         self.catalog_import.discard();
+        self.template_manager.discard();
         self.stale_form = false;
     }
     pub(super) fn draft_exit_dialog(&mut self, ctx: &egui::Context) {
@@ -335,7 +340,8 @@ impl WorldeditApp {
                     }
                     if crate::theme::add_enabled(
                         ui,
-                        !self.ime_composing,
+                        !self.ime_composing
+                            && !self.template_manager.composition_blocks_actions(ctx),
                         egui::Button::new("丢弃未应用输入并继续"),
                     )
                     .clicked()
@@ -346,7 +352,7 @@ impl WorldeditApp {
                         cancel = true;
                     }
                 });
-                if self.ime_composing {
+                if self.ime_composing || self.template_manager.composition_blocks_actions(ctx) {
                     ui.label("请先完成或取消输入法组合，再决定是否丢弃。");
                 }
             });
@@ -358,6 +364,7 @@ impl WorldeditApp {
                 "书稿 / 正文草稿" => Tab::Manuscript,
                 "本地化草稿" => Tab::Localization,
                 "世界资料导入" => Tab::CatalogImport,
+                "工程模板草稿" => Tab::Templates,
                 "审阅批注" => Tab::Review,
                 "地图草稿" | "新建地图" => Tab::Map,
                 "时段资料" => Tab::Timeline,

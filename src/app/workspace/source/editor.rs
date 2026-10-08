@@ -22,8 +22,15 @@ impl WorldeditApp {
                 text = ime_text.clone();
             }
         }
-        self.source_outline_heading(ctx, ui, &path, &relative);
-        self.problem_source_summary(ui, &path);
+        let previous_tab = self.tab;
+        let compact_heading = self.source_outline_heading(ctx, ui, &path, &relative);
+        // 页头中的返回/批注可能已切换来源，旧编辑器不能消费新位置的恢复请求。
+        if self.active_file != path || self.tab != previous_tab {
+            return;
+        }
+        if !compact_heading {
+            self.problem_source_summary(ui, &path);
+        }
         let stale_ime_draft = self
             .ime_source_draft
             .as_ref()
@@ -129,6 +136,8 @@ impl WorldeditApp {
         self.personal.restore_source = false;
         let mut scroll_output = scroll
             .id_salt(("source-scroll", &path))
+            // 短视口也按真实剩余高度定位；默认64点下限会把目标滚入裁剪区外。
+            .min_scrolled_height(0.0)
             .auto_shrink([false, false])
             .show_viewport(ui, |ui, viewport| {
                 ui.horizontal_top(|ui| {

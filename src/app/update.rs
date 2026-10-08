@@ -22,6 +22,8 @@ fn frame_profile_input_active(ctx: &egui::Context) -> bool {
 }
 impl eframe::App for WorldeditApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        self.template_manager
+            .filter_raw_input(ctx, raw, self.tab == Tab::Templates);
         self.manuscript_raw_input_hook(ctx, raw);
     }
 

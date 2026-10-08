@@ -164,6 +164,16 @@ pub(super) fn template_panel(
     suggestion
 }
 
+/// 模板设计器试填与实际资料表单共享字段渲染，调用方持有独立试填值。
+pub(super) fn project_template_preview(
+    ui: &mut egui::Ui,
+    template: &ProjectTemplate,
+    catalog: &Catalog,
+    values: &mut Vec<(String, PropertyValue)>,
+) {
+    render_project_fields(ui, template, &template.fields, catalog, values);
+}
+
 fn render_project_fields(
     ui: &mut egui::Ui,
     template: &ProjectTemplate,

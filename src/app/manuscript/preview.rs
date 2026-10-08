@@ -40,29 +40,18 @@ pub(super) struct PreviewCache {
 }
 
 impl PreviewCache {
-    pub(super) fn basis(
+    pub(super) fn basis<'a>(
         project: &worldline_core::project::Project,
-        buffers: &[WritingBuffer],
+        buffers: impl IntoIterator<Item = &'a WritingBuffer>,
         targets: &[TargetRef],
     ) -> String {
-        let mut drafts: Vec<_> = buffers
-            .iter()
-            .filter(|buffer| buffer.is_changed())
-            .collect();
-        drafts.sort_by_key(|buffer| buffer.path());
         format!(
-            "{}|{:?}|{:?}",
-            project.content_baseline(),
-            targets,
-            drafts
-                .iter()
-                .map(|buffer| (
-                    buffer.path(),
-                    buffer.baseline(),
-                    buffer.generation(),
-                    crate::app::writing_workspace::fingerprint(buffer.source())
-                ))
-                .collect::<Vec<_>>()
+            "{}|{:?}",
+            project.manuscript_query_key_refs(
+                buffers.into_iter().filter(|buffer| buffer.is_changed()),
+                &[],
+            ),
+            targets
         )
     }
 
@@ -74,13 +63,17 @@ impl PreviewCache {
         self.key == Self::basis(project, buffers, &self.targets)
     }
 
-    pub(super) fn refresh(
+    pub(super) fn refresh<'a>(
         &mut self,
         project: &worldline_core::project::Project,
-        buffers: &[WritingBuffer],
+        buffers: impl IntoIterator<Item = &'a WritingBuffer>,
         targets: &[TargetRef],
     ) {
-        let key = Self::basis(project, buffers, targets);
+        let buffers: Vec<_> = buffers
+            .into_iter()
+            .filter(|buffer| buffer.is_changed())
+            .collect();
+        let key = Self::basis(project, buffers.iter().copied(), targets);
         if self.key == key {
             return;
         }
@@ -91,7 +84,8 @@ impl PreviewCache {
         self.error = None;
         self.last_valid.retain(|target, _| targets.contains(target));
         self.sizes.retain(|target, _| targets.contains(target));
-        match project.compile_writing_drafts(buffers) {
+        let owned: Vec<_> = buffers.iter().copied().cloned().collect();
+        match project.compile_writing_drafts(&owned) {
             Ok(result) => {
                 let snapshot = match ReviewSnapshot::new(&result) {
                     Ok(snapshot) => snapshot,
@@ -216,10 +210,16 @@ pub(super) fn draw_reader_preview(
             "有受保护的输入尚未插入正文；下方审稿不包含这部分保留输入。",
         );
     }
-    let buffers = app.manuscript.writing_buffers();
-    app.manuscript
-        .preview_cache
-        .refresh(&app.project, &buffers, &targets);
+    let has_drafts = app
+        .manuscript
+        .writing_buffers
+        .values()
+        .any(WritingBuffer::is_changed);
+    app.manuscript.preview_cache.refresh(
+        &app.project,
+        app.manuscript.writing_buffers.values(),
+        &targets,
+    );
     let cache = &app.manuscript.preview_cache;
     if let Some(error) = &cache.error {
         ui.colored_label(theme::ERROR(), format!("预览过期 · {error}"));
@@ -227,13 +227,11 @@ pub(super) fn draw_reader_preview(
             "以下仅显示同一章节的上次有效预览；全部当前输入仍保留，旧来源跳转已停用。",
         ));
     } else {
-        ui.label(theme::muted(
-            if buffers.iter().any(WritingBuffer::is_changed) {
-                "当前稿 · 包含未应用输入；只读静态预览"
-            } else {
-                "当前工程稿 · 只读静态预览"
-            },
-        ));
+        ui.label(theme::muted(if has_drafts {
+            "当前稿 · 包含未应用输入；只读静态预览"
+        } else {
+            "当前工程稿 · 只读静态预览"
+        }));
     }
     egui::CollapsingHeader::new("预览范围说明").show(ui, |ui| {
         ui.label("条件不求值，互斥分支和各个选择按源码顺序分别呈现；合流仅指控制流继续的情况。动态文字保留标记，call 不展开。整书按书稿编排顺序读取，不会执行、应用、保存或改变发布范围。");

@@ -15,11 +15,25 @@ pub(in crate::app) struct ManuscriptSession {
     pub mode: crate::app::writing_workspace::Mode,
     pub anchor: Option<WritingAnchor>,
     pub restore_offsets: Option<bool>,
+    pub navigation: Option<super::navigation::NavigationSession>,
 }
 
 impl crate::app::WorldeditApp {
     pub(in crate::app) fn manuscript_session(&self) -> ManuscriptSession {
         ManuscriptSession {
+            navigation: Some({
+                let mut navigation = self.manuscript.navigation.session.clone();
+                navigation.layout = self.manuscript.layout;
+                navigation.collapsed = self
+                    .manuscript
+                    .selected_book
+                    .as_ref()
+                    .and_then(|id| self.manuscript.books.get(id))
+                    .map(|book| book.collapsed.iter().cloned().collect())
+                    .unwrap_or_default();
+                navigation.collapsed.sort();
+                navigation
+            }),
             manuscript_id: self.manuscript.selected_book.clone(),
             mode: self.manuscript.writing_view.session_mode(),
             scroll_y: self.manuscript.scroll_y,

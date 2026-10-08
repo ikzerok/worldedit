@@ -4,6 +4,7 @@ mod editors;
 mod input;
 mod input_registry;
 pub(in crate::app) use input_registry::register_input;
+mod projection_cache;
 mod prose;
 mod session;
 mod text_undo;
@@ -38,6 +39,7 @@ impl Mode {
 #[derive(Default)]
 pub(super) struct ViewState {
     mode: Mode,
+    projection_cache: projection_cache::ProjectionCache,
     discard_confirm: Option<std::path::PathBuf>,
     cursor: Option<WritingCursor>,
     selection_mode: Option<Mode>,

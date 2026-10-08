@@ -16,6 +16,7 @@ struct PendingFocus {
 #[derive(Default)]
 pub(in crate::app) struct PlayKeyboard {
     session: u64,
+    last_choice: Option<(Target, egui::Id)>,
     group: u64,
     context: Option<egui::Id>,
     pending: Option<PendingFocus>,
@@ -41,6 +42,7 @@ impl PlayKeyboard {
         self.cancel();
         self.session = self.session.wrapping_add(1);
         self.group = 0;
+        self.last_choice = None;
     }
 
     pub(super) fn session(&self) -> u64 {
@@ -164,6 +166,21 @@ impl PlayKeyboard {
         }
     }
 
+    pub(super) fn restore_after_inspection(&mut self, ctx: &egui::Context) {
+        if let Some((target, source)) = self.last_choice {
+            ctx.memory_mut(|memory| memory.request_focus(source));
+            self.pending = Some(PendingFocus {
+                source,
+                frame: ctx.cumulative_frame_nr(),
+                target: Some(target),
+            });
+            self.latch |= ctx.input(|input| {
+                input.key_down(egui::Key::Enter) || input.key_down(egui::Key::Space)
+            });
+            ctx.request_repaint();
+        }
+    }
+
     pub(super) fn wants_record_focus(&self) -> bool {
         self.pending
             .is_some_and(|p| p.target == Some(Target::Record))
@@ -196,6 +213,11 @@ impl PlayKeyboard {
         let response =
             crate::theme::add_enabled(&mut child, enabled, egui::Button::new(text).wrap());
         ui.advance_cursor_after_rect(child.min_rect());
+        if let Some(target @ Target::Choice(_)) = target {
+            if response.has_focus() || response.clicked() {
+                self.last_choice = Some((target, response.id));
+            }
+        }
         let frame = ui.ctx().cumulative_frame_nr();
         let restore = self.pending.is_some_and(|pending| {
             target.is_some() && pending.target == target && pending.frame < frame
@@ -227,6 +249,7 @@ impl WorldeditApp {
             || self.command_palette.open
             || self.play_confirmation.is_some()
             || self.playthrough_report.open
+            || self.replay_debugger.inspection.open
             || self.has_open_authoring_form()
             || self
                 .play
