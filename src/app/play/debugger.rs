@@ -159,7 +159,7 @@ pub(super) fn render_debugger_controls(
             }
         ));
         if let Some(observation) = &trace.initial_observation {
-            egui::CollapsingHeader::new("查看路径起始状态").show(ui, |ui| {
+            egui::CollapsingHeader::new("查看原记录首次观测（只读）").show(ui, |ui| {
                 ui.code(observation.state.to_string());
             });
         }
@@ -177,7 +177,8 @@ pub(super) fn render_debugger_controls(
                 });
             }
         };
-        egui::CollapsingHeader::new("轨迹逐步状态变化").show(ui, |ui| {
+        egui::CollapsingHeader::new("原路径逐步字段变化（只读记录）").show(ui, |ui| {
+            ui.label("这是原始记录的顶层JSON字段视图，未冒充当前运行；不提供当前来源跳转。当前typed值与变化请用状态检查");
             let mut previous_state = trace
                 .initial_observation
                 .as_ref()

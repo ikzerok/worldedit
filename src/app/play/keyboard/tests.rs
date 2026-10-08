@@ -409,3 +409,63 @@ fn interruption_outcomes_never_become_a_keyboard_target() {
         assert!(keyboard.pending.is_none());
     }
 }
+
+#[test]
+fn inspector_returns_to_same_choice_focus_without_enter_carryover() {
+    let mut h = Harness::new(NORMAL);
+    h.start(Key::Enter);
+    h.assert_focus("选择：第一步");
+    let focus = h.focused();
+    let before = h
+        .app
+        .play
+        .as_ref()
+        .unwrap()
+        .story
+        .as_ref()
+        .unwrap()
+        .replay_trace();
+    h.app.replay_debugger.inspection.show(&h.ctx);
+    h.idle();
+    h.focus("返回试玩与选择");
+    h.key(Key::Enter);
+    h.idle();
+    assert!(!h.app.replay_debugger.inspection.open);
+    assert_eq!(h.focused(), focus);
+    h.assert_focus("选择：第一步");
+    assert_eq!(h.steps(), 0);
+    assert_eq!(
+        h.app
+            .play
+            .as_ref()
+            .unwrap()
+            .story
+            .as_ref()
+            .unwrap()
+            .replay_trace(),
+        before
+    );
+    h.key(Key::Enter);
+    h.assert_focus("选择：第二步");
+    assert_eq!(h.steps(), 1);
+}
+
+#[test]
+fn closing_inspector_does_not_resume_a_stopped_or_failed_play() {
+    let mut h = Harness::new(NORMAL);
+    h.start(Key::Enter);
+    let play = h.app.play.as_mut().unwrap();
+    play.paused = true;
+    play.stopped = true;
+    play.error = Some("测试保留错误".into());
+    let save = play.story.as_ref().unwrap().save().unwrap();
+    h.app.replay_debugger.inspection.show(&h.ctx);
+    h.idle();
+    h.pointer("返回试玩与选择");
+    h.idle();
+    let play = h.app.play.as_ref().unwrap();
+    assert!(play.paused && play.stopped);
+    assert_eq!(play.error.as_deref(), Some("测试保留错误"));
+    assert_eq!(play.story.as_ref().unwrap().save().unwrap(), save);
+    assert_eq!(h.steps(), 0);
+}

@@ -1,6 +1,6 @@
 # CLI 与编辑器功能覆盖
 
-CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令接受工作区目录（兼容根入口文件），没有 IPC、远程控制端口或编辑器命令队列。0.20 的 `wl` 与 `wl-agent` 已提供语言分析、资料编辑、独立演练、矢量场景事务和静态站点发布；它们读取磁盘作品或自身 Project 会话，不能访问编辑器窗口内的未应用稿或未保存缓冲。
+CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令接受工作区目录（兼容根入口文件），没有 IPC、远程控制端口或编辑器命令队列。当前 `wl` 与 `wl-agent` 已提供语言分析、资料编辑、独立演练、矢量场景事务和静态站点发布；它们读取磁盘作品或自身 Project 会话，不能访问编辑器窗口内的未应用稿或未保存缓冲。
 
 | 功能 | wl | wl-agent | 编辑器 / AI 可行方式 |
 |---|---|---|---|
@@ -11,6 +11,9 @@ CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令
 | 人物、标签、状态、锚点、素材、别名、正文链接 | catalog | analyze.catalog | 查找与源码定位 |
 | 对象完整身份筛选与分页 | object-search --query；可加 --filter-json / --options-json | world.objects.search | 同一 core 类型/实体类型、别名、按需源码路径和分页预算；自己的已应用快照，不读编辑器未应用稿 |
 | 新章及正式来源原子创建 | manuscript-chapter preview / apply --request-json；apply需 --plan-digest | manuscript.chapter.preview / manuscript.chapter.apply | 新/已有书稿，复用来源或新建空事件；同一 core 计划和保存基线保护，不自动连接执行路线 |
+| 工程模板结构草稿和完整影响事务 | template draft / preview / apply --request-json；apply需 --plan-digest | template.draft / template.preview / template.apply | 同一 core 字段结构、完整性、两侧影响及原子计划；明确apply后仍须save，不读取UI未提交字段输入 |
+| 完整范围书稿查询 | manuscript-query --query-json；可加 --drafts-json | manuscript.query | 自身快照上的筛选/分页；明确提供草稿DTO，不读取另一个编辑器实例 |
+| 实际运行状态与真实观测对照 | play等待选择时输入 inspect 或 inspect JSON | session.inspect | 查询各自正在运行的Story，零推进；不读取或遥控UI试玩 |
 | 1.10 实体目录与属性 | catalog --kind entity | project.open / project.analyze | 同一 core 目录；同名实体和旧词条保持独立 |
 | 创建、修改、删除 1.10 实体 | entity create / update / delete | entity.create / entity.update / entity.delete | 显式1.10工程；按基线与引用保护写入磁盘，桌面随后刷新 |
 | 工作区检查、地图与标记反查 | workspace check / maps list | workspace.check / maps.list | 核心分域诊断及地图索引；读取已保存作品，不连接编辑器缓冲 |
@@ -91,3 +94,11 @@ CLI/RPC维持同步有界查询，不替代UI确认，也不改变live session�
 `wl object-search 工程 --query 文本 --json` 支持 `--filter-json`、`--options-json` 与可选 `--expected-baseline`。空查询须明确传入空字符串；只读打开工程，不恢复或保存事务。RPC 方法是 `world.objects.search`，filter/options 与 core 使用相同 DTO；预算先针对完整 Catalog，不允许 UI 通过裁剪目录绕过限制。
 
 完整新章请求/结果见[新章作者契约](../../worldline/spec/manuscript-authoring.md)，分页字段见[对象检索](../../worldline/spec/object-search.md)。正文空槽属于 core/UI 投影，机器后续编辑仍走已有 `source.edit`，没有新增远程键入或外观遥控协议。
+
+## 0.31 模板、书稿与状态查询
+
+模板draft/preview均不写工程；apply重算同一请求并核对plan_digest，CLI只在显式`--save`时落盘，RPC调用`project.save`保存自身会话。机器草稿限4MiB、计划限8MiB，适用实例/字段值在物化前限额，超限明确失败。高级模板JSON的未知可选扩展仍保留；机器DTO未知字段和重复键严格拒绝。具体参数见[机器协议](https://github.com/ikzerok/worldline/blob/main/spec/agent-protocol.md)。
+
+书稿query在完整范围先筛选再分页，limit必须1至100，陈旧cursor不能重用。已生成不可变快照的查询零IO；生成仍复用core路径身份/注册/附件只读检查，不做缺失源码回退或提交预检。编辑器另外持有自己的未应用正文、编排和个人位置。
+
+session.inspect与CLI暂停输入inspect只查询当前真实Story；首次/前次只能来自已记录观测，状态声明定位不表示最后写入的因果。CLI/RPC不提供检查窗口、选择焦点、设备外观或编辑器撤销的远程操作。

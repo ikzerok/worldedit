@@ -1,6 +1,6 @@
 use super::*;
 use crate::theme;
-use worldline_core::manuscript::ManuscriptCommand;
+use worldline_core::manuscript::ManuscriptQueryDraft;
 
 impl super::super::WorldeditApp {
     pub(in crate::app) fn manuscript_raw_input_hook(
@@ -11,11 +11,16 @@ impl super::super::WorldeditApp {
         // 非模态窗口可仍打开，但输入归属只由真实 TextEdit 焦点决定。
         let available = self.tab == super::super::Tab::Manuscript;
         self.manuscript
+            .navigation
+            .input
+            .filter_raw(ctx, raw, available);
+        self.manuscript
             .writing_view
             .filter_raw_input(ctx, raw, available);
     }
 
     pub(in crate::app) fn manuscript_tab(&mut self, ctx: &egui::Context) {
+        let _navigation_composition = self.manuscript.navigation.input.begin(ctx);
         let _composition = self.manuscript.writing_view.begin_input(ctx);
         self.manuscript_tab_content(ctx);
     }
@@ -52,13 +57,28 @@ impl super::super::WorldeditApp {
             self.manuscript
                 .rebase_clean_preserving(&self.project, receiver_book.as_deref());
         }
-        let indices = self.project.manuscript_indices();
+        let applied_snapshot = match self.manuscript.query_cache.applied(&self.project) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.colored_label(theme::ERROR(), format!("书稿导航不可用：{error}"));
+                    ui.label("全部输入仍保留；请修复工程后重试。");
+                    self.manuscript_orphaned_drafts(ui);
+                });
+                return;
+            }
+        };
+        let indices = applied_snapshot.indices();
         let mut session = self.manuscript.pending_session.take();
+        let mut restore_failed = false;
         if let Some(saved) = session.as_mut() {
             match self.manuscript.validate_session(&self.project, saved) {
                 Err(error) => {
                     self.message = Some(error);
-                    session = None;
+                    restore_failed = true;
+                    saved.cursor = None;
+                    saved.anchor = None;
+                    saved.restore_offsets = Some(false);
                 }
                 Ok(false) => {
                     saved.cursor = None;
@@ -78,7 +98,7 @@ impl super::super::WorldeditApp {
                     .clone_from(&session.manuscript_id);
             } else if session.manuscript_id.is_some() {
                 self.message =
-                    Some("上次书稿 ID 已失效；当前显示默认书稿，没有按同名标题替换身份".into());
+                    Some("上次书稿 ID 已失效；请明确选择书稿与章节，未按同名标题替换身份".into());
             }
         }
         if self
@@ -90,17 +110,52 @@ impl super::super::WorldeditApp {
             self.manuscript.selected_book = indices.keys().next().cloned();
         }
         let Some(book_id) = self.manuscript.selected_book.clone() else {
-            self.manuscript_start_tab(ctx);
+            if !applied_snapshot.complete() {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.heading("书稿范围无法确认");
+                    ui.label(
+                        "当前注册或源码存在问题；这不表示作品没有章节。原始文档与输入仍保留。",
+                    );
+                    let diagnostics = applied_snapshot.diagnostics();
+                    let offset = &mut self.manuscript.navigation.diagnostic_offset;
+                    *offset = (*offset).min(diagnostics.len().saturating_sub(1) / 8 * 8);
+                    ui.horizontal_wrapped(|ui| {
+                        if crate::theme::add_enabled(ui, *offset > 0, egui::Button::new("前8项"))
+                            .clicked()
+                        {
+                            *offset = offset.saturating_sub(8);
+                        }
+                        if crate::theme::add_enabled(
+                            ui,
+                            *offset + 8 < diagnostics.len(),
+                            egui::Button::new("后8项"),
+                        )
+                        .clicked()
+                        {
+                            *offset += 8;
+                        }
+                    });
+                    for diagnostic in diagnostics.iter().skip(*offset).take(8) {
+                        ui.colored_label(
+                            theme::ERROR(),
+                            format!("{}：{}", diagnostic.code, diagnostic.message),
+                        );
+                    }
+                    self.manuscript_orphaned_drafts(ui);
+                });
+            } else {
+                self.manuscript_start_tab(ctx);
+            }
             return;
         };
-        let Some(index) = indices.get(&book_id).cloned() else {
+        let Some(index) = indices.get(&book_id) else {
             return;
         };
         self.manuscript
             .books
             .entry(book_id.clone())
             .or_insert_with(|| {
-                let draft = ManuscriptDraft::from_index(&index);
+                let draft = ManuscriptDraft::from_index(index);
                 let selected_entry = draft
                     .entries
                     .iter()
@@ -118,8 +173,13 @@ impl super::super::WorldeditApp {
                 }
             });
         let mut local = self.manuscript.books.remove(&book_id).unwrap();
-        if let Some(session) = session {
+        if let Some(mut session) = session {
             if session.manuscript_id.as_deref() == Some(&book_id) {
+                if let Some(navigation) = session.navigation.take() {
+                    self.manuscript.layout = navigation.layout;
+                    local.collapsed = navigation.collapsed.iter().cloned().collect();
+                    self.manuscript.navigation.restore(navigation);
+                }
                 if let Some(id) = session
                     .selected_id
                     .clone()
@@ -159,29 +219,62 @@ impl super::super::WorldeditApp {
                     self.manuscript.review_focus = self.manuscript.narrow_preview;
                     self.manuscript.writing_view.restore_mode(session.mode);
                     self.manuscript.writing_view.restore_cursor(session.cursor);
-                } else if session.selected_id.is_some() {
+                } else {
                     local.selected_entry = None;
-                    self.message = Some("上次章节 ID 已失效，请明确选择章节".into());
+                    if session.selected_id.is_some() {
+                        self.message = Some("上次章节 ID 已失效，请明确选择章节".into());
+                    }
                 }
             }
         }
-        let command = ManuscriptCommand {
-            expected_revision: local.revision,
-            expected_baseline: local.baseline.clone(),
-            original: Some(book_id.clone()),
-            draft: local.draft.clone(),
+        if restore_failed {
+            local.selected_entry = None;
+        }
+        let drafts: Vec<_> = local
+            .changed
+            .then(|| ManuscriptQueryDraft {
+                expected_baseline: local.baseline.clone(),
+                draft: local.draft.clone(),
+            })
+            .into_iter()
+            .collect();
+        let navigation_snapshot = if drafts.is_empty()
+            && self
+                .manuscript
+                .writing_buffers
+                .values()
+                .all(|buffer| !buffer.is_changed())
+        {
+            Ok(applied_snapshot.clone())
+        } else {
+            self.manuscript.query_cache.current(
+                &self.project,
+                self.manuscript.writing_buffers.values(),
+                &drafts,
+            )
         };
-        let (preview, error) = match self.project.preview_manuscript(local.revision, &command) {
-            Ok(preview) => (preview, None),
-            Err(error) => (index.clone(), Some(error)),
-        };
+        if local.selected_entry.as_deref().is_some_and(|id| {
+            navigation_snapshot
+                .as_ref()
+                .is_ok_and(|snapshot| snapshot.entry_is_ambiguous(&book_id, id))
+        }) {
+            local.selected_entry = None;
+            self.message = Some("原章节身份重复，未打开任意同 ID 替身；正文草稿仍保留。".into());
+        }
+        let preview = navigation_snapshot
+            .as_ref()
+            .ok()
+            .and_then(|snapshot| snapshot.indices().get(&book_id))
+            .unwrap_or(index);
+        let error = navigation_snapshot.as_ref().err();
         let catalog = self
             .snapshot
             .as_ref()
             .map(|snapshot| snapshot.result.analysis.catalog.clone())
             .unwrap_or_default();
-        let objects = &catalog.objects;
         let input_locked = self.review_input_blocker(ctx).is_some();
+        // 自己的IME必须仍由原筛选TextEdit接收；其他编排/正文动作继续用完整锁。
+        let navigation_locked = input_locked && !self.manuscript.navigation.input.blocked();
         let compact_workspace = layout::compact_workspace(ctx);
         let focus_layout = self.manuscript_focus_layout() || compact_workspace;
         let focus_style = self.focus_style();
@@ -197,7 +290,7 @@ impl super::super::WorldeditApp {
         }
         egui::CentralPanel::default().frame(panel).show(ctx, |ui| {
             if focus_layout {
-                crate::theme::add_enabled_ui(ui, !input_locked, |ui| {
+                crate::theme::add_enabled_ui(ui, !navigation_locked, |ui| {
                     let single_preview = focus_style
                         || !layout::parallel_review(
                             ui.available_width(),
@@ -210,6 +303,8 @@ impl super::super::WorldeditApp {
                         index.title.as_deref().unwrap_or(&book_id),
                         index.read_only,
                         single_preview,
+                        &navigation_snapshot,
+                        &self.project.root,
                     );
                 });
             }
@@ -229,7 +324,7 @@ impl super::super::WorldeditApp {
                             egui::ComboBox::from_id_salt("manuscript-book-picker")
                                 .selected_text(index.title.as_deref().unwrap_or(&book_id))
                                 .show_ui(ui, |ui| {
-                                    for (id, book) in &indices {
+                                    for (id, book) in indices {
                                         ui.selectable_value(
                                             &mut self.manuscript.selected_book,
                                             Some(id.clone()),
@@ -255,10 +350,13 @@ impl super::super::WorldeditApp {
                         ui.label(theme::muted(
                             "书稿只决定阅读顺序，独立于世界时间与事件控制流；正文编辑另行应用。",
                         ));
-                        for diagnostic in &index.diagnostics {
+                        if !index.diagnostics.is_empty() {
                             ui.colored_label(
-                                theme::ERROR(),
-                                format!("{}：{}", diagnostic.code, diagnostic.message),
+                                theme::WARNING(),
+                                format!(
+                                    "编排有 {} 项诊断；在章节导航的快照问题中逐页查看。",
+                                    index.diagnostics.len()
+                                ),
                             );
                         }
                         if let Some(error) = &error {
@@ -335,15 +433,15 @@ impl super::super::WorldeditApp {
                     .width_range(200.0..=360.0)
                     .resizable(true)
                     .show_inside(ui, |ui| {
-                        crate::theme::add_enabled_ui(ui, !input_locked, |ui| {
+                        crate::theme::add_enabled_ui(ui, !navigation_locked, |ui| {
                             outline::draw(
                                 ui,
                                 self.manuscript.layout,
                                 &mut local,
-                                &preview,
-                                &mut self.manuscript.status_filter,
-                                &mut self.manuscript.pov_filter,
-                                objects,
+                                &navigation_snapshot,
+                                &mut self.manuscript.navigation,
+                                &self.project.root,
+                                false,
                             );
                         });
                     });
@@ -351,24 +449,28 @@ impl super::super::WorldeditApp {
                 egui::CollapsingHeader::new("章节")
                     .id_salt(("manuscript-narrow-outline", &book_id))
                     .show(ui, |ui| {
-                        crate::theme::add_enabled_ui(ui, !input_locked, |ui| {
+                        crate::theme::add_enabled_ui(ui, !navigation_locked, |ui| {
                             outline::draw(
                                 ui,
                                 self.manuscript.layout,
                                 &mut local,
-                                &preview,
-                                &mut self.manuscript.status_filter,
-                                &mut self.manuscript.pov_filter,
-                                objects,
+                                &navigation_snapshot,
+                                &mut self.manuscript.navigation,
+                                &self.project.root,
+                                false,
                             );
                         });
                     });
             }
             body_action =
-                self.draw_manuscript_content(ui, &book_id, &mut local, &catalog, &index, &preview);
+                self.draw_manuscript_content(ui, &book_id, &mut local, &catalog, index, preview);
         });
+        if std::mem::take(&mut self.manuscript.navigation.enter_editor) {
+            self.manuscript.narrow_preview = false;
+            self.manuscript.writing_view.focus_existing_editor();
+        }
         if discard_book {
-            local.draft = ManuscriptDraft::from_index(&index);
+            local.draft = ManuscriptDraft::from_index(index);
             local.original = local.draft.clone();
             local.baseline = self.project.content_baseline();
             local.changed = false;

@@ -1,7 +1,10 @@
 //! Focus 只收束当前呈现；书稿选择、管理和审稿入口仍明确可达。
-use super::{LocalBook, ManuscriptEntryKind, WorkbenchState};
+use super::{LocalBook, WorkbenchState};
 use crate::theme;
+use std::sync::Arc;
+use worldline_core::manuscript::ManuscriptQuerySnapshot;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn draw(
     ui: &mut egui::Ui,
     state: &mut WorkbenchState,
@@ -9,6 +12,8 @@ pub(super) fn draw(
     title: &str,
     read_only: bool,
     single_preview: bool,
+    snapshot: &Result<Arc<ManuscriptQuerySnapshot>, String>,
+    root: &std::path::Path,
 ) -> bool {
     let mut create = false;
     let narrow = ui.ctx().screen_rect().width() < 600.0 || ui.ctx().screen_rect().height() < 420.0;
@@ -21,39 +26,29 @@ pub(super) fn draw(
             egui::Label::new(egui::RichText::new(title).strong()).truncate(),
         )
         .on_hover_text(title);
-        ui.menu_button("选择章节", |ui| {
-            ui.set_max_width((ui.ctx().screen_rect().width() - 32.0).min(360.0));
-            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-            egui::ScrollArea::vertical()
-                .max_height(360.0)
-                .show(ui, |ui| {
-                    for entry in &local.draft.entries {
-                        let label = if entry.kind == ManuscriptEntryKind::Section {
-                            format!("分节 · {}", entry.title)
-                        } else {
-                            entry.title.clone()
-                        };
-                        let chosen = ui
-                            .push_id(("focus-chapter", &entry.id), |ui| {
-                                ui.selectable_label(
-                                    local.selected_entry.as_ref() == Some(&entry.id),
-                                    label,
-                                )
-                                .on_hover_text(format!("编排 ID：{}", entry.id))
-                                .clicked()
-                            })
-                            .inner;
-                        if chosen {
-                            local.selected_entry = Some(entry.id.clone());
-                            state.writing_view.focus_existing_editor();
-                            ui.close();
-                        }
-                    }
-                    if local.draft.entries.is_empty() {
-                        ui.label(theme::muted("尚无章节，请新建章节开始写作。"));
-                    }
-                });
-        });
+        egui::containers::menu::MenuButton::new("选择章节")
+            .config(
+                egui::containers::menu::MenuConfig::new()
+                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            )
+            .ui(ui, |ui| {
+                ui.set_max_width((ui.ctx().screen_rect().width() - 32.0).min(720.0));
+                ui.set_max_height((ui.ctx().screen_rect().height() - 80.0).max(160.0));
+                super::outline::draw(
+                    ui,
+                    state.layout,
+                    local,
+                    snapshot,
+                    &mut state.navigation,
+                    root,
+                    true,
+                );
+                if state.navigation.enter_editor {
+                    state.narrow_preview = false;
+                    state.writing_view.focus_existing_editor();
+                    ui.close();
+                }
+            });
         if narrow {
             ui.menu_button("书稿工具", |ui| {
                 ui.set_max_width((ui.ctx().screen_rect().width() - 32.0).min(360.0));
@@ -61,11 +56,19 @@ pub(super) fn draw(
                 egui::ScrollArea::vertical()
                     .max_height(220.0)
                     .show(ui, |ui| {
-                        create = tools(ui, state, read_only, single_preview);
+                        create = crate::theme::add_enabled_ui(
+                            ui,
+                            !state.navigation.input.blocked(),
+                            |ui| tools(ui, state, read_only, single_preview),
+                        )
+                        .inner;
                     });
             });
         } else {
-            create = tools(ui, state, read_only, single_preview);
+            create = crate::theme::add_enabled_ui(ui, !state.navigation.input.blocked(), |ui| {
+                tools(ui, state, read_only, single_preview)
+            })
+            .inner;
         }
     });
     create

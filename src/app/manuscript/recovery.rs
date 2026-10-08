@@ -32,7 +32,7 @@ impl super::super::WorldeditApp {
         theme::panel_header(
             ui,
             "保留的正文草稿",
-            "书稿编排已不在当前工程中，未应用文字仍保留；先复制核对，再继续创作",
+            "部分编排或来源无法在当前入口确认，未应用文字仍保留；先复制核对，再继续创作",
         );
         let mut discard = None;
         for (path, buffer) in self

@@ -4,6 +4,7 @@ pub(in crate::app) mod comparison;
 mod debugger;
 mod evidence;
 mod evidence_navigation;
+pub(in crate::app) mod inspection;
 pub(in crate::app) mod keyboard;
 mod replay;
 mod replay_location;

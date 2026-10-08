@@ -1,5 +1,9 @@
 # 构建与发布
 
+## 发行说明链接（自 0.31.0）
+
+正式 Release 的正文直接采用当前版本 `docs/releases/v版本.md`。其中的产品用法和规范链接必须使用完整 HTTPS 地址；GitHub Release 页面不会把仓库相对路径解释成对应文档。离线发行回归会拒绝当前版本说明中的相对 Markdown 链接。公开前还须实际核对目标提交的文档地址可访问；离线格式检查不能替代联网验证，也不修改历史 Release 或 tag。
+
 ## 长期无样例分发（自 0.29.0）
 
 Windows、Web 和双仓源码发行 ZIP 不包含 worldline 根 `examples/`、`spec/examples/` 或独立 `eds10-visual-sample.html`。历史演示仍保留在开发仓库；正式源码归档通过对应提交的 `.gitattributes export-ignore` 排除它们，不重写 `git archive` 的字节。产品字段模板已迁至 `worldline/spec/templates.catalog.json`，必要回归夹具、开发性能工具 `core/examples/relations_profile.rs`、应用资产与许可证继续保留。

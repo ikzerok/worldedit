@@ -16,6 +16,7 @@ impl WorldeditApp {
         }
         self.play_keyboard.new_session();
         self.replay_debugger.explanations = None;
+        self.replay_debugger.inspection = Default::default();
         let source_catalog = snap.result.analysis.catalog.clone();
         let source_wiki = worldline_core::wiki::KeywordIndex::new(&snap.result);
         let entry_diagnostics = worldline_core::analysis::execution_diagnostics(

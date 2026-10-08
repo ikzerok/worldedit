@@ -69,6 +69,9 @@ impl WorldeditApp {
             .default_width(300.0)
             .show(ctx, |ui| {
                 ui.heading("选择");
+                if ui.button("⌕ 状态检查：查值与变化…").clicked() {
+                    self.replay_debugger.inspection.show(ctx);
+                }
                 if let Some(play) = &mut self.play {
                     ui.horizontal(|ui| {
                         if play.error.is_some() {
@@ -182,7 +185,8 @@ impl WorldeditApp {
                                         let response = self.play_keyboard.button(ui, "choice",
                                             Some(Target::Choice(i)), *enabled && !play.paused
                                                 && self.play_confirmation.is_none()
-                                                && !self.playthrough_report.open,
+                                                && !self.playthrough_report.open
+                                                && !self.replay_debugger.inspection.open,
                                             format!("选择：{label}"));
                                         choose = self.play_keyboard.activation(&response);
                                         if let Some(reason) = reason {
@@ -227,31 +231,9 @@ impl WorldeditApp {
                             &evidence_access,
                         );
                         ui.separator();
-                        ui.heading("状态");
-                        let Some(story) = &play.story else {
-                            return;
-                        };
-                        let vars = story.vars();
-                        let mut rows: Vec<_> = vars.iter().collect();
-                        rows.sort_by(|a, b| a.0.cmp(b.0));
-                        egui::Grid::new("vars").num_columns(2).show(ui, |ui| {
-                            for (k, v) in rows {
-                                ui.label(k.clone());
-                                ui.monospace(v.display());
-                                ui.end_row();
-                            }
-                            ui.label("回合");
-                            ui.monospace(story.turns().to_string());
-                            ui.end_row();
-                            ui.label("故事线");
-                            ui.monospace(story.storyline().to_string());
-                            ui.end_row();
-                            if let Some(node) = story.current_node() {
-                                ui.label("节点");
-                                ui.monospace(node);
-                                ui.end_row();
-                            }
-                        });
+                        let Some(story) = &play.story else { return; };
+                        ui.label(format!("回合 {} · 故事线 {}", story.turns(), story.storyline()));
+                        if let Some(node) = story.current_node() { ui.label(format!("节点 {node}")); }
                         let met = story.met_list();
                         ui.label(format!(
                             "在场:{}",
@@ -263,17 +245,6 @@ impl WorldeditApp {
                         ));
                         if !story.states().is_empty() {
                             ui.separator();
-                            ui.heading("当前状态");
-                            for (id, tags) in story.states() {
-                                ui.label(format!(
-                                    "{id}：{}",
-                                    if tags.is_empty() {
-                                        "空".into()
-                                    } else {
-                                        tags.join(" · ")
-                                    }
-                                ));
-                            }
                             egui::CollapsingHeader::new(format!(
                                 "状态变更记录 · {}",
                                 story.state_history().len()
@@ -358,7 +329,9 @@ impl WorldeditApp {
         if let Some(source) = evidence_jump {
             self.jump_to_evidence_source(ctx, &source);
         }
-        let awaiting_scope = self.play_confirmation.is_some() || self.playthrough_report.open;
+        let awaiting_scope = self.play_confirmation.is_some()
+            || self.playthrough_report.open
+            || self.replay_debugger.inspection.open;
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.play_mode_switch(ui) {
                 return;
@@ -507,6 +480,7 @@ impl WorldeditApp {
                 }
             }
         });
+        self.render_state_inspection(ctx);
         if let Some(target) = reading_request {
             self.play_keyboard.cancel();
             self.open_reading(target);

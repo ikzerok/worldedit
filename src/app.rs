@@ -199,6 +199,7 @@ struct ReplayDebugger {
     live_max_steps: u64,
     live_time_budget_ms: u64,
     pane: PlayPane,
+    inspection: play::inspection::InspectionUi,
     notice: Option<String>,
 }
 impl Default for ReplayDebugger {
@@ -221,6 +222,7 @@ impl Default for ReplayDebugger {
             live_max_steps: 100_000,
             live_time_budget_ms: 250,
             pane: PlayPane::Story,
+            inspection: Default::default(),
             notice: None,
         }
     }

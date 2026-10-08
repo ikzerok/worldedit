@@ -7,8 +7,12 @@ mod creation_tests;
 mod editing;
 mod focus_controls;
 mod layout;
+mod navigation;
+mod navigation_input;
 mod outline;
+mod outline_rows;
 mod preview;
+mod query_cache;
 mod recovery;
 mod review_navigation;
 mod review_render;
@@ -21,15 +25,16 @@ mod writing;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
-use worldline_core::catalog::{CatalogObject, TargetRef};
+use worldline_core::catalog::TargetRef;
 use worldline_core::manuscript::{
     ManuscriptDraft, ManuscriptEntryDraft, ManuscriptEntryKind, ManuscriptReferenceStatus,
     WritingBuffer,
 };
 use worldline_core::presentation_commands::Revision;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-enum Layout {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(in crate::app) enum Layout {
     #[default]
     Tree,
     List,
@@ -53,8 +58,8 @@ pub(super) struct WorkbenchState {
     writing_buffers: HashMap<PathBuf, WritingBuffer>,
     chapter_sources: HashMap<(String, String), (TargetRef, PathBuf)>,
     writing_view: super::writing_workspace::ViewState,
-    status_filter: String,
-    pov_filter: String,
+    navigation: navigation::NavigationState,
+    query_cache: query_cache::QueryCache,
     pending_remove: Option<String>,
     pending_session: Option<ManuscriptSession>,
     scroll_y: f32,
@@ -84,8 +89,8 @@ impl Default for WorkbenchState {
             writing_buffers: HashMap::new(),
             chapter_sources: HashMap::new(),
             writing_view: Default::default(),
-            status_filter: String::new(),
-            pov_filter: String::new(),
+            navigation: Default::default(),
+            query_cache: Default::default(),
             pending_remove: None,
             pending_session: None,
             scroll_y: 0.0,
@@ -109,6 +114,12 @@ impl Default for WorkbenchState {
 }
 
 impl WorkbenchState {
+    pub(in crate::app) fn invalidate_query_cache(&mut self) {
+        self.query_cache.invalidate();
+        self.navigation.invalidate();
+        self.preview_cache.key.clear();
+        self.writing_view.invalidate_projection();
+    }
     pub(in crate::app) fn writing_buffers(&self) -> Vec<WritingBuffer> {
         self.writing_buffers.values().cloned().collect()
     }
@@ -202,16 +213,7 @@ impl WorkbenchState {
             local.selected_entry = local
                 .selected_entry
                 .take()
-                .filter(|id| local.draft.entries.iter().any(|entry| &entry.id == id))
-                .or_else(|| {
-                    local
-                        .draft
-                        .entries
-                        .iter()
-                        .find(|entry| entry.kind == ManuscriptEntryKind::Chapter)
-                        .or_else(|| local.draft.entries.first())
-                        .map(|entry| entry.id.clone())
-                });
+                .filter(|id| local.draft.entries.iter().any(|entry| &entry.id == id));
         }
         self.writing_buffers.retain(|_, buffer| {
             buffer.is_changed() || self.writing_view.has_retained_for(buffer.path())
@@ -273,13 +275,6 @@ fn move_entry(entries: &mut [ManuscriptEntryDraft], id: &str, delta: isize) -> b
     }
     entries.swap(index, siblings[target as usize]);
     true
-}
-
-fn target_label(object: &CatalogObject) -> String {
-    format!(
-        "{} · {}:{}",
-        object.display, object.target.kind, object.target.id
-    )
 }
 
 fn source_status_text(status: ManuscriptReferenceStatus) -> &'static str {

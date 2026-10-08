@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import stat
 from pathlib import Path
@@ -13,6 +14,7 @@ import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
+from urllib.parse import urlsplit
 from unittest.mock import patch
 import warnings
 import zipfile
@@ -1028,6 +1030,20 @@ class RuntimeDependencyNoticeTests(unittest.TestCase):
 
 
 class ReleaseNotesTests(unittest.TestCase):
+    def test_current_release_notes_have_only_absolute_document_links(self):
+        root = Path(__file__).resolve().parent.parent
+        manifest = (root / "Cargo.toml").read_text(encoding="utf-8")
+        version = re.search(r'^version\s*=\s*"([^"]+)"', manifest, re.MULTILINE).group(1)
+        notes = root / "docs" / "releases" / ("v" + version + ".md")
+        self.assertTrue(notes.is_file(), "当前版本必须提供实际发行说明")
+        body = release.release_body("v" + version)
+        links = re.findall(r'\[[^\]]+\]\(([^\s)]+)\)', body)
+        self.assertTrue(links, "发行说明应提供完整产品用法入口")
+        for link in links:
+            parsed = urlsplit(link)
+            self.assertEqual(parsed.scheme, "https", f"Release页面不能使用相对文档链接：{link}")
+            self.assertTrue(parsed.netloc, f"文档链接必须含实际站点：{link}")
+
     def test_version_notes_disclose_compatibility_and_do_not_read_arbitrary_paths(self):
         body = release.release_body("v0.8.0")
         self.assertIn("负数rnd旧错误行为例外", body)
