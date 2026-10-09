@@ -80,8 +80,7 @@ impl super::super::WorldeditApp {
                 });
         }
         if let Some(path) = discard {
-            self.manuscript.writing_buffers.remove(&path);
-            self.manuscript.writing_view.discard_retained_for(&path);
+            self.discard_manuscript_body(&path);
             self.manuscript.orphan_discard_confirm = None;
         }
     }

@@ -172,35 +172,26 @@ impl WorldeditApp {
         }
     }
     pub(super) fn undo(&mut self, forward: bool) {
-        let previous = if forward {
-            self.redo.pop()
-        } else {
-            self.history.pop()
-        };
-        if let Some(previous) = previous {
+        if (if forward { &self.redo } else { &self.history }).is_empty() {
+            return;
+        }
+        {
             let entity_navigation = self
                 .entity_source_navigation
                 .as_ref()
                 .filter(|(_, path)| *path == self.active_file && self.tab == Tab::Edit)
                 .map(|(id, _)| id.clone());
-            let current = self.project.clone();
             let source_before = self.project.sources();
             let options_before = self.project.compile_options();
-            if !self.project.restore(previous.clone()) {
-                if forward {
-                    self.redo.push(previous);
-                } else {
-                    self.history.push(previous);
+            match self.restore_history_step(forward) {
+                Ok(true) => {}
+                Ok(false) => return,
+                Err(error) => {
+                    self.io_error = Some(error);
+                    return;
                 }
-                self.io_error = Some("撤销快照已因外部刷新失效，未改变当前工程".into());
-                return;
             }
             self.localization_ui.clear_operation_status();
-            if forward {
-                self.history.push(current);
-            } else {
-                self.redo.push(current);
-            }
             if !self.project.documents.contains_key(&self.active_file) {
                 self.active_file = self.project.entry.clone();
             }
@@ -224,7 +215,6 @@ impl WorldeditApp {
             } else {
                 self.recompile();
             }
-            self.manuscript.rebase_clean(&self.project);
             if let Some(id) = entity_navigation {
                 self.focus_entity_source(&id);
             }

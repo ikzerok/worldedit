@@ -53,8 +53,7 @@ impl WorldeditApp {
                         .into_iter()
                         .filter(|buffer| paths.contains(&buffer.path().to_owned()))
                         .collect();
-                    self.record_writing_project_edit(&before, included, paths.clone());
-                    self.remember(before);
+                    self.remember_writing_project_edit(before, included, paths.clone());
                     self.manuscript.clear_applied_writing_buffers(&paths);
                     self.manuscript
                         .rebase_unchanged_writing_buffers(&self.project);

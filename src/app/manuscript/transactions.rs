@@ -2,6 +2,12 @@ use super::*;
 use worldline_core::manuscript::ManuscriptCommand;
 
 impl super::super::WorldeditApp {
+    pub(super) fn discard_manuscript_body(&mut self, path: &std::path::Path) {
+        self.manuscript.writing_buffers.remove(path);
+        self.manuscript.writing_view.discard_retained_for(path);
+        self.discard_writing_draft_history(path);
+    }
+
     pub(super) fn apply_manuscript_book(&mut self, id: &str) {
         let Some(local) = self.manuscript.books.get(id) else {
             return;
@@ -62,6 +68,7 @@ impl super::super::WorldeditApp {
             return;
         }
         let previous_baseline = body.baseline().to_owned();
+        let applied_buffer = body.clone();
         let before = self.project.clone();
         let applied = if source_mode {
             self.project.apply_source_writing_buffer(body).map(|_| ())
@@ -70,7 +77,11 @@ impl super::super::WorldeditApp {
         };
         match applied {
             Ok(()) => {
-                self.remember(before);
+                self.remember_writing_project_edit(
+                    before,
+                    vec![applied_buffer],
+                    vec![path.to_owned()],
+                );
                 self.manuscript.writing_buffers.remove(path);
                 let new_baseline = self.project.content_baseline();
                 for local in self.manuscript.books.values_mut() {

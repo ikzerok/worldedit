@@ -165,8 +165,7 @@ impl Wizard {
                         TargetMode::CurrentProject => {
                             app.project = target;
                             app.active_file = app.project.entry.clone();
-                            app.history.clear();
-                            app.redo.clear();
+                            app.clear_edit_history();
                             app.recompile();
                         }
                     }

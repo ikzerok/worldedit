@@ -1,7 +1,14 @@
 //! 当前轮 egui 行为回归；组合事件为合成输入，不替代物理 IME 或原生桌面验收。
+mod body_apply_discard;
 mod context_menu;
+mod cross_feature_undo;
+mod discard_lifecycle;
 mod edges;
+mod history_cases;
+mod history_guards;
 mod narrow;
+#[cfg(not(target_arch = "wasm32"))]
+mod save_refresh_history;
 use super::world_links::Kind;
 use super::*;
 use crate::app::{Tab, WorldeditApp};

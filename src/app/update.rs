@@ -156,8 +156,7 @@ impl eframe::App for WorldeditApp {
                                     if had_draft {
                                         self.stale_form = true;
                                     }
-                                    self.history.clear();
-                                    self.redo.clear();
+                                    self.clear_edit_history();
                                     if !self.project.documents.contains_key(&self.active_file) {
                                         self.active_file = self.project.entry.clone();
                                     }

@@ -534,8 +534,7 @@ impl super::super::WorldeditApp {
                 self.io_error = Some(error);
             }
             if action.discard {
-                self.manuscript.writing_buffers.remove(&path);
-                self.manuscript.writing_view.discard_retained_for(&path);
+                self.discard_manuscript_body(&path);
             } else if action.apply {
                 self.apply_manuscript_body(&path, action.source_mode);
             }

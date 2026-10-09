@@ -116,6 +116,7 @@ impl WorldeditApp {
             character_link: None,
             history: Vec::new(),
             redo: Vec::new(),
+            history_state: history::HistoryState::default(),
             pending: None,
             allow_close: false,
             directory: None,
@@ -232,14 +233,6 @@ impl WorldeditApp {
             .map(|s| s.result.diagnostics.as_slice())
             .unwrap_or(&[])
     }
-    pub(super) fn remember(&mut self, before: Project) {
-        self.allow_close = false;
-        if self.history.len() == 40 {
-            self.history.remove(0);
-        }
-        self.history.push(before);
-        self.redo.clear();
-    }
     pub(super) fn commit(
         &mut self,
         label: &str,
@@ -341,8 +334,7 @@ impl WorldeditApp {
         self.state_editor = None;
         self.anchor_editor = None;
         self.io_error = None;
-        self.history.clear();
-        self.redo.clear();
+        self.clear_edit_history();
         self.graph_positions.clear();
         self.character_positions.clear();
         self.character_focus = characters::CharacterFocus::default();

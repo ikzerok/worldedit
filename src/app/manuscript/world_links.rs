@@ -274,6 +274,13 @@ impl WorkbenchState {
         for buffer in self.writing_buffers.values_mut() {
             let _ = buffer.rebase_unchanged_source(project);
         }
+        self.rebase_unchanged_manuscripts(project);
+    }
+
+    pub(in crate::app) fn rebase_unchanged_manuscripts(
+        &mut self,
+        project: &worldline_core::project::Project,
+    ) {
         let baseline = project.content_baseline();
         let indices = project.manuscript_indices();
         for (id, local) in &mut self.books {

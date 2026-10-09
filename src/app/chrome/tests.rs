@@ -67,8 +67,9 @@ fn long_status_receipt_is_single_line_with_full_hover_and_clickable_right_contro
                 "很长的作品来源目录/".repeat(16)
             );
             app.message = Some(message.clone());
-            app.history.push(app.project.clone());
-            app.redo.push(app.project.clone());
+            app.remember(app.project.clone());
+            app.remember(app.project.clone());
+            app.restore_history_step(false).unwrap();
             let mut texts = Vec::new();
             for tick in 0..3 {
                 texts = frame(&ctx, &mut app, width, tick, vec![]);

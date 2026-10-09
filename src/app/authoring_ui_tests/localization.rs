@@ -496,9 +496,11 @@ fn localization_history_clears_operation_status_only_after_successful_restore() 
                 Project::new(&root.with_extension("different-workspace"))
             };
             if forward {
-                app.redo.push(previous);
+                app.remember(app.project.clone());
+                app.restore_history_step(false).unwrap();
+                app.redo.last_mut().unwrap().snapshot = previous;
             } else {
-                app.history.push(previous);
+                app.remember(previous);
             }
             app.undo(forward);
             let (_, output) = panel_frame(&ctx, &mut app, Vec::new());

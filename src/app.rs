@@ -25,6 +25,7 @@ mod entity_source_move;
 mod export_scope;
 #[cfg(not(target_arch = "wasm32"))]
 mod frame_profile;
+mod history;
 mod init;
 mod inspector;
 mod localization_ui;
@@ -371,8 +372,9 @@ pub struct WorldeditApp {
     link_label: String,
     character_link: Option<String>,
     dragging: Option<String>,
-    history: Vec<Project>,
-    redo: Vec<Project>,
+    history: Vec<history::HistoryEntry>,
+    redo: Vec<history::HistoryEntry>,
+    history_state: history::HistoryState,
     pending: Option<Pending>,
     allow_close: bool,
     directory: Option<DirectoryDialog>,
