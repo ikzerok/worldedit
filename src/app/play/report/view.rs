@@ -20,7 +20,7 @@ pub(super) fn status_text(report: &PlaythroughReport) -> &'static str {
 
 impl WorldeditApp {
     pub(in crate::app) fn playthrough_report_window(&mut self, ctx: &egui::Context) {
-        if !self.playthrough_report.open {
+        if !self.playthrough_report.open || self.draft_rehearsal.active {
             return;
         }
         // 仅显式打开时交接一次；后续Tab、指针或输入法导航不被旧请求拉回。

@@ -15,13 +15,21 @@ impl WorkbenchState {
             self.error = Some("查询定义只读或已经变化，请重新检查原文。".into());
             return;
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        self.queued = false;
         if let Some(running) = &mut self.running {
-            running
-                .cancel
-                .store(true, std::sync::atomic::Ordering::Relaxed);
-            running.cancel_requested = true;
+            running.cancel();
         }
+        self.saved_query_reference =
+            project
+                .authoring_document(&document.path)
+                .ok()
+                .map(|source| {
+                    (
+                        document.path.clone(),
+                        source.bytes().to_vec(),
+                        draft.clone(),
+                    )
+                });
         // 载入不选择新版本；只有显式编辑条件才调用 core 的版本同步。
         self.query = draft.query;
         self.saved_query_id = draft.id;
@@ -44,11 +52,14 @@ impl WorkbenchState {
             name: self.saved_query_name.clone(),
             query: self.query.clone(),
         };
-        let index = project.saved_query_index();
-        index
-            .queries
-            .get(&self.saved_query_id)
-            .is_none_or(|saved| saved.draft != draft)
+        self.saved_query_reference
+            .as_ref()
+            .is_none_or(|(path, bytes, saved)| {
+                saved != &draft
+                    || project.authoring_document(path).map_or(true, |document| {
+                        document.is_deleted() || document.bytes() != bytes
+                    })
+            })
             .then(|| format!("saved_query:{}", self.saved_query_id))
     }
 
@@ -69,11 +80,8 @@ impl WorkbenchState {
     }
 
     pub(in crate::app) fn reset_for_workspace(&mut self) {
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(running) = &self.running {
-            running
-                .cancel
-                .store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Some(running) = &mut self.running {
+            running.cancel();
         }
         let favorites = std::mem::take(&mut self.local_favorites);
         let columns = std::mem::take(&mut self.personal_columns);
@@ -101,8 +109,26 @@ impl WorkbenchState {
             self.error = None;
             self.page = None;
             self.todo_cache = None;
+            self.saved_cache = None;
             self.saved_query_baseline =
                 Some((self.saved_query_id.clone(), app.project.content_baseline()));
+            self.saved_query_reference = app
+                .project
+                .saved_query_index()
+                .queries
+                .get(&self.saved_query_id)
+                .and_then(|document| {
+                    app.project
+                        .authoring_document(&document.path)
+                        .ok()
+                        .map(|source| {
+                            (
+                                document.path.clone(),
+                                source.bytes().to_vec(),
+                                document.draft.clone(),
+                            )
+                        })
+                });
         }
     }
 

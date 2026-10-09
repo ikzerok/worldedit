@@ -7,7 +7,6 @@ use worldline_core::project::Project;
 use worldline_core::queries::{CatalogQueryFilter, TodoKind};
 impl WorkbenchState {
     pub(super) fn render(&mut self, app: &mut WorldeditApp, ctx: &egui::Context) {
-        #[cfg(not(target_arch = "wasm32"))]
         self.poll_query(app, ctx);
         if self.view == View::Todos
             && self
@@ -51,15 +50,19 @@ impl WorkbenchState {
         if self.query.filters != previous_query.filters {
             self.query.sync_edited_version();
         }
-        if self.query != previous_query || current_options(self) != previous_options {
+        if self.query != previous_query
+            || current_options(self).max_candidates != previous_options.max_candidates
+        {
             self.page = None;
             self.error = None;
-            #[cfg(not(target_arch = "wasm32"))]
+            self.queued = false;
             if let Some(running) = &mut self.running {
-                running
-                    .cancel
-                    .store(true, std::sync::atomic::Ordering::Relaxed);
-                running.cancel_requested = true;
+                running.cancel();
+            }
+        } else if self.page_size != previous_options.page_size {
+            let offset = self.page.as_ref().map_or(0, |page| page.offset);
+            if let Some(snapshot) = self.current_snapshot(app) {
+                self.page = snapshot.query().page(offset, self.page_size).ok();
             }
         }
         match action {
@@ -71,8 +74,9 @@ impl WorkbenchState {
             Action::Save => self.save_query(app),
             Action::Load(draft) => self.load_saved_query(&app.project, draft),
             Action::Favorite(id) => self.toggle_favorite(&app.project.root, id),
-            #[cfg(not(target_arch = "wasm32"))]
             Action::Cancel => self.cancel_query(),
+            Action::InspectMap => self.enter_scope(app, ctx, false),
+            Action::InspectRelations => self.enter_scope(app, ctx, true),
             Action::Navigate(target) => {
                 if let Some(object) = app
                     .snapshot
@@ -99,7 +103,6 @@ impl WorkbenchState {
                 .weak(),
         );
         ui.horizontal_wrapped(|ui| {
-            #[cfg(not(target_arch = "wasm32"))]
             if let Some(running) = &self.running {
                 if ui.button("取消查询").clicked() {
                     *action = Action::Cancel;
@@ -110,15 +113,13 @@ impl WorkbenchState {
                     ui.spinner();
                     ui.label("正在查询当前缓冲…");
                 }
+            } else if self.queued {
+                ui.label("等前一个查询释放计算资源…");
+                if ui.button("取消查询").clicked() {
+                    *action = Action::Cancel;
+                }
             } else if ui.button("运行查询").clicked() {
                 *action = Action::Run;
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                if ui.button("运行查询").clicked() {
-                    *action = Action::Run;
-                }
-                ui.label("浏览器查询同步执行；查询结果与诊断仍来自 core。");
             }
             ui.label("每页");
             ui.add(
@@ -138,6 +139,9 @@ impl WorkbenchState {
         });
         if let Some(error) = &self.error {
             ui.colored_label(crate::theme::ERROR(), error);
+        }
+        if let Some(status) = &self.status {
+            ui.label(crate::theme::muted(status));
         }
         self.render_results(app, ui, action);
         self.render_saved_queries(app, ui, action);
@@ -236,7 +240,14 @@ impl WorkbenchState {
             });
         });
 
-        let saved = app.project.saved_query_index();
+        if self
+            .saved_cache
+            .as_ref()
+            .is_none_or(|(version, _)| *version != app.version)
+        {
+            self.saved_cache = Some((app.version, app.project.saved_query_index()));
+        }
+        let saved = &self.saved_cache.as_ref().expect("saved index cached").1;
         ui.collapsing(
             format!("共享查询定义 · {} 项", saved.queries.len()),
             |ui| {

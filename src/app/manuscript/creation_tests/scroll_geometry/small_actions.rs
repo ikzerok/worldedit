@@ -69,3 +69,39 @@ fn scaled_small_discard_menu_preserves_cancel_and_requires_real_confirmation() {
         }
     }
 }
+
+#[test]
+fn scaled_focus_rehearsal_entry_uses_existing_tools_and_cancel_keeps_the_body() {
+    let (ctx, mut app) = blank();
+    create_start(&ctx, &mut app);
+    app.personal.settings.style = StylePreset::Focus;
+    app.personal.settings.reduce_motion = true;
+    app.personal.settings.ui_scale = 2.0;
+    app.personal.settings.body_size = 28.0;
+    app.manuscript.reader_open = false;
+    let draft = "event start\n  原位置的未应用正文🙂\n  -> END\n";
+    app.manuscript
+        .writing_buffers
+        .get_mut(&app.active_file)
+        .unwrap()
+        .replace_source(draft.into());
+    let baseline = app.project.content_baseline();
+    let history = app.history.len();
+    let focus = app.personal.settings.focus;
+    let size = vec2(800.0, 600.0);
+    let output = settle_app(&ctx, &mut app, size);
+    assert!(
+        !labels(&output).contains("试演当前正文草稿…"),
+        "紧凑Focus不增加挤占正文的固定试演行"
+    );
+    app_click(&ctx, &mut app, size, "书稿工具");
+    full_label(&settle_app(&ctx, &mut app, size), "试演当前正文草稿…");
+    app_click(&ctx, &mut app, size, "试演当前正文草稿…");
+    full_label(&settle_app(&ctx, &mut app, size), "取消准备");
+    app_key(&ctx, &mut app, size, egui::Key::Escape);
+    assert!(!labels(&settle_app(&ctx, &mut app, size)).contains("取消准备"));
+    assert_eq!(app.manuscript.writing_buffers()[0].source(), draft);
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.history.len(), history);
+    assert_eq!(app.personal.settings.focus, focus);
+}

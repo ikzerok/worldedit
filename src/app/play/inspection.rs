@@ -321,7 +321,7 @@ impl WorldeditApp {
         }
     }
 }
-fn cell(ui: &mut egui::Ui, label: &str, cell: &InspectionCell) {
+pub(super) fn cell(ui: &mut egui::Ui, label: &str, cell: &InspectionCell) {
     ui.label(theme::muted(label));
     ui.monospace(&cell.display);
     if let Some(value) = &cell.value {
@@ -331,21 +331,21 @@ fn cell(ui: &mut egui::Ui, label: &str, cell: &InspectionCell) {
         ui.label("显示已截断；完整值未提供");
     }
 }
-fn group(group: InspectionGroup) -> &'static str {
+pub(super) fn group(group: InspectionGroup) -> &'static str {
     match group {
         InspectionGroup::Global => "全局变量",
         InspectionGroup::Local => "调用局部",
         InspectionGroup::State => "状态标签集",
     }
 }
-fn change_label(change: InspectionChange) -> &'static str {
+pub(super) fn change_label(change: InspectionChange) -> &'static str {
     match change {
         InspectionChange::Changed => "有变化",
         InspectionChange::Unchanged => "值未变化",
         InspectionChange::NotComparable => "不可比较（无基线 / 不同调用 / 已省略）",
     }
 }
-fn status(status: InspectionStatus) -> &'static str {
+pub(super) fn status(status: InspectionStatus) -> &'static str {
     match status {
         InspectionStatus::Ready => "尚未完成首次观测",
         InspectionStatus::Choice => "等待选择",
@@ -357,7 +357,7 @@ fn status(status: InspectionStatus) -> &'static str {
         InspectionStatus::Failed => "运行错误的部分状态",
     }
 }
-fn observation_note(page: &StateInspectionPage) -> String {
+pub(super) fn observation_note(page: &StateInspectionPage) -> String {
     let first = page
         .first_observation
         .map_or("尚无记录".into(), |n| format!("观测 #{n}"));

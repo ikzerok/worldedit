@@ -1,4 +1,6 @@
 use super::*;
+#[path = "compact_layout.rs"]
+mod compact_layout;
 impl super::super::WorldeditApp {
     pub(in crate::app) fn map_tab(&mut self, ctx: &egui::Context) {
         self.refresh_map_binding_guards();
@@ -242,9 +244,27 @@ impl super::super::WorldeditApp {
         let mut index_visible = ctx
             .data(|data| data.get_temp::<bool>(index_id))
             .unwrap_or(!compact);
+        self.map_canvas.measurement_blocked = self.map_form.has_uncommitted_work()
+            || self.map_failed_command.is_some()
+            || self.map_creation.open;
+        let tight = ctx.available_rect().width() < 480.0 || ctx.available_rect().height() < 240.0;
+        let control_frame = if tight {
+            crate::theme::panel().inner_margin(egui::Margin::symmetric(6, 2))
+        } else {
+            crate::theme::panel()
+        };
         egui::TopBottomPanel::top("map-layout-controls")
-            .frame(crate::theme::panel())
+            .frame(control_frame)
             .show(ctx, |ui| {
+                if tight {
+                    self.compact_map_controls(
+                        ui,
+                        &mut index_visible,
+                        &mut inspector_visible,
+                        needs_inspector,
+                    );
+                    return;
+                }
                 ui.horizontal_wrapped(|ui| {
                     ui.strong("地图画布");
                     let index_label = if index_visible {
@@ -424,33 +444,18 @@ impl super::super::WorldeditApp {
         let mut retry_failed = false;
         let mut cancel_failed = false;
         egui::CentralPanel::default()
-            .frame(crate::theme::panel().fill(crate::theme::BG()))
+            .frame(if tight {
+                crate::theme::panel()
+                    .fill(crate::theme::BG())
+                    .inner_margin(egui::Margin::symmetric(6, 2))
+            } else {
+                crate::theme::panel().fill(crate::theme::BG())
+            })
             .show(ctx, |ui| {
                 if has_document || self.map_canvas.has_uncommitted_work() {
-                    self.map_canvas.measurement_blocked = self.map_form.has_uncommitted_work()
-                        || self.map_failed_command.is_some()
-                        || self.map_creation.open;
-                    self.map_canvas.toolbar(ui);
-                    self.map_canvas.scene.render_status_panel(ui);
-                    self.scene_job_panel(ui);
-                    ui.menu_button("导出矢量…", |ui| {
-                        if ui.button("导出整图矢量 SVG…").clicked() {
-                            ui.close();
-                            self.begin_svg_export(ctx, false);
-                        }
-                        let selected = !self.map_canvas.scene.selection.is_empty()
-                            || self.map_canvas.selected_placement().is_some();
-                        if crate::theme::add_enabled(
-                            ui,
-                            selected,
-                            egui::Button::new("导出当前选择…"),
-                        )
-                        .clicked()
-                        {
-                            self.begin_svg_export(ctx, true);
-                            ui.close();
-                        }
-                    });
+                    if !tight {
+                        self.map_controls_and_export(ui);
+                    }
                 } else {
                     ui.heading("开始绘制你的世界");
                     ui.label("先创建空白地图，再添加图层、地点或导入矢量图形。");
@@ -479,12 +484,15 @@ impl super::super::WorldeditApp {
                         }
                     });
                 }
-                ui.separator();
+                if !tight {
+                    ui.separator();
+                }
                 self.map_canvas.form_blocked = self.map_form.text_draft.is_some()
                     || self.map_form.pending_place.is_some()
                     || self.map_form.binding.pending().is_some();
                 self.map_canvas.legacy_place_tool = self.map_form.create_place_on_next_point;
                 self.map_canvas.show(ui);
+                self.draw_query_scope_overlay(ui);
             });
 
         if self.map_canvas.measurement.calibration.is_none()

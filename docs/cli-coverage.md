@@ -102,3 +102,17 @@ CLI/RPC维持同步有界查询，不替代UI确认，也不改变live session�
 书稿query在完整范围先筛选再分页，limit必须1至100，陈旧cursor不能重用。已生成不可变快照的查询零IO；生成仍复用core路径身份/注册/附件只读检查，不做缺失源码回退或提交预检。编辑器另外持有自己的未应用正文、编排和个人位置。
 
 session.inspect与CLI暂停输入inspect只查询当前真实Story；首次/前次只能来自已记录观测，状态声明定位不表示最后写入的因果。CLI/RPC不提供检查窗口、选择焦点、设备外观或编辑器撤销的远程操作。
+
+## 0.32 同一稿的四条作者路径
+
+| 编辑器操作 | CLI | RPC |
+|---|---|---|
+| 普通外改三方核对、预览、内存采纳 | `wl reconciliation capture/preview/apply/save`，显式真实基线/本地材料 | `reconciliation.capture/preview/apply`，自身Project后续明确save |
+| 当前正文草稿隔离试演 | `wl draft-rehearsal --request 文件.json`或`--request-json DTO` | `project.draft_rehearsal` |
+| 当前书稿筛选的作者审稿本 | `wl manuscript-delivery --request-json DTO`，显式`--output`新文件 | `manuscript.delivery`，只返回材料 |
+| 查询范围中的对象、地图与正式关系 | `wl catalog-scope --query DTO` | `catalog.scope` |
+
+这些接口使用同一core/runtime，不遥控界面输入或读取另一个进程的WritingBuffer。
+外改预览不采纳、采纳不等于保存；隔离试演不生成正式轨迹；全分支审稿不执行选择；
+临时查询范围不生成世界事实或新集合文件。参数、字节预算和真实失败状态见
+[0.32协议](https://github.com/ikzerok/worldline/blob/main/spec/agent-protocol.md)。

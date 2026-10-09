@@ -1,5 +1,14 @@
 //! 当前源文件草稿的只读全分支审稿；语义和物理来源一律由 core 提供。
 use super::*;
+mod delivery;
+mod delivery_compact;
+mod delivery_export;
+mod delivery_job;
+#[cfg(test)]
+mod delivery_tests;
+mod delivery_view;
+mod inputs;
+mod markdown_preview;
 use crate::theme;
 use std::sync::Arc;
 use worldline_core::manuscript::{
@@ -31,6 +40,9 @@ impl PageBudget {
 #[derive(Default)]
 pub(super) struct PreviewCache {
     pub key: String,
+    pub(super) scoped: bool,
+    query_snapshot: Option<Arc<worldline_core::manuscript::ManuscriptQuerySnapshot>>,
+    delivery: delivery::State,
     targets: Vec<TargetRef>,
     pub current: HashMap<TargetRef, Arc<ReviewProjection>>,
     last_valid: HashMap<TargetRef, Arc<ReviewProjection>>,
@@ -40,6 +52,36 @@ pub(super) struct PreviewCache {
 }
 
 impl PreviewCache {
+    pub(super) fn delivery_view_key(&self) -> Option<String> {
+        self.delivery.reviewed.as_ref().map(|report| {
+            format!(
+                "{}|{}",
+                report.scope().snapshot_key,
+                serde_json::to_string(&report.scope().request).expect("范围DTO可序列化")
+            )
+        })
+    }
+    pub(super) fn can_restore_delivery_view(&self, session: &super::ManuscriptSession) -> bool {
+        session.preview_scoped == Some(true)
+            && session
+                .preview_delivery_key
+                .as_ref()
+                .zip(self.delivery_view_key().as_ref())
+                .is_some_and(|(saved, current)| saved == current)
+            && self.delivery.reviewed.as_ref().is_some_and(|report| {
+                session.manuscript_id.as_deref()
+                    == Some(report.scope().request.query.manuscript_id.as_str())
+            })
+    }
+    pub(super) fn restore_delivery_page(&mut self, page: usize) {
+        self.delivery.page = page;
+    }
+    pub(super) fn set_query_snapshot(
+        &mut self,
+        snapshot: Option<Arc<worldline_core::manuscript::ManuscriptQuerySnapshot>>,
+    ) {
+        self.query_snapshot = snapshot;
+    }
     pub(super) fn basis<'a>(
         project: &worldline_core::project::Project,
         buffers: impl IntoIterator<Item = &'a WritingBuffer>,
@@ -136,13 +178,39 @@ pub(super) fn draw_reader_preview(
 ) {
     ui.horizontal_wrapped(|ui| {
         ui.heading("全分支审稿");
-        let current = ui.selectable_value(&mut app.manuscript.reader_whole_book, false, "当前章节");
+        let current = ui.selectable_label(
+            !app.manuscript.preview_cache.scoped && !app.manuscript.reader_whole_book,
+            "当前章节",
+        );
+        if current.clicked() {
+            app.manuscript.reader_whole_book = false;
+            app.manuscript.preview_cache.scoped = false;
+        }
         if app.manuscript.review_focus {
             current.request_focus();
             app.manuscript.review_focus = false;
         }
-        ui.selectable_value(&mut app.manuscript.reader_whole_book, true, "整书");
+        if ui
+            .selectable_label(
+                !app.manuscript.preview_cache.scoped && app.manuscript.reader_whole_book,
+                "整书",
+            )
+            .clicked()
+        {
+            app.manuscript.reader_whole_book = true;
+            app.manuscript.preview_cache.scoped = false;
+        }
+        if ui
+            .selectable_label(app.manuscript.preview_cache.scoped, "当前筛选范围")
+            .clicked()
+        {
+            app.manuscript.preview_cache.scoped = true;
+        }
     });
+    if app.manuscript.preview_cache.scoped {
+        delivery_view::draw(app, ui, index);
+        return;
+    }
     ui.label(egui::RichText::new("静态全分支 · 不代表真实路线").strong());
     let entries: Vec<_> = if app.manuscript.reader_whole_book {
         let mut page = index.page(app.manuscript.review_page_offset, REVIEW_CHAPTERS_PER_PAGE);

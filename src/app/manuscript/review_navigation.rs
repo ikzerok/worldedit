@@ -77,14 +77,17 @@ impl WorldeditApp {
         self.project.verify_review_navigation()?;
         let buffers = self.manuscript.writing_buffers();
         let cache = &self.manuscript.preview_cache;
-        if request.key != cache.key
-            || !cache.is_current(&self.project, &buffers)
-            || !cache
+        let ordinary_current = request.key == cache.key
+            && cache.is_current(&self.project, &buffers)
+            && cache
                 .current
                 .get(&request.review.target)
-                .is_some_and(|review| Arc::ptr_eq(review, &request.review))
-        {
+                .is_some_and(|review| Arc::ptr_eq(review, &request.review));
+        if !ordinary_current && !self.manuscript_scoped_review_is_current(request) {
             return Err("此审稿来源已过期，请等待当前稿重新生成；未离开当前位置".into());
+        }
+        if self.manuscript_scoped_review_is_current(request) {
+            self.verify_scoped_review_observation()?;
         }
         let compiled = self.project.compile_writing_drafts(&buffers)?;
         validate_review_source(&compiled, &request.review, &request.source)

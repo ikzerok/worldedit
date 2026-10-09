@@ -25,10 +25,11 @@ fn owns_focus(ctx: &egui::Context) -> bool {
     let Some(id) = ctx.memory(|memory| memory.focused()) else {
         return false;
     };
+    // 后台 repaint 会请求写锁；data 读锁内不能再次读取同一个 Context。
+    let frame = ctx.cumulative_frame_nr();
     ctx.data(|data| {
         data.get_temp::<Registry>(key()).is_some_and(|registry| {
-            registry.frame.saturating_add(1) >= ctx.cumulative_frame_nr()
-                && registry.ids.contains(&id)
+            registry.frame.saturating_add(1) >= frame && registry.ids.contains(&id)
         })
     })
 }

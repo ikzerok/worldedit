@@ -3,7 +3,11 @@ use super::catalog::kind_label;
 use super::{Tab, WorldeditApp};
 use crate::theme::{self, *};
 use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
+mod compact;
+mod edges;
 mod labels;
+mod scope;
+mod view;
 use labels::DisplayLabels;
 use worldline_core::catalog::TargetRef;
 use worldline_core::graph_views::{self, GraphViewCommand};
@@ -237,67 +241,31 @@ impl WorldeditApp {
         ));
     }
 
-    fn network_edge_list(&mut self, ui: &mut egui::Ui) {
-        let Some(snapshot) = &self.snapshot else {
-            return;
-        };
-        let catalog = &snapshot.result.analysis.catalog;
-        let labels = DisplayLabels::new(catalog);
-        let edges = self
-            .network_state
-            .result
-            .as_ref()
-            .map(|result| result.edges.clone())
-            .unwrap_or_default();
-        ui.separator();
-        ui.label(RichText::new(format!("明确关系 · {}", edges.len())).strong());
-        let mut open_relation = None;
-        for edge in edges {
-            ui.push_id(("network-edge", &edge.id), |ui| {
-                let hidden = self.network_state.hidden.contains(&edge.id);
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(if hidden { "○" } else { "●" });
-                    if ui.link(format!("{} · {}", edge.label, edge.id)).clicked() {
-                        open_relation = Some(TargetRef::new("relation", &edge.id));
-                    }
-                    if ui
-                        .small_button(if hidden { "显示" } else { "隐藏" })
-                        .clicked()
-                    {
-                        if hidden {
-                            self.network_state.hidden.remove(&edge.id);
-                        } else {
-                            self.network_state.hide(&edge.id);
-                        }
-                    }
-                });
-                ui.label(theme::muted(format!(
-                    "{} → {}{}",
-                    labels.get(&edge.from_ref),
-                    labels.get(&edge.to_ref),
-                    if edge.direction == RelationDirection::Undirected {
-                        "（无向）"
-                    } else {
-                        ""
-                    }
-                )));
-            });
-        }
-        if let Some(target) = open_relation {
-            self.open_reading(target);
-        }
-    }
-
     fn network_canvas(&mut self, ui: &mut egui::Ui) {
+        let scoped = self.refresh_query_scope_network();
         let Some(snapshot) = &self.snapshot else {
             return;
         };
         let catalog = &snapshot.result.analysis.catalog;
-        self.network_state.refresh(catalog, self.version);
+        if !scoped {
+            self.network_state.refresh(catalog, self.version);
+        }
         let result = self.network_state.result.clone();
-        let desired = ui.available_size().max(Vec2::new(320.0, 280.0));
+        let available = ui.available_size();
+        let desired = if scoped && (available.x < 600.0 || available.y < 280.0) {
+            available.max(Vec2::splat(1.0))
+        } else {
+            available.max(Vec2::new(320.0, 280.0))
+        };
         let (response, painter) = ui.allocate_painter(desired, Sense::drag());
         let rect = response.rect;
+        #[cfg(test)]
+        ui.ctx().data_mut(|data| {
+            data.insert_temp(
+                egui::Id::new("catalog-scope-network-clip"),
+                rect.intersect(painter.clip_rect()),
+            )
+        });
         let size = [f64::from(rect.width()), f64::from(rect.height())];
         if response.double_clicked() {
             let points = self
@@ -338,7 +306,10 @@ impl WorldeditApp {
             );
             return;
         };
-        let labels = DisplayLabels::new(catalog);
+        let frozen = self.catalog_workbench.snapshot.clone().filter(|_| scoped);
+        let labels = frozen
+            .as_deref()
+            .map_or_else(|| DisplayLabels::new(catalog), DisplayLabels::from_scope);
         for edge in &result.edges {
             if self.network_state.hidden.contains(&edge.id) {
                 continue;
@@ -459,7 +430,12 @@ impl WorldeditApp {
             node_painter.text(
                 node_rect.center() + Vec2::new(0.0, 10.0),
                 egui::Align2::CENTER_CENTER,
-                format!("{} · {}", kind_label(&node.target.kind), node.target.id),
+                format!(
+                    "{} · {} {}",
+                    kind_label(&node.target.kind),
+                    node.target.id,
+                    self.query_scope_node_caption(&node.target)
+                ),
                 egui::FontId::proportional(10.5),
                 MUTED(),
             );
@@ -474,115 +450,5 @@ impl WorldeditApp {
                 GOLD(),
             );
         }
-    }
-
-    pub(super) fn network_tab(&mut self, ctx: &egui::Context) {
-        let topic_active = self.topic_view_active(ctx);
-        egui::SidePanel::right("network-inspector")
-            .default_width(theme::INSPECTOR_WIDTH)
-            .width_range(250.0..=420.0)
-            .frame(theme::panel())
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("network-inspector-scroll")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        if topic_active {
-                            ui.heading("专题视图");
-                            ui.label(theme::muted("专题映射与筛选仅用于只读 core 查询。"));
-                        } else {
-                            ui.heading("局部关系网络");
-                            if let Some(catalog) = self
-                                .snapshot
-                                .as_ref()
-                                .map(|snapshot| &snapshot.result.analysis.catalog)
-                            {
-                                let mut center = self.network_state.focus.clone();
-                                if super::object_picker::object_picker(
-                                    ui,
-                                    "network-focus-picker",
-                                    "搜索中心对象",
-                                    &mut center,
-                                    catalog,
-                                    &[],
-                                ) {
-                                    if let Some(target) = center {
-                                        self.open_network(target);
-                                    } else {
-                                        self.network_state = Default::default();
-                                        self.network_selected = None;
-                                        self.network_loaded_view = None;
-                                    }
-                                }
-                            }
-                            self.network_filters(ui);
-                            if let Some(target) = self.network_selected.clone() {
-                                ui.separator();
-                                ui.label(RichText::new("选中对象").strong());
-                                if let Some(snapshot) = &self.snapshot {
-                                    if let Some(object) =
-                                        snapshot.result.analysis.catalog.object(&target)
-                                    {
-                                        ui.label(&object.display);
-                                        theme::technical_value(
-                                            ui,
-                                            kind_label(&target.kind),
-                                            &target.id,
-                                        );
-                                    }
-                                }
-                                ui.horizontal_wrapped(|ui| {
-                                    if ui.button("阅读资料").clicked() {
-                                        self.open_reading(target.clone());
-                                    }
-                                    if ui.button("作为中心").clicked() {
-                                        self.network_state.enter(target.clone());
-                                    }
-                                    if ui.button("创建关系").clicked() {
-                                        self.edit_relation(None, Some(target.clone()));
-                                    }
-                                });
-                            }
-                            self.network_edge_list(ui);
-                            self.network_saved_views(ui);
-                        }
-                    });
-            });
-        egui::CentralPanel::default()
-            .frame(theme::panel().fill(theme::canvas_background()))
-            .show(ctx, |ui| {
-                if !self.topic_views(ui) {
-                    self.network_toolbar(ui);
-                    ui.horizontal_wrapped(|ui| {
-                        if crate::theme::add_enabled(
-                            ui,
-                            self.network_state.can_previous(),
-                            egui::Button::new("上一页"),
-                        )
-                        .clicked()
-                        {
-                            self.network_state.previous_page();
-                        }
-                        if crate::theme::add_enabled(
-                            ui,
-                            self.network_state
-                                .result
-                                .as_ref()
-                                .is_some_and(|result| result.continuation.is_some()),
-                            egui::Button::new("下一页"),
-                        )
-                        .clicked()
-                        {
-                            self.network_state.next_page();
-                        }
-                        ui.label(theme::muted(format!(
-                            "第 {} 页 · 最多 250 节点 / 500 关系",
-                            self.network_state.offset / 500 + 1
-                        )));
-                    });
-                    ui.separator();
-                    self.network_canvas(ui);
-                }
-            });
     }
 }

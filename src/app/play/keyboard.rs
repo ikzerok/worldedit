@@ -27,6 +27,7 @@ pub(in crate::app) struct PlayKeyboard {
     fresh: bool,
     prepared: Option<u64>,
     tab_frame: Option<u64>,
+    rehearsal_preparation: bool,
 }
 #[derive(Clone, Copy)]
 pub(super) struct Activation {
@@ -114,7 +115,7 @@ impl PlayKeyboard {
     }
 
     pub(super) fn activation(&mut self, response: &egui::Response) -> Option<Activation> {
-        if !response.clicked() || self.ime {
+        if !response.clicked() || self.ime || self.rehearsal_preparation {
             return None;
         }
         if response.clicked_by(egui::PointerButton::Primary) {
@@ -210,8 +211,11 @@ impl PlayKeyboard {
         }
         let mut child = egui::Ui::new(ui.ctx().clone(), id, builder);
         child.set_clip_rect(ui.clip_rect());
-        let response =
-            crate::theme::add_enabled(&mut child, enabled, egui::Button::new(text).wrap());
+        let response = crate::theme::add_enabled(
+            &mut child,
+            enabled && !self.rehearsal_preparation,
+            egui::Button::new(text).wrap(),
+        );
         ui.advance_cursor_after_rect(child.min_rect());
         if let Some(target @ Target::Choice(_)) = target {
             if response.has_focus() || response.clicked() {
@@ -243,8 +247,12 @@ impl PlayKeyboard {
 
 impl WorldeditApp {
     pub(in crate::app) fn prepare_play_keyboard(&mut self, ctx: &egui::Context) {
+        self.play_keyboard.rehearsal_preparation =
+            self.draft_rehearsal.preparation_blocks_frame(ctx);
         let context = egui::Id::new((&self.project.root, self.version));
-        let blocked = self.tab != Tab::Play
+        let blocked = self.draft_rehearsal.active
+            || self.play_keyboard.rehearsal_preparation
+            || self.tab != Tab::Play
             || self.comparison.active
             || self.command_palette.open
             || self.play_confirmation.is_some()

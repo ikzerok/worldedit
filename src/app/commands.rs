@@ -116,6 +116,9 @@ impl WorldeditApp {
         if self.ime_composing || self.command_palette.ime || self.command_palette.ime_frame {
             return;
         }
+        if self.draft_rehearsal_shortcuts(ctx) {
+            return;
+        }
         self.edit_shortcuts(ctx);
         self.source_outline_shortcut(ctx);
         self.source_jump_shortcut(ctx);

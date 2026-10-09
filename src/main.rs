@@ -3,6 +3,7 @@
 mod app;
 mod archive;
 mod chrome;
+mod draft_rehearsal_worker;
 #[cfg(feature = "eds11_prototype")]
 mod eds11_prototype;
 mod fonts;

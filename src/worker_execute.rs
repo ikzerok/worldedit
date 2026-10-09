@@ -55,6 +55,16 @@ fn execute(request_json: &str, files: JsValue, retained: JsValue) -> Result<JsVa
             .ok_or_else(|| "后台任务缺少工程".to_owned())
     };
     let (output, binaries) = match &request.task {
+        WorkTask::CatalogScope {
+            query,
+            max_candidates,
+        } => {
+            progress(&request, "构建完整资料查询与地图范围", 0, 1);
+            let scope = need_project()?
+                .catalog_scope_snapshot(query, *max_candidates)
+                .map_err(|error| error.to_string())?;
+            (WorkOutput::CatalogScope { scope }, Vec::new())
+        }
         WorkTask::CatalogCsvParse { csv } => {
             progress(&request, "读取世界资料 CSV", 0, 1);
             let table = worldline_core::catalog_import::parse_catalog_csv(csv)

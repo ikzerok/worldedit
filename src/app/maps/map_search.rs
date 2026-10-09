@@ -1,5 +1,6 @@
 impl super::super::WorldeditApp {
     pub(super) fn map_search_panel(&mut self, ui: &mut egui::Ui) {
+        self.query_scope_panel(ui);
         ui.separator();
         ui.collapsing("对象反查", |ui| {
             ui.label(crate::theme::muted("按名称、ID、类型或别名查找地图标记。"));
