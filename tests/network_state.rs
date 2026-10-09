@@ -83,6 +83,23 @@ fn pagination_replaces_bounded_pages_and_filter_change_resets_cursor() {
     state.filters.direction = RelationQueryDirection::Both;
     state.refresh(&content.analysis.catalog, 5);
     assert_eq!(state.offset, 0);
+    assert!(state.next_page());
+    state.camera.pan = [35.0, -12.0];
+    state.camera.zoom = 1.75;
+    let camera = state.camera.clone();
+    let positions = state.positions.clone();
+    state.begin_drag("entity:hub");
+    state.drag_to([123.0, 456.0]);
+    state.reset_query_page();
+    assert_eq!(state.offset, 0);
+    assert!(!state.can_previous());
+    assert!(state.dragging().is_none());
+    assert_eq!(state.camera, camera, "查询换页不能重置作者镜头");
+    assert_eq!(
+        state.positions, positions,
+        "旧查询的未完成拖动须取消，已存位置保留"
+    );
+    assert!(state.refresh(&content.analysis.catalog, 5));
 }
 #[test]
 fn graph_camera_keeps_zoom_anchor_and_ignores_nonfinite_drag() {

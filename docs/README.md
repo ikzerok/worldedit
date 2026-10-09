@@ -1,6 +1,13 @@
 # worldedit 使用文档
 
-本文对应 0.31 候选；本轮功能与验证状态见 [0.31 版本说明](releases/v0.31.0.md)，已发布历史见 [CHANGELOG](../CHANGELOG.md)。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+本文对应 0.32；本版功能与验证范围见 [0.32 版本说明](releases/v0.32.0.md)，版本历史见 [CHANGELOG](../CHANGELOG.md)，公开发行状态以对应 GitHub Release 为准。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+
+## 0.32 同一当前稿的作者闭环
+
+- [普通外改协调](workspace-reconciliation.md)：基线、本地、磁盘三方完整身份，明确逐项决定，候选重验、撤销和另行保存
+- [未应用正文隔离试演](draft-rehearsal.md)：实际草稿编译和独立运行会话，真实状态与来源，返回原稿
+- [筛选范围审稿本](manuscript-delivery.md)：同一书稿查询的连续全分支审阅和作者私密 Markdown 交付
+- [查询范围巡检](catalog-scope.md)：相同不可变 typed 范围里的对象、地图绑定和正式关系，返回与过期保护
 
 ## 模板、章节与真实状态
 
@@ -58,4 +65,4 @@ v3 对象包含其别名与受限类型结构；属性、地图图元、章节�
 - [配对构建](paired-ci.md)、[发布流程](release.md)、[性能目标与探针](performance.md)
 - [worldline 规范索引](../../worldline/spec/README.md)：语言、地图、机器协议和公开选择的共同真源
 
-当前 0.31 候选的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。
+0.32 的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。

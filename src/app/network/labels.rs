@@ -4,6 +4,7 @@ use worldline_core::{Catalog, TargetRef};
 
 pub(super) struct DisplayLabels<'a> {
     objects: HashMap<&'a TargetRef, &'a str>,
+    scope: Option<&'a worldline_core::catalog_scope::CatalogScopeSnapshot>,
 }
 impl<'a> DisplayLabels<'a> {
     pub(super) fn new(catalog: &'a Catalog) -> Self {
@@ -14,10 +15,27 @@ impl<'a> DisplayLabels<'a> {
                 .entry(&object.target)
                 .or_insert(object.display.as_str());
         }
-        Self { objects }
+        Self {
+            objects,
+            scope: None,
+        }
+    }
+
+    pub(super) fn from_scope(
+        scope: &'a worldline_core::catalog_scope::CatalogScopeSnapshot,
+    ) -> Self {
+        Self {
+            objects: HashMap::new(),
+            scope: Some(scope),
+        }
     }
 
     pub(super) fn get<'b>(&'b self, target: &'b TargetRef) -> &'b str {
+        if let Some(scope) = self.scope {
+            return scope
+                .object(target)
+                .map_or(target.id.as_str(), |object| object.display.as_str());
+        }
         self.objects.get(target).copied().unwrap_or(&target.id)
     }
 }
@@ -71,5 +89,22 @@ mod tests {
         assert_eq!(DisplayLabels::new(&catalog).get(&target), "新名称");
         catalog.objects.clear();
         assert_eq!(DisplayLabels::new(&catalog).get(&target), "same");
+    }
+    #[test]
+    fn scoped_labels_borrow_complete_identity_index_without_copying_all_objects() {
+        let root = std::env::temp_dir().join(format!("scope-labels-{}", std::process::id()));
+        let mut project = worldline_core::project::Project::new(&root);
+        let long = "同名长地点名称".repeat(40);
+        project.set_text(&project.entry.clone(), format!("event start\n  -> END\nentity first kind place as \"{long}\"\nentity second kind place as \"{long}\"\n")).unwrap();
+        project.create_authoring_document(&project.root.join(".world/project.json"), br#"{"schema_version":1,"language_version":"1.10","entry":"world.wl","required_features":["content.entities.v1"]}"#.to_vec()).unwrap();
+        let snapshot = project
+            .catalog_scope_snapshot(&Default::default(), 10_000)
+            .unwrap();
+        let labels = DisplayLabels::from_scope(&snapshot);
+        assert!(labels.objects.is_empty());
+        assert_eq!(labels.get(&TargetRef::new("entity", "first")), long);
+        assert_eq!(labels.get(&TargetRef::new("entity", "second")), long);
+        assert_eq!(labels.get(&TargetRef::new("entity", "missing")), "missing");
+        assert_eq!(labels.get(&TargetRef::default()), "");
     }
 }

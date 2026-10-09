@@ -256,6 +256,10 @@ impl WorldeditApp {
         {
             names.push("工程模板草稿");
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.conflict_view.has_unsubmitted_work() {
+            names.push(conflicts::DRAFT_KIND);
+        }
         names.retain(|kind| !self.pristine_new_draft(kind));
         names
     }
@@ -311,6 +315,8 @@ impl WorldeditApp {
         self.localization_ui = localization_ui::LocalizationUiState::default();
         self.catalog_import.discard();
         self.template_manager.discard();
+        #[cfg(not(target_arch = "wasm32"))]
+        self.conflict_view.discard_drafts();
         self.stale_form = false;
     }
     pub(super) fn draft_exit_dialog(&mut self, ctx: &egui::Context) {
@@ -357,6 +363,10 @@ impl WorldeditApp {
                 }
             });
         if let Some(name) = return_to {
+            #[cfg(not(target_arch = "wasm32"))]
+            if name == conflicts::DRAFT_KIND {
+                self.conflict_view.resume_draft();
+            }
             self.tab = match name {
                 "世界观" => Tab::World,
                 "人物资料" => Tab::Characters,

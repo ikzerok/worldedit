@@ -447,11 +447,15 @@ fn reference_condition_changes_reject_old_cursors_and_old_versions_stay_unchange
         input(ScalarInputKind::Reference, "target", "character"),
     );
     state.page_size = 1;
-    state.page = Some(
-        app.project
-            .query_catalog(&state.query, current_options(&state))
-            .unwrap(),
-    );
+    let snapshot = app
+        .project
+        .catalog_scope_snapshot(&state.query, state.max_candidates)
+        .unwrap();
+    state.page = Some(snapshot.query().page(0, state.page_size).unwrap());
+    state.snapshot = Some(std::sync::Arc::new(snapshot));
+    state.snapshot_key = Some((app.version, app.map_revision));
+    state.snapshot_query = Some(state.query.clone());
+    state.snapshot_observation = Some(app.project.catalog_scope_observation_key());
     if let CatalogQueryFilter::Property { values, .. } = &mut state.query.filters[0] {
         values[0].equals = PropertyScalar::Reference(TargetRef::new("relation", "edge"));
     }

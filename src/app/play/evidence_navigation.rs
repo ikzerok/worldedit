@@ -8,9 +8,18 @@ use worldline_runtime::ChoiceExplanation;
 pub(super) struct EvidenceNavigationAccess {
     pub reason: Option<String>,
     targets: Vec<(EvidenceSource, Result<SearchMatch, String>)>,
+    deferred_sources: Vec<EvidenceSource>,
 }
 
 impl EvidenceNavigationAccess {
+    /// 后台持有真实编译快照；按钮只发请求，最终定位由该快照重新验证。
+    pub(super) fn rehearsal(choices: &[ChoiceExplanation], reason: Option<String>) -> Self {
+        Self {
+            reason,
+            targets: Vec::new(),
+            deferred_sources: sources(choices),
+        }
+    }
     pub(super) fn source_reason(&self, source: Option<&EvidenceSource>) -> Option<&str> {
         if let Some(reason) = &self.reason {
             return Some(reason);
@@ -25,6 +34,7 @@ impl EvidenceNavigationAccess {
         {
             Some((_, Ok(_))) => None,
             Some((_, Err(reason))) => Some(reason),
+            None if self.deferred_sources.contains(source) => None,
             None => Some("来源已不属于当前证据，请重新展开本次条件"),
         }
     }
@@ -74,6 +84,7 @@ impl WorldeditApp {
             return EvidenceNavigationAccess {
                 reason: Some(reason),
                 targets: Vec::new(),
+                deferred_sources: Vec::new(),
             };
         }
         let choices = self
@@ -84,6 +95,7 @@ impl WorldeditApp {
             .unwrap_or_default();
         EvidenceNavigationAccess {
             reason: None,
+            deferred_sources: Vec::new(),
             targets: sources(choices)
                 .into_iter()
                 .map(|source| {

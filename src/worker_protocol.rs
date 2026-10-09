@@ -32,6 +32,10 @@ pub(crate) struct WorkRequest {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WorkTask {
+    CatalogScope {
+        query: worldline_core::queries::CatalogQuery,
+        max_candidates: usize,
+    },
     CatalogCsvParse {
         csv: String,
     },
@@ -77,6 +81,9 @@ pub(crate) enum WorkTask {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WorkOutput {
+    CatalogScope {
+        scope: worldline_core::catalog_scope::CatalogScopeSnapshot,
+    },
     CatalogCsvParse {
         table: worldline_core::catalog_import::CatalogCsvTable,
     },
@@ -152,6 +159,7 @@ impl WorkRequest {
         let needs_project = matches!(
             self.task,
             WorkTask::ProblemsReport { .. }
+                | WorkTask::CatalogScope { .. }
                 | WorkTask::CatalogImportPreview { .. }
                 | WorkTask::ScenePreview { .. }
                 | WorkTask::SceneEntityPreview { .. }
@@ -181,6 +189,15 @@ impl WorkRequest {
             return Err("后台结果完整JSON超过32MiB预算".into());
         }
         match (&self.task, output) {
+            (
+                WorkTask::CatalogScope {
+                    query,
+                    max_candidates,
+                },
+                WorkOutput::CatalogScope { scope },
+            ) if binaries.is_empty() => scope
+                .validate_for(query, &self.baseline, *max_candidates)
+                .map_err(|error| error.to_string()),
             (WorkTask::CatalogCsvParse { .. }, WorkOutput::CatalogCsvParse { table })
                 if binaries.is_empty()
                     && table.headers.len() <= 64
@@ -463,3 +480,7 @@ pub(crate) fn scene_error(error: &worldline_core::vector_scene::SceneError) -> S
     }
     message
 }
+
+#[cfg(test)]
+#[path = "worker_protocol/catalog_scope_tests.rs"]
+mod catalog_scope_tests;

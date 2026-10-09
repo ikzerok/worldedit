@@ -11,7 +11,7 @@ fn sorting_retires_inflight_query_and_cancel_discards_completed_results_without_
     let old_query = state.query.clone();
     let old_page = app
         .project
-        .query_catalog(&old_query, current_options(&state))
+        .catalog_scope_snapshot(&old_query, state.max_candidates)
         .unwrap();
     let (sender, receiver) = std::sync::mpsc::channel();
     let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -21,6 +21,8 @@ fn sorting_retires_inflight_query_and_cancel_discards_completed_results_without_
         query: old_query,
         options: current_options(&state),
         cancel_requested: false,
+        key: (app.version, app.map_revision),
+        observation: app.project.catalog_scope_observation_key(),
     });
     state.apply_sort(
         &app,
@@ -65,7 +67,7 @@ fn delayed_sender_stays_pending_past_eighty_real_ui_frames_then_delivers() {
         if gate.recv().is_ok() {
             let snapshot = project.content_baseline();
             let result = project
-                .query_catalog(&worker_query, options)
+                .catalog_scope_snapshot(&worker_query, options.max_candidates)
                 .map_err(|error| error.to_string());
             let _ = sender.send((snapshot, result));
         }
@@ -76,6 +78,8 @@ fn delayed_sender_stays_pending_past_eighty_real_ui_frames_then_delivers() {
         query,
         options,
         cancel_requested: false,
+        key: (app.version, app.map_revision),
+        observation: app.project.catalog_scope_observation_key(),
     });
     let render = |state: &mut WorkbenchState, app: &mut WorldeditApp| {
         let _ = ctx.run(
@@ -139,6 +143,8 @@ fn disconnected_sender_is_an_explicit_terminal_error_not_permanent_pending() {
         query: state.query.clone(),
         options: current_options(&state),
         cancel_requested: false,
+        key: (app.version, app.map_revision),
+        observation: app.project.catalog_scope_observation_key(),
     });
     drop(sender);
     state.poll_query(&app, &ctx);

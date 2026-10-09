@@ -12,8 +12,42 @@ pub(super) fn render(
     access: &EvidenceNavigationAccess,
     jump: &mut Option<EvidenceNavigationRequest>,
 ) {
-    ui.label(RichText::new(format!("条件证据 · 运行版本 #{run_version}")).strong());
-    if run_version != edit_version {
+    render_inner(
+        ui,
+        choices,
+        &format!("条件证据 · 运行版本 #{run_version}"),
+        run_version != edit_version,
+        access,
+        jump,
+    );
+}
+
+pub(super) fn render_rehearsal(
+    ui: &mut egui::Ui,
+    choices: &[ChoiceExplanation],
+    access: &EvidenceNavigationAccess,
+    jump: &mut Option<EvidenceNavigationRequest>,
+) {
+    render_inner(
+        ui,
+        choices,
+        "条件证据 · 当前隔离试演快照",
+        false,
+        access,
+        jump,
+    );
+}
+
+fn render_inner(
+    ui: &mut egui::Ui,
+    choices: &[ChoiceExplanation],
+    title: &str,
+    stale: bool,
+    access: &EvidenceNavigationAccess,
+    jump: &mut Option<EvidenceNavigationRequest>,
+) {
+    ui.label(RichText::new(title).strong());
+    if stale {
         ui.label(crate::theme::muted(
             "此证据来自旧运行；重新开始后使用最新稿件。",
         ));

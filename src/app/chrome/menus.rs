@@ -50,7 +50,7 @@ impl WorldeditApp {
             }
             #[cfg(not(target_arch = "wasm32"))]
             if ui.button("查看冲突差异").clicked() {
-                self.conflict_view = conflicts::ConflictView::capture(&self.project);
+                self.conflict_view.open_or_capture(&self.project);
                 ui.close();
             }
         });

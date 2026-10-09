@@ -44,6 +44,8 @@ impl eframe::App for WorldeditApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Escape 可能在 author_shortcuts 取消准备；本帧其余快捷键仍不得穿透。
+        let rehearsal_preparation = self.draft_rehearsal.preparation_blocks_frame(ctx);
         let closing = self.reader_app_close_pending();
         let appearance_shortcuts_blocked = self.ime_composing
             || self.command_palette.ime
@@ -83,8 +85,16 @@ impl eframe::App for WorldeditApp {
         if self.personal.pending_restore {
             self.restore_personal_view(ctx);
         }
-        self.author_shortcuts(ctx);
-        self.prepare_play_keyboard(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.conflict_view.prepare_frame(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        let reconciliation_open = self.conflict_view.is_open();
+        #[cfg(target_arch = "wasm32")]
+        let reconciliation_open = false;
+        if !reconciliation_open {
+            self.author_shortcuts(ctx);
+            self.prepare_play_keyboard(ctx);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         let input_active = self
             .frame_profile
@@ -181,14 +191,18 @@ impl eframe::App for WorldeditApp {
                 return;
             }
         }
-        if !self.ime_composing
+        if !reconciliation_open
+            && !rehearsal_preparation
+            && !self.ime_composing
             && !self.command_palette.ime
             && !self.command_palette.ime_frame
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S))
         {
             self.save();
         }
-        if !self.ime_composing
+        if !reconciliation_open
+            && !rehearsal_preparation
+            && !self.ime_composing
             && !self.command_palette.ime
             && !self.command_palette.ime_frame
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O))
@@ -197,7 +211,9 @@ impl eframe::App for WorldeditApp {
         }
         self.poll_problems(ctx);
         self.poll_playthrough_report(ctx);
+        self.poll_manuscript_delivery(ctx);
         self.top_bar(ctx);
+        self.catalog_scope_return_bar(ctx);
         self.status_bar(ctx);
         self.problems_panel(ctx);
         if self.personal.settings.navigation
@@ -271,11 +287,12 @@ impl eframe::App for WorldeditApp {
         self.schema_editor_window(ctx);
         self.export_scope_dialog(ctx);
         self.play_scope_dialog(ctx);
+        self.draft_rehearsal_dialog(ctx);
         self.playthrough_report_window(ctx);
         self.capability_window(ctx);
         self.capture_edit_focus(ctx);
         #[cfg(not(target_arch = "wasm32"))]
-        self.conflict_view.show(ctx);
+        self.show_reconciliation(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         crate::chrome::resize_edges(ctx);
         #[cfg(target_arch = "wasm32")]

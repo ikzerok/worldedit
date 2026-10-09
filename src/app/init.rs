@@ -50,6 +50,7 @@ impl WorldeditApp {
             tab: Tab::Manuscript,
             jump: None,
             play: None,
+            draft_rehearsal: Default::default(),
             play_confirmation: None,
             replay_debugger: ReplayDebugger::default(),
             comparison: play::comparison::ComparisonState::default(),
@@ -315,6 +316,7 @@ impl WorldeditApp {
         self.alias_input.clear();
         self.link_query.clear();
         self.play = None;
+        self.draft_rehearsal = Default::default();
         self.play_keyboard.new_session();
         self.comparison = play::comparison::ComparisonState::default();
         self.playthrough_report = play::report::PlaythroughReportState::default();

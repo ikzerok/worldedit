@@ -29,7 +29,7 @@ impl WorkbenchState {
             }
             return;
         };
-        if page.snapshot != app.project.content_baseline() {
+        if self.current_snapshot(app).is_none() {
             ui.colored_label(
                 crate::theme::GOLD(),
                 "结果已过期：Project 缓冲发生变化。请重新运行查询。",
@@ -38,6 +38,20 @@ impl WorkbenchState {
                 *action = Action::Run;
             }
             return;
+        }
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("在地图巡检全部命中").clicked() {
+                *action = Action::InspectMap;
+            }
+            if ui.button("在关系巡检全部命中").clicked() {
+                *action = Action::InspectRelations;
+            }
+        });
+        if page.incomplete {
+            ui.colored_label(
+                crate::theme::GOLD(),
+                "来源存在错误；以下为已解析资料的完整筛选，不代表作品全部资料。",
+            );
         }
         if page.total == 0 {
             ui.strong("没有找到匹配资料");

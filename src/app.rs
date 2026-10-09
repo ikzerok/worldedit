@@ -304,6 +304,7 @@ pub struct WorldeditApp {
     tab: Tab,
     jump: Option<(u32, u32)>,
     play: Option<PlayState>,
+    draft_rehearsal: play::rehearsal::DraftRehearsalUi,
     play_confirmation: Option<play::scope::PlayConfirmation>,
     replay_debugger: ReplayDebugger,
     comparison: play::comparison::ComparisonState,

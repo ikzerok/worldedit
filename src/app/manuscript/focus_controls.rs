@@ -14,8 +14,10 @@ pub(super) fn draw(
     single_preview: bool,
     snapshot: &Result<Arc<ManuscriptQuerySnapshot>, String>,
     root: &std::path::Path,
-) -> bool {
+    can_rehearse: bool,
+) -> (bool, bool) {
     let mut create = false;
+    let mut rehearse = false;
     let narrow = ui.ctx().screen_rect().width() < 600.0 || ui.ctx().screen_rect().height() < 420.0;
     ui.horizontal_wrapped(|ui| {
         ui.add_sized(
@@ -62,6 +64,8 @@ pub(super) fn draw(
                             |ui| tools(ui, state, read_only, single_preview),
                         )
                         .inner;
+                        ui.separator();
+                        rehearse = rehearsal_button(ui, can_rehearse);
                     });
             });
         } else {
@@ -69,9 +73,22 @@ pub(super) fn draw(
                 tools(ui, state, read_only, single_preview)
             })
             .inner;
+            ui.menu_button("试演", |ui| {
+                rehearse = rehearsal_button(ui, can_rehearse);
+            });
         }
     });
-    create
+    (create, rehearse)
+}
+
+fn rehearsal_button(ui: &mut egui::Ui, enabled: bool) -> bool {
+    let clicked = theme::add_enabled(ui, enabled, egui::Button::new("试演当前正文草稿…"))
+        .on_hover_text("明确核对范围后独立运行；不应用、保存或替换普通试玩")
+        .clicked();
+    if clicked {
+        ui.close();
+    }
+    clicked
 }
 
 fn tools(

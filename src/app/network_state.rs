@@ -123,6 +123,13 @@ pub struct NetworkState {
     history: Vec<LocalView>,
 }
 impl NetworkState {
+    /// 临时查询条件变化只清页与拖动，不改变作者保存的镜头和节点位置。
+    pub(crate) fn reset_query_page(&mut self) {
+        self.offset = 0;
+        self.pages.clear();
+        self.cache = None;
+        self.cancel_drag();
+    }
     pub fn set_focus(&mut self, target: TargetRef) {
         self.focus = Some(target);
         self.filters = GraphViewFilters::default();

@@ -202,8 +202,13 @@ impl super::super::WorldeditApp {
                             0.0
                         },
                     );
-                    self.manuscript.pending_review_scroll =
-                        Some(if session.restore_offsets.unwrap_or(false) {
+                    self.manuscript.pending_review_scroll = Some(
+                        if session.restore_offsets.unwrap_or(false)
+                            || self
+                                .manuscript
+                                .preview_cache
+                                .can_restore_delivery_view(&session)
+                        {
                             session
                                 .review_scroll_y
                                 .filter(|offset| offset.is_finite())
@@ -211,10 +216,15 @@ impl super::super::WorldeditApp {
                                 .clamp(0.0, 1_000_000.0)
                         } else {
                             0.0
-                        });
+                        },
+                    );
                     self.manuscript.review_page_offset = session.review_page_offset.unwrap_or(0);
                     self.manuscript.reader_open = session.preview_open.unwrap_or(true);
                     self.manuscript.reader_whole_book = session.preview_whole_book.unwrap_or(false);
+                    self.manuscript.preview_cache.scoped = session.preview_scoped.unwrap_or(false);
+                    self.manuscript
+                        .preview_cache
+                        .restore_delivery_page(session.review_page_offset.unwrap_or(0));
                     self.manuscript.narrow_preview = session.preview_tab.unwrap_or(false);
                     self.manuscript.review_focus = self.manuscript.narrow_preview;
                     self.manuscript.writing_view.restore_mode(session.mode);
@@ -253,6 +263,9 @@ impl super::super::WorldeditApp {
                 &drafts,
             )
         };
+        self.manuscript
+            .preview_cache
+            .set_query_snapshot(navigation_snapshot.clone().ok());
         if local.selected_entry.as_deref().is_some_and(|id| {
             navigation_snapshot
                 .as_ref()
@@ -283,6 +296,13 @@ impl super::super::WorldeditApp {
         let mut apply_book = false;
         let mut discard_book = false;
         let mut body_action = None;
+        let mut rehearse_draft = false;
+        let can_rehearse = !input_locked
+            && self
+                .manuscript
+                .writing_buffers
+                .values()
+                .any(|buffer| buffer.is_changed());
         let mut panel = theme::panel();
         if compact_workspace {
             panel.inner_margin.top = 4;
@@ -296,7 +316,7 @@ impl super::super::WorldeditApp {
                             ui.available_width(),
                             self.personal.appearance().body_size,
                         );
-                    create_chapter = super::focus_controls::draw(
+                    (create_chapter, rehearse_draft) = super::focus_controls::draw(
                         ui,
                         &mut self.manuscript,
                         &mut local,
@@ -305,6 +325,7 @@ impl super::super::WorldeditApp {
                         single_preview,
                         &navigation_snapshot,
                         &self.project.root,
+                        can_rehearse,
                     );
                 });
             }
@@ -410,6 +431,24 @@ impl super::super::WorldeditApp {
                             {
                                 discard_book = true;
                             }
+                            if !focus_layout {
+                                // Share the existing action row: a fixed rehearsal row
+                                // can push the first prose line outside a short viewport.
+                                ui.menu_button("试演", |ui| {
+                                    rehearse_draft = crate::theme::add_enabled(
+                                        ui,
+                                        can_rehearse,
+                                        egui::Button::new("试演当前正文草稿…"),
+                                    )
+                                    .on_hover_text(
+                                        "明确核对范围后独立运行；不应用、保存或替换普通试玩",
+                                    )
+                                    .clicked();
+                                    if rehearse_draft {
+                                        ui.close();
+                                    }
+                                });
+                            }
                             if local.changed {
                                 ui.label(theme::muted("编排尚未应用"));
                             }
@@ -501,6 +540,10 @@ impl super::super::WorldeditApp {
             self.apply_manuscript_book(&book_id);
         }
         self.finish_review_navigation(ctx);
+        self.finish_manuscript_delivery_actions(ctx);
+        if rehearse_draft {
+            self.request_draft_rehearsal(ctx);
+        }
     }
 }
 

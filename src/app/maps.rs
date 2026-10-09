@@ -19,6 +19,7 @@ mod measurement;
 mod measurement_ui;
 pub(super) mod navigation;
 mod object_candidates;
+mod query_scope;
 mod raster;
 mod render;
 mod render_budget;

@@ -20,6 +20,11 @@ impl WorldeditApp {
         if self.tab != Tab::Map {
             return None;
         }
+        self.capture_query_map_position()
+    }
+
+    /// 查询巡检可从资料页进入；只捕获现有地图身份，不切换当前页。
+    pub(in crate::app) fn capture_query_map_position(&self) -> Option<AuthorMapPosition> {
         let map_id = self.map_selection.as_ref()?;
         if self.map_canvas.map_id() != map_id {
             return None;

@@ -2,18 +2,23 @@
 mod actions;
 mod columns;
 mod filters;
+mod job;
 mod persistence;
 mod property_input;
 mod results;
 mod results_view;
+pub(super) mod scope;
+mod scope_view;
 mod view;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+use job::RunningQuery;
 
 use super::WorldeditApp;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use worldline_core::catalog::TargetRef;
 use worldline_core::queries::{
-    CatalogQuery, CatalogQueryOptions, CatalogQueryPage, CatalogQuerySort, CatalogSortDirection,
+    CatalogQuery, CatalogQueryOptions, CatalogQuerySort, CatalogSnapshotPage, CatalogSortDirection,
     CatalogSortField, RelationDirection, SavedQueryDraft, TodoProjection,
     DEFAULT_CATALOG_QUERY_CANDIDATES, MAX_CATALOG_QUERY_CANDIDATES, MAX_CATALOG_QUERY_PAGE_SIZE,
 };
@@ -59,17 +64,26 @@ pub(super) struct WorkbenchState {
     query: CatalogQuery,
     page_size: usize,
     max_candidates: usize,
-    page: Option<CatalogQueryPage>,
+    page: Option<CatalogSnapshotPage>,
+    pub(in crate::app) snapshot:
+        Option<std::sync::Arc<worldline_core::catalog_scope::CatalogScopeSnapshot>>,
+    snapshot_query: Option<CatalogQuery>,
+    snapshot_observation: Option<String>,
+    saved_cache: Option<(u64, worldline_core::queries::SavedQueryIndex)>,
+    snapshot_key: Option<(u64, worldline_core::presentation_commands::Revision)>,
+    pub(in crate::app) scope: Option<scope::ActiveScope>,
+    status: Option<String>,
+    queued: bool,
     saved_query_id: String,
     saved_query_name: String,
     saved_query_baseline: Option<(String, String)>,
+    saved_query_reference: Option<(PathBuf, Vec<u8>, SavedQueryDraft)>,
     error: Option<String>,
     inputs: FilterInputs,
     local_favorites: BTreeMap<PathBuf, BTreeSet<String>>,
     personal_columns: BTreeMap<PathBuf, Vec<columns::Column>>,
     todo_cache: Option<TodoProjection>,
-    #[cfg(not(target_arch = "wasm32"))]
-    running: Option<RunningQuery>,
+    running: Option<job::RunningQuery>,
 }
 
 impl Default for WorkbenchState {
@@ -81,15 +95,23 @@ impl Default for WorkbenchState {
             page_size: 50,
             max_candidates: DEFAULT_CATALOG_QUERY_CANDIDATES,
             page: None,
+            snapshot: None,
+            snapshot_key: None,
+            snapshot_query: None,
+            snapshot_observation: None,
+            saved_cache: None,
+            scope: None,
+            status: None,
+            queued: false,
             saved_query_id: String::new(),
             saved_query_name: String::new(),
             saved_query_baseline: None,
+            saved_query_reference: None,
             error: None,
             inputs: FilterInputs::default(),
             local_favorites: BTreeMap::new(),
             personal_columns: BTreeMap::new(),
             todo_cache: None,
-            #[cfg(not(target_arch = "wasm32"))]
             running: None,
         }
     }
@@ -103,15 +125,6 @@ fn current_options(state: &WorkbenchState) -> CatalogQueryOptions {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-struct RunningQuery {
-    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    receiver: std::sync::mpsc::Receiver<(String, Result<CatalogQueryPage, String>)>,
-    query: CatalogQuery,
-    options: CatalogQueryOptions,
-    cancel_requested: bool,
-}
-
 /// 仅原生测试观察异步查询生命周期，不改变运行分支或消费channel。
 #[cfg(all(test, not(target_arch = "wasm32")))]
 pub(in crate::app) struct CatalogQueryTestState {
@@ -122,7 +135,7 @@ pub(in crate::app) struct CatalogQueryTestState {
 impl WorkbenchState {
     pub(in crate::app) fn test_query_state(&self) -> CatalogQueryTestState {
         CatalogQueryTestState {
-            pending: self.running.is_some(),
+            pending: self.running.is_some() || self.queued,
             details: format!(
                 "cancel_requested={:?}; query={}; options={:?}; page={:?}; error={:?}",
                 self.running
@@ -159,8 +172,9 @@ enum Action {
     Save,
     Load(SavedQueryDraft),
     Favorite(String),
-    #[cfg(not(target_arch = "wasm32"))]
     Cancel,
+    InspectMap,
+    InspectRelations,
     Navigate(TargetRef),
     ReviewComments,
     Jump(String, u32, u32),
@@ -237,3 +251,8 @@ mod sorting_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod reference_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod scope_layout_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod scope_tests;

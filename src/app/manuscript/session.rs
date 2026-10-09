@@ -10,6 +10,8 @@ pub(in crate::app) struct ManuscriptSession {
     pub review_page_offset: Option<usize>,
     pub preview_open: Option<bool>,
     pub preview_whole_book: Option<bool>,
+    pub preview_scoped: Option<bool>,
+    pub preview_delivery_key: Option<String>,
     pub preview_tab: Option<bool>,
     pub cursor: Option<crate::app::writing_workspace::WritingCursor>,
     pub mode: crate::app::writing_workspace::Mode,
@@ -41,6 +43,13 @@ impl crate::app::WorldeditApp {
             review_page_offset: Some(self.manuscript.review_page_offset),
             preview_open: Some(self.manuscript.reader_open),
             preview_whole_book: Some(self.manuscript.reader_whole_book),
+            preview_scoped: Some(self.manuscript.preview_cache.scoped),
+            preview_delivery_key: self
+                .manuscript
+                .preview_cache
+                .scoped
+                .then(|| self.manuscript.preview_cache.delivery_view_key())
+                .flatten(),
             preview_tab: Some(self.manuscript.narrow_preview),
             cursor: self
                 .manuscript
