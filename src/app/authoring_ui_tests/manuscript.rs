@@ -304,7 +304,30 @@ fn narrow_manuscript_keeps_body_and_metadata_reachable() {
         .join("worldedit-long-source-path-layout-regression/Users/runneradmin/AppData/Local/Temp");
     let (ctx, mut app) = manuscript_app_in_directory(&directory);
     let output = frame(&ctx, &mut app, Vec::new(), 32);
-    assert!(visible_text_position(&output, "甲乙").is_some());
+    assert!(
+        visible_text_position(&output, "甲乙").is_some(),
+        "{}\n{}",
+        rendered(&output),
+        geometry::text_geometry(&output)
+    );
+    assert!(
+        geometry::first_line_fully_visible(&output, "甲乙"),
+        "{}",
+        geometry::text_geometry(&output)
+    );
+    assert!(visible_text_position(&output, "编排与来源").is_some());
+    assert!(visible_text_position(&output, "试演").is_some());
+    click_without_settling(&ctx, &mut app, 32, "试演");
+    let output = frame(&ctx, &mut app, Vec::new(), 32);
+    assert!(
+        geometry::label_fully_visible(&output, "试演当前正文草稿…"),
+        "{}",
+        geometry::text_geometry(&output)
+    );
+    click_without_settling(&ctx, &mut app, 32, "试演");
+    let output = frame(&ctx, &mut app, Vec::new(), 32);
+    assert!(visible_text_position(&output, "试演当前正文草稿…").is_none());
+    assert!(geometry::first_line_fully_visible(&output, "甲乙"));
     assert!(visible_text_position(&output, "编排与来源").is_some());
     click(&ctx, &mut app, 32, "编排与来源");
     let mut output = frame(&ctx, &mut app, Vec::new(), 32);

@@ -329,17 +329,6 @@ impl super::super::WorldeditApp {
                     );
                 });
             }
-            if !focus_layout {
-                ui.horizontal_wrapped(|ui| {
-                    rehearse_draft = crate::theme::add_enabled(
-                        ui,
-                        can_rehearse,
-                        egui::Button::new("试演当前正文草稿…"),
-                    )
-                    .on_hover_text("明确核对范围后独立运行；不应用、保存或替换普通试玩")
-                    .clicked();
-                });
-            }
             if !focus_layout || self.manuscript.focus_management {
                 let mut management = |ui: &mut egui::Ui| {
                     crate::theme::add_enabled_ui(ui, !input_locked, |ui| {
@@ -441,6 +430,24 @@ impl super::super::WorldeditApp {
                             .clicked()
                             {
                                 discard_book = true;
+                            }
+                            if !focus_layout {
+                                // Share the existing action row: a fixed rehearsal row
+                                // can push the first prose line outside a short viewport.
+                                ui.menu_button("试演", |ui| {
+                                    rehearse_draft = crate::theme::add_enabled(
+                                        ui,
+                                        can_rehearse,
+                                        egui::Button::new("试演当前正文草稿…"),
+                                    )
+                                    .on_hover_text(
+                                        "明确核对范围后独立运行；不应用、保存或替换普通试玩",
+                                    )
+                                    .clicked();
+                                    if rehearse_draft {
+                                        ui.close();
+                                    }
+                                });
                             }
                             if local.changed {
                                 ui.label(theme::muted("编排尚未应用"));
