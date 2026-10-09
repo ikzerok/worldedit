@@ -50,6 +50,8 @@ impl WorldeditApp {
     }
 
     fn remember_history(&mut self, snapshot: Project, writing: Option<WritingEdit>) {
+        self.manuscript
+            .handoff_unchanged_writing_buffers(&snapshot, &self.project);
         self.allow_close = false;
         let before = self.history_state.current;
         let after = self.history_state.fresh();

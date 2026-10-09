@@ -267,14 +267,21 @@ impl WorkbenchState {
     pub(in crate::app) fn world_links_open(&self) -> bool {
         self.world_links.as_ref().is_some_and(|state| state.open)
     }
-    pub(in crate::app) fn rebase_unchanged_writing_buffers(
+    /// Only a successful local edge can carry a currently valid, unchanged original.
+    pub(in crate::app) fn handoff_unchanged_writing_buffers(
         &mut self,
+        before: &worldline_core::project::Project,
         project: &worldline_core::project::Project,
     ) {
+        let baseline = before.content_baseline();
         for buffer in self.writing_buffers.values_mut() {
-            let _ = buffer.rebase_unchanged_source(project);
+            if buffer.baseline() == baseline && buffer.rebase_unchanged_source(before).is_ok() {
+                // Both proofs use core's complete original, never the draft text or a hash.
+                // A failed proof leaves source, original, generation and baseline untouched.
+                let _ = buffer.rebase_unchanged_source(project);
+            }
         }
-        self.rebase_unchanged_manuscripts(project);
+        self.invalidate_query_cache();
     }
 
     pub(in crate::app) fn rebase_unchanged_manuscripts(

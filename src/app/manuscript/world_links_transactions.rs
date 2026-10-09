@@ -55,8 +55,7 @@ impl WorldeditApp {
                         .collect();
                     self.remember_writing_project_edit(before, included, paths.clone());
                     self.manuscript.clear_applied_writing_buffers(&paths);
-                    self.manuscript
-                        .rebase_unchanged_writing_buffers(&self.project);
+                    self.manuscript.rebase_unchanged_manuscripts(&self.project);
                     self.recompile();
                     self.message =
                         Some("资料与所列全文草稿已一次应用，可一次撤销；尚未保存".into());

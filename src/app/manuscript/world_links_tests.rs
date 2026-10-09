@@ -1,4 +1,6 @@
 //! 当前轮 egui 行为回归；组合事件为合成输入，不替代物理 IME 或原生桌面验收。
+mod baseline_handoff;
+mod baseline_handoff_guards;
 mod body_apply_discard;
 mod context_menu;
 mod cross_feature_undo;

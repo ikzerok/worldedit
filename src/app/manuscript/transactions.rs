@@ -38,11 +38,6 @@ impl super::super::WorldeditApp {
                     local.revision = revision;
                     local.changed = false;
                 }
-                for body in self.manuscript.writing_buffers.values_mut() {
-                    if body.baseline() == previous_baseline {
-                        let _ = body.rebase_unchanged_source(&self.project);
-                    }
-                }
                 self.recompile();
                 self.message = Some("书稿编排已应用；运行内容指纹不变".into());
                 self.io_error = None;
@@ -87,11 +82,6 @@ impl super::super::WorldeditApp {
                 for local in self.manuscript.books.values_mut() {
                     if local.baseline == previous_baseline {
                         local.baseline = new_baseline.clone();
-                    }
-                }
-                for body in self.manuscript.writing_buffers.values_mut() {
-                    if body.baseline() == previous_baseline {
-                        let _ = body.rebase_unchanged_source(&self.project);
                     }
                 }
                 self.recompile();
