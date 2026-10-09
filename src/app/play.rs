@@ -62,26 +62,21 @@ impl WorldeditApp {
             entering_comparison = comparison.is_pointer_button_down_on() || self.comparison.active;
             ui.label(crate::theme::muted("路径仅保留于当前会话"));
             if self
-                .play_keyboard
-                .setting_in(ui, host, "mode-draft", |ui| ui.button("试演当前正文草稿…"))
+                .play_mode_action(ui, host, "mode-draft", "试演当前正文草稿…")
                 .clicked()
             {
                 self.request_draft_rehearsal(ui.ctx());
             }
             if self.draft_rehearsal.has_session()
                 && self
-                    .play_keyboard
-                    .setting_in(ui, host, "mode-return-draft", |ui| {
-                        ui.button("返回隔离试演")
-                    })
+                    .play_mode_action(ui, host, "mode-return-draft", "返回隔离试演")
                     .clicked()
             {
                 self.draft_rehearsal.active = true;
                 entering_comparison = true;
             }
             if self
-                .play_keyboard
-                .setting_in(ui, host, "mode-report", |ui| ui.button("试玩路径报告…"))
+                .play_mode_action(ui, host, "mode-report", "试玩路径报告…")
                 .clicked()
             {
                 self.playthrough_report.open = true;
@@ -96,6 +91,33 @@ impl WorldeditApp {
             host,
         );
         entering_comparison
+    }
+
+    fn play_mode_action(
+        &self,
+        ui: &mut egui::Ui,
+        host: SettingsHost,
+        role: &str,
+        label: &str,
+    ) -> egui::Response {
+        let text = egui::WidgetText::from(label).into_galley(
+            ui,
+            Some(egui::TextWrapMode::Extend),
+            f32::INFINITY,
+            egui::TextStyle::Button,
+        );
+        let padding = if ui.visuals().button_frame {
+            2.0 * ui.spacing().button_padding.x
+        } else {
+            0.0
+        };
+        // The semantic child inherits only the remaining row. Wrap in its parent first,
+        // or the label becomes a tall strip and advancing the child bypasses row wrapping.
+        if ui.available_size_before_wrap().x < (text.size().x + padding).ceil() {
+            ui.end_row();
+        }
+        self.play_keyboard
+            .setting_in(ui, host, role, |ui| ui.button(label))
     }
 
     pub(super) fn start_play(&mut self) {

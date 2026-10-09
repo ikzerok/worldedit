@@ -5,6 +5,7 @@ const FRAME_ID: &str = "localization-keyboard-focus-frame";
 struct Navigation {
     frame: u64,
     from: Option<egui::Id>,
+    requested: Option<egui::Id>,
 }
 
 pub(super) fn begin(ctx: &egui::Context, compact: bool) {
@@ -32,7 +33,14 @@ pub(super) fn begin(ctx: &egui::Context, compact: bool) {
                 .get_temp::<Navigation>(id)
                 .is_some_and(|last| last.frame == frame)
             {
-                data.insert_temp(id, Navigation { frame, from });
+                data.insert_temp(
+                    id,
+                    Navigation {
+                        frame,
+                        from,
+                        requested: None,
+                    },
+                );
             }
         });
     }
@@ -45,15 +53,24 @@ pub(super) trait RevealFocus {
 impl RevealFocus for egui::Response {
     fn reveal_focus(self, ui: &egui::Ui) -> Self {
         let frame = ui.ctx().cumulative_frame_nr();
-        let reveal = ui
+        let Some(mut navigation) = ui
             .ctx()
             .data(|data| data.get_temp::<Navigation>(egui::Id::new(FRAME_ID)))
-            .is_some_and(|last| {
-                last.frame <= frame && frame - last.frame <= 1 && last.from != Some(self.id)
-            });
+        else {
+            return self;
+        };
+        let reveal = navigation.frame <= frame
+            && frame - navigation.frame <= 1
+            && navigation.from != Some(self.id)
+            && navigation.requested != Some(self.id);
         if reveal && self.has_focus() && !ui.clip_rect().contains_rect(self.rect) {
             // Shift+Tab may deliver focus on the following frame, after gained_focus is false.
             // Tab indentation keeps the same field and its own caret-sized scroll request.
+            // ScrollArea applies the target after constructing its next content rect. Repeating
+            // that rect's delta on the next frame would add the same scroll twice and overshoot.
+            navigation.requested = Some(self.id);
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(egui::Id::new(FRAME_ID), navigation));
             ui.scroll_to_rect_animation(self.rect, None, egui::style::ScrollAnimation::none());
         }
         self

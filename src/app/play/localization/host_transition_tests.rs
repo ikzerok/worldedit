@@ -236,13 +236,42 @@ fn ordinary_settings_host_transition_keyboard_comparison_to_play_has_unique_ids_
     }
 }
 
+fn comparison_fixture_after_real_scroll() -> (Harness, (Rect, Rect)) {
+    let mut h = Harness::new();
+    h.ctx.options_mut(|options| options.warn_on_id_clash = true);
+    h.translated();
+    // Locale focus need not hide the whole mode row when its actions wrap compactly.
+    // Establish the cancellation precondition through real keyboard navigation instead.
+    h.focus_label("▶ 开始试玩", false);
+    h.assert_visible("▶ 开始试玩");
+    let context = egui::Id::new((&h.app.project.root, h.app.version));
+    let semantic_ui = egui::Id::new(("ordinary-play-setting", Some(context), "mode-ordinary"));
+    h.observed = Some(egui::Id::new(semantic_ui.with("auto").value()));
+    for _ in 0..3 {
+        no_id_clash(
+            &h.frame(vec![]),
+            "settled ordinary scroll before changing hosts",
+        );
+    }
+    // Captured after App::update and before end_pass: these are this completed frame's
+    // actual widget and clipping rectangles, without requesting focus or writing scroll state.
+    let response = h.observed_response.as_ref().unwrap();
+    let previous = (response.rect, response.interact_rect);
+    assert!(previous.0.bottom() < previous.1.top(), "{previous:?}");
+    h.app.comparison.active = true;
+    for _ in 0..4 {
+        no_id_clash(&h.frame(vec![]), "comparison after real ordinary scroll");
+    }
+    (h, previous)
+}
+
 #[test]
 fn ordinary_settings_host_transition_new_pointer_or_ime_cancels_the_one_time_reveal() {
     for interruption in [
         Event::PointerMoved(Pos2::new(270.0, 180.0)),
         Event::Ime(egui::ImeEvent::Enabled),
     ] {
-        let mut h = comparison_fixture(egui::vec2(763.0, 542.0), false);
+        let (mut h, previous_geometry) = comparison_fixture_after_real_scroll();
         let before = h.stable();
         let locale = next_locale(&h);
         h.focus_label("普通试玩", false);
@@ -277,6 +306,16 @@ fn ordinary_settings_host_transition_new_pointer_or_ime_cancels_the_one_time_rev
                 response.rect.bottom() < response.interact_rect.top(),
                 "{}",
                 host_diagnostic(&h, &output, "new intent must retain the prior scroll")
+            );
+            assert_eq!(
+                (response.rect, response.interact_rect),
+                previous_geometry,
+                "{}",
+                host_diagnostic(
+                    &h,
+                    &output,
+                    "cancelled reveal must not change prior geometry"
+                )
             );
             assert_eq!(h.stable(), before);
             assert_eq!(next_locale(&h), locale);

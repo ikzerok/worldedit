@@ -12,6 +12,9 @@ pub(super) struct Harness {
     viewport: Rect,
     time: f64,
     scroll_delta: Vec2,
+    pub(super) frame_seconds: f64,
+    pub(super) trace_frames: bool,
+    pub(super) frame_trace: std::collections::VecDeque<String>,
 }
 
 impl Harness {
@@ -40,6 +43,9 @@ impl Harness {
             viewport: Rect::NOTHING,
             time: 0.0,
             scroll_delta: Vec2::ZERO,
+            frame_seconds: 1.0 / 60.0,
+            trace_frames: false,
+            frame_trace: std::collections::VecDeque::new(),
         };
         for _ in 0..4 {
             h.frame(vec![]);
@@ -50,7 +56,8 @@ impl Harness {
     }
 
     pub(super) fn frame(&mut self, events: Vec<Event>) -> egui::FullOutput {
-        self.time += 1.0 / 60.0;
+        self.time += self.frame_seconds;
+        let trace = self.trace_frames.then(|| format!("{events:?}"));
         // eframe converts the fixed native pixel extent using the current effective scale.
         let screen = Rect::from_min_size(Pos2::ZERO, self.physical / self.ctx.pixels_per_point());
         let mut raw = egui::RawInput {
@@ -78,7 +85,19 @@ impl Harness {
             eframe::App::update(&mut self.app, ctx, &mut eframe::Frame::_new_kittest());
         });
         self.scroll_delta = scroll_delta;
+        if let Some(events) = trace {
+            self.record_trace(super::keyboard_visibility_tests::describe_frame(
+                self, &events,
+            ));
+        }
         output
+    }
+
+    pub(super) fn record_trace(&mut self, frame: String) {
+        self.frame_trace.push_back(frame);
+        while self.frame_trace.len() > 12 {
+            self.frame_trace.pop_front();
+        }
     }
 
     pub(super) fn settle(&mut self) {

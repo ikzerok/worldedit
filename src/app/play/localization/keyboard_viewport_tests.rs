@@ -382,3 +382,9 @@ fn ordinary_short_200_keyboard_seed_identity_survives_dynamic_notice_while_typin
 
 #[path = "host_transition_tests.rs"]
 mod host_transition;
+
+#[path = "mode_action_layout_tests.rs"]
+mod mode_action_layout;
+
+#[path = "replay_control_visibility_tests.rs"]
+mod replay_control_visibility;

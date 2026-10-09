@@ -3,6 +3,7 @@ use super::short_viewport_tests::Harness;
 use super::workbench_tests::stage;
 use super::*;
 use egui::{Event, Key, Modifiers};
+mod delivery_tests;
 
 const SOURCE: &str = "event start\n  Source #wl-localization:line0\n  -> END\n";
 
@@ -18,22 +19,30 @@ pub(super) fn current_widget(h: &Harness, id: egui::Id) -> egui::WidgetRect {
         .expect("control was actually registered in the completed frame")
 }
 
+#[track_caller]
 fn complete(h: &Harness, id: egui::Id, label: &str) {
     let response = current_widget(h, id);
     assert_eq!(focused(h), id, "{label} owns the real focus");
     assert!(
         h.ctx.screen_rect().contains_rect(response.rect)
             && response.interact_rect.contains_rect(response.rect),
-        "{label} must be wholly visible after keyboard navigation without wheel/pointer help: rect={:?}, interact={:?}, screen={:?}",
-        response.rect, response.interact_rect, h.ctx.screen_rect()
+        "{label} must be wholly visible after keyboard navigation without wheel/pointer help: rect={:?}, interact={:?}, screen={:?}, frames={:#?}",
+        response.rect, response.interact_rect, h.ctx.screen_rect(), h.frame_trace
     );
 }
 
+#[track_caller]
 pub(super) fn key(
     h: &mut Harness,
     key: Key,
     modifiers: Modifiers,
 ) -> Vec<egui::output::OutputEvent> {
+    if h.trace_frames {
+        h.record_trace(format!(
+            "key {key:?} {modifiers:?} from {}",
+            std::panic::Location::caller()
+        ));
+    }
     let mut events = Vec::new();
     for pressed in [true, false] {
         events.extend(
@@ -55,6 +64,7 @@ pub(super) fn key(
     events
 }
 
+#[track_caller]
 fn tab(h: &mut Harness, label: &str, reverse: bool) -> egui::Id {
     let events = key(
         h,
@@ -76,6 +86,7 @@ fn tab(h: &mut Harness, label: &str, reverse: bool) -> egui::Id {
     id
 }
 
+#[track_caller]
 fn tab_field(h: &mut Harness, id: egui::Id, label: &str, reverse: bool) {
     key(
         h,
@@ -198,14 +209,23 @@ fn localization_short_keyboard_directory_controls_stay_visible_in_both_direction
 
 #[test]
 fn localization_short_keyboard_advanced_actions_stay_visible_and_keep_whitelist_and_json() {
-    let mut h = Harness::new(SOURCE);
+    advanced_actions(Harness::new(SOURCE));
+}
+
+fn advanced_actions(mut h: Harness) {
+    h.trace_frames = true;
+    // Pointer/wheel setup keeps the existing harness contract; only keyboard delivery varies.
+    let keyboard_seconds = h.frame_seconds;
+    h.frame_seconds = 1.0 / 60.0;
     h.app.localization_ui.string_ids = "line0".into();
     h.app.localization_ui.exchange_json = "{完整待核对 JSON😀}".into();
     h.click("高级 JSON 交换");
     h.click("line0");
+    h.frame_seconds = keyboard_seconds;
     let whitelist = egui::Id::new(("localization-whitelist", &h.app.project.root));
     assert_eq!(focused(&h), whitelist);
     let baseline = h.app.project.content_baseline();
+    h.record_trace("advanced phase: first whitelist to export preview".into());
     let preview = tab(&mut h, "预览导出", false);
     let paths = tab(&mut h, "明确文件路径", false);
     let choose = tab(&mut h, "选择 JSON 交换文件…", false);
@@ -214,6 +234,7 @@ fn localization_short_keyboard_advanced_actions_stay_visible_and_keep_whitelist_
     tab_field(&mut h, paths, "file paths", true);
     tab_field(&mut h, preview, "export preview", true);
     tab_field(&mut h, whitelist, "whitelist", true);
+    h.record_trace("advanced phase: returned whitelist to export preview".into());
     assert_eq!(tab(&mut h, "预览导出", false), preview);
     key(&mut h, Key::Enter, Modifiers::NONE);
     h.settle();
@@ -232,12 +253,39 @@ fn localization_short_keyboard_advanced_actions_stay_visible_and_keep_whitelist_
     );
     complete(&h, preview, "preview action after accepted plan");
     tab(&mut h, "导出 UTF-8 JSON…", false);
+    h.record_trace("advanced phase: accepted export action back to preview".into());
     assert_eq!(tab(&mut h, "预览导出", true), preview);
     assert_eq!(h.app.localization_ui.string_ids, "line0");
     assert_eq!(h.app.localization_ui.exchange_json, "{完整待核对 JSON😀}");
     assert!(h.app.localization_ui.import_plan.is_none());
     assert_eq!(h.app.project.content_baseline(), baseline);
     assert!(h.app.history.is_empty());
+}
+
+pub(super) fn describe_frame(h: &Harness, events: &str) -> String {
+    // Exact egui 0.32 CentralPanel -> panel child -> frame child identity. This only reads
+    // the real parent ScrollArea; it neither stores state nor requests focus or scrolling.
+    let scroll_id = egui::Id::new((h.ctx.viewport_id(), "central_panel"))
+        .with(egui::Id::new("child"))
+        .with(egui::Id::new("child"))
+        .with(egui::Id::new((
+            "localization-workbench",
+            h.app.localization_ui.advanced,
+            h.app.localization_ui.workbench.detail,
+        )));
+    let scroll = egui::scroll_area::State::load(&h.ctx, scroll_id)
+        .expect("diagnostics must read the actual localization parent ScrollArea");
+    let focus = h.ctx.memory(|memory| memory.focused());
+    let widget = focus.and_then(|id| {
+        h.ctx
+            .viewport(|viewport| viewport.prev_pass.widgets.get(id).copied())
+    });
+    format!(
+        "case={:?} actual frame={} events={events} focus={focus:?} widget={widget:?} scroll_id={scroll_id:?} scroll={scroll:?} pending={} notice={:?} accepted_export={} input={:?}",
+        std::thread::current().name(), h.ctx.cumulative_frame_nr(), h.app.localization_ui.jobs.pending(),
+        h.app.localization_ui.jobs.notice, h.app.localization_ui.export_plan.is_some(),
+        h.ctx.input(|input| (input.time, input.smooth_scroll_delta, input.pointer.velocity()))
+    )
 }
 
 #[test]
