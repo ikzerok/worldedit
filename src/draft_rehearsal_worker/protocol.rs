@@ -24,6 +24,8 @@ pub(super) struct Prepare {
     pub input: DraftRehearsalRequest,
     pub entry: PathBuf,
     pub snapshot_state: SnapshotState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presentation: Option<worldline_core::localization::LocalizationPresentationRequest>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -38,12 +40,29 @@ pub(super) struct Command {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Action {
-    Start { seed: u64, budget: ReplayBudget },
-    Continue { budget: ReplayBudget },
-    Choose { id: String, budget: ReplayBudget },
-    Inspect { query: StateInspectionQuery },
-    EvidenceSource { source: EvidenceSource },
-    DeclarationSource { source: DeclarationSource },
+    Start {
+        seed: u64,
+        budget: ReplayBudget,
+    },
+    Continue {
+        budget: ReplayBudget,
+    },
+    Choose {
+        id: String,
+        budget: ReplayBudget,
+    },
+    Inspect {
+        query: StateInspectionQuery,
+    },
+    EvidenceSource {
+        source: EvidenceSource,
+    },
+    DeclarationSource {
+        source: DeclarationSource,
+    },
+    LocalizationSource {
+        source: worldline_core::localization::LocalizationSource,
+    },
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -61,6 +80,10 @@ pub(crate) struct SourceHit {
 #[serde(deny_unknown_fields)]
 pub(crate) struct DisplayOutput {
     pub content: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<worldline_core::navigation::RenderedLink>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub localization: Option<worldline_runtime::LocalizedPresentation>,
     pub new_line: bool,
     pub speaker: Option<String>,
 }
@@ -70,6 +93,10 @@ pub(crate) struct DisplayOutput {
 pub(crate) struct DisplayChoice {
     pub id: String,
     pub label: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<worldline_core::navigation::RenderedLink>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub localization: Option<worldline_runtime::LocalizedPresentation>,
     pub enabled: bool,
     pub disabled_reason: Option<String>,
 }
@@ -78,6 +105,8 @@ pub(crate) struct DisplayChoice {
 #[serde(deny_unknown_fields)]
 pub(crate) struct View {
     pub scope: DraftRehearsalScope,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presentation: Option<worldline_runtime::RuntimeLocalizationIdentity>,
     pub seed: Option<u64>,
     pub outputs: Vec<DisplayOutput>,
     pub choices: Vec<DisplayChoice>,

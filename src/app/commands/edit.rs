@@ -14,7 +14,7 @@ fn replacement_shortcut(
 }
 impl WorldeditApp {
     pub(in crate::app) fn edit_undo(&mut self, forward: bool) {
-        if !self.search_draft_undo(forward) && !self.search_project_undo(forward) {
+        if !self.search_draft_undo(forward) {
             self.undo(forward);
         }
         self.message = None;
@@ -75,6 +75,7 @@ impl WorldeditApp {
                 return;
             }
             let closed = match top {
+                Some("world-links") => self.close_manuscript_world_links_on_escape(ctx),
                 Some("navigation-drawer") => {
                     self.close_navigation_drawer(ctx);
                     true

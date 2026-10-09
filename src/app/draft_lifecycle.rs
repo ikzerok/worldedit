@@ -310,6 +310,7 @@ impl WorldeditApp {
         self.map_form = maps::PlacementForm::default();
         self.map_canvas.discard_local_work();
         self.map_failed_command = None;
+        self.discard_all_writing_draft_history();
         self.manuscript = manuscript::WorkbenchState::default();
         self.schema_ui = schema_ui::SchemaUiState::default();
         self.localization_ui = localization_ui::LocalizationUiState::default();

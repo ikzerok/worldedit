@@ -122,7 +122,10 @@ pub(super) fn edit(
     if !view.pending_prose(&key) {
         view.restore_editor(ui, id, buffer, offset, text);
     }
-    egui::TextEdit::multiline(text)
+    let context_selection = super::context_selection::SelectionPress::capture(
+        ui, id, view, buffer, target, offset, text,
+    );
+    let mut output = egui::TextEdit::multiline(&mut *text)
         .id(id)
         .font(font.clone())
         .layouter(&mut layouter)
@@ -134,5 +137,9 @@ pub(super) fn edit(
         })
         .desired_width(f32::INFINITY)
         .desired_rows(if empty { 12 } else { 2 })
-        .show(ui)
+        .show(ui);
+    if let Some(selection) = context_selection {
+        selection.restore(ui, &mut output, buffer);
+    }
+    output
 }

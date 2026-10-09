@@ -23,6 +23,7 @@ impl super::super::WorldeditApp {
         let _navigation_composition = self.manuscript.navigation.input.begin(ctx);
         let _composition = self.manuscript.writing_view.begin_input(ctx);
         self.manuscript_tab_content(ctx);
+        self.draw_manuscript_world_links(ctx);
     }
 
     fn manuscript_tab_content(&mut self, ctx: &egui::Context) {
@@ -523,6 +524,9 @@ impl super::super::WorldeditApp {
         }
         self.manuscript.books.insert(book_id.clone(), local);
         if let Some((path, action)) = body_action {
+            if action.world_link {
+                self.begin_manuscript_world_links(ctx);
+            }
             if action.comment {
                 self.comment_current_selection(ctx);
             }
@@ -530,8 +534,7 @@ impl super::super::WorldeditApp {
                 self.io_error = Some(error);
             }
             if action.discard {
-                self.manuscript.writing_buffers.remove(&path);
-                self.manuscript.writing_view.discard_retained_for(&path);
+                self.discard_manuscript_body(&path);
             } else if action.apply {
                 self.apply_manuscript_body(&path, action.source_mode);
             }

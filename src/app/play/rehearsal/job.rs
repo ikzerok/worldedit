@@ -12,11 +12,12 @@ impl WorldeditApp {
                 && pending.error.is_none()
                 && SessionWorker::available()
             {
-                match SessionWorker::start(
+                match SessionWorker::start_with_presentation(
                     &self.project,
                     &pending.input,
                     pending.session_id.clone(),
                     ctx,
+                    pending.key.presentation.clone(),
                 ) {
                     Ok(worker) => pending.worker = Some(worker),
                     Err(error) if error.contains("上一份隔离编译仍在退出") => {}
@@ -42,7 +43,9 @@ impl WorldeditApp {
         }
         let mut source = None;
         if let Some(running) = &mut self.draft_rehearsal.running {
-            running.stale |= running.key != key;
+            let mut running_key = key.clone();
+            running_key.presentation = running.key.presentation.clone();
+            running.stale |= running.key != running_key;
             if let Some(result) = running.worker.as_mut().and_then(SessionWorker::poll) {
                 match result {
                     Ok(Response {
@@ -61,6 +64,11 @@ impl WorldeditApp {
                                     running.transcript.push('：');
                                 }
                                 running.transcript.push_str(&output.content);
+                            }
+                            if view.presentation.is_some() {
+                                running
+                                    .localized_outputs
+                                    .extend(view.outputs.iter().cloned());
                             }
                             view.outputs.clear();
                             running.paused |=
@@ -127,6 +135,7 @@ impl WorldeditApp {
             worker: Some(worker),
             view,
             transcript: String::new(),
+            localized_outputs: Vec::new(),
             query: StateInspectionQuery::default(),
             submitted_query: StateInspectionQuery::default(),
             stale: false,
@@ -149,7 +158,9 @@ impl WorldeditApp {
         };
         let navigation = matches!(
             action,
-            Action::EvidenceSource { .. } | Action::DeclarationSource { .. }
+            Action::EvidenceSource { .. }
+                | Action::DeclarationSource { .. }
+                | Action::LocalizationSource { .. }
         );
         let readonly = matches!(action, Action::Inspect { .. });
         if !readonly {

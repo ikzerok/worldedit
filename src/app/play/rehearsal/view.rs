@@ -85,6 +85,14 @@ impl WorldeditApp {
         let mut regular = false;
         let mut close = false;
         let mut action = None;
+        let mut localization_navigation = None;
+        let locale_name = self
+            .draft_rehearsal
+            .running
+            .as_ref()
+            .and_then(|r| r.view.presentation.as_ref())
+            .map(|i| i.request.target_locale.clone())
+            .unwrap_or_default();
         let busy_ime = self.rehearsal_composing();
         let pending = self.draft_rehearsal.pending.is_some();
         // 使用完整应用 chrome 消耗后的空间；屏幕尺寸不能代表正文的可用视口。
@@ -187,10 +195,16 @@ impl WorldeditApp {
                         if let Some(outcome) = running.view.outcome { ui.label(outcome.message()); }
                         ui.label(theme::muted("真实文本累计1MiB/32768项；状态与证据有独立预算；不自动重播已执行语句"));
                         ui.separator();
-                        ui.add(egui::Label::new(&running.transcript).wrap());
+                        crate::app::play::localization::identity_label(ui, running.view.presentation.as_ref(), &mut self.replay_debugger.locale.parallel);
+                        if running.view.presentation.is_some() {
+                            localization_navigation = crate::app::play::localization::outputs(ui, &running.localized_outputs, self.replay_debugger.locale.parallel);
+                        } else { ui.add(egui::Label::new(&running.transcript).wrap()); }
                         ui.separator();
                         let stamp = running.view.inspection.as_ref().map(|page| page.stamp);
                         for choice in &running.view.choices {
+                            if choice.localization.is_some() {
+                                if let Some(request) = crate::app::play::localization::item(ui, &choice.label, &choice.links, choice.localization.as_ref(), self.replay_debugger.locale.parallel) { localization_navigation = Some(request); }
+                            }
                             // 新运行或新选择观测使用新控件身份，旧Enter按住/重复不能接管下一组。
                             let response = ui.push_id(
                                 ("draft-rehearsal-choice", stamp.map(|stamp| (stamp.run_id, stamp.revision)), &choice.id),
@@ -213,6 +227,9 @@ impl WorldeditApp {
                 }
             });
         });
+        if let Some(navigation) = localization_navigation {
+            self.open_localized_item(ctx, navigation, &locale_name, true);
+        }
         if close {
             self.draft_rehearsal.running = None;
             self.draft_rehearsal.active = false;

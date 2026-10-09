@@ -204,7 +204,7 @@ fn release_source_move_501_full_ui_five_fresh_fixtures() {
         assert!(applied, "{:?}", form.error);
         assert!(app.io_error.is_none(), "{:?}", app.io_error);
         assert_eq!(app.history.len(), 1);
-        assert_eq!(app.history[0].content_baseline(), baseline);
+        assert_eq!(app.history[0].snapshot.content_baseline(), baseline);
         assert_eq!(app.version, version + 1, "必须包含完整 recompile");
         assert_eq!(app.map_revision.content_generation, generation + 1);
         assert_eq!(

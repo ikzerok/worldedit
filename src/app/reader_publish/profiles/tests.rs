@@ -39,7 +39,10 @@ fn profile_application_uses_normal_history_and_does_not_claim_disk_save() {
     wait_for_profile(&mut app);
     assert!(app.io_error.is_none(), "{:?}", app.io_error);
     assert_eq!(app.history.len(), history + 1);
-    assert_eq!(app.history.last().unwrap().content_baseline(), baseline);
+    assert_eq!(
+        app.history.last().unwrap().snapshot.content_baseline(),
+        baseline
+    );
     assert_ne!(app.project.content_baseline(), baseline);
     assert_eq!(app.project.sources(), source);
     assert!(app.project.is_dirty());

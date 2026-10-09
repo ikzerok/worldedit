@@ -1,6 +1,11 @@
 # worldedit 使用文档
 
-本文对应 0.32；本版功能与验证范围见 [0.32 版本说明](releases/v0.32.0.md)，版本历史见 [CHANGELOG](../CHANGELOG.md)，公开发行状态以对应 GitHub Release 为准。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+本文对应 0.33；本版功能与验证范围见 [0.33 版本说明](releases/v0.33.0.md)，版本历史见 [CHANGELOG](../CHANGELOG.md)，公开发行状态以对应 GitHub Release 为准。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+
+## 0.33 译文与正文关联
+
+- [译文工作台](localization-workbench.md)：目录、状态、稳定 ID、直接编辑、后台核对与真实体验
+- [正文资料关联](manuscript-workspace.md)：现有资料链接和新人物/实体复合计划
 
 ## 0.32 同一当前稿的作者闭环
 

@@ -59,18 +59,19 @@ pub(super) struct SearchState {
     replace: bool,
     pub(super) undo: Vec<DraftUndo>,
     pub(super) redo: Vec<DraftUndo>,
-    project_edits: Vec<ProjectEdit>,
 }
+#[derive(Clone)]
 pub(super) struct DraftUndo {
     before: WritingBuffer,
     after: WritingBuffer,
-    depth: usize,
+    pub(super) node: super::history::NodeId,
+    pub(super) guard: std::sync::Arc<worldline_core::project::Project>,
 }
-struct ProjectEdit {
-    before: String,
-    after: String,
-    buffers: Vec<WritingBuffer>,
-    paths: Vec<PathBuf>,
+impl SearchState {
+    pub(super) fn clear_applied_operation(&mut self) {
+        self.applied_count = None;
+        self.plan = None;
+    }
 }
 impl WorldeditApp {
     pub(in crate::app) fn play_search_signature(&self) -> String {

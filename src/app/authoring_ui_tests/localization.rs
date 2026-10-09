@@ -35,6 +35,7 @@ fn localization_app() -> (egui::Context, WorldeditApp, std::path::PathBuf) {
         .unwrap();
     app.project.save().unwrap();
     app.recompile();
+    app.localization_ui.advanced = true;
     app.localization_ui.source_locale = "en".into();
     app.localization_ui.target_locale = "zh-Hant".into();
     app.localization_ui.string_ids = "welcome\nreply".into();
@@ -74,7 +75,12 @@ fn panel_frame_at_size(
         },
         |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                applied = localization_ui::show(ui, &mut app.project, &mut app.localization_ui);
+                applied = localization_ui::show(
+                    ui,
+                    &mut app.project,
+                    &mut app.localization_ui,
+                    app.version,
+                );
             });
         },
     );
@@ -137,6 +143,10 @@ fn click_panel_at_size(
             ],
         )
         .0;
+    }
+    if app.localization_ui.has_pending_work() {
+        app.localization_ui
+            .settle_pending_for_test(&app.project, app.version);
     }
     applied
 }
@@ -217,6 +227,22 @@ fn panel_previews_and_core_exports_file_then_reviews_cancel_and_confirms_import(
         app.localization_ui.exchange_json,
         serde_json::to_string(&exchange).unwrap()
     );
+    let applied_baseline = app.project.content_baseline();
+    let before = app.localization_ui.take_applied_before().unwrap();
+    app.remember(before);
+    let (_, output) = panel_frame(&ctx, &mut app, Vec::new());
+    assert!(text(&output).contains("已应用 2 个字符串到内存"));
+    app.undo(false);
+    let (_, output) = panel_frame(&ctx, &mut app, Vec::new());
+    assert!(!text(&output).contains("已应用 2 个字符串到内存"));
+    assert!(!app.localization_ui.has_unsubmitted_work());
+    app.undo(true);
+    let (_, output) = panel_frame(&ctx, &mut app, Vec::new());
+    assert!(!text(&output).contains("已应用 2 个字符串到内存"));
+    assert_eq!(app.project.content_baseline(), applied_baseline);
+    assert!(!app.localization_ui.has_unsubmitted_work());
+    assert!(!root.join(".world/localization/zh-Hant.json").exists());
+    app.project.save().unwrap();
     let sidecar = fs::read(root.join(".world/localization/zh-Hant.json")).unwrap();
     let persisted: serde_json::Value = serde_json::from_slice(&sidecar).unwrap();
     assert!(persisted["entries"]["welcome"]["translation_parts"].is_array());
@@ -288,7 +314,12 @@ fn panel_shows_core_missing_stale_and_placeholder_diagnostics_without_writing() 
         &mut app,
         &format!("定位诊断 {}:{} · {}", source.file, source.line, source.kind),
     );
-    assert_eq!(app.localization_ui.take_navigation(), Some(source));
+    assert_eq!(
+        app.localization_ui
+            .take_navigation()
+            .map(|request| request.source),
+        Some(source)
+    );
     assert!(
         rendered.contains(".wl:"),
         "source location missing: {rendered}"
@@ -372,4 +403,115 @@ fn clipped_import_confirmation_scrolls_into_view_and_cancel_keeps_the_project_un
 
     drop(app);
     fs::remove_dir_all(root).unwrap();
+}
+
+fn replace_panel_field(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    current: &str,
+    replacement: &str,
+) {
+    click_panel(ctx, app, current);
+    let id = ctx
+        .memory(|memory| memory.focused())
+        .expect("文本框应获得焦点");
+    let mut editor = egui::TextEdit::load_state(ctx, id).unwrap();
+    editor
+        .cursor
+        .set_char_range(Some(egui::text::CCursorRange::two(
+            egui::text::CCursor::new(0),
+            egui::text::CCursor::new(current.chars().count()),
+        )));
+    egui::TextEdit::store_state(ctx, id, editor);
+    panel_frame(ctx, app, vec![Event::Text(replacement.into())]);
+}
+
+#[test]
+fn localization_query_language_edits_and_unedited_exchange_form_do_not_block_close() {
+    let (ctx, mut app, root) = localization_app();
+    app.localization_ui = localization_ui::LocalizationUiState::default();
+    app.localization_ui.source_locale = "en".into();
+    app.localization_ui.target_locale = "zh-Hant".into();
+    let baseline = app.project.content_baseline();
+    replace_panel_field(&ctx, &mut app, "zh-Hant", "fr");
+    assert_eq!(app.localization_ui.target_locale, "fr");
+    assert!(!app.localization_ui.has_unsubmitted_work());
+    click_panel(&ctx, &mut app, "高级 JSON 交换");
+    assert!(!app.localization_ui.has_unsubmitted_work());
+    click_panel(&ctx, &mut app, "译文目录");
+    app.request_action(Pending::Close, &ctx);
+    assert!(app.allow_close);
+    assert!(app.draft_action.is_none());
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(!app.project.is_dirty());
+    drop(app);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn localization_advanced_locale_edit_survives_catalog_and_runtime_and_blocks_close() {
+    let (ctx, mut app, root) = localization_app();
+    app.localization_ui.string_ids.clear();
+    assert!(!app.localization_ui.has_unsubmitted_work());
+    let baseline = app.project.content_baseline();
+    replace_panel_field(&ctx, &mut app, "zh-Hant", "fr");
+    assert!(app.localization_ui.has_unsubmitted_work());
+    assert_eq!(app.localization_ui.target_locale, "zh-Hant");
+    click_panel(&ctx, &mut app, "译文目录");
+    assert!(app.localization_ui.has_unsubmitted_work());
+    app.localization_ui.open_translation("de", Some("welcome"));
+    assert_eq!(app.localization_ui.target_locale, "de");
+    assert!(app.localization_ui.has_unsubmitted_work());
+    click_panel(&ctx, &mut app, "高级 JSON 交换");
+    let (_, output) = panel_frame(&ctx, &mut app, Vec::new());
+    assert!(output
+        .shapes
+        .iter()
+        .any(|shape| super::text_position(&shape.shape, "fr").is_some()));
+    app.request_action(Pending::Close, &ctx);
+    assert!(!app.allow_close);
+    assert!(app.draft_action.is_some());
+    assert!(app.dirty_draft_names().contains(&"本地化草稿"));
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert!(!app.project.is_dirty());
+    drop(app);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn localization_history_clears_operation_status_only_after_successful_restore() {
+    for forward in [false, true] {
+        for restore_succeeds in [false, true] {
+            let (ctx, mut app, root) = localization_app();
+            app.localization_ui.exchange_json = "未完成的交换输入".into();
+            app.localization_ui
+                .set_import_failure("上一操作的提示".into());
+            let baseline = app.project.content_baseline();
+            app.undo(forward);
+            let (_, output) = panel_frame(&ctx, &mut app, Vec::new());
+            assert!(text(&output).contains("上一操作的提示"), "无历史项不清提示");
+            let previous = if restore_succeeds {
+                app.project.clone()
+            } else {
+                Project::new(&root.with_extension("different-workspace"))
+            };
+            if forward {
+                app.remember(app.project.clone());
+                app.restore_history_step(false).unwrap();
+                app.redo.last_mut().unwrap().snapshot = previous;
+            } else {
+                app.remember(previous);
+            }
+            app.undo(forward);
+            let (_, output) = panel_frame(&ctx, &mut app, Vec::new());
+            assert_eq!(text(&output).contains("上一操作的提示"), !restore_succeeds);
+            assert_eq!(app.io_error.is_none(), restore_succeeds);
+            assert_eq!(app.project.content_baseline(), baseline);
+            assert_eq!(app.localization_ui.exchange_json, "未完成的交换输入");
+            assert_eq!(app.localization_ui.string_ids, "welcome\nreply");
+            assert!(app.localization_ui.has_unsubmitted_work());
+            drop(app);
+            fs::remove_dir_all(root).unwrap();
+        }
+    }
 }

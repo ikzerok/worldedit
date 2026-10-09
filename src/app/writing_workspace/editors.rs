@@ -22,13 +22,19 @@ pub(super) fn draw(
         if !view.pending_prose(&key) {
             view.restore_editor(ui, id, buffer, 0, &source);
         }
-        let output = egui::TextEdit::multiline(&mut source)
+        let context_selection = super::context_selection::SelectionPress::capture(
+            ui, id, view, buffer, target, 0, &source,
+        );
+        let mut output = egui::TextEdit::multiline(&mut source)
             .id(id)
             .code_editor()
             .font(theme::source_font(typography.source_size))
             .desired_width(f32::INFINITY)
             .desired_rows(18)
             .show(ui);
+        if let Some(selection) = context_selection {
+            selection.restore(ui, &mut output, buffer);
+        }
         action.error = super::composition_text::finish(
             view,
             key,
@@ -41,6 +47,7 @@ pub(super) fn draw(
             },
         );
         view.record_cursor(ui, &output, buffer, target, 0, &source);
+        link_context_menu(&output.response, view, action);
         view.pending_cursor = None;
         retained_notice(ui, view);
         return;
@@ -78,13 +85,19 @@ pub(super) fn draw(
         if !view.pending_prose(&key) {
             view.restore_editor(ui, id, buffer, offset, &source);
         }
-        let output = egui::TextEdit::multiline(&mut source)
+        let context_selection = super::context_selection::SelectionPress::capture(
+            ui, id, view, buffer, target, offset, &source,
+        );
+        let mut output = egui::TextEdit::multiline(&mut source)
             .id(id)
             .code_editor()
             .font(theme::source_font(typography.source_size))
             .desired_width(f32::INFINITY)
             .desired_rows(18)
             .show(ui);
+        if let Some(selection) = context_selection {
+            selection.restore(ui, &mut output, buffer);
+        }
         action.error = super::composition_text::finish(
             view,
             key,
@@ -101,6 +114,7 @@ pub(super) fn draw(
             },
         );
         view.record_cursor(ui, &output, buffer, target, offset, &source);
+        link_context_menu(&output.response, view, action);
         view.pending_cursor = None;
         retained_notice(ui, view);
         return;
@@ -175,6 +189,7 @@ pub(super) fn draw(
                     || buffer.replace_prose(projection.generation, block, &text),
                 );
                 view.record_cursor(ui, &output, buffer, target, block.range.start, &text);
+                link_context_menu(&output.response, view, action);
                 if output.response.changed() || buffer.generation() != projection.generation {
                     break;
                 }
@@ -267,4 +282,15 @@ pub(super) fn retained_notice(ui: &mut egui::Ui, view: &mut ViewState) {
         view.retained_inputs.remove(&key);
         view.retained_clear_confirm = None;
     }
+}
+
+fn link_context_menu(response: &egui::Response, view: &ViewState, action: &mut Action) {
+    response.context_menu(|ui| {
+        if crate::theme::add_enabled(ui, !view.ime_active, egui::Button::new("关联世界资料…"))
+            .clicked()
+        {
+            action.world_link = true;
+            ui.close();
+        }
+    });
 }

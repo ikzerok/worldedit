@@ -18,6 +18,7 @@ struct AuthorKey {
     buffers: Vec<(PathBuf, u64, bool)>,
     retained: bool,
     blocked: bool,
+    presentation: Option<worldline_core::localization::LocalizationPresentationRequest>,
 }
 struct Preparation {
     input: DraftRehearsalRequest,
@@ -35,6 +36,7 @@ struct Running {
     worker: Option<SessionWorker>,
     view: View,
     transcript: String,
+    localized_outputs: Vec<crate::draft_rehearsal_worker::DisplayOutput>,
     query: StateInspectionQuery,
     submitted_query: StateInspectionQuery,
     stale: bool,
@@ -89,6 +91,7 @@ impl WorldeditApp {
     fn rehearsal_author_key(&self) -> AuthorKey {
         AuthorKey {
             root: self.project.root.clone(),
+            presentation: self.replay_debugger.locale.request(),
             version: self.version,
             buffers: self
                 .manuscript
@@ -181,7 +184,10 @@ impl WorldeditApp {
         key: &AuthorKey,
         disk: bool,
     ) -> Result<(), String> {
-        if &self.rehearsal_author_key() != key {
+        let mut current = self.rehearsal_author_key();
+        // The locale selector configures the next run; the live session keeps its frozen locale.
+        current.presentation = key.presentation.clone();
+        if &current != key {
             return Err("草稿或工作区已变化；旧试演只读保留，请重新试演".into());
         }
         input.verify_current(

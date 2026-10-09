@@ -99,3 +99,24 @@ impl WorldeditApp {
         }
     }
 }
+
+impl WorldeditApp {
+    pub(in crate::app::play) fn verify_rehearsal_localization_navigation(&self) -> bool {
+        self.draft_rehearsal
+            .running
+            .as_ref()
+            .is_some_and(|running| {
+                self.rehearsal_guard(&running.input, &running.key, true)
+                    .is_ok()
+            })
+    }
+    pub(in crate::app::play) fn return_rehearsal_localization_source(
+        &mut self,
+        _ctx: &egui::Context,
+        source: &worldline_core::localization::LocalizationSource,
+    ) {
+        self.send_rehearsal_action(crate::draft_rehearsal_worker::Action::LocalizationSource {
+            source: source.clone(),
+        });
+    }
+}

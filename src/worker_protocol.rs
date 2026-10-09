@@ -32,6 +32,9 @@ pub(crate) struct WorkRequest {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WorkTask {
+    Localization {
+        task: crate::localization_job::Task,
+    },
     CatalogScope {
         query: worldline_core::queries::CatalogQuery,
         max_candidates: usize,
@@ -81,6 +84,9 @@ pub(crate) enum WorkTask {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WorkOutput {
+    Localization {
+        result: crate::localization_job::Output,
+    },
     CatalogScope {
         scope: worldline_core::catalog_scope::CatalogScopeSnapshot,
     },
@@ -158,7 +164,8 @@ impl WorkRequest {
         }
         let needs_project = matches!(
             self.task,
-            WorkTask::ProblemsReport { .. }
+            WorkTask::Localization { .. }
+                | WorkTask::ProblemsReport { .. }
                 | WorkTask::CatalogScope { .. }
                 | WorkTask::CatalogImportPreview { .. }
                 | WorkTask::ScenePreview { .. }
@@ -189,6 +196,11 @@ impl WorkRequest {
             return Err("后台结果完整JSON超过32MiB预算".into());
         }
         match (&self.task, output) {
+            (WorkTask::Localization { task }, WorkOutput::Localization { result })
+                if binaries.is_empty() =>
+            {
+                task.accepts(result, &self.baseline)
+            }
             (
                 WorkTask::CatalogScope {
                     query,

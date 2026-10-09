@@ -1,6 +1,8 @@
 //! 普通试玩的单次键盘确认与成功推进交接；不参与 runtime 决策。
 use crate::app::{Tab, WorldeditApp};
 use worldline_runtime::ContinuationOutcome;
+mod settings;
+pub(super) use settings::SettingsHost;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Target {

@@ -34,7 +34,9 @@ pub(super) fn render_debugger_controls(
     ui.heading("叙事调试器");
     ui.horizontal(|ui| {
         ui.label("种子");
-        ui.add(egui::DragValue::new(&mut debugger.seed));
+        keyboard.setting(ui, "debugger-seed", |ui| {
+            ui.add(egui::DragValue::new(&mut debugger.seed))
+        });
         ui.label(format!("重放已应用稿 #{current_version}"));
     });
     if let Some(story) = &play.story {
@@ -49,7 +51,9 @@ pub(super) fn render_debugger_controls(
         }
         ui.horizontal(|ui| {
             ui.label("路径名");
-            ui.add(egui::TextEdit::singleline(&mut debugger.path_name).desired_width(120.0));
+            keyboard.setting(ui, "debugger-path-name", |ui| {
+                ui.add(egui::TextEdit::singleline(&mut debugger.path_name).desired_width(120.0))
+            });
         });
         if keyboard.wants_record_focus() {
             let unavailable = record_focus_unavailable(debugger, &trace);
@@ -76,13 +80,13 @@ pub(super) fn render_debugger_controls(
     {
         debugger.explanations = None;
     }
-    if crate::theme::add_enabled(
+    let explain = crate::theme::add_enabled(
         ui,
         actual_evidence.is_some(),
         egui::Button::new("解释当前条件（只读）"),
-    )
-    .clicked()
-    {
+    );
+    keyboard.reveal_setting(ui, &explain);
+    if explain.clicked() {
         debugger.explanations = actual_evidence.map(<[_]>::to_vec);
     }
     if let Some(explanations) = &debugger.explanations {
@@ -102,21 +106,26 @@ pub(super) fn render_debugger_controls(
         .map(|path| path.name.as_str())
         .unwrap_or("选择已录制路径");
     let mut selected_path = debugger.selected_path;
-    egui::ComboBox::from_id_salt("replay-path-select")
+    let path = egui::ComboBox::from_id_salt("replay-path-select")
         .selected_text(selected_text)
         .show_ui(ui, |ui| {
             for (index, path) in debugger.saved_paths.iter().enumerate() {
                 ui.selectable_value(&mut selected_path, Some(index), &path.name);
             }
         });
+    keyboard.reveal_setting(ui, &path.response);
     debugger.select_replay_path(selected_path);
     ui.horizontal(|ui| {
         ui.label("步数上限");
-        ui.add(egui::DragValue::new(&mut debugger.max_steps).range(1..=1_000_000_000));
+        keyboard.setting(ui, "replay-steps", |ui| {
+            ui.add(egui::DragValue::new(&mut debugger.max_steps).range(1..=1_000_000_000))
+        });
     });
     ui.horizontal(|ui| {
         ui.label("时限 ms");
-        ui.add(egui::DragValue::new(&mut debugger.time_budget_ms).range(1..=600_000));
+        keyboard.setting(ui, "replay-time", |ui| {
+            ui.add(egui::DragValue::new(&mut debugger.time_budget_ms).range(1..=600_000))
+        });
     });
     #[cfg(target_arch = "wasm32")]
     ui.label("浏览器每帧最多执行 512 个解释器步骤或 4 ms；单步与状态恢复不可中断，总上限 100,000 步或 2,000 ms。");
@@ -129,10 +138,13 @@ pub(super) fn render_debugger_controls(
             can_replay && has_path && debugger.job.is_none(),
             egui::Button::new("▶ 重放所选路径"),
         );
+        keyboard.reveal_setting(ui, &replay);
         *replay_request |= replay.clicked();
         if let Some(job) = &debugger.job {
             ui.label("重放中…");
-            if ui.button("取消重放").clicked() {
+            let cancel = ui.button("取消重放");
+            keyboard.reveal_setting(ui, &cancel);
+            if cancel.clicked() {
                 job.cancellation.cancel();
             }
         }
@@ -159,9 +171,11 @@ pub(super) fn render_debugger_controls(
             }
         ));
         if let Some(observation) = &trace.initial_observation {
-            egui::CollapsingHeader::new("查看原记录首次观测（只读）").show(ui, |ui| {
-                ui.code(observation.state.to_string());
-            });
+            let observation =
+                egui::CollapsingHeader::new("查看原记录首次观测（只读）").show(ui, |ui| {
+                    ui.code(observation.state.to_string());
+                });
+            keyboard.reveal_setting(ui, &observation.header_response);
         }
         match &trace.origin {
             ReplayOrigin::Entry { seed } => {
@@ -172,12 +186,13 @@ pub(super) fn render_debugger_controls(
                     "检查点起点 · seed {} · fingerprint {}",
                     checkpoint.seed, checkpoint.fingerprint
                 ));
-                egui::CollapsingHeader::new("查看检查点状态").show(ui, |ui| {
+                let state = egui::CollapsingHeader::new("查看检查点状态").show(ui, |ui| {
                     ui.code(&checkpoint.state);
                 });
+                keyboard.reveal_setting(ui, &state.header_response);
             }
         };
-        egui::CollapsingHeader::new("原路径逐步字段变化（只读记录）").show(ui, |ui| {
+        let changes = egui::CollapsingHeader::new("原路径逐步字段变化（只读记录）").show(ui, |ui| {
             ui.label("这是原始记录的顶层JSON字段视图，未冒充当前运行；不提供当前来源跳转。当前typed值与变化请用状态检查");
             let mut previous_state = trace
                 .initial_observation
@@ -205,7 +220,10 @@ pub(super) fn render_debugger_controls(
                 }
             }
         });
-        if ui.button("导出所选路径 JSON").clicked() {
+        keyboard.reveal_setting(ui, &changes.header_response);
+        let export = ui.button("导出所选路径 JSON");
+        keyboard.reveal_setting(ui, &export);
+        if export.clicked() {
             debugger.export_replay_path();
         }
     }
@@ -224,7 +242,9 @@ pub(super) fn render_debugger_controls(
                         .desired_width(f32::INFINITY),
                 );
             });
-        if ui.button("复制 JSON").clicked() {
+        let copy = ui.button("复制 JSON");
+        keyboard.reveal_setting(ui, &copy);
+        if copy.clicked() {
             ui.ctx().copy_text(debugger.export_json.clone());
         }
     }
@@ -260,20 +280,21 @@ pub(super) fn render_debugger_controls(
                 "失败位置：{} · 第 {} 行",
                 location.node, location.line
             ));
-            *failure_jump |= crate::theme::add_enabled(
+            let failure = crate::theme::add_enabled(
                 ui,
                 debugger.result_version == Some(current_version),
                 egui::Button::new("跳转到失败位置"),
             )
-            .on_disabled_hover_text("编辑稿已变化，请重新重放后定位")
-            .clicked();
+            .on_disabled_hover_text("编辑稿已变化，请重新重放后定位");
+            keyboard.reveal_setting(ui, &failure);
+            *failure_jump |= failure.clicked();
         } else if matches!(
             result.status,
             ReplayStatus::Diverged { .. } | ReplayStatus::StoryFailed { .. }
         ) {
             ui.label("当前停止位置不可定位，原记录仅供对比");
         }
-        egui::CollapsingHeader::new("步骤前后状态差异")
+        let difference = egui::CollapsingHeader::new("步骤前后状态差异")
             .default_open(true)
             .show(ui, |ui| {
                 if result.state_diff.is_empty() {
@@ -284,6 +305,7 @@ pub(super) fn render_debugger_controls(
                     ui.add(egui::Label::new(value.to_string()).wrap());
                 }
             });
+        keyboard.reveal_setting(ui, &difference.header_response);
         ui.label("本次访问覆盖（未列出的节点表示未测试，不表示不可达）");
         for (node, count) in &result.coverage.visited_nodes {
             ui.label(format!("访问 ×{count} · {node}"));
@@ -317,7 +339,7 @@ pub(super) fn render_debugger_compact(ui: &mut egui::Ui, debugger: &ReplayDebugg
         }
     }
     if debugger.job.is_some() {
-        ui.label("重放正在后台运行；可在右侧调试器中取消。");
+        ui.label("重放正在后台运行；可在调试器中取消。");
     }
     if let Some(result) = &debugger.result {
         if let Some(scope) = &debugger.result_scope {

@@ -1,4 +1,5 @@
 use super::*;
+mod keyboard_visibility;
 use egui::{pos2, vec2, Event, PointerButton, RawInput, Rect};
 
 fn app() -> (egui::Context, WorldeditApp) {

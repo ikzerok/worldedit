@@ -55,6 +55,11 @@ fn execute(request_json: &str, files: JsValue, retained: JsValue) -> Result<JsVa
             .ok_or_else(|| "后台任务缺少工程".to_owned())
     };
     let (output, binaries) = match &request.task {
+        WorkTask::Localization { task } => {
+            progress(&request, "检查本地化目录与计划", 0, 1);
+            let result = task.run(need_project()?)?;
+            (WorkOutput::Localization { result }, Vec::new())
+        }
         WorkTask::CatalogScope {
             query,
             max_candidates,

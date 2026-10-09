@@ -44,6 +44,19 @@ impl WorldeditApp {
         let left = left.trace.clone();
         let right = right.trace.clone();
         let snapshot = owned_snapshot(&snapshot.result);
+        if left.presentation != right.presentation {
+            self.comparison.notice =
+                Some("两条路径的体验语言或译文快照不同；请使用相同展示身份重新录制后比较".into());
+            return;
+        }
+        let presentation = match crate::app::play::localization::prepare_trace(&self.project, &left)
+        {
+            Ok(presentation) => presentation,
+            Err(error) => {
+                self.comparison.notice = Some(error);
+                return;
+            }
+        };
         let time_budget_ms = self.comparison.time_budget_ms;
         #[cfg(target_arch = "wasm32")]
         let time_budget_ms = time_budget_ms.min(2_000);
@@ -72,9 +85,20 @@ impl WorldeditApp {
             let (sender, receiver) = std::sync::mpsc::channel();
             let token = cancellation.clone();
             std::thread::spawn(move || {
-                let result =
-                    worldline_runtime::compare_routes(&snapshot, &left, &right, options, &token)
-                        .map_err(|error| format!("{}：{}", error.code, error.message));
+                let result = match &presentation {
+                    Some(presentation) => worldline_runtime::compare_routes_with_presentation(
+                        &snapshot,
+                        &left,
+                        &right,
+                        options,
+                        &token,
+                        presentation,
+                    ),
+                    None => {
+                        worldline_runtime::compare_routes(&snapshot, &left, &right, options, &token)
+                    }
+                }
+                .map_err(|error| format!("{}：{}", error.code, error.message));
                 let _ = sender.send(result);
             });
             self.comparison.job = Some(ComparisonJob {
@@ -87,13 +111,25 @@ impl WorldeditApp {
             });
         }
         #[cfg(target_arch = "wasm32")]
-        match worldline_runtime::RouteComparisonSession::new(
-            &snapshot,
-            left,
-            right,
-            options,
-            cancellation.clone(),
-        ) {
+        let prepared = match &presentation {
+            Some(presentation) => worldline_runtime::RouteComparisonSession::new_with_presentation(
+                &snapshot,
+                left,
+                right,
+                options,
+                cancellation.clone(),
+                presentation,
+            ),
+            None => worldline_runtime::RouteComparisonSession::new(
+                &snapshot,
+                left,
+                right,
+                options,
+                cancellation.clone(),
+            ),
+        };
+        #[cfg(target_arch = "wasm32")]
+        match prepared {
             Ok(session) => {
                 self.comparison.job = Some(ComparisonJob {
                     id,

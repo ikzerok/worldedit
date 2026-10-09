@@ -6,6 +6,7 @@ mod evidence;
 mod evidence_navigation;
 pub(in crate::app) mod inspection;
 pub(in crate::app) mod keyboard;
+pub(in crate::app) mod localization;
 pub(in crate::app) mod rehearsal;
 mod replay;
 mod replay_location;
@@ -16,6 +17,7 @@ mod start;
 mod story;
 
 use super::WorldeditApp;
+use keyboard::SettingsHost;
 
 impl WorldeditApp {
     pub(super) fn play_tab(&mut self, ctx: &egui::Context) {
@@ -26,7 +28,14 @@ impl WorldeditApp {
         }
         self.poll_comparison(ctx);
         if self.comparison.active {
-            egui::TopBottomPanel::top("play-main-mode").show(ctx, |ui| self.play_mode_switch(ui));
+            egui::TopBottomPanel::top("play-main-mode").show(ctx, |ui| {
+                self.play_mode_switch(ui, SettingsHost::Comparison)
+            });
+            if !self.comparison.active {
+                // Keep the same mode/locale identity, but never render it in two hosts in one frame.
+                ctx.request_repaint();
+                return;
+            }
         }
         if self.comparison.active {
             self.poll_replay(ctx);
@@ -36,26 +45,79 @@ impl WorldeditApp {
         }
     }
 
-    fn play_mode_switch(&mut self, ui: &mut egui::Ui) -> bool {
+    fn play_mode_switch(&mut self, ui: &mut egui::Ui, host: SettingsHost) -> bool {
         let mut entering_comparison = false;
         ui.horizontal_wrapped(|ui| {
-            ui.selectable_value(&mut self.comparison.active, false, "普通试玩");
-            let comparison = ui.selectable_value(&mut self.comparison.active, true, "路线对照");
+            let ordinary = self
+                .play_keyboard
+                .setting_in(ui, host, "mode-ordinary", |ui| {
+                    ui.selectable_value(&mut self.comparison.active, false, "普通试玩")
+                });
+            self.play_keyboard.settings_host_focus(ui, host, &ordinary);
+            let comparison = self
+                .play_keyboard
+                .setting_in(ui, host, "mode-comparison", |ui| {
+                    ui.selectable_value(&mut self.comparison.active, true, "路线对照")
+                });
             entering_comparison = comparison.is_pointer_button_down_on() || self.comparison.active;
             ui.label(crate::theme::muted("路径仅保留于当前会话"));
-            if ui.button("试演当前正文草稿…").clicked() {
+            if self
+                .play_mode_action(ui, host, "mode-draft", "试演当前正文草稿…")
+                .clicked()
+            {
                 self.request_draft_rehearsal(ui.ctx());
             }
-            if self.draft_rehearsal.has_session() && ui.button("返回隔离试演").clicked() {
+            if self.draft_rehearsal.has_session()
+                && self
+                    .play_mode_action(ui, host, "mode-return-draft", "返回隔离试演")
+                    .clicked()
+            {
                 self.draft_rehearsal.active = true;
                 entering_comparison = true;
             }
-            if ui.button("试玩路径报告…").clicked() {
+            if self
+                .play_mode_action(ui, host, "mode-report", "试玩路径报告…")
+                .clicked()
+            {
                 self.playthrough_report.open = true;
                 self.playthrough_report.focus_on_open = true;
             }
         });
+        localization::controls(
+            ui,
+            &mut self.replay_debugger.locale,
+            &self.localization_ui.target_locale,
+            &self.play_keyboard,
+            host,
+        );
         entering_comparison
+    }
+
+    fn play_mode_action(
+        &self,
+        ui: &mut egui::Ui,
+        host: SettingsHost,
+        role: &str,
+        label: &str,
+    ) -> egui::Response {
+        let text = egui::WidgetText::from(label).into_galley(
+            ui,
+            Some(egui::TextWrapMode::Extend),
+            f32::INFINITY,
+            egui::TextStyle::Button,
+        );
+        let padding = if ui.visuals().button_frame {
+            2.0 * ui.spacing().button_padding.x
+        } else {
+            0.0
+        };
+        // The semantic child inherits only the remaining row. Wrap in its parent first,
+        // or the label becomes a tall strip and advancing the child bypasses row wrapping.
+        if ui.available_size_before_wrap().x < (text.size().x + padding).ceil() {
+            ui.end_row();
+        }
+        self.play_keyboard
+            .setting_in(ui, host, role, |ui| ui.button(label))
     }
 
     pub(super) fn start_play(&mut self) {

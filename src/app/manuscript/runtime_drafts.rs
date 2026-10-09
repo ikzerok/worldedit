@@ -55,6 +55,17 @@ impl WorkbenchState {
                 .to_string(),
             );
         }
+        if let Some(form) = self.world_links.as_ref().filter(|form| form.touched) {
+            inputs.insert(
+                format!("正文关联资料 · {} · {}", form.display, form.id),
+                serde_json::json!([
+                    "writing_authoring",
+                    form.request().ok(),
+                    form.plan.as_ref().map(|plan| &plan.plan_digest)
+                ])
+                .to_string(),
+            );
+        }
         inputs.extend(self.writing_view.retained_runtime_drafts(root));
         inputs
     }

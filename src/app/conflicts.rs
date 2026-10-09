@@ -223,8 +223,7 @@ impl WorldeditApp {
                     } else {
                         match self.project.commit_prepared_reconciliation(*prepared) {
                             Ok(applied) => {
-                                self.history.clear();
-                                self.redo.clear();
+                                self.clear_edit_history();
                                 self.remember(applied.undo);
                                 self.recompile();
                                 self.manuscript.rebase_clean(&self.project);

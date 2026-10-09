@@ -76,8 +76,9 @@ fn preparation_escape_preserves_new_file_search_and_blocks_same_frame_global_sho
     let baseline = app.project.content_baseline();
     let buffer = app.manuscript.writing_buffers()[0].clone();
     let search = app.play_search_signature();
-    app.history.push(app.project.clone());
-    app.redo.push(app.project.clone());
+    app.remember(app.project.clone());
+    app.remember(app.project.clone());
+    app.restore_history_step(false).unwrap();
     let history = (app.history.len(), app.redo.len());
     for shortcut in [Key::Z, Key::S, Key::O, Key::P] {
         // 没有 TextEdit 焦点时 Ctrl+Z 原本会走工程撤销，不能靠控件抢键掩盖问题。

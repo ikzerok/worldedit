@@ -1,5 +1,39 @@
 use super::*;
 impl WorldeditApp {
+    /// Explicit discard ends only this file's draft operations, across all nodes.
+    pub(in crate::app) fn discard_writing_draft_history(&mut self, path: &std::path::Path) {
+        self.search_state
+            .undo
+            .retain(|entry| entry.before.path() != path && entry.after.path() != path);
+        self.search_state
+            .redo
+            .retain(|entry| entry.before.path() != path && entry.after.path() != path);
+        self.clear_draft_history_guard();
+    }
+
+    pub(in crate::app) fn discard_all_writing_draft_history(&mut self) {
+        self.search_state.undo.clear();
+        self.search_state.redo.clear();
+        self.clear_draft_history_guard();
+    }
+
+    pub(in crate::app) fn record_writing_draft_edit(
+        &mut self,
+        before: WritingBuffer,
+        after: WritingBuffer,
+    ) {
+        let guard = self.draft_history_guard();
+        self.search_state.undo.push(DraftUndo {
+            before,
+            after,
+            node: self.history_state.current,
+            guard,
+        });
+        self.search_state.redo.clear();
+        self.redo.clear();
+        self.retain_reachable_draft_history();
+    }
+
     pub(super) fn preview_search_replacement(&mut self) {
         self.prepare_search_replacement(false);
     }
@@ -62,12 +96,7 @@ impl WorldeditApp {
                             .writing_buffer_mut(path)
                             .ok_or("正文草稿已关闭")?;
                         *slot = next.clone();
-                        self.search_state.undo.push(DraftUndo {
-                            before: buffer.clone(),
-                            after: next,
-                            depth: self.history.len(),
-                        });
-                        self.search_state.redo.clear();
+                        self.record_writing_draft_edit(buffer.clone(), next);
                         Ok(())
                     })
             } else {
@@ -104,100 +133,76 @@ impl WorldeditApp {
         self.project.apply_search_replace(plan, drafts)?;
         if !plan.changes.is_empty() {
             let paths: Vec<_> = plan.changes.iter().map(|c| c.path.clone()).collect();
-            self.search_state.project_edits.push(ProjectEdit {
-                before: before.content_baseline(),
-                after: self.project.content_baseline(),
-                buffers: drafts
-                    .iter()
-                    .filter(|d| paths.contains(&d.path().to_owned()))
-                    .cloned()
-                    .collect(),
-                paths: paths.clone(),
-            });
-            self.remember(before);
+            let buffers = drafts
+                .iter()
+                .filter(|draft| paths.contains(&draft.path().to_owned()))
+                .cloned()
+                .collect();
+            self.remember_writing_project_edit(before, buffers, paths.clone());
             self.manuscript.clear_applied_writing_buffers(&paths);
             self.recompile();
         }
         Ok(())
     }
-    pub(in crate::app) fn search_project_undo(&mut self, forward: bool) -> bool {
-        let baseline = self.project.content_baseline();
-        let Some(index) = self.search_state.project_edits.iter().rposition(|edit| {
-            if forward {
-                edit.before == baseline
-            } else {
-                edit.after == baseline
-            }
-        }) else {
-            return false;
-        };
-        let edit = &self.search_state.project_edits[index];
-        let current = self.manuscript.writing_buffers();
-        let unsafe_draft = current
-            .iter()
-            .filter(|b| b.is_changed() && edit.paths.contains(&b.path().to_owned()))
-            .any(|b| {
-                !forward
-                    || !edit.buffers.iter().any(|original| {
-                        original.path() == b.path() && original.source() == b.source()
-                    })
-            });
-        if unsafe_draft {
-            self.io_error = Some("替换事务后又有未应用输入，撤销或重做不能覆盖草稿".into());
-            return true;
-        }
-        let expected = if forward {
-            edit.after.clone()
-        } else {
-            edit.before.clone()
-        };
-        self.undo(forward);
-        if self.project.content_baseline() == expected {
-            let edit = &self.search_state.project_edits[index];
-            if forward {
-                self.manuscript.clear_applied_writing_buffers(&edit.paths);
-            } else {
-                self.manuscript.restore_writing_buffers(&edit.buffers);
-            }
-        }
-        self.message = None;
-        self.search_state.applied_count = None;
-        self.search_state.plan = None;
-        true
-    }
     pub(in crate::app) fn search_draft_undo(&mut self, forward: bool) -> bool {
         let stack = if forward {
-            &mut self.search_state.redo
+            &self.search_state.redo
         } else {
-            &mut self.search_state.undo
+            &self.search_state.undo
         };
-        if stack
+        let Some(entry) = stack
             .last()
-            .is_none_or(|entry| entry.depth != self.history.len())
-        {
+            .filter(|entry| entry.node == self.history_state.current)
+        else {
             return false;
-        }
-        let entry = stack.pop().unwrap();
+        };
         let expected = if forward { &entry.before } else { &entry.after };
         let replacement = if forward { &entry.after } else { &entry.before };
-        let valid = self.project.content_baseline() == expected.baseline()
-            && self
-                .manuscript
-                .writing_buffer_mut(expected.path())
-                .is_some_and(|current| current.source() == expected.source());
+        let current = self
+            .manuscript
+            .writing_buffers()
+            .into_iter()
+            .find(|buffer| buffer.path() == expected.path());
+        let valid = current.as_ref().is_some_and(|buffer| {
+            buffer.source() == expected.source() && buffer.generation() == expected.generation()
+        });
         if !valid {
-            self.io_error = Some("草稿在替换后已变化，拒绝覆盖后续输入".into());
+            self.io_error = Some("草稿在组合编辑后已变化，拒绝覆盖后续输入".into());
             return true;
         }
-        *self.manuscript.writing_buffer_mut(expected.path()).unwrap() = replacement.clone();
+        // The witness is only a core root/refresh guard. Never apply its old project.
+        let mut guard_candidate = self.project.clone();
+        if !guard_candidate.restore((*entry.guard).clone()) {
+            self.io_error = Some("撤销快照已因外部刷新失效，未改变当前工程或草稿".into());
+            return true;
+        }
+        drop(guard_candidate);
+        let mut expected = expected.clone();
+        let mut replacement = replacement.clone();
+        let mut current = current.unwrap();
+        if expected.rebase_unchanged_source(&self.project).is_err()
+            || current.rebase_unchanged_source(&self.project).is_err()
+            || replacement.rebase_unchanged_source(&self.project).is_err()
+        {
+            self.io_error = Some("草稿原文已变化，拒绝覆盖后续输入".into());
+            return true;
+        }
+        *self.manuscript.writing_buffer_mut(expected.path()).unwrap() = replacement;
+        let entry = if forward {
+            self.search_state.redo.pop()
+        } else {
+            self.search_state.undo.pop()
+        }
+        .unwrap();
         if forward {
             self.search_state.undo.push(entry);
         } else {
             self.search_state.redo.push(entry);
         }
+        self.manuscript.invalidate_query_cache();
+        self.io_error = None;
         self.message = None;
-        self.search_state.applied_count = None;
-        self.search_state.plan = None;
+        self.search_state.clear_applied_operation();
         true
     }
 }

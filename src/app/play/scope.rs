@@ -232,10 +232,11 @@ impl WorldeditApp {
     fn execution_signature(&self, action: RunAction) -> String {
         match action {
             RunAction::Start => format!(
-                "{}:{}:{}",
+                "{}:{}:{}:{:?}",
                 self.replay_debugger.seed,
                 self.replay_debugger.live_max_steps,
-                self.replay_debugger.live_time_budget_ms
+                self.replay_debugger.live_time_budget_ms,
+                self.replay_debugger.locale.request()
             ),
             RunAction::Compare => self.comparison.signature(&self.replay_debugger.saved_paths),
             RunAction::Replay => serde_json::json!([

@@ -230,10 +230,35 @@ fn replay_state_delta_keeps_body_visible_in_narrow_play_pane() {
     );
     let (ctx, mut app) = replay_app(source, 21);
     click(&ctx, &mut app, 21, "选择：继续");
+    let baseline = app.project.content_baseline();
+    let version = app.version;
+    let history_len = app.history.len();
+    let redo_len = app.redo.len();
+    let story = app.play.as_ref().unwrap().story.as_ref().unwrap();
+    let before_save = story.save().unwrap();
+    let before_trace = story.replay_trace();
+
+    // Compact play exposes recording through its real drawer, not a pre-opened test state.
+    click(&ctx, &mut app, 21, "调试与路径");
+    scroll_from_visible_anchor_to(&ctx, &mut app, 21, "调试与路径", "● 保存当前路径");
     click(&ctx, &mut app, 21, "● 保存当前路径");
+    assert_eq!(app.replay_debugger.saved_paths.len(), 1);
+    assert_eq!(app.replay_debugger.saved_paths[0].trace, before_trace);
     scroll_from_visible_anchor_to(&ctx, &mut app, 21, "叙事调试器", "▶ 重放所选路径");
     click(&ctx, &mut app, 21, "▶ 重放所选路径");
-    wait_for_replay(&ctx, &mut app);
+    // The shared legacy wait uses window 20; this regression must remain 700×640 throughout.
+    for _ in 0..500 {
+        let _ = frame(&ctx, &mut app, Vec::new(), 21);
+        assert_eq!(ctx.screen_rect().size(), vec2(700.0, 640.0));
+        if app.replay_debugger.job.is_none() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(
+        app.replay_debugger.job.is_none(),
+        "narrow replay must finish"
+    );
 
     let output = frame(&ctx, &mut app, Vec::new(), 21);
     let mut rendered = String::new();
@@ -254,6 +279,13 @@ fn replay_state_delta_keeps_body_visible_in_narrow_play_pane() {
         app.replay_debugger.saved_paths[0].trace
     );
     assert!(body_visible, "{rendered}");
+    let story = app.play.as_ref().unwrap().story.as_ref().unwrap();
+    assert_eq!(story.save().unwrap(), before_save);
+    assert_eq!(story.replay_trace(), before_trace);
+    assert_eq!(app.project.content_baseline(), baseline);
+    assert_eq!(app.version, version);
+    assert_eq!(app.history.len(), history_len);
+    assert_eq!(app.redo.len(), redo_len);
 }
 
 #[test]
