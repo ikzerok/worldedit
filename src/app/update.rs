@@ -247,15 +247,29 @@ impl eframe::App for WorldeditApp {
             Tab::Play => self.play_tab(ctx),
             Tab::Localization => {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    if localization_ui::show(ui, &mut self.project, &mut self.localization_ui) {
-                        self.history.clear();
-                        self.redo.clear();
+                    if localization_ui::show(
+                        ui,
+                        &mut self.project,
+                        &mut self.localization_ui,
+                        self.version,
+                    ) {
+                        if let Some(before) = self.localization_ui.take_applied_before() {
+                            self.remember(before);
+                        }
                         self.recompile();
-                        self.message = Some("本地化译文已导入并保存".into());
+                        self.message = Some("本地化修改已应用到工程，可撤销；保存后落盘".into());
                     }
                 });
-                if let Some(source) = self.localization_ui.take_navigation() {
-                    self.jump_to_file(&source.file, source.line, 1);
+                if self.localization_ui.enable_requested {
+                    self.localization_ui.enable_requested = false;
+                    self.open_capabilities();
+                }
+                if self.localization_ui.return_requested {
+                    self.localization_ui.return_requested = false;
+                    self.tab = Tab::Play;
+                }
+                if let Some(request) = self.localization_ui.take_navigation() {
+                    self.open_localization_source(ctx, request);
                 }
             }
             Tab::Manuscript => self.manuscript_tab(ctx),

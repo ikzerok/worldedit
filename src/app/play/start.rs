@@ -14,6 +14,16 @@ impl WorldeditApp {
         if snap.result.has_errors() {
             return;
         }
+        let presentation = match self.replay_debugger.locale.request() {
+            Some(request) => match self.project.prepare_localization_presentation(&request) {
+                Ok(snapshot) => Some(snapshot),
+                Err(error) => {
+                    self.replay_debugger.notice = Some(error.to_string());
+                    return;
+                }
+            },
+            None => None,
+        };
         self.play_keyboard.new_session();
         self.replay_debugger.explanations = None;
         self.replay_debugger.inspection = Default::default();
@@ -24,16 +34,28 @@ impl WorldeditApp {
             &snap.result.analysis,
         );
         // 每次显式开始仅克隆一次编译对；runtime 拥有并释放真实 Story 的依赖。
-        match OwnedStory::new_with_seed(
-            snap.result.program.clone(),
-            snap.result.analysis.clone(),
-            self.replay_debugger.seed,
-        ) {
+        let story = match &presentation {
+            Some(presentation) => OwnedStory::new_with_presentation(
+                snap.result.program.clone(),
+                snap.result.analysis.clone(),
+                self.replay_debugger.seed,
+                presentation,
+            ),
+            None => OwnedStory::new_with_seed(
+                snap.result.program.clone(),
+                snap.result.analysis.clone(),
+                self.replay_debugger.seed,
+            ),
+        };
+        match story {
             Ok(story) => {
+                // A new real session supersedes the previous attempt's startup notice.
+                self.replay_debugger.notice = None;
                 self.play = Some(PlayState {
                     story: Some(story),
                     transcript: String::new(),
                     transcript_links: Vec::new(),
+                    localized_outputs: Vec::new(),
                     ended: false,
                     error: None,
                     version: scope.version,
@@ -52,6 +74,7 @@ impl WorldeditApp {
                     story: None,
                     transcript: String::new(),
                     transcript_links: Vec::new(),
+                    localized_outputs: Vec::new(),
                     ended: true,
                     error: Some(e.to_string()),
                     version: scope.version,

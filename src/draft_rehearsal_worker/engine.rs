@@ -11,6 +11,8 @@ pub(super) struct Engine {
     next_request: u64,
     query: StateInspectionQuery,
     view: View,
+    presentation: Option<worldline_core::localization::LocalizationPresentationSnapshot>,
+    observed_sources: std::collections::BTreeSet<(String, u32, String)>,
 }
 
 impl Engine {
@@ -23,8 +25,28 @@ impl Engine {
         if prepare.request_id != "0" {
             return Err("准备请求必须从 0 开始".into());
         }
+        if prepare.presentation.is_some() {
+            project
+                .check_localization_budget()
+                .map_err(|error| error.to_string())?;
+        }
         let snapshot = project.compile_draft_rehearsal(&prepare.input)?;
+        let presentation = prepare
+            .presentation
+            .as_ref()
+            .map(|request| {
+                project
+                    .prepare_draft_localization_presentation(&snapshot, request)
+                    .map_err(|e| e.to_string())
+            })
+            .transpose()?;
         let view = View {
+            presentation: presentation.as_ref().map(|p| {
+                worldline_runtime::RuntimeLocalizationIdentity {
+                    request: prepare.presentation.clone().unwrap(),
+                    presentation_digest: p.presentation_digest().into(),
+                }
+            }),
             scope: snapshot.scope().clone(),
             seed: None,
             outputs: vec![],
@@ -44,6 +66,8 @@ impl Engine {
             next_request: 1,
             query: StateInspectionQuery::default(),
             view,
+            presentation,
+            observed_sources: Default::default(),
         })
     }
 
@@ -66,7 +90,13 @@ impl Engine {
                         return Err("本次试演已经启动，不能重用启动请求".into());
                     }
                     let snapshot = self.snapshot.take().ok_or("准备快照已释放")?;
-                    self.session = Some(match DraftRehearsal::new(snapshot, seed) {
+                    let session = match self.presentation.take() {
+                        Some(presentation) => {
+                            DraftRehearsal::new_with_presentation(snapshot, seed, &presentation)
+                        }
+                        None => DraftRehearsal::new(snapshot, seed),
+                    };
+                    self.session = Some(match session {
                         Ok(session) => session,
                         Err(error) => {
                             let message = error.to_string();
@@ -90,6 +120,22 @@ impl Engine {
                         .inspect_state(&query)
                         .map_err(|e| e.message)?;
                     self.query = query;
+                }
+                Action::LocalizationSource { source } => {
+                    if !self.observed_sources.contains(&(
+                        source.file.clone(),
+                        source.line,
+                        source.kind.clone(),
+                    )) {
+                        return Err("来源不属于本次已实际显示的源译内容".into());
+                    }
+                    let hit = self
+                        .session
+                        .as_ref()
+                        .ok_or("试演尚未启动")?
+                        .snapshot()
+                        .localization_source(&source)?;
+                    return self.relative_hit(hit).map(Some);
                 }
                 Action::EvidenceSource { source } => {
                     let session = self.session.as_ref().ok_or("试演尚未启动")?;
@@ -152,15 +198,28 @@ impl Engine {
                             content,
                             new_line,
                             speaker,
+                            links,
+                            localization,
                             ..
                         } => Some(DisplayOutput {
                             content,
+                            links,
+                            localization: localization.map(|metadata| *metadata),
                             new_line,
                             speaker: speaker.map(|speaker| speaker.id),
                         }),
                         Output::Ended => None,
                     })
                     .collect();
+                for output in &self.view.outputs {
+                    if let Some(p) = &output.localization {
+                        self.observed_sources.insert((
+                            p.source.file.clone(),
+                            p.source.line,
+                            p.source.kind.clone(),
+                        ));
+                    }
+                }
                 self.query.expected_stamp = None;
                 self.query.offset = 0;
                 Ok(())
@@ -192,10 +251,21 @@ impl Engine {
             .map(|choice| DisplayChoice {
                 id: choice.id.clone(),
                 label: choice.label.clone(),
+                links: choice.links.clone(),
+                localization: choice.localization.clone(),
                 enabled: choice.enabled,
                 disabled_reason: choice.disabled_reason.clone(),
             })
             .collect();
+        for choice in &self.view.choices {
+            if let Some(p) = &choice.localization {
+                self.observed_sources.insert((
+                    p.source.file.clone(),
+                    p.source.line,
+                    p.source.kind.clone(),
+                ));
+            }
+        }
         self.view.conditions = session.choice_evidence().unwrap_or_default().to_vec();
         self.view.inspection = session.inspect_state(&self.query).ok();
     }

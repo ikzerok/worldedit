@@ -21,6 +21,13 @@ mod search_navigation;
 mod session;
 mod transactions;
 mod workbench;
+mod world_links;
+mod world_links_layout;
+mod world_links_plan;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod world_links_tests;
+mod world_links_transactions;
+mod world_links_view;
 mod writing;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -78,6 +85,7 @@ pub(super) struct WorkbenchState {
     creation: Option<creation::CreationState>,
     creation_dismissed: bool,
     orphan_discard_confirm: Option<PathBuf>,
+    world_links: Option<world_links::State>,
 }
 
 impl Default for WorkbenchState {
@@ -109,6 +117,7 @@ impl Default for WorkbenchState {
             creation: None,
             creation_dismissed: false,
             orphan_discard_confirm: None,
+            world_links: None,
         }
     }
 }
@@ -173,6 +182,9 @@ impl WorkbenchState {
         if let Some(form) = self.creation.as_ref().filter(|form| form.touched) {
             sources.push(format!("新建章节 · {}", form.chapter_title));
         }
+        if self.world_links.as_ref().is_some_and(|state| state.touched) {
+            sources.push("正文关联资料 · 保留的新建输入".into());
+        }
         if self.writing_view.has_retained_input() {
             sources.push("未插入的保留正文输入".into());
         }
@@ -182,6 +194,7 @@ impl WorkbenchState {
 
     pub(super) fn has_unsubmitted_work(&self) -> bool {
         self.creation.as_ref().is_some_and(|form| form.touched)
+            || self.world_links.as_ref().is_some_and(|state| state.touched)
             || self.writing_view.has_retained_input()
             || self.books.values().any(|book| book.changed)
             || self.writing_buffers.values().any(WritingBuffer::is_changed)

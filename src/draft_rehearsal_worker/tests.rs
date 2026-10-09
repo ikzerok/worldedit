@@ -32,6 +32,7 @@ fn fixture() -> (Project, Prepare) {
         input,
         entry: "world.wl".into(),
         snapshot_state: project.snapshot_state().unwrap(),
+        presentation: None,
     };
     (project, prepare)
 }

@@ -22,6 +22,11 @@ fn painted_colors(shape: &egui::Shape, label: &str, colors: &mut Vec<Color32>) {
 
 #[test]
 fn localization_statuses_and_parts_use_current_context_semantics_in_every_palette_and_style() {
+    let (project, mut state) = super::workbench_tests::fixture(1);
+    state.string_ids = "line0".into();
+    let plan = project
+        .preview_localization_export(&state.selection())
+        .unwrap();
     for palette in PaletteId::ALL {
         for mode in [ThemeMode::Light, ThemeMode::Dark] {
             for style in [
@@ -63,6 +68,7 @@ fn localization_statuses_and_parts_use_current_context_semantics_in_every_palett
                                 source: None,
                             }],
                             &mut None,
+                            navigation::Container::Export(&plan),
                         );
                         for status in [Ok("applied locally".into()), Err("retained input".into())] {
                             show_status(

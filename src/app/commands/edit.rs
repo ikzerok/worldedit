@@ -75,6 +75,7 @@ impl WorldeditApp {
                 return;
             }
             let closed = match top {
+                Some("world-links") => self.close_manuscript_world_links_on_escape(ctx),
                 Some("navigation-drawer") => {
                     self.close_navigation_drawer(ctx);
                     true

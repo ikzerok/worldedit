@@ -26,6 +26,9 @@ CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令
 | 独立关系查询与分页 | relations --target KIND:ID；续页 --offset | relation.query（offset） | 同一 core 邻接查询，保留修订和筛选；事件控制流仍使用 graph |
 | 关系类型及实例编辑 | relation-type / relation create、update、delete | relation.type.* / relation.create、update、delete | 1.10 Project 事务、基线与引用保护 |
 | 旧人物关系显式提升 | relations promote preview / commit | relation.promote.preview / commit | 预览新关系及旧项移除、保存兼容影响；提交时校验基线和预览一致性 |
+| 正式人物/实体与稳定引用组合 | authoring-intent preview/apply --intent-json | authoring.intent.preview/apply | create_character 写正式 character；旧 apply 成功立即保存。该接口使用自身 Project，不能读取编辑器 WritingBuffer，也不等同 UI 的显式 1.10 迁移复合计划 |
+| 稳定本地化目录与内存候选 | localization catalog；localization ids/edit/import-candidate preview/apply（--save 显式保存） | localization.catalog；localization.ids/edit/import_candidate.* | core 唯一目录和 typed 计划；RPC 使用自身 project_id 内存，不控制 UI；旧 import apply 仍立即保存 |
+| 真实 locale 体验与身份恢复 | play --locale（可显式 --locale-fallback source）；replay/route-compare/playthrough-report | session.open localization + runtime.localization.v1；trace.replay | 同次源顺序求值，独立展示身份；从当前 Project 准备，旧 source-only 默认不变 |
 | 试玩、选择、当前状态 | play | session.* | 独立会话，不连接 UI 当前试玩 |
 | 当前稿真实双路线对照 | route-compare | project.compare_routes | 共用有界runtime DTO；只读各自工程，不遥控UI；对照source/back与取消仍由编辑器运行态处理 |
 | 演练存读档 | play --load/--save | session.open/save | 各自会话存档 |
@@ -62,7 +65,7 @@ RPC 的 `scene.preview/apply/export` 必须且只能提供 `path` 或 `project_i
 
 持续schema诊断随check/workspace check/发布前检查生效；schema-index、schema-preview、schema-apply及RPC同名语义可独立使用。锁定choice通过CLI `--choice-presentation`与RPC session capability协商，旧choices索引不变。
 
-编辑器尚未应用的WritingBuffer属于当前桌面会话；独立CLI不能读取其窗口内草稿。Find/Replace、焦点、专注布局与当前稿预览由编辑器调用同一core API，不宣称外部CLI遥控全部UI。本地化只交换显式白名单，runtime不自动切语言。
+编辑器尚未应用的WritingBuffer属于当前桌面会话；独立CLI不能读取其窗口内草稿。Find/Replace、焦点、专注布局与当前稿预览由编辑器调用同一core API，不宣称外部CLI遥控全部UI。本地化只交换显式白名单；runtime 默认源文，0.33 仅在明确选择 locale 后使用验证过的译文快照。
 
 ## 0.18 工程问题与源码视图
 

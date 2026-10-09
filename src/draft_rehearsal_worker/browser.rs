@@ -19,12 +19,28 @@ impl SessionWorker {
     pub(crate) fn available() -> bool {
         true
     }
+    #[cfg(test)]
     pub(crate) fn start(
         project: &Project,
         input: &DraftRehearsalRequest,
         session_id: String,
         ctx: &egui::Context,
     ) -> Result<Self, String> {
+        Self::start_with_presentation(project, input, session_id, ctx, None)
+    }
+
+    pub(crate) fn start_with_presentation(
+        project: &Project,
+        input: &DraftRehearsalRequest,
+        session_id: String,
+        ctx: &egui::Context,
+        presentation: Option<worldline_core::localization::LocalizationPresentationRequest>,
+    ) -> Result<Self, String> {
+        if presentation.is_some() {
+            project
+                .check_localization_budget()
+                .map_err(|error| error.to_string())?;
+        }
         let files = project.snapshot_files_limited(10_000, 128 * 1024 * 1024)?;
         let mut prepare = Prepare {
             schema_version: VERSION,
@@ -37,6 +53,7 @@ impl SessionWorker {
                 .map_err(|_| "入口越界")?
                 .into(),
             snapshot_state: project.snapshot_state()?,
+            presentation,
         };
         let retained: Vec<_> = prepare
             .snapshot_state

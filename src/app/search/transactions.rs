@@ -1,5 +1,31 @@
 use super::*;
 impl WorldeditApp {
+    pub(in crate::app) fn record_writing_draft_edit(
+        &mut self,
+        before: WritingBuffer,
+        after: WritingBuffer,
+    ) {
+        self.search_state.undo.push(DraftUndo {
+            before,
+            after,
+            depth: self.history.len(),
+        });
+        self.search_state.redo.clear();
+    }
+    pub(in crate::app) fn record_writing_project_edit(
+        &mut self,
+        before: &worldline_core::project::Project,
+        buffers: Vec<WritingBuffer>,
+        paths: Vec<PathBuf>,
+    ) {
+        self.search_state.project_edits.push(ProjectEdit {
+            before: before.content_baseline(),
+            after: self.project.content_baseline(),
+            buffers,
+            paths,
+        });
+    }
+
     pub(super) fn preview_search_replacement(&mut self) {
         self.prepare_search_replacement(false);
     }
@@ -143,7 +169,7 @@ impl WorldeditApp {
                     })
             });
         if unsafe_draft {
-            self.io_error = Some("替换事务后又有未应用输入，撤销或重做不能覆盖草稿".into());
+            self.io_error = Some("事务后又有未应用输入，撤销或重做不能覆盖草稿".into());
             return true;
         }
         let expected = if forward {
@@ -160,6 +186,8 @@ impl WorldeditApp {
                 self.manuscript.restore_writing_buffers(&edit.buffers);
             }
         }
+        self.manuscript
+            .rebase_unchanged_writing_buffers(&self.project);
         self.message = None;
         self.search_state.applied_count = None;
         self.search_state.plan = None;
@@ -186,7 +214,7 @@ impl WorldeditApp {
                 .writing_buffer_mut(expected.path())
                 .is_some_and(|current| current.source() == expected.source());
         if !valid {
-            self.io_error = Some("草稿在替换后已变化，拒绝覆盖后续输入".into());
+            self.io_error = Some("草稿在组合编辑后已变化，拒绝覆盖后续输入".into());
             return true;
         }
         *self.manuscript.writing_buffer_mut(expected.path()).unwrap() = replacement.clone();

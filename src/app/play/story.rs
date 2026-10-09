@@ -1,490 +1,177 @@
-//! 试玩及运行状态。
-use super::super::{PlayPane, WorldeditApp};
-use super::{debugger, keyboard::Target};
+//! 普通试玩共享交互与执行；紧凑版面只改变容器，不建立第二份运行。
+mod content;
+mod controls;
+mod details;
+mod progression;
+use super::super::WorldeditApp;
+use super::{
+    evidence_navigation::EvidenceNavigationRequest,
+    keyboard::{Activation, SettingsHost},
+    localization,
+};
 use crate::theme;
-use worldline_runtime::{ContinuationOutcome, Output, ReplayBudget, ReplayCancellation};
+
+#[derive(Default)]
+struct Requests {
+    restart: Option<Activation>,
+    reading: Option<worldline_core::TargetRef>,
+    localization: Option<localization::Navigation>,
+    replay: bool,
+    failure: bool,
+    evidence: Option<EvidenceNavigationRequest>,
+}
+
 impl WorldeditApp {
     pub(super) fn play_tab_inner(&mut self, ctx: &egui::Context) {
         self.prepare_play_keyboard(ctx);
         self.poll_replay(ctx);
-        let current_inputs = self.unapplied_play_inputs();
-        // 无故事 / 编译有错误时的引导
-        let has_story = self.play.is_some();
-        let errors = self
-            .snapshot
-            .as_ref()
-            .map(|s| s.result.has_errors())
-            .unwrap_or(true);
-        if !has_story {
+        let available = ctx.available_rect();
+        let compact = available.width() < 900.0 || available.height() < 360.0;
+        if self.play.is_none() {
             egui::CentralPanel::default().show(ctx, |ui| {
-                if self.play_mode_switch(ui) {
-                    return;
+                if compact {
+                    Self::compact_play_scroll().show(ui, |ui| self.play_start_content(ui, false));
+                } else {
+                    self.play_start_content(ui, true);
                 }
-                ui.centered_and_justified(|ui| {
-                    ui.vertical_centered(|ui| {
-                        if errors {
-                            ui.colored_label(
-                                theme::ERROR(),
-                                "故事存在错误,修复后才能试玩(见编辑视图诊断面板)",
-                            );
-                            return;
-                        }
-                        ui.label("将运行已应用工程稿；已应用但尚未保存的修改也会参与。");
-                        if let Some(notice) = &self.replay_debugger.notice {
-                            ui.colored_label(theme::WARNING(), notice);
-                        }
-                        ui.horizontal(|ui| {
-                            ui.label("重放种子");
-                            ui.add(egui::DragValue::new(&mut self.replay_debugger.seed));
-                        });
-                        super::bounded::render_live_budget(ui, &mut self.replay_debugger);
-                        let start = self.play_keyboard.button(
-                            ui,
-                            "start",
-                            None,
-                            true,
-                            egui::RichText::new("▶ 开始试玩").size(20.0),
-                        );
-                        if let Some(activation) = self.play_keyboard.activation(&start) {
-                            self.start_play_activated(ctx, activation);
-                        }
-                    });
-                });
             });
             return;
         }
-        let mut restart = None;
-        let mut reading_request = None;
-        let mut replay_request = false;
-        let mut failure_jump = false;
-        let evidence_access = self.evidence_navigation_access();
-        let mut evidence_jump = None;
-        let cur_version = self.version;
-        let narrow = ctx.screen_rect().width() < 900.0;
-        let can_replay = self
-            .snapshot
+        let current_inputs = self.unapplied_play_inputs();
+        let locale_name = self
+            .play
             .as_ref()
-            .is_some_and(|snapshot| !snapshot.result.has_errors());
-        egui::SidePanel::right("play-side")
-            .default_width(300.0)
-            .show(ctx, |ui| {
-                ui.heading("选择");
-                if ui.button("⌕ 状态检查：查值与变化…").clicked() {
-                    self.replay_debugger.inspection.show(ctx);
-                }
-                if let Some(play) = &mut self.play {
-                    ui.horizontal(|ui| {
-                        if play.error.is_some() {
-                            ui.label("错误已暂停；重新开始可重试。 ");
-                        } else if play.stopped {
-                            ui.label("试玩已停止；可重新开始。");
-                        } else if play.ended {
-                            ui.label("故事已正常结束");
-                        } else if play.paused {
-                            if ui.button("▶ 继续").clicked() {
-                                play.paused = false;
-                                play.interruption = None;
-                            }
-                        } else if ui.button("Ⅱ 暂停").clicked() {
-                            play.paused = true;
-                            self.play_keyboard.cancel();
-                        }
-                        if crate::theme::add_enabled(ui, !play.ended && !play.stopped, egui::Button::new("■ 停止"))
-                            .clicked()
-                        {
-                            play.paused = true;
-                            play.stopped = true;
-                            play.interruption = Some(ContinuationOutcome::Cancelled);
-                            self.play_keyboard.cancel();
-                        }
-                    });
-                    let response = self.play_keyboard.button(ui, "restart", None, true,
-                        "↻ 重新开始（已应用稿）");
-                    restart = self.play_keyboard.activation(&response);
-                }
-                super::bounded::render_live_budget(ui, &mut self.replay_debugger);
-                if let Some(outcome) = self.play.as_ref().and_then(|play| play.interruption) {
-                    ui.label(super::bounded::interruption_text(outcome));
-                }
-                if narrow && self.play.is_some() {
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        ui.selectable_value(
-                            &mut self.replay_debugger.pane,
-                            PlayPane::Story,
-                            "正文",
-                        );
-                        ui.selectable_value(
-                            &mut self.replay_debugger.pane,
-                            PlayPane::Debugger,
-                            "调试信息",
-                        );
-                    });
-                }
-                egui::ScrollArea::vertical()
-                    // 键盘交接下一帧就应看见目标，不等待动画状态再多推迟一帧布局。
-                    .animated(false)
-                    .id_salt("play-side-scroll")
-                    .show(ui, |ui| {
-                        if !narrow {
-                            ui.separator();
-                        }
-                        let Some(play) = &mut self.play else { return };
-                        for diagnostic in &play.entry_diagnostics {
-                            ui.label(format!(
-                                "{} · {}:{} · {}",
-                                diagnostic.code,
-                                diagnostic.file,
-                                diagnostic.span.line,
-                                diagnostic.message
-                            ));
-                        }
-                        if play.error.is_none() && !play.ended && !play.stopped {
-                            let choices: Vec<_> = play
-                                .story
-                                .as_ref()
-                                .map(|s| {
-                                    s.choice_presentations()
-                                        .iter()
-                                        .map(|c| {
-                                            (
-                                                c.label.clone(),
-                                                c.links.clone(),
-                                                c.enabled,
-                                                c.disabled_reason.clone(),
-                                            )
-                                        })
-                                        .collect()
-                                })
-                                .unwrap_or_default();
-                            if choices.is_empty() {
-                                ui.label(if play.paused {
-                                    "当前没有可选项；继续可推进剩余原稿。"
-                                } else {
-                                    "(推进中…)"
-                                });
-                            } else {
-                                ui.label(crate::theme::muted("点击关键词看注释；点击“选择”推进。"));
-                            }
-                            for (i, (label, links, enabled, reason)) in choices.iter().enumerate() {
-                                let mut choose = None;
-                                ui.push_id(i, |ui| {
-                                    ui.group(|ui| {
-                                        {
-                                            if let Some(target) = super::super::wiki::keyword_text(
-                                                ui,
-                                                label,
-                                                &play.source_wiki,
-                                                &play.source_catalog,
-                                                links,
-                                                15.0,
-                                            ) {
-                                                reading_request = Some(target);
-                                            }
-                                        }
-                                        let response = self.play_keyboard.button(ui, "choice",
-                                            Some(Target::Choice(i)), *enabled && !play.paused
-                                                && self.play_confirmation.is_none()
-                                                && !self.playthrough_report.open
-                                                && !self.replay_debugger.inspection.open,
-                                            format!("选择：{label}"));
-                                        choose = self.play_keyboard.activation(&response);
-                                        if let Some(reason) = reason {
-                                            ui.label(crate::theme::muted(format!(
-                                                "暂不可选：{reason}"
-                                            )));
-                                        }
-                                    });
-                                });
-                                if let Some(activation) = choose {
-                                    if play.story.as_mut().is_some_and(|story|
-                                        story.choose_presentation(i).is_ok()) {
-                                        self.play_keyboard.advanced(ctx, activation);
-                                        self.replay_debugger.explanations = None;
-                                        self.play_scroll_bottom = true;
-                                    } else {
-                                        self.play_keyboard.cancel();
-                                    }
-                                }
-                            }
-                        }
-                        if play.version != cur_version {
-                            ui.colored_label(
-                                theme::WARNING(),
-                                "已应用工程稿已变化，当前结果仍属于旧快照；重新开始可运行新的已应用稿。",
-                            );
-                        }
-                        if let Some(err) = &play.error {
-                            ui.colored_label(
-                                theme::ERROR(),
-                                format!("运行错误:{err}"),
-                            );
-                        }
-                        ui.separator();
-                        debugger::render_debugger_controls(
-                            ui,
-                            &mut self.replay_debugger,
-                            play,
-                            cur_version,
-                            can_replay,
-                            debugger::DebuggerRequests { replay: &mut replay_request, failure: &mut failure_jump, evidence: &mut evidence_jump, keyboard: &mut self.play_keyboard },
-                            &evidence_access,
-                        );
-                        ui.separator();
-                        let Some(story) = &play.story else { return; };
-                        ui.label(format!("回合 {} · 故事线 {}", story.turns(), story.storyline()));
-                        if let Some(node) = story.current_node() { ui.label(format!("节点 {node}")); }
-                        let met = story.met_list();
-                        ui.label(format!(
-                            "在场:{}",
-                            if met.is_empty() {
-                                "无".into()
-                            } else {
-                                met.join(", ")
-                            }
-                        ));
-                        if !story.states().is_empty() {
-                            ui.separator();
-                            egui::CollapsingHeader::new(format!(
-                                "状态变更记录 · {}",
-                                story.state_history().len()
-                            ))
-                            .show(ui, |ui| {
-                                egui::ScrollArea::vertical()
-                                    .id_salt("runtime-state-history")
-                                    .max_height(200.0)
-                                    .show(ui, |ui| {
-                                        for record in story.state_history().iter().rev() {
-                                            ui.label(format!(
-                                                "{}：{} → {}",
-                                                record.state,
-                                                record.before.join(", "),
-                                                record.after.join(", ")
-                                            ));
-                                            ui.label(
-                                                egui::RichText::new(format!(
-                                                    "{} · 轮次 {}",
-                                                    record.node.as_deref().unwrap_or(""),
-                                                    record.turn
-                                                ))
-                                                .small()
-                                                .color(theme::MUTED()),
-                                            );
-                                            if let Some(note) = &record.note {
-                                                ui.label(note);
-                                            }
-                                        }
-                                    });
-                            });
-                        }
-                        // 锚点记录(按发生序)
-                        ui.separator();
-                        ui.heading("锚点记录");
-                        let anchors: Vec<worldline_runtime::AnchorRecord> =
-                            story.anchors().to_vec();
-                        if anchors.is_empty() {
-                            ui.colored_label(
-                                theme::MUTED(),
-                                "(暂无;记录由 anchor 语句与漂流、叙事身份、人物变动产生)",
-                            );
-                        }
-                        egui::ScrollArea::vertical()
-                            .max_height(220.0)
-                            .show(ui, |ui| {
-                                for a in anchors.iter().rev() {
-                                    let mut line = format!("◆ [{}] {}", a.kind.label(), a.name);
-                                    if let Some(d) = &a.detail {
-                                        line.push_str(&format!(" → {d}"));
-                                    }
-                                    ui.colored_label(theme::ANCHOR(), line);
-                                    if let Some(n) = &a.note {
-                                        ui.indent("anchor-note", |ui| {
-                                            ui.colored_label(theme::MUTED(), format!("↳ {n}"));
-                                        });
-                                    }
-                                    ui.label(
-                                        egui::RichText::new(format!(
-                                            "   @{} · 故事线 {} · 回合 {}",
-                                            a.node.as_deref().unwrap_or("?"),
-                                            a.storyline,
-                                            a.turn
-                                        ))
-                                        .size(10.0)
-                                        .color(theme::MUTED()),
-                                    );
-                                }
-                            });
-                        ui.separator();
-                    });
-            });
-        if let Some(activation) = restart {
-            self.start_play_activated(ctx, activation);
-        }
-        if replay_request {
-            self.begin_replay(ctx);
-        }
-        if failure_jump {
-            self.jump_to_replay_failure();
-        }
-        if let Some(source) = evidence_jump {
-            self.jump_to_evidence_source(ctx, &source);
-        }
-        let awaiting_scope = self.play_confirmation.is_some()
-            || self.playthrough_report.open
-            || self.replay_debugger.inspection.open;
-        egui::CentralPanel::default().show(ctx, |ui| {
-            if self.play_mode_switch(ui) {
-                return;
-            }
-            let Some(play) = &mut self.play else { return };
-            if !narrow || self.replay_debugger.pane == PlayPane::Story {
-                super::scope::render_scope(ui, &play.scope);
-                if current_inputs != play.scope.excluded_inputs && !current_inputs.is_empty() {
-                    ui.colored_label(
-                        theme::WARNING(),
-                        "当前另有未应用输入；不会改变此次运行的快照。",
-                    );
-                    egui::CollapsingHeader::new("查看当前未应用输入")
-                        .id_salt("current-unapplied-play-inputs")
-                        .show(ui, |ui| {
-                            egui::ScrollArea::vertical()
-                                .max_height(120.0)
-                                .show(ui, |ui| {
-                                    for input in &current_inputs {
-                                        ui.label(format!("{} · {}", input.kind, input.source));
-                                    }
-                                });
-                        });
-                }
-            }
-            if narrow && self.replay_debugger.pane == PlayPane::Debugger {
-                debugger::render_debugger_compact(ui, &self.replay_debugger);
-            } else if let Some(story) = &mut play.story {
-                if play.paused {
-                    ui.colored_label(
-                        theme::MUTED(),
-                        if play.stopped {
-                            "试玩已停止；可重新开始。"
-                        } else {
-                            "试玩已暂停；调试重放不会推进当前正文。"
-                        },
-                    );
-                }
-                if !awaiting_scope
-                    && !play.paused
-                    && !play.ended
-                    && !play.stopped
-                    && play.error.is_none()
-                {
-                    let budget = ReplayBudget::new(
-                        self.replay_debugger.live_max_steps,
-                        self.replay_debugger.live_time_budget_ms,
-                    );
-                    match story.continue_story_bounded(budget, &ReplayCancellation::new()) {
-                        Ok(continuation) => {
-                            self.play_keyboard.settled(
-                                ctx,
-                                continuation.outcome,
-                                story
-                                    .choice_presentations()
-                                    .iter()
-                                    .position(|choice| choice.enabled),
-                            );
-                            match continuation.outcome {
-                                ContinuationOutcome::Choice | ContinuationOutcome::Ended => {
-                                    play.interruption = None
-                                }
-                                outcome => {
-                                    play.interruption = Some(outcome);
-                                    play.paused = true;
-                                }
-                            }
-                            for o in continuation.outputs {
-                                match o {
-                                    Output::Text {
-                                        content,
-                                        new_line,
-                                        links,
-                                        speaker,
-                                        ..
-                                    } => {
-                                        if new_line && !play.transcript.is_empty() {
-                                            play.transcript.push('\n');
-                                        }
-                                        if let Some(speaker) = speaker {
-                                            let name = play
-                                                .source_catalog
-                                                .object(&speaker)
-                                                .map(|object| object.display.clone())
-                                                .unwrap_or_else(|| speaker.id.clone());
-                                            let start = play.transcript.len();
-                                            play.transcript.push_str(&name);
-                                            let end = play.transcript.len();
-                                            play.transcript_links.push(
-                                                worldline_core::navigation::RenderedLink {
-                                                    target: speaker,
-                                                    start,
-                                                    end,
-                                                },
-                                            );
-                                            play.transcript.push('：');
-                                        }
-                                        let offset = play.transcript.len();
-                                        play.transcript_links.extend(links.into_iter().map(
-                                            |mut link| {
-                                                link.start += offset;
-                                                link.end += offset;
-                                                link
-                                            },
-                                        ));
-                                        play.transcript.push_str(&content);
-                                        self.play_scroll_bottom = true;
-                                    }
-                                    Output::Ended => play.ended = true,
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            self.play_keyboard.cancel();
-                            play.error = Some(e.to_string());
-                            play.paused = true;
-                        }
+            .and_then(|play| play.story.as_ref())
+            .and_then(|story| story.presentation_identity())
+            .map(|identity| identity.request.target_locale.clone())
+            .unwrap_or_default();
+        let evidence_access = self.evidence_navigation_access();
+        let mut requests = Requests::default();
+        if compact {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                Self::compact_play_scroll().show(ui, |ui| {
+                    if self.play_mode_switch(ui, SettingsHost::Ordinary) {
+                        return;
                     }
-                }
-            }
-            if !narrow || self.replay_debugger.pane == PlayPane::Story {
-                let transcript_height =
-                    (ui.available_height() - if play.ended { 44.0 } else { 0.0 }).max(0.0);
-                egui::ScrollArea::vertical()
-                    .max_height(transcript_height)
-                    .auto_shrink([false, false])
-                    .stick_to_bottom(self.play_scroll_bottom)
-                    .show(ui, |ui| {
-                        if let Some(target) = super::super::wiki::keyword_text(
-                            ui,
-                            &play.transcript,
-                            &play.source_wiki,
-                            &play.source_catalog,
-                            &play.transcript_links,
-                            16.0,
-                        ) {
-                            reading_request = Some(target);
-                        }
-                    });
-                self.play_scroll_bottom = false;
-                if play.ended {
+                    self.play_side_header(ui, &mut requests, true);
+                    self.play_choices(ui, &mut requests);
+                    self.apply_play_side_requests(ctx, &mut requests);
                     ui.separator();
-                    ui.centered_and_justified(|ui| {
-                        ui.colored_label(theme::SUCCESS(), "—— 世界线收束,故事结束 ——");
+                    self.play_content(ui, &current_inputs, &mut requests, true);
+                    let mut details =
+                        egui::CollapsingHeader::new("调试与路径").id_salt("compact-play-debugger");
+                    if self.play_keyboard.wants_record_focus() {
+                        details = details.open(Some(true));
+                    }
+                    let shown = details.show(ui, |ui| {
+                        self.play_debugger_details(ui, &mut requests, &evidence_access);
                     });
+                    self.play_keyboard
+                        .reveal_setting(ui, &shown.header_response);
+                    // The same explicit debugger actions work even when their group is last.
+                    self.apply_play_side_requests(ctx, &mut requests);
+                });
+            });
+        } else {
+            egui::SidePanel::right("play-side")
+                .default_width(300.0)
+                .show(ctx, |ui| {
+                    self.play_side_header(ui, &mut requests, false);
+                    egui::ScrollArea::vertical()
+                        .animated(false)
+                        .id_salt("play-side-scroll")
+                        .show(ui, |ui| {
+                            ui.separator();
+                            self.play_choices(ui, &mut requests);
+                            self.play_debugger_details(ui, &mut requests, &evidence_access);
+                        });
+                });
+            self.apply_play_side_requests(ctx, &mut requests);
+            egui::CentralPanel::default().show(ctx, |ui| {
+                if !self.play_mode_switch(ui, SettingsHost::Ordinary) {
+                    self.play_content(ui, &current_inputs, &mut requests, false);
                 }
-            }
-        });
+            });
+        }
+        if let Some(navigation) = requests.localization {
+            self.open_localized_item(ctx, navigation, &locale_name, false);
+        }
         self.render_state_inspection(ctx);
-        if let Some(target) = reading_request {
+        if let Some(target) = requests.reading {
             self.play_keyboard.cancel();
             self.open_reading(target);
         }
         self.prepare_play_keyboard(ctx);
+    }
+
+    fn compact_play_scroll() -> egui::ScrollArea {
+        egui::ScrollArea::vertical()
+            .id_salt("ordinary-play-compact-scroll")
+            .animated(false)
+            .min_scrolled_height(0.0)
+            .auto_shrink([false, false])
+    }
+
+    fn play_start_content(&mut self, ui: &mut egui::Ui, centered: bool) {
+        if self.play_mode_switch(ui, SettingsHost::Ordinary) {
+            return;
+        }
+        if centered {
+            ui.centered_and_justified(|ui| {
+                ui.vertical_centered(|ui| self.play_start_controls(ui));
+            });
+        } else {
+            self.play_start_controls(ui);
+        }
+    }
+
+    fn play_start_controls(&mut self, ui: &mut egui::Ui) {
+        if self
+            .snapshot
+            .as_ref()
+            .is_none_or(|snapshot| snapshot.result.has_errors())
+        {
+            ui.colored_label(
+                theme::ERROR(),
+                "故事存在错误,修复后才能试玩(见编辑视图诊断面板)",
+            );
+            return;
+        }
+        ui.label("将运行已应用工程稿；已应用但尚未保存的修改也会参与。");
+        if let Some(notice) = &self.replay_debugger.notice {
+            ui.colored_label(theme::WARNING(), notice);
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.label("重放种子");
+            self.play_keyboard.setting(ui, "start-seed", |ui| {
+                ui.add(egui::DragValue::new(&mut self.replay_debugger.seed))
+            });
+        });
+        super::bounded::render_live_budget(ui, &mut self.replay_debugger, &self.play_keyboard);
+        let start = self.play_keyboard.button(
+            ui,
+            "start",
+            None,
+            true,
+            egui::RichText::new("▶ 开始试玩").size(20.0),
+        );
+        if let Some(activation) = self.play_keyboard.activation(&start) {
+            self.start_play_activated(ui.ctx(), activation);
+        }
+    }
+
+    fn apply_play_side_requests(&mut self, ctx: &egui::Context, requests: &mut Requests) {
+        if let Some(activation) = requests.restart.take() {
+            self.start_play_activated(ctx, activation);
+        }
+        if std::mem::take(&mut requests.replay) {
+            self.begin_replay(ctx);
+        }
+        if std::mem::take(&mut requests.failure) {
+            self.jump_to_replay_failure();
+        }
+        if let Some(source) = requests.evidence.take() {
+            self.jump_to_evidence_source(ctx, &source);
+        }
     }
 }

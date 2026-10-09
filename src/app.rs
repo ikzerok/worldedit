@@ -144,6 +144,7 @@ struct PlayState {
     story: Option<OwnedStory>,
     transcript: String,
     transcript_links: Vec<worldline_core::navigation::RenderedLink>,
+    localized_outputs: Vec<crate::draft_rehearsal_worker::DisplayOutput>,
     ended: bool,
     error: Option<String>,
     version: u64,
@@ -182,6 +183,7 @@ enum PlayPane {
     Debugger,
 }
 struct ReplayDebugger {
+    locale: play::localization::LocaleUi,
     seed: u64,
     path_name: String,
     saved_paths: Vec<SavedReplayPath>,
@@ -205,6 +207,7 @@ struct ReplayDebugger {
 impl Default for ReplayDebugger {
     fn default() -> Self {
         Self {
+            locale: Default::default(),
             seed: 1,
             path_name: "路径 1".into(),
             saved_paths: Vec::new(),

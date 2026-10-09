@@ -15,3 +15,6 @@ pub(crate) use protocol::*;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod localization_tests;

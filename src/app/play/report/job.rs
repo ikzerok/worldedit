@@ -86,6 +86,14 @@ impl WorldeditApp {
             return;
         };
         let snapshot = owned_snapshot(&snapshot.result);
+        let presentation =
+            match crate::app::play::localization::prepare_trace(&self.project, &trace) {
+                Ok(presentation) => presentation,
+                Err(error) => {
+                    self.playthrough_report.notice = Some(error);
+                    return;
+                }
+            };
         let settings = (
             self.playthrough_report.max_steps,
             self.playthrough_report.time_budget_ms,
@@ -114,9 +122,20 @@ impl WorldeditApp {
             let (sender, receiver) = std::sync::mpsc::channel();
             let token = cancellation.clone();
             std::thread::spawn(move || {
-                let result = worldline_runtime::generate_playthrough_report(
-                    &snapshot, &trace, options, &token,
-                )
+                let result = match &presentation {
+                    Some(presentation) => {
+                        worldline_runtime::generate_playthrough_report_with_presentation(
+                            &snapshot,
+                            &trace,
+                            options,
+                            &token,
+                            presentation,
+                        )
+                    }
+                    None => worldline_runtime::generate_playthrough_report(
+                        &snapshot, &trace, options, &token,
+                    ),
+                }
                 .map_err(|error| format!("{}：{}", error.code, error.message));
                 let _ = sender.send(result);
             });
@@ -130,12 +149,25 @@ impl WorldeditApp {
             });
         }
         #[cfg(target_arch = "wasm32")]
-        match worldline_runtime::PlaythroughReportSession::new(
-            &snapshot,
-            trace,
-            options,
-            cancellation.clone(),
-        ) {
+        let prepared = match &presentation {
+            Some(presentation) => {
+                worldline_runtime::PlaythroughReportSession::new_with_presentation(
+                    &snapshot,
+                    trace,
+                    options,
+                    cancellation.clone(),
+                    presentation,
+                )
+            }
+            None => worldline_runtime::PlaythroughReportSession::new(
+                &snapshot,
+                trace,
+                options,
+                cancellation.clone(),
+            ),
+        };
+        #[cfg(target_arch = "wasm32")]
+        match prepared {
             Ok(session) => {
                 self.playthrough_report.job = Some(ReportJob {
                     scope,

@@ -34,6 +34,13 @@ impl WorldeditApp {
             self.replay_debugger.notice = Some("所选路径已失效，请重新选择".into());
             return;
         };
+        let presentation = match super::localization::prepare_trace(&self.project, &trace) {
+            Ok(presentation) => presentation,
+            Err(error) => {
+                self.replay_debugger.notice = Some(error);
+                return;
+            }
+        };
         let Some(snapshot) = self.snapshot.as_ref() else {
             self.replay_debugger.notice = Some("没有可重放的编译快照".into());
             return;
@@ -53,7 +60,16 @@ impl WorldeditApp {
         let budget = ReplayBudget::new(max_steps, time_budget_ms);
         let cancellation = ReplayCancellation::new();
         // 只读预检也适用于 native：旧版本可以交换/查看，但不能启动执行或清掉旧结果。
-        let session = match ReplaySession::new(trace.clone(), budget, cancellation.clone()) {
+        let prepared = match &presentation {
+            Some(presentation) => ReplaySession::new_with_presentation(
+                trace.clone(),
+                budget,
+                cancellation.clone(),
+                presentation,
+            ),
+            None => ReplaySession::new(trace.clone(), budget, cancellation.clone()),
+        };
+        let session = match prepared {
             Ok(session) => session,
             Err(error) => {
                 self.replay_debugger.notice = Some(format!("路径可只读查看，但无法重放：{error}"));
@@ -73,9 +89,24 @@ impl WorldeditApp {
             let worker_cancellation = cancellation.clone();
             let (sender, receiver) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
-                let result =
-                    ReplayTrace::replay(&program, &analysis, &trace, budget, &worker_cancellation)
-                        .map_err(|error| error.to_string());
+                let result = match &presentation {
+                    Some(presentation) => ReplayTrace::replay_with_presentation(
+                        &program,
+                        &analysis,
+                        &trace,
+                        budget,
+                        &worker_cancellation,
+                        presentation,
+                    ),
+                    None => ReplayTrace::replay(
+                        &program,
+                        &analysis,
+                        &trace,
+                        budget,
+                        &worker_cancellation,
+                    ),
+                }
+                .map_err(|error| error.to_string());
                 let _ = sender.send(result);
             });
             self.replay_debugger.job = Some(super::super::ReplayJob {

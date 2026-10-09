@@ -54,6 +54,7 @@ impl super::super::WorldeditApp {
             );
             return None;
         }
+        self.draw_world_link_return(ui);
         let compact = self.manuscript_focus_layout() || layout::compact_workspace(ui.ctx());
         let Some(buffer) = self.manuscript.writing_buffers.get_mut(&path) else {
             self.manuscript.pending_scroll = None;

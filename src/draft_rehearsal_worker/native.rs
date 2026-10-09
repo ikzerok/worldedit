@@ -30,12 +30,28 @@ impl SessionWorker {
         !COMPILING.load(Ordering::Acquire)
     }
 
+    #[cfg(test)]
     pub(crate) fn start(
         project: &Project,
         input: &DraftRehearsalRequest,
         session_id: String,
         ctx: &egui::Context,
     ) -> Result<Self, String> {
+        Self::start_with_presentation(project, input, session_id, ctx, None)
+    }
+
+    pub(crate) fn start_with_presentation(
+        project: &Project,
+        input: &DraftRehearsalRequest,
+        session_id: String,
+        ctx: &egui::Context,
+        presentation: Option<worldline_core::localization::LocalizationPresentationRequest>,
+    ) -> Result<Self, String> {
+        if presentation.is_some() {
+            project
+                .check_localization_budget()
+                .map_err(|error| error.to_string())?;
+        }
         COMPILING
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| "上一份隔离编译仍在退出，请等待后重试")?;
@@ -51,6 +67,7 @@ impl SessionWorker {
                 .map_err(|_| "入口越界")?
                 .into(),
             snapshot_state: project.snapshot_state()?,
+            presentation,
         };
         let project = project.clone();
         let (sender, commands) = mpsc::channel();

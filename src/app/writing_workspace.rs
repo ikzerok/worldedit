@@ -1,5 +1,6 @@
 //! 正文、结构与源码共用 core 按文件唯一的 WritingBuffer。
 mod composition_text;
+mod context_selection;
 mod editors;
 mod input;
 mod input_registry;
@@ -58,6 +59,7 @@ pub(super) struct ViewState {
 pub(super) struct Action {
     pub apply: bool,
     pub comment: bool,
+    pub world_link: bool,
     pub source_mode: bool,
     pub discard: bool,
     pub error: Option<String>,
@@ -136,6 +138,7 @@ pub(super) fn draw_controls(
                         || action.apply
                         || action.discard
                         || action.comment
+                        || action.world_link
                         || (discard_was_pending && view.discard_confirm.is_none())
                     {
                         ui.close();
@@ -227,6 +230,15 @@ fn draw_status(
         } else {
             "正文与当前工程一致"
         }));
+        ui.menu_button("选词工具", |ui| {
+            if crate::theme::add_enabled(ui, !input_busy, egui::Button::new("关联世界资料…"))
+                .on_hover_text("选择正文文字，检索已有资料或创建正式人物 / 实体并关联")
+                .clicked()
+            {
+                action.world_link = true;
+                ui.close();
+            }
+        });
         if ui
             .small_button("批注选区")
             .on_hover_text("为当前选区添加批注：先预览完整源码行，不自动应用或保存")

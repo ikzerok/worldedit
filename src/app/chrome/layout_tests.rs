@@ -59,6 +59,7 @@ fn render(
                             ui,
                             &mut app.project,
                             &mut app.localization_ui,
+                            app.version,
                         );
                     });
                 }

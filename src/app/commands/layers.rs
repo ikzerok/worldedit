@@ -37,6 +37,10 @@ impl WorldeditApp {
             ("source-outline", self.source_outline.open),
             ("source-jump", self.source_jump.open),
             ("search", self.search_open),
+            (
+                "world-links",
+                self.tab == Tab::Manuscript && self.manuscript.world_links_open(),
+            ),
             ("commands", self.command_palette.open),
             ("compact-references", self.compact_reference_open(ctx)),
             ("navigation-drawer", self.navigation_drawer_open(ctx)),

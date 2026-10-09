@@ -34,7 +34,9 @@ pub(super) fn render_debugger_controls(
     ui.heading("叙事调试器");
     ui.horizontal(|ui| {
         ui.label("种子");
-        ui.add(egui::DragValue::new(&mut debugger.seed));
+        keyboard.setting(ui, "debugger-seed", |ui| {
+            ui.add(egui::DragValue::new(&mut debugger.seed))
+        });
         ui.label(format!("重放已应用稿 #{current_version}"));
     });
     if let Some(story) = &play.story {
@@ -49,7 +51,9 @@ pub(super) fn render_debugger_controls(
         }
         ui.horizontal(|ui| {
             ui.label("路径名");
-            ui.add(egui::TextEdit::singleline(&mut debugger.path_name).desired_width(120.0));
+            keyboard.setting(ui, "debugger-path-name", |ui| {
+                ui.add(egui::TextEdit::singleline(&mut debugger.path_name).desired_width(120.0))
+            });
         });
         if keyboard.wants_record_focus() {
             let unavailable = record_focus_unavailable(debugger, &trace);
@@ -102,21 +106,26 @@ pub(super) fn render_debugger_controls(
         .map(|path| path.name.as_str())
         .unwrap_or("选择已录制路径");
     let mut selected_path = debugger.selected_path;
-    egui::ComboBox::from_id_salt("replay-path-select")
+    let path = egui::ComboBox::from_id_salt("replay-path-select")
         .selected_text(selected_text)
         .show_ui(ui, |ui| {
             for (index, path) in debugger.saved_paths.iter().enumerate() {
                 ui.selectable_value(&mut selected_path, Some(index), &path.name);
             }
         });
+    keyboard.reveal_setting(ui, &path.response);
     debugger.select_replay_path(selected_path);
     ui.horizontal(|ui| {
         ui.label("步数上限");
-        ui.add(egui::DragValue::new(&mut debugger.max_steps).range(1..=1_000_000_000));
+        keyboard.setting(ui, "replay-steps", |ui| {
+            ui.add(egui::DragValue::new(&mut debugger.max_steps).range(1..=1_000_000_000))
+        });
     });
     ui.horizontal(|ui| {
         ui.label("时限 ms");
-        ui.add(egui::DragValue::new(&mut debugger.time_budget_ms).range(1..=600_000));
+        keyboard.setting(ui, "replay-time", |ui| {
+            ui.add(egui::DragValue::new(&mut debugger.time_budget_ms).range(1..=600_000))
+        });
     });
     #[cfg(target_arch = "wasm32")]
     ui.label("浏览器每帧最多执行 512 个解释器步骤或 4 ms；单步与状态恢复不可中断，总上限 100,000 步或 2,000 ms。");
@@ -317,7 +326,7 @@ pub(super) fn render_debugger_compact(ui: &mut egui::Ui, debugger: &ReplayDebugg
         }
     }
     if debugger.job.is_some() {
-        ui.label("重放正在后台运行；可在右侧调试器中取消。");
+        ui.label("重放正在后台运行；可在调试器中取消。");
     }
     if let Some(result) = &debugger.result {
         if let Some(scope) = &debugger.result_scope {

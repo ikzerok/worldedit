@@ -195,6 +195,7 @@ impl WorldeditApp {
                 self.io_error = Some("撤销快照已因外部刷新失效，未改变当前工程".into());
                 return;
             }
+            self.localization_ui.clear_operation_status();
             if forward {
                 self.history.push(current);
             } else {
