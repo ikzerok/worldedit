@@ -1,5 +1,7 @@
-//! 当前迁移计划的局部导航；不登记为文字/IME 接收者，不接管其他编辑模式。
+//! 当前有效语句计划的局部导航；不登记为文字/IME 接收者，不接管其他编辑模式。
 use super::*;
+use crate::app::writing_workspace::preview_navigation as shared;
+pub(super) use shared::available;
 use std::collections::HashSet;
 
 #[derive(Default)]
@@ -11,8 +13,7 @@ pub(super) struct Navigation {
 }
 impl Navigation {
     pub fn owns(&self, ctx: &egui::Context, plan: &DialogueEditPlan, id: egui::Id) -> bool {
-        plan.migration.is_some()
-            && available(ctx)
+        available(ctx)
             && self.digest.as_deref() == Some(plan.plan_digest.as_str())
             && self
                 .frame
@@ -30,6 +31,7 @@ impl Navigation {
 struct Active {
     identity: egui::Id,
     digest: String,
+    migration: bool,
     ids: HashSet<egui::Id>,
     viewport: egui::Rect,
     layer: egui::LayerId,
@@ -37,19 +39,6 @@ struct Active {
 }
 fn active_id() -> egui::Id {
     egui::Id::new("dialogue-migration-keyboard-scope")
-}
-pub(super) fn available(ctx: &egui::Context) -> bool {
-    ctx.input(|input| {
-        input.focused && !input.events.iter().any(|event| {
-            matches!(event, egui::Event::Ime(egui::ImeEvent::Commit(_)))
-                || matches!(event, egui::Event::Ime(egui::ImeEvent::Preedit(text)) if !text.is_empty())
-        })
-    }) && !egui::Popup::is_any_open(ctx)
-        && ctx.memory(|memory| {
-            memory.top_modal_layer().is_none()
-                && !memory.areas().visible_layer_ids().iter()
-                    .any(|layer| layer.order == egui::Order::Middle)
-        })
 }
 /// Only the current form's draw closure installs this context. Popup layers are excluded.
 pub(super) struct Scope {
@@ -80,7 +69,6 @@ impl Scope {
         }
     }
     pub fn sync(&self, plan: Option<&DialogueEditPlan>) {
-        let plan = plan.filter(|plan| plan.migration.is_some());
         self.ctx.data_mut(|data| {
             let old = data.get_temp::<Active>(active_id());
             data.remove::<Active>(active_id());
@@ -94,6 +82,7 @@ impl Scope {
                     Active {
                         identity: self.key.with(&plan.plan_digest),
                         digest: plan.plan_digest.clone(),
+                        migration: plan.migration.is_some(),
                         ids,
                         viewport: self.viewport,
                         layer: self.layer,
@@ -180,27 +169,9 @@ pub(super) fn text_control(ui: &egui::Ui, response: &egui::Response) {
     }
 }
 fn reveal(ui: &egui::Ui, response: &egui::Response, keep_visible: bool) {
-    if response.enabled() && response.has_focus() && available(ui.ctx()) {
-        // Focus can arrive after key-down or layout can move its owner. Keep normal
-        // controls visible; only the reading button is allowed to scroll offscreen.
-        if (keep_visible || response.gained_focus())
-            && !ui.clip_rect().contains_rect(response.rect.expand(2.0))
-        {
-            response.scroll_to_me(Some(egui::Align::Center));
-        }
-        outline(ui, response.rect.expand(2.0));
-    }
+    shared::reveal(ui, response, keep_visible, true);
 }
 
-fn outline(ui: &egui::Ui, rect: egui::Rect) {
-    let theme = theme::resolved(ui.ctx());
-    ui.painter().rect_stroke(
-        rect,
-        2.0,
-        egui::Stroke::new(theme.focus_width, theme.colors.focus),
-        egui::StrokeKind::Inside,
-    );
-}
 pub(super) fn add(ui: &mut egui::Ui, enabled: bool, widget: impl egui::Widget) -> egui::Response {
     let response = theme::add_enabled(ui, enabled, widget);
     control(ui, response)
@@ -223,53 +194,28 @@ pub(super) fn reading(ui: &mut egui::Ui, line_height: f32) {
     let Some(active) = ui.ctx().data(|data| data.get_temp::<Active>(active_id())) else {
         return;
     };
-    let response = ui
-        .push_id(active.identity, |ui| {
-            let response = ui.add_enabled(
-                active.enabled,
-                egui::Button::new("迁移预览阅读区 · ↑↓滚动").wrap(),
-            );
-            // Register this stop without forcing it back onscreen after every Down.
-            if active.enabled {
-                ui.ctx().data_mut(|data| {
-                    let mut active = active.clone();
-                    active.ids.insert(response.id);
-                    data.insert_temp(active_id(), active);
-                });
-                reveal(ui, &response, false);
-            }
-            response
-        })
-        .inner;
-    if response.has_focus() && active.enabled && available(ui.ctx()) {
-        ui.ctx().memory_mut(|memory| {
-            memory.set_focus_lock_filter(
-                response.id,
-                egui::EventFilter {
-                    vertical_arrows: true,
-                    escape: true,
-                    ..Default::default()
-                },
-            )
+    let response = shared::reading(
+        ui,
+        shared::Reader {
+            identity: active.identity,
+            label: if active.migration {
+                "迁移预览阅读区 · ↑↓滚动"
+            } else {
+                "语句预览阅读区 · ↑↓滚动"
+            },
+            viewport: active.viewport,
+            enabled: active.enabled,
+            horizontal: false,
+            vertical: true,
+            step: egui::vec2(0.0, line_height.max(16.0)),
+            escape: true,
+        },
+    );
+    if active.enabled {
+        ui.ctx().data_mut(|data| {
+            let mut active = active.clone();
+            active.ids.insert(response.id);
+            data.insert_temp(active_id(), active);
         });
-        if ui.input(|input| input.modifiers == egui::Modifiers::NONE) {
-            let up =
-                ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp));
-            let down = ui
-                .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown));
-            if up || down {
-                ui.scroll_with_delta(egui::vec2(
-                    0.0,
-                    (i32::from(up) - i32::from(down)) as f32 * line_height.max(16.0),
-                ));
-            }
-        }
-        let theme = theme::resolved(ui.ctx());
-        ui.painter().with_clip_rect(active.viewport).rect_stroke(
-            active.viewport.shrink(theme.focus_width * 0.5),
-            2.0,
-            egui::Stroke::new(theme.focus_width, theme.colors.focus),
-            egui::StrokeKind::Inside,
-        );
     }
 }

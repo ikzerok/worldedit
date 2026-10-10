@@ -6,6 +6,7 @@ mod editors;
 mod input;
 mod input_registry;
 mod modes;
+pub(in crate::app) mod preview_navigation;
 pub(in crate::app) use input_registry::register_input;
 mod projection_cache;
 mod prose;

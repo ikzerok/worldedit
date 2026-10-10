@@ -7,6 +7,7 @@ mod appearance;
 mod geometry;
 mod guards;
 mod harness;
+mod normal;
 mod pagination;
 mod reading;
 use geometry::*;
@@ -17,3 +18,5 @@ const ENABLE: &str = "明确预览启用语言 1.11；确认后与全文草稿�
 const CONFIRM: &str = "已核对全稿解释变化、诊断与完整文件；确认一次应用";
 const APPLY: &str = "确认迁移并应用所列完整稿";
 const BODY: &str = "hello tide\nsecond line";
+
+const NORMAL_READ: &str = "语句预览阅读区 · ↑↓滚动";

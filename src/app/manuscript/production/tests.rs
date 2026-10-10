@@ -4,19 +4,21 @@ pub(super) fn fixture() -> WorldeditApp {
     let ctx = egui::Context::default();
     let creation = eframe::CreationContext::_new_kittest(ctx);
     let mut app = WorldeditApp::new(&creation, None);
+    static NEXT_ROOT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let root = std::env::temp_dir().join(format!(
-        "production-ui-{}-{}",
+        "production-ui-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        NEXT_ROOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
+    std::fs::create_dir(&root).expect("each fixture exclusively creates a fresh root");
     app.project = worldline_core::project::Project::new(&root);
     let path = app.project.entry.clone();
     app.project.set_text(&path, "character a as \"同名\"\ncharacter b as \"同名\"\nevent start\n  say a \"第一句\" direction \"PRIVATE_DIRECTION\"\n  say b \"第二句\"\n  -> END\n".into()).unwrap();
     app.project.create_authoring_document(&app.project.root.join(".world/project.json"), br#"{"schema_version":1,"language_version":"1.11","required_features":[],"maps":{},"graph_views":{}}"#.to_vec()).unwrap();
-    std::fs::create_dir_all(&app.project.root).unwrap();
     app.project.save().unwrap();
     app.recompile();
     app.manuscript.production.scope = 2;

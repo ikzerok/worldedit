@@ -20,22 +20,32 @@ impl Drop for Harness {
 }
 impl Harness {
     pub fn new(long: bool) -> Self {
-        Self::fixture(long, false)
+        Self::fixture(long, false, None)
     }
     pub fn paged() -> Self {
-        Self::fixture(false, true)
+        Self::fixture(false, true, None)
     }
-    fn fixture(long: bool, paged: bool) -> Self {
+    pub fn normal(statement: &str) -> Self {
+        Self::normal_language(statement, "1.11")
+    }
+    pub fn normal_language(statement: &str, language: &str) -> Self {
+        Self::fixture(false, false, Some((statement, language)))
+    }
+    fn fixture(long: bool, paged: bool, normal: Option<(&str, &str)>) -> Self {
         let ctx = egui::Context::default();
         let mut app = WorldeditApp::new(&eframe::CreationContext::_new_kittest(ctx.clone()), None);
+        static NEXT_ROOT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let root = std::env::temp_dir().join(format!(
-            "migration-keyboard-{}-{}",
+            "migration-keyboard-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_ROOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
+        // Never reuse another concurrently allocated fixture, regardless of clock resolution.
+        std::fs::create_dir(&root).expect("each fixture exclusively creates a fresh root");
         app.project = Project::new(&root);
         app.active_file = app.project.entry.clone();
         let mut source = "character traveler as \"旅人\"\nevent arrival\n  -> END\n".to_owned();
@@ -57,9 +67,17 @@ impl Harness {
             }
             assert!(source.len() > 16 * 1024 && source.len() < 32 * 1024);
         }
+        if let Some((statement, _)) = normal {
+            source =
+                format!("character traveler as \"旅人\"\nevent arrival\n{statement}  -> END\n");
+        }
         app.project.set_text(&app.active_file, source).unwrap();
-        app.project.create_authoring_document(&root.join(".world/project.json"),br#"{"schema_version":1,"language_version":"1.9","required_features":[],"maps":{},"graph_views":{}}"#.to_vec()).unwrap();
-        std::fs::create_dir_all(&root).unwrap();
+        let language = normal.map_or("1.9", |(_, language)| language);
+        let manifest = r#"{"schema_version":1,"language_version":"1.9","required_features":[],"maps":{},"graph_views":{}}"#
+            .replace("1.9", language).into_bytes();
+        app.project
+            .create_authoring_document(&root.join(".world/project.json"), manifest)
+            .unwrap();
         app.project.save().unwrap();
         let mut revision = Revision::default();
         let request = ManuscriptChapterCreateRequest {
@@ -283,7 +301,7 @@ impl Harness {
                 }) {
                     continue;
                 }
-                if label == READ {
+                if label == READ || label == NORMAL_READ {
                     for (text, other, other_clip) in texts(&out) {
                         if [
                             "章节导航",
@@ -397,18 +415,22 @@ impl Harness {
             .to_owned()
     }
     pub fn current_migration(&self) -> worldline_core::manuscript::DialogueEditPlan {
+        let plan = self.current_plan();
+        assert!(plan.request.enable_language_1_11);
+        assert_eq!(self.app.project.language_version(), "1.9");
+        assert!(plan.migration.is_some());
+        plan
+    }
+    pub fn current_plan(&self) -> worldline_core::manuscript::DialogueEditPlan {
         let fields = self.fields();
         let request: worldline_core::manuscript::DialogueEditRequest =
             serde_json::from_str(fields.values().next().unwrap()).unwrap();
-        assert!(request.enable_language_1_11);
-        assert_eq!(self.app.project.language_version(), "1.9");
         let buffer = self.app.manuscript.writing_buffers().pop().unwrap();
         let plan = self
             .app
             .project
             .preview_dialogue_edit(&buffer, &request)
             .unwrap();
-        assert!(plan.migration.is_some());
         assert!(
             self.app
                 .manuscript

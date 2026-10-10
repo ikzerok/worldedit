@@ -66,7 +66,12 @@ fn migration_keyboard_text_owner_keeps_arrows_space_and_ime() {
         text.chars().filter(|c| *c == ' ').count() + 1
     );
     h.click("预览语句变更");
-    assert!(visible_label(&h.settle(), "正式语句变更预览").is_some());
+    let out = h.settle();
+    assert!(
+        visible_label(&out, "正式语句变更预览").is_some(),
+        "{}",
+        preview_paint_evidence(&h, &out)
+    );
     h.current_migration();
     let literal = h.literal();
     h.click(&literal);
@@ -138,6 +143,7 @@ fn migration_keyboard_plain_body_does_not_gain_preview_stop_or_lose_editing() {
     for _ in 0..80 {
         let out = h.key(Key::Tab, Modifiers::NONE);
         assert!(!labels(&out).contains(READ));
+        assert!(!labels(&out).contains(NORMAL_READ));
     }
     assert!(!h.app.manuscript.has_dialogue_input());
 }
@@ -155,4 +161,41 @@ fn migration_keyboard_author_note_header_has_visible_focus_before_activation() {
     assert_eq!(h.state(), state);
     assert_eq!(h.fields(), fields);
     h.current_migration();
+}
+
+// Failure-only readback: Windows CI stopped before any Preedit/Commit at this
+// strict title visibility assertion. Do not infer missing plan from missing paint.
+fn preview_paint_evidence(h: &Harness, out: &egui::FullOutput) -> String {
+    let fields = h.fields();
+    let current = fields
+        .values()
+        .next()
+        .and_then(|s| {
+            serde_json::from_str::<worldline_core::manuscript::DialogueEditRequest>(s).ok()
+        })
+        .map(|request| {
+            let buffer = h.app.manuscript.writing_buffers().pop().unwrap();
+            match h.app.project.preview_dialogue_edit(&buffer, &request) {
+                Ok(plan) => format!(
+                    "derived={} migration={} UI_current={}",
+                    plan.plan_digest,
+                    plan.migration.is_some(),
+                    h.app
+                        .manuscript
+                        .writing_view
+                        .dialogue_plan_is_current(buffer.path(), &plan)
+                ),
+                Err(error) => format!("derive_error={error}"),
+            }
+        });
+    let paint: Vec<_> = texts(out)
+        .into_iter()
+        .filter(|(text, _, _)| text == "正式语句变更预览" || text == "预览语句变更")
+        .collect();
+    let owner = h
+        .focused_response
+        .as_ref()
+        .map(|r| (r.id, r.rect, r.interact_rect, r.layer_id, r.has_focus()));
+    format!("title/Preview paint={paint:?}; same_pass_owner={owner:?}; plan={current:?}; scroll={}; popup={}; modal={:?}; input_focused={}",
+        h.offset(),egui::Popup::is_any_open(&h.ctx),h.ctx.memory(|m|m.top_modal_layer()),h.ctx.input(|i|i.focused))
 }

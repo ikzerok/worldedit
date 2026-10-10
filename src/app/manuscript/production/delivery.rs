@@ -15,32 +15,42 @@ fn options(state: &State) -> ProductionExportOptions {
         include_direction: state.direction,
     }
 }
-pub(super) fn draw(ui: &mut egui::Ui, state: &mut State, current: bool) -> Option<Action> {
+pub(super) fn draw(
+    ui: &mut egui::Ui,
+    state: &mut State,
+    current: bool,
+    navigation_enabled: bool,
+) -> Option<Action> {
     let mut action = None;
     ui.separator();
-    ui.checkbox(&mut state.export_open, "准备私密交付");
+    keyboard::checkbox(ui, &mut state.export_open, "准备私密交付");
     if !state.export_open {
         return None;
     }
     ui.label("材料只含当前已过滤的台本单元；复制、JSON、Markdown、CSV共用同一不可变结果。");
     let previous = options(state);
     ui.horizontal_wrapped(|ui| {
-        ui.selectable_value(&mut state.format, ProductionFormat::Json, "精确 JSON");
-        ui.selectable_value(
+        keyboard::selectable(ui, &mut state.format, ProductionFormat::Json, "精确 JSON");
+        keyboard::selectable(
+            ui,
             &mut state.format,
             ProductionFormat::Markdown,
             "阅读 Markdown",
         );
-        ui.selectable_value(&mut state.format, ProductionFormat::Csv, "表格 CSV");
+        keyboard::selectable(ui, &mut state.format, ProductionFormat::Csv, "表格 CSV");
     });
-    ui.checkbox(&mut state.direction, "明确纳入作者私密演出备注（源语言）");
+    keyboard::checkbox(
+        ui,
+        &mut state.direction,
+        "明确纳入作者私密演出备注（源语言）",
+    );
     if previous != options(state) {
         state.confirmed = false;
     }
     if state.format == ProductionFormat::Csv {
         ui.colored_label(theme::WARNING(), "CSV每格含单引号显示前缀、双引号包裹与CRLF。精确值请用JSON；不保证所有表格软件或再次另存后的安全，也不是无损回导格式。");
     }
-    if theme::add_enabled(ui, current, egui::Button::new("预览完整交付字节")).clicked() {
+    if keyboard::add(ui, current, egui::Button::new("预览完整交付字节")).clicked() {
         action = Some(Action::Preview);
     }
     let reviewed = current
@@ -53,9 +63,22 @@ pub(super) fn draw(ui: &mut egui::Ui, state: &mut State, current: bool) -> Optio
         });
     if let Some(artifact) = &state.artifact {
         if let Ok(text) = std::str::from_utf8(artifact.bytes()) {
-            preview(ui, text, &mut state.artifact_page);
+            let identity = egui::Id::new((
+                "production-artifact-reader",
+                artifact.snapshot_key(),
+                format!("{:?}", artifact.format()),
+                state.artifact_options.as_ref().map(|o| o.include_direction),
+            ));
+            preview(
+                ui,
+                text,
+                &mut state.artifact_page,
+                identity,
+                navigation_enabled,
+            );
             theme::add_enabled_ui(ui, reviewed, |ui| {
-                ui.checkbox(
+                keyboard::checkbox(
+                    ui,
                     &mut state.confirmed,
                     "已核对范围、语言状态和上述交付字节，确认私密材料内容",
                 );
@@ -64,16 +87,15 @@ pub(super) fn draw(ui: &mut egui::Ui, state: &mut State, current: bool) -> Optio
     }
     ui.horizontal_wrapped(|ui| {
         let enabled = reviewed && state.confirmed;
-        if theme::add_enabled(ui, enabled, egui::Button::new("复制相同完整材料")).clicked()
-        {
+        if keyboard::add(ui, enabled, egui::Button::new("复制相同完整材料")).clicked() {
             action = Some(Action::Copy);
         }
         #[cfg(target_arch = "wasm32")]
-        if theme::add_enabled(ui, enabled, egui::Button::new("下载相同材料")).clicked() {
+        if keyboard::add(ui, enabled, egui::Button::new("下载相同材料")).clicked() {
             action = Some(Action::Save);
         }
         #[cfg(not(target_arch = "wasm32"))]
-        if theme::add_enabled(ui, enabled, egui::Button::new("选择新文件…")).clicked() {
+        if keyboard::add(ui, enabled, egui::Button::new("选择新文件…")).clicked() {
             action = Some(Action::Browse);
         }
     });
@@ -82,14 +104,13 @@ pub(super) fn draw(ui: &mut egui::Ui, state: &mut State, current: bool) -> Optio
         ui.label(theme::muted(
             "只写工作区外的新绝对路径文件，不覆盖已有文件。",
         ));
-        crate::app::writing_workspace::register_input(
-            &ui.add(
-                egui::TextEdit::singleline(&mut state.destination)
-                    .id_salt("production-export-path")
-                    .hint_text("工作区外新文件完整路径"),
-            ),
-        );
-        if theme::add_enabled(
+        crate::app::writing_workspace::register_input(&keyboard::input(
+            ui,
+            egui::TextEdit::singleline(&mut state.destination)
+                .id_salt("production-export-path")
+                .hint_text("工作区外新文件完整路径"),
+        ));
+        if keyboard::add(
             ui,
             reviewed && state.confirmed,
             egui::Button::new("写入新文件"),
@@ -101,15 +122,21 @@ pub(super) fn draw(ui: &mut egui::Ui, state: &mut State, current: bool) -> Optio
     }
     action
 }
-fn preview(ui: &mut egui::Ui, text: &str, page: &mut usize) {
+fn preview(
+    ui: &mut egui::Ui,
+    text: &str,
+    page: &mut usize,
+    identity: egui::Id,
+    navigation_enabled: bool,
+) {
     const BYTES: usize = 16 * 1024;
     let count = text.len().div_ceil(BYTES).max(1);
     *page = (*page).min(count - 1);
     ui.horizontal_wrapped(|ui| {
-        if theme::add_enabled(ui, *page > 0, egui::Button::new("上一段交付字节")).clicked() {
+        if keyboard::add(ui, *page > 0, egui::Button::new("上一段交付字节")).clicked() {
             *page -= 1;
         }
-        if theme::add_enabled(ui, *page + 1 < count, egui::Button::new("下一段交付字节")).clicked()
+        if keyboard::add(ui, *page + 1 < count, egui::Button::new("下一段交付字节")).clicked()
         {
             *page += 1;
         }
@@ -128,10 +155,23 @@ fn preview(ui: &mut egui::Ui, text: &str, page: &mut usize) {
         index
     };
     let mut segment = &text[boundary(*page * BYTES)..boundary((*page + 1) * BYTES)];
-    egui::ScrollArea::both()
+    let mut reader_response = None;
+    let output = egui::ScrollArea::both()
         .id_salt("production-artifact-bytes")
         .max_height(300.0)
-        .show(ui, |ui| {
+        .show_viewport(ui, |ui, relative| {
+            let viewport = keyboard::shared::viewport(ui, relative);
+            let reader = keyboard::Reader {
+                identity: identity.with(*page),
+                label: "交付字节阅读区 · ↑↓←→滚动",
+                viewport,
+                enabled: navigation_enabled && ui.is_enabled(),
+                horizontal: true,
+                vertical: true,
+                step: egui::vec2((viewport.width() * 0.5).max(16.0), 16.0),
+                escape: false,
+            };
+            reader_response = Some(keyboard::shared::reading(ui, reader));
             ui.add(
                 egui::TextEdit::multiline(&mut segment)
                     .font(theme::source_font(13.0))
@@ -139,6 +179,9 @@ fn preview(ui: &mut egui::Ui, text: &str, page: &mut usize) {
                     .desired_width(f32::INFINITY),
             );
         });
+    if let Some(response) = reader_response {
+        keyboard::shared::reveal_domain(ui, &response, output.inner_rect);
+    }
 }
 impl WorldeditApp {
     pub(super) fn checked_production_artifact(

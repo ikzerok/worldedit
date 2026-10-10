@@ -45,12 +45,9 @@ pub(super) fn draw(
             .input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::Enter));
     let mut next = None;
     let mut preview_id = None;
+    let mut result_requested = false;
     ui.push_id(("dialogue-form", key), |ui| {
-        if form
-            .plan
-            .as_ref()
-            .is_some_and(|plan| plan.migration.is_some())
-        {
+        if form.plan.is_some() {
             ui.set_clip_rect(viewport);
         }
         ui.strong(&form.label);
@@ -101,6 +98,7 @@ pub(super) fn draw(
                         form.plan = Some(plan);
                         form.error = None;
                         form.migration_confirmed = false;
+                        result_requested = true;
                     }
                     Err(error) => {
                         form.plan = None;
@@ -123,6 +121,7 @@ pub(super) fn draw(
                         form.plan = Some(plan);
                         form.error = None;
                         form.migration_confirmed = false;
+                        result_requested = true;
                     }
                     Err(error) => {
                         form.plan = None;
@@ -142,11 +141,14 @@ pub(super) fn draw(
                 .filter(|_| !needs_rebind(&form, projection, &view.dialogue.statement_indices)),
         );
         if let Some(plan) = &form.plan {
-            if plan.migration.is_some() {
-                ui.set_clip_rect(viewport);
-                preview_keyboard::reading(ui, typography.size * typography.spacing);
+            ui.set_clip_rect(viewport);
+            preview_keyboard::reading(ui, typography.size * typography.spacing);
+            let result = plan_preview(ui, plan, typography);
+            if result_requested && ui.is_enabled() && preview_keyboard::available(ui.ctx()) {
+                // An explicit preview can be requested from a button near the
+                // viewport edge. Reveal its actual result without changing focus.
+                ui.scroll_to_rect(result.rect.expand(2.0), None);
             }
-            plan_preview(ui, plan, typography);
             if plan.migration.is_some() {
                 theme::add_enabled_ui(ui, !busy, |ui| {
                     preview_keyboard::checkbox(
@@ -286,9 +288,13 @@ pub(super) fn fields(
     }
     form.request.operation = operation;
 }
-fn plan_preview(ui: &mut egui::Ui, plan: &DialogueEditPlan, typography: Typography) {
+fn plan_preview(
+    ui: &mut egui::Ui,
+    plan: &DialogueEditPlan,
+    typography: Typography,
+) -> egui::Response {
     ui.separator();
-    ui.strong(if plan.no_change {
+    let result = ui.strong(if plan.no_change {
         "无内容变化 · 保持原字节和代次"
     } else {
         "正式语句变更预览"
@@ -332,6 +338,7 @@ fn plan_preview(ui: &mut egui::Ui, plan: &DialogueEditPlan, typography: Typograp
         ("dialogue-plan-after", &plan.plan_digest),
         typography,
     );
+    result
 }
 fn identity(target: Option<&TargetRef>) -> String {
     target

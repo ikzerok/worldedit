@@ -3,6 +3,7 @@
 //! synthetic egui pointer events. These are not native-window or OS clipboard tests.
 mod delivery;
 mod guards;
+mod keyboard;
 mod queries;
 use super::*;
 use serde_json::{json, Value};

@@ -2,6 +2,7 @@
 mod delivery;
 mod filters;
 mod jobs;
+mod keyboard;
 mod navigation;
 mod rows;
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -257,7 +258,15 @@ impl WorldeditApp {
                 }
             });
             let current = self.production_is_current();
-            egui::ScrollArea::vertical().id_salt("production-script-workbench").auto_shrink([false, false]).show(ui, |ui| {
+            egui::ScrollArea::vertical().id_salt("production-script-workbench").auto_shrink([false, false]).show_viewport(ui, |ui, relative| {
+                let viewport=keyboard::shared::viewport(ui,relative);
+                let reader=keyboard::Reader {
+                    identity:egui::Id::new(("production-query-reader",&self.project.root)),
+                    label:"角色台本阅读区 · ↑↓滚动", viewport,
+                    enabled:blocked.is_none() && ui.is_enabled(), horizontal:false,vertical:true,
+                    step:egui::vec2(0.0,ui.text_style_height(&egui::TextStyle::Body).max(16.0)), escape:false,
+                };
+                keyboard::shared::reading(ui,reader);
                 filters::draw(self, ui, blocked.is_none());
                 if let Some(reason) = &blocked { ui.colored_label(theme::WARNING(), reason); }
                 if self.manuscript.writing_view.has_retained_input() {
@@ -275,8 +284,8 @@ impl WorldeditApp {
                     }
                     if let Some(page) = &state.page {
                         ui.horizontal_wrapped(|ui| {
-                            if theme::add_enabled(ui, page.offset > 0, egui::Button::new("上一页台词")).clicked() { state.offset = page.offset.saturating_sub(40); }
-                            if theme::add_enabled(ui, page.next_offset.is_some(), egui::Button::new("下一页台词")).clicked() { state.offset = page.next_offset.unwrap_or(page.offset); }
+                            if keyboard::add(ui, page.offset > 0, egui::Button::new("上一页台词")).clicked() { state.offset = page.offset.saturating_sub(40); }
+                            if keyboard::add(ui, page.next_offset.is_some(), egui::Button::new("下一页台词")).clicked() { state.offset = page.next_offset.unwrap_or(page.offset); }
                             ui.label(format!("第 {}–{} / {} 行", if page.total == 0 { 0 } else { page.offset + 1 }, page.offset + page.rows.len(), page.total));
                         });
                         for row in &page.rows {
@@ -284,7 +293,7 @@ impl WorldeditApp {
                         }
                         if page.total == 0 { ui.label("所选范围没有匹配行，未借用其他范围。"); }
                     }
-                    export = delivery::draw(ui, state, current && blocked.is_none());
+                    export = delivery::draw(ui, state, current && blocked.is_none(), blocked.is_none());
                 }
             });
         });

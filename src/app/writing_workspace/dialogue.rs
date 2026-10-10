@@ -293,14 +293,9 @@ impl ViewState {
             return false;
         };
         let form = self.dialogue.forms.get_mut(&key).unwrap();
-        // The local migration TextEdit keeps Escape for this host. Its remembered
+        // The local preview TextEdit keeps Escape for this host. Its remembered
         // focus must still yield to a newly opened popup/modal/visible upper window.
-        if form
-            .plan
-            .as_ref()
-            .is_some_and(|plan| plan.migration.is_some())
-            && !preview_keyboard::available(ctx)
-        {
+        if form.plan.is_some() && !preview_keyboard::available(ctx) {
             return false;
         }
         if form.protected() {
