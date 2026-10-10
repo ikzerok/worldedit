@@ -294,14 +294,14 @@ fn row_body(
             .find(|speaker| &speaker.target == target)
             .map(|speaker| speaker.display.as_str())
             .unwrap_or(&target.id);
-        if theme::add_enabled(
+        let response = theme::add_enabled(
             ui,
             enabled,
             egui::Button::new(egui::RichText::new(display).strong()).frame(false),
         )
-        .on_hover_text(format!("{}:{} · 查看人物资料", target.kind, target.id))
-        .clicked()
-        {
+        .on_hover_text(format!("{}:{} · 查看人物资料", target.kind, target.id));
+        super::super::preview_navigation::reveal(ui, &response, true, true);
+        if response.clicked() {
             action.reference = Some(target.clone());
         }
     }
@@ -326,7 +326,7 @@ fn row_body(
                     .on_hover_text("正式表达式 · 未求值");
                 }
                 DialoguePart::Link { target, label } => {
-                    if theme::add_enabled(
+                    let response = theme::add_enabled(
                         ui,
                         enabled,
                         egui::Button::new(
@@ -335,9 +335,9 @@ fn row_body(
                                 .color(theme::BLUE()),
                         )
                         .frame(false),
-                    )
-                    .clicked()
-                    {
+                    );
+                    super::super::preview_navigation::reveal(ui, &response, true, true);
+                    if response.clicked() {
                         action.reference = Some(target.clone());
                     }
                 }

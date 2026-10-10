@@ -8,6 +8,7 @@ mod discard_lifecycle;
 mod edges;
 mod history_cases;
 mod history_guards;
+mod ime_visibility;
 mod narrow;
 #[cfg(not(target_arch = "wasm32"))]
 mod save_refresh_history;
@@ -69,6 +70,15 @@ fn frame_size(
     ctx.run(raw, |ctx| {
         let _theme = crate::theme::configure_appearance(ctx, app.personal.appearance());
         app.manuscript_tab(ctx);
+        // Keep geometry from this actual final pass, before end_pass swaps maps.
+        let response = ctx.memory(|memory| memory.focused()).and_then(|id| {
+            let widget = ctx.viewport(|v| v.this_pass.widgets.get(id).copied())?;
+            let focused = ctx.read_response(id)?.has_focus();
+            Some((widget, focused))
+        });
+        ctx.data_mut(|data| {
+            data.insert_temp(egui::Id::new("world-links-test-frame-focus"), response)
+        });
     })
 }
 fn select_name(ctx: &egui::Context, app: &mut WorldeditApp) {
@@ -470,16 +480,65 @@ fn stale_buffer_or_changed_form_refuses_previewed_application_without_losing_inp
     assert!(state.error.is_some());
     assert_eq!(app.project.content_baseline(), old);
 }
-
 #[test]
 fn synthetic_ime_commit_enter_escape_do_not_close_or_apply_association() {
     let (ctx, mut app) = fixture();
+    app.personal.settings.appearance.reduce_motion = true;
     app.begin_manuscript_world_links(&ctx);
     new_character(&mut app);
-    frame(&ctx, &mut app, vec![]);
+    let sizing = frame(&ctx, &mut app, vec![]);
+    assert_eq!(
+        sizing.viewport_output[&egui::ViewportId::ROOT].repaint_delay,
+        std::time::Duration::ZERO,
+        "the cold Window requests its first visible paint"
+    );
+    // Exactly the requested visible paint, before the original field-focus fixture.
+    let ready = frame(&ctx, &mut app, vec![]);
+    assert_eq!(ctx.style().animation_time, 0.0);
+    let actual = || {
+        ctx.data(|data| {
+            data.get_temp::<Option<(egui::WidgetRect, bool)>>(egui::Id::new(
+                "world-links-test-frame-focus",
+            ))
+        })
+        .flatten()
+        .expect("same-pass real owner")
+    };
+    use ime_visibility::visible;
+    let (first, first_has_focus) = actual();
+    assert_eq!(ctx.memory(|memory| memory.focused()), Some(first.id));
+    assert_eq!(first.layer_id, super::world_links_layout::layer());
+    assert!(
+        first.enabled
+            && first_has_focus
+            && first.sense.senses_click()
+            && !first.sense.senses_drag()
+    );
+    assert!(first.interact_rect.contains_rect(first.rect));
+    assert!(visible(&ready, &first, "返回正文，保留输入", true));
     let id = egui::Id::new(("world-link-field", "显示名称"));
     ctx.memory_mut(|memory| memory.request_focus(id));
-    frame(&ctx, &mut app, vec![]);
+    let focused = frame(&ctx, &mut app, vec![]);
+    let (field, field_has_focus) = actual();
+    assert_eq!(ctx.memory(|memory| memory.focused()), Some(id));
+    assert_eq!(field.id, id);
+    assert!(field.enabled && field_has_focus);
+    assert!(field.interact_rect.contains_rect(field.rect));
+    assert!(egui::TextEdit::load_state(&ctx, id).is_some());
+    assert!(visible(
+        &focused,
+        &field,
+        &app.manuscript.world_links.as_ref().unwrap().display,
+        false
+    ));
+    let style = ctx.style();
+    let frame_rect = field.rect.expand(style.visuals.widgets.active.expansion);
+    let visible_frame = focused.shapes.iter().any(|shape| {
+        matches!(&shape.shape, egui::Shape::Rect(rect)
+            if rect.rect == frame_rect && rect.stroke == style.visuals.selection.stroke
+                && shape.clip_rect.contains_rect(frame_rect))
+    });
+    assert!(visible_frame);
     let baseline = app.project.content_baseline();
     frame(
         &ctx,
@@ -504,7 +563,6 @@ fn synthetic_ime_commit_enter_escape_do_not_close_or_apply_association() {
     assert!(state.plan.is_none());
     assert_eq!(app.project.content_baseline(), baseline);
 }
-
 #[test]
 fn entity_migration_is_visible_and_part_of_the_single_project_undo() {
     let (ctx, mut app) = fixture();

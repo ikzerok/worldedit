@@ -20,3 +20,7 @@ const APPLY: &str = "确认迁移并应用所列完整稿";
 const BODY: &str = "hello tide\nsecond line";
 
 const NORMAL_READ: &str = "语句预览阅读区 · ↑↓滚动";
+
+mod reading_window;
+
+mod world_link_reading;

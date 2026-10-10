@@ -69,6 +69,20 @@ impl WorldeditApp {
             }
 
             let top = self.command_palette.focus_stack.last().map(|entry| entry.0);
+            if top == Some("object-reading") {
+                if ctx.memory(|memory| memory.top_modal_layer().is_some()) {
+                    return;
+                }
+                if !self.auxiliary_ime_active(ctx)
+                    && ctx.input(|input| input.modifiers == egui::Modifiers::NONE)
+                    && ctx.input_mut(|input| {
+                        input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)
+                    })
+                {
+                    self.close_reading_from_keyboard(ctx);
+                }
+                return;
+            }
             if self.tab == crate::app::Tab::Manuscript
                 && self.manuscript.close_dialogue_on_escape(ctx)
             {
