@@ -1,20 +1,41 @@
 use super::world_links::{Kind, State};
 use super::world_links_layout::{FocusReveal, WindowLayout};
+use crate::app::writing_workspace::preview_navigation as shared;
 use crate::app::{object_picker, WorldeditApp};
 use crate::theme;
 
 impl WorldeditApp {
     pub(super) fn draw_manuscript_world_links(&mut self, ctx: &egui::Context) {
+        self.sync_edit_layers(ctx);
+        let layer = super::world_links_layout::layer();
+        let cycle_key = egui::Id::new(("world-link-focus-cycle", &self.project.root));
+        let top = self.edit_layer_is_top("world-links");
         let Some(mut state) = self.manuscript.world_links.take() else {
+            shared::clear_transient_host(ctx, layer);
+            shared::FocusCycle::clear(ctx, cycle_key);
             return;
         };
         if !state.open {
+            shared::clear_transient_host(ctx, layer);
+            shared::FocusCycle::clear(ctx, cycle_key);
             self.manuscript.world_links = Some(state);
             return;
         }
         self.refresh_world_link_catalog(&mut state);
         let blocked = self.world_links_input_blocked(ctx);
-        let focus = FocusReveal::for_frame(ctx, blocked);
+        let active = top
+            && !blocked
+            && !self.auxiliary_ime_active(ctx)
+            && ctx.input(|input| input.focused)
+            && !egui::Popup::is_any_open(ctx)
+            && ctx.memory(|memory| memory.top_modal_layer().is_none());
+        shared::transient_host(ctx, Some((layer, active)));
+        let focus = FocusReveal::for_frame(ctx, !active, state.plan.is_some());
+        let mut cycle = shared::FocusCycle::load(ctx, cycle_key);
+        cycle.advance(ctx, active);
+        let mut reader = None;
+        let mut safe_return = None;
+        let mut content_ids = Vec::new();
         let layout = WindowLayout::new(ctx);
         let mut open = true;
         let mut close = false;
@@ -34,7 +55,7 @@ impl WorldeditApp {
         {
             close = true;
         }
-        egui::Window::new("关联世界资料")
+        let window = egui::Window::new("关联世界资料")
             .id(egui::Id::new("manuscript-world-links"))
             .open(&mut open)
             .default_width(560.0)
@@ -53,44 +74,41 @@ impl WorldeditApp {
                 if !layout.compact {
                     draw_origin(ui, &self.project.root, &state);
                     ui.horizontal_wrapped(|ui| {
-                        close |= return_button(ui, blocked).clicked();
-                        refresh_selection |= crate::theme::add_enabled(
-                            ui,
-                            !blocked,
-                            egui::Button::new("改用当前选区"),
-                        )
-                        .clicked();
+                        let response = return_button(ui, blocked, focus);
+                        cycle.initial(&response, active);
+                        safe_return = Some(response.clone());
+                        close |= response.clicked();
+                        refresh_selection |= focus
+                            .add(ui, !blocked, egui::Button::new("改用当前选区"))
+                            .clicked();
                     });
                     ui.separator();
                 }
                 ui.horizontal_wrapped(|ui| {
                     if layout.compact {
-                        close |= return_button(ui, blocked).clicked();
+                        let response = return_button(ui, blocked, focus);
+                        cycle.initial(&response, active);
+                        safe_return = Some(response.clone());
+                        close |= response.clicked();
                     }
-                    preview =
-                        crate::theme::add_enabled(ui, !blocked, egui::Button::new("预览关联计划"))
-                            .clicked();
+                    preview = focus
+                        .add(ui, !blocked, egui::Button::new("预览关联计划"))
+                        .clicked();
                     if let Some(plan) = &state.plan {
                         let label = if plan.creates_object() {
                             "应用这组关联草稿"
                         } else {
                             "插入引用到正文草稿"
                         };
-                        apply = crate::theme::add_enabled(
-                            ui,
-                            !blocked && plan.can_apply,
-                            theme::primary(label),
-                        )
-                        .clicked();
+                        apply = focus
+                            .add(ui, !blocked && plan.can_apply, theme::primary(label))
+                            .clicked();
                     }
                     if layout.compact {
                         ui.menu_button("更多", |ui| {
-                            refresh_selection |= crate::theme::add_enabled(
-                                ui,
-                                !blocked,
-                                egui::Button::new("改用当前选区"),
-                            )
-                            .clicked();
+                            refresh_selection |= focus
+                                .add(ui, !blocked, egui::Button::new("改用当前选区"))
+                                .clicked();
                             if refresh_selection {
                                 ui.close();
                             }
@@ -109,73 +127,129 @@ impl WorldeditApp {
                     .max_height(super::world_links_layout::scroll_height(ui))
                     .min_scrolled_height(0.0)
                     .animated(false)
-                    .show(ui, |ui| {
-                        if layout.compact {
-                            let origin = egui::CollapsingHeader::new("固定选区与来源")
-                                .id_salt("world-link-origin")
-                                .show(ui, |ui| draw_origin(ui, &self.project.root, &state));
-                            focus.reveal(ui, &origin.header_response);
-                        }
-                        let kind_before = state.kind;
-                        crate::theme::add_enabled_ui(ui, !blocked, |ui| {
-                            ui.horizontal_wrapped(|ui| {
-                                let response = ui.selectable_value(
-                                    &mut state.kind,
-                                    Kind::Existing,
-                                    "关联已有资料",
-                                );
-                                focus.reveal(ui, &response);
-                                let response = ui.selectable_value(
-                                    &mut state.kind,
-                                    Kind::Character,
-                                    "新建人物",
-                                );
-                                focus.reveal(ui, &response);
-                                let response = ui.selectable_value(
-                                    &mut state.kind,
-                                    Kind::Entity,
-                                    "新建实体资料",
-                                );
-                                focus.reveal(ui, &response);
-                            });
+                    .show_viewport(ui, |ui, relative| {
+                        let outside: Vec<_> = ctx.viewport(|v| {
+                            v.this_pass
+                                .widgets
+                                .get_layer(ui.layer_id())
+                                .map(|w| w.id)
+                                .collect()
                         });
-                        if kind_before != state.kind {
-                            state.plan = None;
-                            state.touched |= state.kind != Kind::Existing;
+                        let viewport = shared::viewport(ui, relative).intersect(ui.clip_rect());
+                        if state.plan.is_some() {
+                            ui.set_clip_rect(viewport);
                         }
-                        match state.kind {
-                            Kind::Existing => {
-                                peek = draw_existing(
+                        let mut reader_delta = egui::Vec2::ZERO;
+                        // Real layout padding keeps the actual 2px focus outline
+                        // inside this domain; do not clamp a surrogate rectangle.
+                        egui::Frame::NONE.inner_margin(2).show(ui, |ui| {
+                            if layout.compact {
+                                let origin = egui::CollapsingHeader::new("固定选区与来源")
+                                    .id_salt("world-link-origin")
+                                    .show(ui, |ui| draw_origin(ui, &self.project.root, &state));
+                                focus.reveal(ui, &origin.header_response);
+                            }
+                            let kind_before = state.kind;
+                            crate::theme::add_enabled_ui(ui, !blocked, |ui| {
+                                ui.horizontal_wrapped(|ui| {
+                                    let response = ui.selectable_value(
+                                        &mut state.kind,
+                                        Kind::Existing,
+                                        "关联已有资料",
+                                    );
+                                    focus.reveal(ui, &response);
+                                    let response = ui.selectable_value(
+                                        &mut state.kind,
+                                        Kind::Character,
+                                        "新建人物",
+                                    );
+                                    focus.reveal(ui, &response);
+                                    let response = ui.selectable_value(
+                                        &mut state.kind,
+                                        Kind::Entity,
+                                        "新建实体资料",
+                                    );
+                                    focus.reveal(ui, &response);
+                                });
+                            });
+                            if kind_before != state.kind {
+                                state.plan = None;
+                                state.touched |= state.kind != Kind::Existing;
+                            }
+                            match state.kind {
+                                Kind::Existing => {
+                                    peek = draw_existing(
+                                        ui,
+                                        &self.project.root,
+                                        &mut state,
+                                        blocked,
+                                        focus,
+                                    );
+                                }
+                                _ => {
+                                    self.draw_new_world_link(ui, &mut state, blocked, focus);
+                                }
+                            }
+                            let focus_result = std::mem::take(&mut state.focus_result);
+                            if let Some(error) = &state.error {
+                                let response = ui.colored_label(theme::ERROR(), error);
+                                if focus_result {
+                                    ui.scroll_to_rect(response.rect, Some(egui::Align::Min));
+                                }
+                            }
+                            if let Some(plan) = &state.plan {
+                                ui.separator();
+                                let step = egui::vec2(
+                                    0.0,
+                                    ui.text_style_height(&egui::TextStyle::Body) * 3.0,
+                                );
+                                let (response, delta) = shared::reading_deferred(
+                                    ui,
+                                    shared::Reader {
+                                        identity: egui::Id::new((
+                                            "world-link-preview-reader",
+                                            &state.selection.path,
+                                            &plan.plan_digest,
+                                        )),
+                                        label: "关联预览阅读区 · ↑↓滚动",
+                                        viewport,
+                                        enabled: active,
+                                        horizontal: false,
+                                        vertical: true,
+                                        step,
+                                        escape: false,
+                                    },
+                                );
+                                reader = Some(response.id);
+                                reader_delta = delta;
+                                super::world_links_plan::draw(
                                     ui,
                                     &self.project.root,
-                                    &mut state,
-                                    blocked,
+                                    plan,
+                                    focus_result,
                                     focus,
                                 );
                             }
-                            _ => {
-                                self.draw_new_world_link(ui, &mut state, blocked, focus);
-                            }
-                        }
-                        let focus_result = std::mem::take(&mut state.focus_result);
-                        if let Some(error) = &state.error {
-                            let response = ui.colored_label(theme::ERROR(), error);
-                            if focus_result {
-                                ui.scroll_to_rect(response.rect, Some(egui::Align::Min));
-                            }
-                        }
-                        if let Some(plan) = &state.plan {
-                            ui.separator();
-                            super::world_links_plan::draw(
-                                ui,
-                                &self.project.root,
-                                plan,
-                                focus_result,
-                                focus,
-                            );
+                            focus.reveal_focused(ui, reader, &outside);
+                        });
+                        if reader_delta != egui::Vec2::ZERO {
+                            ui.scroll_with_delta(reader_delta);
                         }
                     });
+                content_ids =
+                    ctx.viewport(|v| v.this_pass.widgets.get_layer(layer).map(|w| w.id).collect());
             });
+        if active {
+            if let Some(window) = window.as_ref() {
+                shared::outline_shell(ctx, layer, window.response.rect, &content_ids);
+            }
+        }
+        if let Some(response) = &safe_return {
+            cycle.restore_invalidated(ctx, active, response);
+        }
+        shared::FocusCycle::bind_primary_click(ctx, layer, active);
+        cycle.finish(ctx, layer, active, reader);
+        cycle.store(ctx, cycle_key);
         if refresh_selection {
             match self.capture_world_link_selection(ctx) {
                 Ok((source, selection, generation, baseline, origin)) => {
@@ -194,6 +268,8 @@ impl WorldeditApp {
             self.preview_manuscript_world_link(&mut state);
         }
         if apply && self.apply_manuscript_world_link(ctx, &mut state) {
+            shared::clear_transient_host(ctx, layer);
+            shared::FocusCycle::clear(ctx, cycle_key);
             return;
         }
         if peek {
@@ -220,8 +296,14 @@ impl WorldeditApp {
             self.return_world_link_origin(ctx, &state);
         }
         if clear {
+            shared::clear_transient_host(ctx, layer);
+            shared::FocusCycle::clear(ctx, cycle_key);
             self.return_world_link_origin(ctx, &state);
             return;
+        }
+        if !state.open {
+            shared::clear_transient_host(ctx, layer);
+            shared::FocusCycle::clear(ctx, cycle_key);
         }
         self.manuscript.world_links = Some(state);
     }
@@ -403,7 +485,7 @@ fn draw_existing(
     if let Some(target) = &state.chosen {
         ui.horizontal_wrapped(|ui| {
             ui.label(egui::RichText::new(format!("已选择 {}:{}", target.kind, target.id)).strong());
-            let response = crate::theme::add_enabled(ui, !blocked, egui::Button::new("旁查资料"));
+            let response = focus.add(ui, !blocked, egui::Button::new("旁查资料"));
             focus.reveal(ui, &response);
             peek = response.clicked();
         });
@@ -419,8 +501,8 @@ fn draw_origin(ui: &mut egui::Ui, root: &std::path::Path, state: &State) {
     )));
 }
 
-fn return_button(ui: &mut egui::Ui, blocked: bool) -> egui::Response {
-    crate::theme::add_enabled(ui, !blocked, egui::Button::new("返回正文，保留输入"))
+fn return_button(ui: &mut egui::Ui, blocked: bool, focus: FocusReveal) -> egui::Response {
+    focus.add(ui, !blocked, egui::Button::new("返回正文，保留输入"))
 }
 
 fn clear_input(ui: &mut egui::Ui, touched: bool, blocked: bool) -> bool {

@@ -57,7 +57,11 @@ pub(super) fn frame(
                 6 => app.preset_editor_window(ctx),
                 7 => app.review_tab(ctx),
                 16 => app.review_tab(ctx),
-                8 | 9 => app.reading_window(ctx),
+                8 | 9 => {
+                    // Match the real App's input routing before drawing this host.
+                    app.author_shortcuts(ctx);
+                    app.reading_window(ctx);
+                }
                 11 => app.source_tab(ctx),
                 13 => app.manuscript_tab(ctx),
                 17 | 19 => app.template_manager_tab(ctx),

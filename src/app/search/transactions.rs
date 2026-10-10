@@ -145,6 +145,10 @@ impl WorldeditApp {
         Ok(())
     }
     pub(in crate::app) fn search_draft_undo(&mut self, forward: bool) -> bool {
+        if self.manuscript.has_dialogue_input() {
+            self.io_error = Some("仍有未插入的对白输入，先处理此句后再撤销/重做文件草稿".into());
+            return true;
+        }
         let stack = if forward {
             &self.search_state.redo
         } else {

@@ -82,9 +82,20 @@ impl super::super::WorldeditApp {
         })
         .inner;
         let scroll_salt = ("manuscript-main", book, Some(chapter));
+        // A live typed form must reveal its real focused field/diagnostic on the
+        // requested next paint. egui's animated target is applied after creating
+        // the content Ui, even with zero animation duration; ordinary writing,
+        // search restoration and other modes retain their existing scroll policy.
+        let immediate_form = !read_only
+            && self.manuscript.writing_view.uses_immediate_dialogue_scroll(
+                &self.project,
+                buffer,
+                target,
+            );
         let mut scroll = egui::ScrollArea::vertical()
             .id_salt(scroll_salt)
             .auto_shrink([false, false])
+            .animated(!immediate_form)
             .min_scrolled_height(0.0);
         let restored_scroll = self.manuscript.pending_scroll.take();
         if let Some(offset) = restored_scroll {

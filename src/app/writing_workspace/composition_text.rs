@@ -36,11 +36,14 @@ fn editor_id(key: &prose::RetainedKey, mode: Mode) -> egui::Id {
 impl ViewState {
     pub(in crate::app) fn needs_input_rescue(
         &self,
+        ctx: &egui::Context,
         target: Option<&TargetRef>,
         read_only: bool,
         hidden: bool,
     ) -> bool {
-        self.composing_inputs.iter().any(|(key, input)| {
+        self.dialogue_receiver_key(ctx).is_some_and(|key| {
+            read_only || hidden || target != Some(&key.target) || self.mode != Mode::Prose
+        }) || self.composing_inputs.iter().any(|(key, input)| {
             read_only || hidden || target != Some(&key.target) || input.mode != self.mode
         })
     }
@@ -61,6 +64,7 @@ impl ViewState {
         buffers: &std::collections::HashMap<std::path::PathBuf, WritingBuffer>,
         typography: Typography,
     ) {
+        super::dialogue::retained::rescue(ui, self, typography);
         let owners: std::collections::BTreeSet<_> = self
             .composing_inputs
             .iter()

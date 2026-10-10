@@ -1,14 +1,19 @@
 //! 正文、结构与源码共用 core 按文件唯一的 WritingBuffer。
 mod composition_text;
 mod context_selection;
+mod dialogue;
 mod editors;
 mod input;
 mod input_registry;
+mod modes;
+pub(in crate::app) mod preview_navigation;
 pub(in crate::app) use input_registry::register_input;
 mod projection_cache;
 mod prose;
 mod session;
 mod text_undo;
+mod toolbar_layout;
+mod toolbar_menu;
 use crate::theme;
 pub(in crate::app) use session::fingerprint;
 pub(super) use session::WritingCursor;
@@ -53,6 +58,10 @@ pub(super) struct ViewState {
     composing_inputs:
         std::collections::BTreeMap<prose::RetainedKey, composition_text::PendingInput>,
     retained_clear_confirm: Option<prose::RetainedKey>,
+    dialogue: dialogue::State,
+    mode_request: Option<modes::Request>,
+    prose_return_cursor: Option<WritingCursor>,
+    frame_input_owner: Option<(u64, Option<egui::Id>)>,
 }
 
 #[derive(Default)]
@@ -63,6 +72,11 @@ pub(super) struct Action {
     pub source_mode: bool,
     pub discard: bool,
     pub error: Option<String>,
+    pub dialogue_plan: Option<worldline_core::manuscript::DialogueEditPlan>,
+    pub dialogue_continue: bool,
+    pub reference: Option<TargetRef>,
+    pub production: bool,
+    pub create_character: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -88,21 +102,18 @@ pub(super) fn draw_controls(
     let input_busy = view.ime_active;
     let mut action = Action::default();
     let previous_mode = view.mode;
-    let narrow = ui.ctx().screen_rect().width() < 600.0 || ui.ctx().screen_rect().height() < 420.0;
     let compact_title = typography.compact && theme::style_preset() != theme::StylePreset::Ledger;
+    let heading_width = toolbar_layout::heading_width(ui, title, compact_title);
+    let layout = toolbar_layout::choose(ui, heading_width, view.mode);
+    let narrow = matches!(
+        layout,
+        toolbar_layout::Layout::Modes | toolbar_layout::Layout::Compact
+    );
     ui.horizontal_wrapped(|ui| {
         let identity = format!("{}:{}", target.kind, target.id);
         let heading = if compact_title {
-            let font = egui::TextStyle::Heading.resolve(ui.style());
-            let natural = ui.fonts(|fonts| {
-                fonts
-                    .layout_no_wrap(title.to_owned(), font, theme::TEXT())
-                    .size()
-                    .x
-            });
-            let width = natural.min((ui.available_width() * 0.25).clamp(72.0, 180.0));
             ui.add_sized(
-                [width, ui.spacing().interact_size.y],
+                [heading_width, ui.spacing().interact_size.y],
                 egui::Label::new(egui::RichText::new(title).heading().strong()).truncate(),
             )
         } else {
@@ -117,40 +128,34 @@ pub(super) fn draw_controls(
                 }
             });
         if narrow {
-            // This menu includes a two-step discard confirmation. egui menus
-            // otherwise close on every click, hiding the second step immediately.
-            egui::containers::menu::MenuButton::new("正文工具")
-                .config(
-                    egui::containers::menu::MenuConfig::default()
-                        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
-                )
-                .ui(ui, |ui| {
-                    let discard_was_pending = view.discard_confirm.is_some();
-                    ui.set_max_width((ui.ctx().screen_rect().width() - 32.0).min(360.0));
-                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-                    egui::ScrollArea::vertical()
-                        .max_height(220.0)
-                        .show(ui, |ui| {
-                            draw_actions(ui, buffer, view, input_busy, &mut action);
-                            draw_status(ui, project, buffer, view, input_busy, &mut action, true);
-                        });
-                    if previous_mode != view.mode
-                        || action.apply
-                        || action.discard
-                        || action.comment
-                        || action.world_link
-                        || (discard_was_pending && view.discard_confirm.is_none())
-                    {
-                        ui.close();
-                    }
-                });
-            ui.label(theme::muted(if buffer.is_changed() {
-                "未应用"
-            } else {
-                "已应用"
-            }));
+            if layout == toolbar_layout::Layout::Modes {
+                draw_modes(ui, buffer, target, view, input_busy);
+            }
+            toolbar_menu::draw(
+                ui,
+                project,
+                buffer,
+                target,
+                view,
+                input_busy,
+                &mut action,
+                layout == toolbar_layout::Layout::Compact,
+            );
+            if layout == toolbar_layout::Layout::Compact {
+                ui.label(theme::muted(if buffer.is_changed() {
+                    "未应用"
+                } else {
+                    "已应用"
+                }));
+            }
         } else {
-            draw_actions(ui, buffer, view, input_busy, &mut action);
+            draw_modes(ui, buffer, target, view, input_busy);
+            draw_actions(ui, buffer, target, view, input_busy, &mut action);
+            if layout == toolbar_layout::Layout::Full {
+                dialogue::toolbar(ui, buffer, target, view, &mut action, input_busy);
+            } else {
+                dialogue::toolbar_menu(ui, buffer, target, view, &mut action, input_busy);
+            }
         }
     });
     if previous_mode != view.mode {
@@ -161,6 +166,7 @@ pub(super) fn draw_controls(
             ui,
             project,
             buffer,
+            target,
             view,
             input_busy,
             &mut action,
@@ -170,47 +176,63 @@ pub(super) fn draw_controls(
     action
 }
 
+fn draw_modes(
+    ui: &mut egui::Ui,
+    buffer: &WritingBuffer,
+    target: &TargetRef,
+    view: &mut ViewState,
+    input_busy: bool,
+) {
+    crate::theme::add_enabled_ui(ui, !input_busy, |ui| {
+        for (mode, label) in [
+            (Mode::Prose, "写作"),
+            (Mode::Structure, "结构"),
+            (Mode::Source, "源码"),
+        ] {
+            let response = ui.selectable_label(view.mode == mode, label);
+            view.protect_toolbar_input(ui, &response, buffer, target);
+            if response.clicked() {
+                view.request_mode(ui.ctx(), buffer, target, mode);
+            }
+        }
+    });
+}
+
 fn draw_actions(
     ui: &mut egui::Ui,
     buffer: &WritingBuffer,
+    target: &TargetRef,
     view: &mut ViewState,
     input_busy: bool,
     action: &mut Action,
 ) {
-    crate::theme::add_enabled_ui(ui, !input_busy, |ui| {
-        ui.selectable_value(&mut view.mode, Mode::Prose, "写作");
-        ui.selectable_value(&mut view.mode, Mode::Structure, "结构");
-        ui.selectable_value(&mut view.mode, Mode::Source, "源码");
-    });
-    if crate::theme::add_enabled(
+    let apply = crate::theme::add_enabled(
         ui,
         buffer.is_changed() && !input_busy && !view.has_retained_for(buffer.path()),
-        egui::Button::new(if view.mode == Mode::Source {
-            "应用源码草稿（可含诊断）"
-        } else {
-            "应用正文草稿"
-        }),
-    )
-    .clicked()
-    {
+        egui::Button::new(toolbar_layout::apply_label(view.mode)),
+    );
+    view.protect_toolbar_input(ui, &apply, buffer, target);
+    if apply.clicked() {
         action.apply = true;
         action.source_mode = view.mode == Mode::Source;
     }
-    if crate::theme::add_enabled(
+    let discard = crate::theme::add_enabled(
         ui,
-        buffer.is_changed() && !input_busy,
+        (buffer.is_changed() || view.has_retained_for(buffer.path())) && !input_busy,
         egui::Button::new("丢弃此文件草稿"),
-    )
-    .clicked()
-    {
+    );
+    view.protect_toolbar_input(ui, &discard, buffer, target);
+    if discard.clicked() {
         view.discard_confirm = Some(buffer.path().to_owned());
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_status(
     ui: &mut egui::Ui,
     project: &Project,
-    buffer: &WritingBuffer,
+    buffer: &mut WritingBuffer,
+    target: &TargetRef,
     view: &mut ViewState,
     input_busy: bool,
     action: &mut Action,
@@ -231,18 +253,25 @@ fn draw_status(
             "正文与当前工程一致"
         }));
         ui.menu_button("选词工具", |ui| {
-            if crate::theme::add_enabled(ui, !input_busy, egui::Button::new("关联世界资料…"))
-                .on_hover_text("选择正文文字，检索已有资料或创建正式人物 / 实体并关联")
-                .clicked()
+            if crate::theme::add_enabled(
+                ui,
+                !input_busy && !view.dialogue_selection_focused(ui.ctx()),
+                egui::Button::new("关联世界资料…"),
+            )
+            .on_hover_text("选择正文文字，检索已有资料或创建正式人物 / 实体并关联")
+            .clicked()
             {
                 action.world_link = true;
                 ui.close();
             }
         });
-        if ui
-            .small_button("批注选区")
-            .on_hover_text("为当前选区添加批注：先预览完整源码行，不自动应用或保存")
-            .clicked()
+        if crate::theme::add_enabled(
+            ui,
+            !input_busy && !view.dialogue_selection_focused(ui.ctx()),
+            egui::Button::new("批注选区").small(),
+        )
+        .on_hover_text("为当前选区添加批注：先预览完整源码行，不自动应用或保存")
+        .clicked()
         {
             action.comment = true;
         }
@@ -253,13 +282,16 @@ fn draw_status(
             "将丢弃此源文件所有章节的未应用输入，工程原文不变。",
         );
         ui.horizontal_wrapped(|ui| {
-            if crate::theme::add_enabled(ui, !input_busy, egui::Button::new("确认丢弃正文草稿"))
-                .clicked()
-            {
+            let confirm =
+                crate::theme::add_enabled(ui, !input_busy, egui::Button::new("确认丢弃正文草稿"));
+            view.protect_toolbar_input(ui, &confirm, buffer, target);
+            if confirm.clicked() {
                 action.discard = true;
                 view.discard_confirm = None;
             }
-            if ui.button("取消丢弃").clicked() {
+            let cancel = ui.button("取消丢弃");
+            view.protect_toolbar_input(ui, &cancel, buffer, target);
+            if cancel.clicked() {
                 view.discard_confirm = None;
             }
         });
@@ -269,6 +301,17 @@ fn draw_status(
             theme::ERROR(),
             "工程基线已变化；草稿完整保留，不能覆盖新内容。",
         );
+        if !buffer.is_changed() && view.dialogue_retained_for(buffer.path()) {
+            let reload = crate::theme::add_enabled(
+                ui,
+                !input_busy,
+                egui::Button::new("载入已应用原文，保留对白字段"),
+            );
+            view.protect_toolbar_input(ui, &reload, buffer, target);
+            if reload.clicked() {
+                view.request_reload(ui.ctx(), buffer, target);
+            }
+        }
     }
 }
 
@@ -283,6 +326,12 @@ pub(super) fn draw_document(
     typography: Typography,
     action: &mut Action,
 ) {
+    let input_scope = view.mode_input_scope(ui, buffer, target);
+    // Only geometry: the ordinary body gains no focus stop or key handler.
+    view.dialogue.viewport = Some(
+        egui::Rect::from_x_y_ranges(ui.max_rect().x_range(), ui.clip_rect().y_range())
+            .intersect(ui.clip_rect()),
+    );
     let width = if view.mode == Mode::Prose {
         typography.width
     } else {
@@ -297,4 +346,10 @@ pub(super) fn draw_document(
         }
         editors::draw(ui, project, buffer, target, view, typography, action);
     });
+    drop(input_scope);
+    if ui.is_enabled() {
+        view.finish_toolbar_request(ui.ctx(), project, buffer, target, action);
+    } else {
+        view.mode_request = None;
+    }
 }

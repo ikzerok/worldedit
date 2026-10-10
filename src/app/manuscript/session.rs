@@ -4,6 +4,7 @@ use super::*;
 #[serde(default)]
 pub(in crate::app) struct ManuscriptSession {
     pub manuscript_id: Option<String>,
+    pub production_open: Option<bool>,
     pub selected_id: Option<String>,
     pub scroll_y: f32,
     pub review_scroll_y: Option<f32>,
@@ -15,6 +16,7 @@ pub(in crate::app) struct ManuscriptSession {
     pub preview_tab: Option<bool>,
     pub cursor: Option<crate::app::writing_workspace::WritingCursor>,
     pub mode: crate::app::writing_workspace::Mode,
+    pub dialogue_mode: Option<bool>,
     pub anchor: Option<WritingAnchor>,
     pub restore_offsets: Option<bool>,
     pub navigation: Option<super::navigation::NavigationSession>,
@@ -23,6 +25,7 @@ pub(in crate::app) struct ManuscriptSession {
 impl crate::app::WorldeditApp {
     pub(in crate::app) fn manuscript_session(&self) -> ManuscriptSession {
         ManuscriptSession {
+            production_open: Some(self.manuscript.production.open),
             navigation: Some({
                 let mut navigation = self.manuscript.navigation.session.clone();
                 navigation.layout = self.manuscript.layout;
@@ -38,6 +41,7 @@ impl crate::app::WorldeditApp {
             }),
             manuscript_id: self.manuscript.selected_book.clone(),
             mode: self.manuscript.writing_view.session_mode(),
+            dialogue_mode: Some(self.manuscript.writing_view.session_dialogue_mode()),
             scroll_y: self.manuscript.scroll_y,
             review_scroll_y: Some(self.manuscript.review_scroll_y),
             review_page_offset: Some(self.manuscript.review_page_offset),

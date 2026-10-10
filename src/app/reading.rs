@@ -4,6 +4,8 @@ mod context;
 pub(super) use context::ContextCache;
 mod compact;
 mod dock;
+mod keyboard;
+mod transient;
 use super::catalog::kind_label;
 use super::WorldeditApp;
 use crate::theme;
@@ -191,69 +193,6 @@ impl WorldeditApp {
             && !self.focus_style()
         {
             self.pinned_reading_windows(ctx);
-        }
-    }
-
-    fn transient_reading_window(&mut self, ctx: &egui::Context) {
-        let Some(target) = self.reading_target.clone() else {
-            return;
-        };
-        let mut open = true;
-        let mut keyboard_return = false;
-        egui::Window::new("Wiki · 注释索引")
-            .id(egui::Id::new("object-reading"))
-            .order(egui::Order::Foreground)
-            .open(&mut open)
-            .default_width(720.0)
-            .default_height(660.0)
-            .max_width((ctx.screen_rect().width() - 24.0).max(240.0))
-            .max_height((ctx.screen_rect().height() - 48.0).max(160.0))
-            .constrain_to(ctx.screen_rect().shrink(8.0))
-            .resizable(true)
-            .vscroll(true)
-            .show(ctx, |ui| {
-                if self.reading_return.is_some()
-                    && ui.input_mut(|input| {
-                        input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)
-                    })
-                {
-                    keyboard_return = true;
-                    return;
-                }
-                if crate::theme::add_enabled(
-                    ui,
-                    self.reading_panels.ids().len() < super::reading_state::PANEL_LIMIT,
-                    egui::Button::new("钉住旁查"),
-                )
-                .clicked()
-                {
-                    self.selected_reading_panel = self.reading_panels.pin(target.clone());
-                    self.personal.settings.references_visible = true;
-                    self.close_transient_reading();
-                }
-                if self.reading_return.is_some()
-                    && ui
-                        .button("返回源码编辑")
-                        .on_hover_text("Esc 也可返回")
-                        .clicked()
-                {
-                    self.return_to_source_edit(ctx);
-                    self.close_transient_reading();
-                }
-                if !self.reading_history.is_empty() && ui.button("← 返回上一词条").clicked()
-                {
-                    self.reading_target = self.reading_history.pop();
-                    self.alias_input.clear();
-                }
-                self.reading_content(ui, target);
-            });
-        if keyboard_return {
-            self.return_to_source_edit(ctx);
-            self.close_transient_reading();
-            return;
-        }
-        if !open {
-            self.close_transient_reading();
         }
     }
 
