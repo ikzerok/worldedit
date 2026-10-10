@@ -6,6 +6,7 @@ mod context_menu;
 mod cross_feature_undo;
 mod discard_lifecycle;
 mod edges;
+mod h08_probe;
 mod history_cases;
 mod history_guards;
 mod ime_visibility;

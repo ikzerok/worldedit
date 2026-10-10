@@ -36,6 +36,23 @@ fn press(ctx: &egui::Context, app: &mut WorldeditApp, key: egui::Key, shift: boo
     }
 }
 
+fn target_is_fully_visible(output: &egui::FullOutput) -> bool {
+    fn matches(shape: &egui::Shape, clip: egui::Rect) -> bool {
+        match shape {
+            egui::Shape::Text(text) => {
+                text.galley.text() == "稳定目标 character:traveler"
+                    && clip.contains_rect(text.galley.rect.translate(text.pos.to_vec2()))
+            }
+            egui::Shape::Vec(children) => children.iter().any(|child| matches(child, clip)),
+            _ => false,
+        }
+    }
+    output
+        .shapes
+        .iter()
+        .any(|shape| matches(&shape.shape, shape.clip_rect))
+}
+
 fn insert_existing_reference(ctx: &egui::Context, app: &mut WorldeditApp) {
     click(ctx, app, 13, "港口");
     click(ctx, app, 13, "源码");
@@ -126,11 +143,28 @@ fn insert_existing_reference(ctx: &egui::Context, app: &mut WorldeditApp) {
     let rendered = labels(&frame(ctx, app, vec![], 13));
     assert!(rendered.contains("已选择 character:traveler"), "{rendered}");
     click_body_output(ctx, app, "预览关联计划");
-    let rendered = labels(&frame(ctx, app, vec![], 13));
+    let mut result = frame(ctx, app, vec![], 13);
+    #[cfg(not(target_arch = "wasm32"))]
+    let unchanged = app.h08_world_link_preview_state();
+    let owner = ctx.memory(|memory| memory.focused());
+    if !target_is_fully_visible(&result) {
+        // ScrollArea commits result-reveal offsets after drawing its children.
+        // Honor exactly its requested host paint; never poll until an assertion passes.
+        assert_eq!(
+            result.viewport_output[&egui::ViewportId::ROOT].repaint_delay,
+            std::time::Duration::ZERO
+        );
+        result = frame(ctx, app, vec![], 13);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    assert_eq!(app.h08_world_link_preview_state(), unchanged);
+    assert_eq!(ctx.memory(|memory| memory.focused()), owner);
+    let rendered = labels(&result);
     assert!(
         rendered.contains("稳定目标 character:traveler"),
         "{rendered}"
     );
+    assert!(target_is_fully_visible(&result), "{rendered}");
     click_body_output(ctx, app, "插入引用到正文草稿");
     assert!(app.io_error.is_none(), "{:?}", app.io_error);
     assert!(!app.manuscript.world_links_open());
