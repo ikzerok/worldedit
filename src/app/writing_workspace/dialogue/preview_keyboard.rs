@@ -1,4 +1,4 @@
-//! 当前有效语句计划的局部导航；不登记为文字/IME 接收者，不接管其他编辑模式。
+//! 当前表单的局部几何；只有有效语句计划获得阅读与撤回导航资格。
 use super::*;
 use crate::app::writing_workspace::preview_navigation as shared;
 pub(super) use shared::available;
@@ -30,12 +30,13 @@ impl Navigation {
 #[derive(Clone)]
 struct Active {
     identity: egui::Id,
-    digest: String,
+    digest: Option<String>,
     migration: bool,
     ids: HashSet<egui::Id>,
     viewport: egui::Rect,
     layer: egui::LayerId,
     enabled: bool,
+    feedback_owner: Option<egui::Id>,
 }
 fn active_id() -> egui::Id {
     egui::Id::new("dialogue-migration-keyboard-scope")
@@ -48,9 +49,16 @@ pub(super) struct Scope {
     layer: egui::LayerId,
     enabled: bool,
     previous: Option<Active>,
+    feedback_owner: Option<egui::Id>,
 }
 impl Scope {
-    pub fn new(ui: &egui::Ui, key: &Key, viewport: egui::Rect, enabled: bool) -> Self {
+    pub fn new(
+        ui: &egui::Ui,
+        key: &Key,
+        viewport: egui::Rect,
+        enabled: bool,
+        feedback_owner: Option<egui::Id>,
+    ) -> Self {
         let previous = ui.ctx().data_mut(|data| {
             let previous = data.get_temp::<Active>(active_id());
             data.remove::<Active>(active_id());
@@ -66,38 +74,43 @@ impl Scope {
                 && viewport.width() > 16.0
                 && viewport.height() > 16.0,
             previous,
+            feedback_owner,
         }
     }
     pub fn sync(&self, plan: Option<&DialogueEditPlan>) {
         self.ctx.data_mut(|data| {
             let old = data.get_temp::<Active>(active_id());
-            data.remove::<Active>(active_id());
-            if let Some(plan) = plan {
-                let ids = old
-                    .filter(|active| active.digest == plan.plan_digest)
-                    .map(|active| active.ids)
-                    .unwrap_or_default();
-                data.insert_temp(
-                    active_id(),
-                    Active {
-                        identity: self.key.with(&plan.plan_digest),
-                        digest: plan.plan_digest.clone(),
-                        migration: plan.migration.is_some(),
-                        ids,
-                        viewport: self.viewport,
-                        layer: self.layer,
-                        enabled: self.enabled,
-                    },
-                );
-            }
+            let digest = plan.map(|plan| plan.plan_digest.clone());
+            let ids = old
+                .filter(|active| digest.is_some() && active.digest == digest)
+                .map(|active| active.ids)
+                .unwrap_or_default();
+            // Geometry belongs to this live form, even before a valid plan exists.
+            // None still clears every plan-owned navigation credential.
+            data.insert_temp(
+                active_id(),
+                Active {
+                    identity: digest
+                        .as_ref()
+                        .map_or(self.key, |digest| self.key.with(digest)),
+                    digest,
+                    migration: plan.is_some_and(|plan| plan.migration.is_some()),
+                    ids,
+                    viewport: self.viewport,
+                    layer: self.layer,
+                    enabled: self.enabled,
+                    feedback_owner: self.feedback_owner,
+                },
+            );
         });
     }
     pub fn finish(&self, navigation: &mut Navigation) {
         let active = self.ctx.data(|data| data.get_temp::<Active>(active_id()));
         let return_to_preview = navigation.return_to_preview;
         *navigation = active
+            .filter(|active| active.digest.is_some())
             .map(|active| Navigation {
-                digest: Some(active.digest),
+                digest: active.digest,
                 ids: active.ids,
                 frame: Some(self.ctx.cumulative_frame_nr()),
                 return_to_preview,
@@ -123,21 +136,23 @@ pub(super) fn control(ui: &egui::Ui, response: egui::Response) -> egui::Response
     if let Some(active) =
         active.filter(|active| active.enabled && active.layer == response.layer_id)
     {
-        ui.ctx().data_mut(|data| {
-            let mut active = active.clone();
-            active.ids.insert(response.id);
-            data.insert_temp(active_id(), active);
-        });
-        reveal(ui, &response, true);
+        if active.digest.is_some() {
+            ui.ctx().data_mut(|data| {
+                let mut active = active.clone();
+                active.ids.insert(response.id);
+                data.insert_temp(active_id(), active);
+            });
+        }
+        reveal(ui, &response, active.feedback_owner != Some(response.id));
         if response.has_focus() && available(ui.ctx()) {
             ui.ctx().memory_mut(|memory| {
                 memory.set_focus_lock_filter(
                     response.id,
                     egui::EventFilter {
-                        escape: true,
+                        escape: active.digest.is_some(),
                         ..Default::default()
                     },
-                )
+                );
             });
         }
     }
@@ -145,15 +160,14 @@ pub(super) fn control(ui: &egui::Ui, response: egui::Response) -> egui::Response
 }
 /// Reveal the original TextEdit without admitting it to preview/Escape navigation.
 pub(super) fn text_control(ui: &egui::Ui, response: &egui::Response) {
-    if ui
-        .ctx()
-        .data(|data| data.get_temp::<Active>(active_id()))
-        .is_some_and(|active| active.enabled && active.layer == response.layer_id)
+    let active = ui.ctx().data(|data| data.get_temp::<Active>(active_id()));
+    if let Some(active) =
+        active.filter(|active| active.enabled && active.layer == response.layer_id)
     {
-        reveal(ui, response, true);
-        if response.has_focus() && available(ui.ctx()) {
-            // These formal fields use TextEdit's default arrows and Tab behavior.
-            // Only Escape is retained so the existing host can protect this same F.
+        reveal(ui, response, active.feedback_owner != Some(response.id));
+        if active.digest.is_some() && response.has_focus() && available(ui.ctx()) {
+            // TextEdit already installed its normal arrows/Tab policy. Retain
+            // Escape only for the existing valid-plan host cancellation path.
             ui.ctx().memory_mut(|memory| {
                 memory.set_focus_lock_filter(
                     response.id,
@@ -163,13 +177,17 @@ pub(super) fn text_control(ui: &egui::Ui, response: &egui::Response) {
                         escape: true,
                         ..Default::default()
                     },
-                )
+                );
             });
         }
     }
 }
 fn reveal(ui: &egui::Ui, response: &egui::Response, keep_visible: bool) {
-    shared::reveal(ui, response, keep_visible, true);
+    if keep_visible {
+        shared::reveal(ui, response, true, true);
+    } else if response.enabled() && response.has_focus() && available(ui.ctx()) {
+        shared::outline(ui, response.rect.expand(2.0));
+    }
 }
 
 pub(super) fn add(ui: &mut egui::Ui, enabled: bool, widget: impl egui::Widget) -> egui::Response {
@@ -191,7 +209,11 @@ pub(super) fn collapsing<R>(
     control(ui, response.header_response);
 }
 pub(super) fn reading(ui: &mut egui::Ui, line_height: f32) {
-    let Some(active) = ui.ctx().data(|data| data.get_temp::<Active>(active_id())) else {
+    let Some(active) = ui
+        .ctx()
+        .data(|data| data.get_temp::<Active>(active_id()))
+        .filter(|active| active.digest.is_some())
+    else {
         return;
     };
     let response = shared::reading(
@@ -217,5 +239,64 @@ pub(super) fn reading(ui: &mut egui::Ui, line_height: f32) {
             active.ids.insert(response.id);
             data.insert_temp(active_id(), active);
         });
+    }
+}
+
+/// Failed-preview positioning is local to this exact Form instance and receiver.
+/// It does not own keys, a plan digest or a second input buffer.
+#[derive(Default)]
+pub(super) struct Feedback {
+    owner: Option<egui::Id>,
+}
+impl Feedback {
+    pub fn requested(&mut self, ctx: &egui::Context) {
+        self.owner = ctx.memory(|memory| memory.focused());
+    }
+    pub fn owner(&mut self, ctx: &egui::Context, has_error: bool) -> Option<egui::Id> {
+        let editing = ctx.input(|input| {
+            input.events.iter().any(|event| match event {
+                egui::Event::Text(_) | egui::Event::Paste(_) | egui::Event::Cut => true,
+                egui::Event::Ime(egui::ImeEvent::Commit(_)) => true,
+                egui::Event::Ime(egui::ImeEvent::Preedit(text)) => !text.is_empty(),
+                egui::Event::Key {
+                    key,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } => {
+                    matches!(
+                        key,
+                        egui::Key::ArrowUp
+                            | egui::Key::ArrowDown
+                            | egui::Key::ArrowLeft
+                            | egui::Key::ArrowRight
+                            | egui::Key::Home
+                            | egui::Key::End
+                            | egui::Key::PageUp
+                            | egui::Key::PageDown
+                            | egui::Key::Backspace
+                            | egui::Key::Delete
+                            | egui::Key::Enter
+                            | egui::Key::Space
+                            | egui::Key::Tab
+                            | egui::Key::Escape
+                    ) || (modifiers.command
+                        && matches!(
+                            key,
+                            egui::Key::A
+                                | egui::Key::Z
+                                | egui::Key::Y
+                                | egui::Key::X
+                                | egui::Key::V
+                        ))
+                }
+                egui::Event::PointerButton { pressed: true, .. } => true,
+                _ => false,
+            })
+        });
+        if !has_error || editing || ctx.memory(|memory| memory.focused()) != self.owner {
+            self.owner = None;
+        }
+        self.owner
     }
 }

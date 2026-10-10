@@ -16,7 +16,8 @@ pub(super) fn draw(
     };
     let busy = view.ime_active;
     let viewport = view.dialogue.viewport.unwrap_or(ui.clip_rect());
-    let navigation = preview_keyboard::Scope::new(ui, key, viewport, !busy);
+    let feedback_owner = form.feedback.owner(ui.ctx(), form.error.is_some());
+    let navigation = preview_keyboard::Scope::new(ui, key, viewport, !busy, feedback_owner);
     navigation.sync(
         form.plan
             .as_ref()
@@ -46,10 +47,9 @@ pub(super) fn draw(
     let mut next = None;
     let mut preview_id = None;
     let mut result_requested = false;
+    let mut error_requested = false;
     ui.push_id(("dialogue-form", key), |ui| {
-        if form.plan.is_some() {
-            ui.set_clip_rect(viewport);
-        }
+        ui.set_clip_rect(viewport);
         ui.strong(&form.label);
         fields(
             ui,
@@ -103,6 +103,8 @@ pub(super) fn draw(
                     Err(error) => {
                         form.plan = None;
                         form.error = Some(error.to_string());
+                        form.feedback.requested(ui.ctx());
+                        error_requested = true;
                     }
                 }
             }
@@ -126,6 +128,8 @@ pub(super) fn draw(
                     Err(error) => {
                         form.plan = None;
                         form.error = Some(format!("{}：{}", error.code, error.message));
+                        form.feedback.requested(ui.ctx());
+                        error_requested = true;
                     }
                 }
             }
@@ -185,7 +189,13 @@ pub(super) fn draw(
             }
         }
         if let Some(error) = &form.error {
-            ui.add(egui::Label::new(egui::RichText::new(error).color(theme::ERROR())).wrap());
+            let result =
+                ui.add(egui::Label::new(egui::RichText::new(error).color(theme::ERROR())).wrap());
+            if error_requested && ui.is_enabled() && preview_keyboard::available(ui.ctx()) {
+                // Reveal the actual diagnostic once. Idle frames retain the original
+                // field owner without pulling it back over this feedback.
+                ui.scroll_to_rect(result.rect.expand(2.0), None);
+            }
         }
         if needs_rebind(&form, projection, &view.dialogue.statement_indices) {
             rebind(ui, &mut form, projection, !busy);
@@ -349,7 +359,7 @@ fn rebind(ui: &mut egui::Ui, form: &mut Form, projection: &DialogueProjection, e
     ui.colored_label(theme::WARNING(), "来源基线已变化；不会推断原语句的新位置。请明确选择当前接收语句或插入锚，再看完整前后预览。");
     theme::add_enabled_ui(ui, enabled, |ui| {
         let insert = matches!(form.request.operation, DialogueOperation::Insert { .. });
-        egui::ComboBox::from_id_salt("dialogue-explicit-rebind")
+        let candidate = egui::ComboBox::from_id_salt("dialogue-explicit-rebind")
             .selected_text(form.rebind.as_deref().unwrap_or("明确选择当前位置"))
             .show_ui(ui, |ui| {
                 if insert {
@@ -375,7 +385,8 @@ fn rebind(ui: &mut egui::Ui, form: &mut Form, projection: &DialogueProjection, e
                     }
                 }
             });
-        if ui.button("绑定到所选当前位置并重新核对").clicked() {
+        preview_keyboard::control(ui, candidate.response);
+        if preview_keyboard::button(ui, "绑定到所选当前位置并重新核对").clicked() {
             if let Some(id) = form.rebind.take() {
                 match &mut form.request.operation {
                     DialogueOperation::Insert { anchor_id, .. } => *anchor_id = id,

@@ -53,6 +53,7 @@ pub(super) struct Form {
     drawn_inputs: Vec<egui::Id>,
     refocus: bool,
     navigation: preview_keyboard::Navigation,
+    feedback: preview_keyboard::Feedback,
     ime: std::collections::HashMap<egui::Id, ime::ReceiverState>,
 }
 impl Form {
@@ -96,13 +97,7 @@ impl State {
     ) -> Result<Arc<DialogueProjection>, String> {
         // Project 内容应用/历史由宿主 recompile→invalidate_projection 失效；附件观察另绑无 IO 的 core 缓存键。
         // 稳定帧只读 core 缓存的完整 buffer 身份，不能按回滚后可重复的 generation 缓存。
-        let key = format!(
-            "{}|{}|{}:{}",
-            buffer.identity(),
-            project.catalog_scope_observation_key(),
-            target.kind,
-            target.id
-        );
+        let key = Self::projection_key(project, buffer, target);
         if self.cache_key != key || self.cache.is_none() {
             for form in self.forms.values_mut() {
                 form.navigation = Default::default();
@@ -132,6 +127,15 @@ impl State {
             self.cache_key = key;
         }
         self.cache.as_ref().expect("台词投影已建立").clone()
+    }
+    fn projection_key(project: &Project, buffer: &WritingBuffer, target: &TargetRef) -> String {
+        format!(
+            "{}|{}|{}:{}",
+            buffer.identity(),
+            project.catalog_scope_observation_key(),
+            target.kind,
+            target.id
+        )
     }
     fn begin(
         &mut self,
@@ -184,6 +188,7 @@ impl State {
                 drawn_inputs: Vec::new(),
                 refocus: false,
                 navigation: Default::default(),
+                feedback: Default::default(),
                 ime: Default::default(),
             },
         );
@@ -191,6 +196,23 @@ impl State {
     }
 }
 impl ViewState {
+    /// Match the live typed rendering branch, never a merely retained F in Source/prose.
+    /// Only cached UI/core identity is read; this does not compile or grant plan validity.
+    pub(in crate::app) fn uses_immediate_dialogue_scroll(
+        &self,
+        project: &Project,
+        buffer: &WritingBuffer,
+        target: &TargetRef,
+    ) -> bool {
+        self.mode == Mode::Prose
+            && self.retained_inputs.is_empty()
+            && self.composing_inputs.is_empty()
+            && self.dialogue.enabled
+            && matches!(target.kind.as_str(), "event" | "scene" | "fragment")
+            && self.dialogue.forms.contains_key(&Key::new(buffer, target))
+            && self.dialogue.cache.as_ref().is_some_and(Result::is_ok)
+            && self.dialogue.cache_key == State::projection_key(project, buffer, target)
+    }
     pub(in crate::app) fn has_dialogue_input(&self) -> bool {
         self.dialogue.forms.values().any(Form::protected)
     }

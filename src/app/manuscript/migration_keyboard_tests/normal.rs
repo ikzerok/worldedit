@@ -3,6 +3,7 @@ use super::*;
 use worldline_core::manuscript::{DialogueEditPlan, DialogueKind, DialogueOperation};
 mod appearance;
 mod flows;
+mod form_states;
 mod guards;
 mod reading;
 

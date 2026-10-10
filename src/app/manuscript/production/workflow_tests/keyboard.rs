@@ -6,6 +6,7 @@ mod harness;
 mod queries;
 mod reading;
 mod setup;
+mod states;
 use super::*;
 use egui::{Event, Key, Modifiers, Rect};
 use geometry::*;
