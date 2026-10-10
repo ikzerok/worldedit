@@ -44,6 +44,8 @@ impl eframe::App for WorldeditApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.sync_native_window_title(ctx);
         // Escape 可能在 author_shortcuts 取消准备；本帧其余快捷键仍不得穿透。
         let rehearsal_preparation = self.draft_rehearsal.preparation_blocks_frame(ctx);
         let closing = self.reader_app_close_pending();
@@ -138,13 +140,14 @@ impl eframe::App for WorldeditApp {
                             .collect::<std::io::Result<Vec<_>>>()
                     });
                 match scan {
-                    Ok(stamp) if stamp != self.disk_stamp => {
+                    Ok(stamp) if self.manuscript_refresh_required(stamp != self.disk_stamp) => {
                         let baseline = self.project.content_baseline();
                         let recovery_conflicts = self.project.recovery_conflicts().to_vec();
                         let had_draft = self.has_open_authoring_form();
                         match self.project.refresh() {
                             Ok(conflicts) => {
                                 self.disk_stamp = stamp;
+                                self.manuscript_observation_result(true);
                                 // 保存、触碰时间戳也会改变磁盘元数据；只有 core 确认
                                 // 缓冲变化、外部冲突或恢复安全状态变化时，才使版本失效。
                                 let editing_state_changed = self.project.content_baseline()
@@ -173,11 +176,17 @@ impl eframe::App for WorldeditApp {
                                     ));
                                 }
                             }
-                            Err(e) => self.io_error = Some(e),
+                            Err(e) => {
+                                self.manuscript_observation_result(false);
+                                self.io_error = Some(e);
+                            }
                         }
                     }
-                    Err(e) => self.io_error = Some(e.to_string()),
-                    _ => {}
+                    Err(e) => {
+                        self.manuscript_observation_result(false);
+                        self.io_error = Some(e.to_string());
+                    }
+                    Ok(_) => self.manuscript_observation_result(true),
                 }
             }
         }
@@ -211,6 +220,7 @@ impl eframe::App for WorldeditApp {
         self.poll_problems(ctx);
         self.poll_playthrough_report(ctx);
         self.poll_manuscript_delivery(ctx);
+        self.poll_production_script(ctx);
         self.top_bar(ctx);
         self.catalog_scope_return_bar(ctx);
         self.status_bar(ctx);
@@ -316,6 +326,8 @@ impl eframe::App for WorldeditApp {
                 && !self.allow_close,
         );
         self.capture_personal_view(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.sync_native_window_title(ctx);
         #[cfg(target_arch = "wasm32")]
         {
             self.personal.save_browser();

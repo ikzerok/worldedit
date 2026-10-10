@@ -47,6 +47,10 @@ impl super::super::WorldeditApp {
     }
 
     pub(super) fn apply_manuscript_body(&mut self, path: &std::path::Path, source_mode: bool) {
+        if self.manuscript.writing_view.has_retained_for(path) {
+            self.io_error = Some("此文件仍有未插入的对白或组合输入，请先处理；应用未执行".into());
+            return;
+        }
         let Some(body) = self.manuscript.writing_buffers.get(path) else {
             return;
         };

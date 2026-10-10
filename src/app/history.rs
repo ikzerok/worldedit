@@ -121,6 +121,9 @@ impl WorldeditApp {
 
     /// Validate everything on private candidates before consuming an edge or any input.
     pub(super) fn restore_history_step(&mut self, forward: bool) -> Result<bool, String> {
+        if self.manuscript.has_dialogue_input() {
+            return Err("仍有未插入的对白输入；工程撤销/重做不能覆盖它，请先纳入或明确取消".into());
+        }
         let stack = if forward { &self.redo } else { &self.history };
         let Some(edge) = stack.last() else {
             return Ok(false);

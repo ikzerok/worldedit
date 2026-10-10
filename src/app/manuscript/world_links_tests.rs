@@ -113,24 +113,29 @@ fn labels(output: &egui::FullOutput) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
-fn click(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) {
-    let mut output = frame(ctx, app, vec![]);
-    for _ in 0..2 {
-        output = frame(ctx, app, vec![]);
-    }
-    let pos = output
-        .shapes
-        .iter()
-        .find_map(|shape| {
-            let mut texts = Vec::new();
-            text_shapes(&shape.shape, &mut texts);
-            texts
-                .into_iter()
-                .filter(|text| text.galley.text() == label)
-                .map(|text| text.pos + text.galley.rect.center().to_vec2())
-                .find(|pos| shape.clip_rect.contains(*pos))
+fn control_position(
+    ctx: &egui::Context,
+    output: &egui::FullOutput,
+    label: &str,
+) -> Option<egui::Pos2> {
+    output.shapes.iter().find_map(|shape| {
+        let mut texts = Vec::new();
+        text_shapes(&shape.shape, &mut texts);
+        texts.into_iter().find_map(|text| {
+            let rect = text.galley.rect.translate(text.pos.to_vec2());
+            (text.galley.text() == label
+                && shape.clip_rect.contains_rect(rect)
+                && ctx.screen_rect().contains_rect(rect))
+            .then_some(rect.center())
         })
-        .unwrap_or_else(|| panic!("找不到按钮 {label}: {}", labels(&output)));
+    })
+}
+fn settled_controls(ctx: &egui::Context, app: &mut WorldeditApp) -> egui::FullOutput {
+    frame(ctx, app, vec![]);
+    frame(ctx, app, vec![]);
+    frame(ctx, app, vec![])
+}
+fn click_point(ctx: &egui::Context, app: &mut WorldeditApp, pos: egui::Pos2) {
     for pressed in [true, false] {
         frame(
             ctx,
@@ -146,6 +151,89 @@ fn click(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) {
             ],
         );
     }
+}
+fn click(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) {
+    let mut output = settled_controls(ctx, app);
+    // 只有这些已收拢的正文操作走渐进菜单；资料窗口等其它目标缺失仍立即失败。
+    let body_action = matches!(
+        label,
+        "选词工具"
+            | "应用正文草稿"
+            | "应用源码草稿（可含诊断）"
+            | "丢弃此文件草稿"
+            | "取消丢弃"
+            | "确认丢弃正文草稿"
+    );
+    if body_action && control_position(ctx, &output, label).is_none() {
+        assert_eq!(app.tab, Tab::Manuscript);
+        assert!(
+            !app.manuscript
+                .world_links
+                .as_ref()
+                .is_some_and(|state| state.open),
+            "不能从已打开的资料表单盲点背后的正文工具"
+        );
+        let key = egui::Id::new("world-links-test-open-body-tools");
+        let saved = ctx.data(|data| data.get_temp::<egui::Id>(key));
+        let popup = if let Some(id) = saved.filter(|id| egui::Popup::is_id_open(ctx, *id)) {
+            id
+        } else {
+            assert!(
+                !egui::Popup::is_any_open(ctx),
+                "不能关闭其它 popup 来寻找 {label}"
+            );
+            let pos = control_position(ctx, &output, "正文工具")
+                .unwrap_or_else(|| panic!("找不到可见正文工具以到达 {label}: {}", labels(&output)));
+            click_point(ctx, app, pos); // 只真实展开一轮，不写 popup 状态或编辑状态。
+            let id = ctx
+                .interaction_snapshot(|snapshot| snapshot.clicked)
+                .expect("须实际点到正文工具");
+            let response = ctx.read_response(id).expect("刚点击的正文工具必须实际存在");
+            let popup = egui::Popup::default_response_id(&response);
+            assert!(egui::Popup::is_id_open(ctx, popup));
+            ctx.data_mut(|data| data.insert_temp(key, popup));
+            output = settled_controls(ctx, app);
+            popup
+        };
+        for _ in 0..32 {
+            if control_position(ctx, &output, label).is_some() {
+                break;
+            }
+            assert!(
+                egui::Popup::is_id_open(ctx, popup),
+                "正文菜单已关闭：{label}"
+            );
+            let rect = ctx
+                .memory(|memory| memory.area_rect(popup))
+                .expect("真实正文 popup")
+                .intersect(ctx.screen_rect());
+            let pos = ["应用正文草稿", "应用源码草稿（可含诊断）", "丢弃此文件草稿"]
+                .iter()
+                .find_map(|label| control_position(ctx, &output, label))
+                .unwrap_or(egui::pos2(rect.center().x, rect.bottom() - 12.0));
+            assert_eq!(
+                ctx.layer_id_at(pos).map(|layer| layer.id),
+                Some(popup),
+                "滚轮必须确实命中已验证的正文 popup，不能滚其它窗口"
+            );
+            frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(pos),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: vec2(0.0, -24.0),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+            );
+            output = settled_controls(ctx, app);
+        }
+    }
+    let pos = control_position(ctx, &output, label)
+        .unwrap_or_else(|| panic!("找不到完整可见按钮 {label}: {}", labels(&output)));
+    click_point(ctx, app, pos);
 }
 fn key(key: egui::Key) -> Event {
     Event::Key {

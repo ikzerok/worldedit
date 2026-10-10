@@ -52,12 +52,24 @@ pub(super) fn draw(
         retained_notice(ui, view);
         return;
     }
+    // 正式字段没有旧 prose/source 组合输入待救援时，直接走独立缓存；
+    // 不为正式正文稳定帧再计算旧投影的全稿身份。
+    let formal_attempted = view.mode == Mode::Prose
+        && view.retained_inputs.is_empty()
+        && view.composing_inputs.is_empty();
+    if formal_attempted
+        && super::dialogue::draw(ui, project, buffer, target, view, typography, action)
+    {
+        retained_notice(ui, view);
+        return;
+    }
     let projection = match view.projection_cache.get(project, buffer, target) {
         Ok(projection) => projection,
         Err(error) => {
             view.pending_cursor = None;
             ui.colored_label(theme::ERROR(), &error);
             super::composition_text::rescue(ui, buffer, target, view, typography, &error, action);
+            super::dialogue::retained::rescue(ui, view, typography);
             if ui.button("在源码视图继续编辑").clicked() {
                 view.restore_mode(Mode::Source);
             }
@@ -116,6 +128,12 @@ pub(super) fn draw(
         view.record_cursor(ui, &output, buffer, target, offset, &source);
         link_context_menu(&output.response, view, action);
         view.pending_cursor = None;
+        retained_notice(ui, view);
+        return;
+    }
+    if !formal_attempted
+        && super::dialogue::draw(ui, project, buffer, target, view, typography, action)
+    {
         retained_notice(ui, view);
         return;
     }

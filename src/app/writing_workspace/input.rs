@@ -126,6 +126,15 @@ impl ViewState {
     }
 
     pub(in crate::app) fn begin_input(&mut self, ctx: &egui::Context) -> CompositionScope {
+        let frame = ctx.cumulative_frame_nr();
+        if self.frame_input_owner.as_ref().map(|(frame, _)| *frame) != Some(frame) {
+            // 编排元数据也会登记 TextEdit；先固定上帧真正的正文 owner，免被本帧重登记覆盖。
+            self.frame_input_owner = Some((
+                frame,
+                ctx.memory(|memory| memory.focused())
+                    .filter(|_| super::input_registry::owns_focus(ctx)),
+            ));
+        }
         self.composition.observe(ctx);
         self.ime_active = self.composition.blocks(ctx);
         if self.composition.composing_frame {

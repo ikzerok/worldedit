@@ -275,36 +275,55 @@ fn explicit_apply_then_new_regular_story_can_record_a_strict_formal_path() {
         .transcript
         .clone();
     app.return_rehearsal_origin(&ctx);
-    fn position(shape: &egui::Shape, label: &str) -> Option<egui::Pos2> {
+    fn position(shape: &egui::Shape, label: &str, clip: egui::Rect) -> Option<egui::Pos2> {
         match shape {
             egui::Shape::Text(text) if text.galley.job.text == label => {
-                Some(text.pos + text.galley.rect.center().to_vec2())
+                let rect = text.galley.rect.translate(text.pos.to_vec2());
+                clip.contains_rect(rect).then_some(rect.center())
             }
-            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| position(shape, label)),
+            egui::Shape::Vec(shapes) => {
+                shapes.iter().find_map(|shape| position(shape, label, clip))
+            }
             _ => None,
         }
     }
-    let output = frame(&ctx, &mut app, vec![]);
-    let point = output
-        .shapes
-        .iter()
-        .find_map(|shape| position(&shape.shape, "应用正文草稿"))
-        .expect("现有显式应用按钮");
-    for pressed in [true, false] {
-        frame(
-            &ctx,
-            &mut app,
-            vec![
-                egui::Event::PointerMoved(point),
-                egui::Event::PointerButton {
-                    pos: point,
-                    button: egui::PointerButton::Primary,
-                    pressed,
-                    modifiers: egui::Modifiers::NONE,
-                },
-            ],
-        );
+    fn point(ctx: &egui::Context, output: &egui::FullOutput, label: &str) -> Option<egui::Pos2> {
+        output.shapes.iter().find_map(|shape| {
+            position(
+                &shape.shape,
+                label,
+                shape.clip_rect.intersect(ctx.screen_rect()),
+            )
+        })
     }
+    fn click(ctx: &egui::Context, app: &mut WorldeditApp, pos: egui::Pos2) {
+        for pressed in [true, false] {
+            frame(
+                ctx,
+                app,
+                vec![
+                    egui::Event::PointerMoved(pos),
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+            );
+        }
+    }
+    let mut output = frame(&ctx, &mut app, vec![]);
+    if point(&ctx, &output, "应用正文草稿").is_none() {
+        assert!(!egui::Popup::is_any_open(&ctx));
+        let tools = point(&ctx, &output, "正文工具").expect("可见的正文工具入口");
+        click(&ctx, &mut app, tools);
+        assert!(egui::Popup::is_any_open(&ctx));
+        frame(&ctx, &mut app, vec![]); // 首次 popup 测量后绘出真实控件。
+        output = frame(&ctx, &mut app, vec![]);
+    }
+    let apply = point(&ctx, &output, "应用正文草稿").expect("现有完整可见的显式应用按钮");
+    click(&ctx, &mut app, apply);
     assert!(app
         .project
         .document(&app.active_file)

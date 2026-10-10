@@ -48,6 +48,7 @@ impl super::super::WorldeditApp {
             && parallel_review(ui.available_width(), self.personal.appearance().body_size);
         let hidden = self.manuscript.reader_open && !wide && self.manuscript.narrow_preview;
         if self.manuscript.writing_view.needs_input_rescue(
+            ui.ctx(),
             selected
                 .as_ref()
                 .and_then(|entry| entry.target_ref.as_ref()),
@@ -116,6 +117,7 @@ impl super::super::WorldeditApp {
         preview: &ManuscriptIndex,
         selected: Option<&ManuscriptEntryDraft>,
     ) -> BodyAction {
+        self.production_return_button(ui);
         if self.review_return_available() {
             let blocked = self.review_input_blocker(ui.ctx());
             if crate::theme::add_enabled(ui, blocked.is_none(), egui::Button::new("返回审稿"))

@@ -69,6 +69,12 @@ impl WorldeditApp {
             }
 
             let top = self.command_palette.focus_stack.last().map(|entry| entry.0);
+            if self.tab == crate::app::Tab::Manuscript
+                && self.manuscript.close_dialogue_on_escape(ctx)
+            {
+                ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                return;
+            }
             if top.is_some_and(|kind| kind.starts_with("guard-")) {
                 self.message = Some("上层表单有待处理输入，请使用其明确取消或应用操作".into());
                 ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
