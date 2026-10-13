@@ -142,22 +142,88 @@ pub(super) fn unavailable(
         return false;
     };
     let busy = view.input_blocked(ui.ctx());
+    let viewport = view.dialogue.viewport.unwrap_or(ui.clip_rect());
+    // Only this actually drawn readonly Form owns geometry. The cached plan is
+    // deliberately excluded: an unavailable source grants no apply/withdraw right.
+    let navigation = preview_keyboard::Scope::new(ui, key, viewport, !busy, None);
+    navigation.sync(None);
     let mut closed = false;
     ui.push_id(("dialogue-unavailable-recovery", key), |ui| {
+        ui.set_clip_rect(viewport);
         ui.strong("恢复用原输入，含作者私密备注；非台本交付");
         ui.label(format!(
             "{}:{} · 来源暂不可验证；未自动重绑或写回正文",
             key.target.kind, key.target.id
         ));
-        egui::ScrollArea::vertical()
+        let mut reader_response = None;
+        let mut return_to_copy = false;
+        // In a parent ScrollArea, max_height is only a ceiling on the remaining
+        // layout space. Reserve the same bounded height so this nested reader
+        // cannot collapse below its real control while the outer view is scrolled.
+        let reading_height = (viewport.height() - 80.0)
+            .clamp(48.0, 320.0)
+            .min(viewport.height().max(0.0));
+        let output = egui::ScrollArea::vertical()
             .id_salt("retained-fields")
-            .max_height(320.0)
-            .min_scrolled_height(0.0)
-            .show(ui, |ui| {
-                recovery_fields(ui, &form.request.operation);
+            .max_height(reading_height)
+            .min_scrolled_height(reading_height)
+            .animated(false)
+            .show_viewport(ui, |ui, relative| {
+                use super::super::preview_navigation as shared;
+                let domain = shared::viewport(ui, relative);
+                // Real inset leaves room for the control's normal focus outline;
+                // the reader frame remains bound to the actual complete viewport.
+                egui::Frame::NONE.inner_margin(2).show(ui, |ui| {
+                    let response = shared::reading(
+                        ui,
+                        shared::Reader {
+                            identity: egui::Id::new(("retained-input-reader", key)),
+                            label: "原输入恢复阅读区 · ↑↓滚动",
+                            viewport: domain,
+                            enabled: !busy
+                                && ui.is_enabled()
+                                && viewport.width() > 16.0
+                                && viewport.height() > 16.0,
+                            horizontal: false,
+                            vertical: true,
+                            step: egui::vec2(0.0, (typography.size * typography.spacing).max(16.0)),
+                            escape: true,
+                        },
+                    );
+                    // This nested viewport may still be clipped by its parent on
+                    // entry. Centering in that temporary clip can leave the real
+                    // control clipped after the parent is revealed. Reveal its
+                    // complete frame minimally, only on actual focus acquisition.
+                    if response.enabled()
+                        && response.has_focus()
+                        && response.gained_focus()
+                        && shared::available(ui.ctx())
+                    {
+                        ui.scroll_to_rect(response.rect.expand(2.0), None);
+                    }
+                    return_to_copy = response.enabled()
+                        && response.has_focus()
+                        && !busy
+                        && shared::available(ui.ctx())
+                        && ui.input(|input| input.modifiers == egui::Modifiers::NONE)
+                        && ui.input_mut(|input| {
+                            input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)
+                        });
+                    reader_response = Some(response);
+                    recovery_fields(ui, &form.request.operation);
+                });
             });
+        if let Some(response) = reader_response {
+            super::super::preview_navigation::reveal_domain(ui, &response, output.inner_rect);
+        }
         ui.horizontal_wrapped(|ui| {
-            if ui.button("复制这份对白输入").clicked() {
+            let copy = preview_keyboard::add(ui, !busy, egui::Button::new("复制这份对白输入"));
+            if return_to_copy {
+                copy.request_focus();
+                ui.scroll_to_rect(copy.rect.expand(2.0), None);
+                ui.ctx().request_repaint();
+            }
+            if copy.clicked() {
                 ui.ctx()
                     .copy_text(serde_json::to_string_pretty(&form.request).unwrap_or_default());
             }

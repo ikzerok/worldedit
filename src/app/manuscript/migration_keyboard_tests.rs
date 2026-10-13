@@ -23,4 +23,9 @@ const NORMAL_READ: &str = "语句预览阅读区 · ↑↓滚动";
 
 mod reading_window;
 
+#[path = "migration_keyboard_tests/world_link_reading/mesh.rs"]
+mod reading_mesh;
+
 mod world_link_reading;
+
+mod retained_recovery_keyboard;

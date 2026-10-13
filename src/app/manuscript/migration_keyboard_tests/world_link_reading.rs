@@ -3,7 +3,7 @@ use super::*;
 use std::collections::BTreeSet;
 use worldline_core::manuscript::{WritingAuthoringPlan, WritingBlockKind};
 mod flows;
-mod mesh;
+use super::reading_mesh as mesh;
 const READER: &str = "关联预览阅读区 · ↑↓滚动";
 const ORIGINAL: &str = "旅人缓缓走向灯塔。";
 const TYPED: &str = "旅人缓缓走向灯塔。 T staged";

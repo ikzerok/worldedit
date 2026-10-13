@@ -196,7 +196,8 @@ impl State {
     }
 }
 impl ViewState {
-    /// Match the live typed rendering branch, never a merely retained F in Source/prose.
+    /// Match the live typed Form or its protected readonly recovery branch, never
+    /// a merely retained F in Source/Structure or ordinary non-dialogue prose.
     /// Only cached UI/core identity is read; this does not compile or grant plan validity.
     pub(in crate::app) fn uses_immediate_dialogue_scroll(
         &self,
@@ -209,8 +210,16 @@ impl ViewState {
             && self.composing_inputs.is_empty()
             && self.dialogue.enabled
             && matches!(target.kind.as_str(), "event" | "scene" | "fragment")
-            && self.dialogue.forms.contains_key(&Key::new(buffer, target))
-            && self.dialogue.cache.as_ref().is_some_and(Result::is_ok)
+            && self
+                .dialogue
+                .forms
+                .get(&Key::new(buffer, target))
+                .is_some_and(|form| {
+                    self.dialogue
+                        .cache
+                        .as_ref()
+                        .is_some_and(|projection| projection.is_ok() || form.protected())
+                })
             && self.dialogue.cache_key == State::projection_key(project, buffer, target)
     }
     pub(in crate::app) fn has_dialogue_input(&self) -> bool {
