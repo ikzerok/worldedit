@@ -38,6 +38,8 @@ impl WorldeditApp {
             browser_pending_save: false,
             version: 0,
             snapshot: None,
+            #[cfg(test)]
+            semantic_compile_count: 0,
             io_error: None,
             #[cfg(not(target_arch = "wasm32"))]
             conflict_view: conflicts::ConflictView::default(),
@@ -147,6 +149,7 @@ impl WorldeditApp {
             localization_ui: localization_ui::LocalizationUiState::default(),
             template_manager: template_manager::ManagerState::default(),
             schema_ui: schema_ui::SchemaUiState::default(),
+            schema_authoring: schema_authoring::SchemaAuthoringState::default(),
             checkpoint_history: checkpoint_history::HistoryState::default(),
             reader_publish: reader_publish::ReaderPublishState::default(),
         };
@@ -155,7 +158,9 @@ impl WorldeditApp {
         if let Some(path) = initial_file {
             app.load_project(path);
         }
-        app.recompile();
+        if app.snapshot.is_none() {
+            app.recompile();
+        }
         app.restore_personal_view(&cc.egui_ctx);
         app
     }
@@ -165,7 +170,12 @@ impl WorldeditApp {
         self.version += 1;
         self.map_revision.content_generation = self.map_revision.content_generation.wrapping_add(1);
         self.map_canvas.invalidate_rasters();
+        #[cfg(test)]
+        {
+            self.semantic_compile_count += 1;
+        }
         let result = self.project.compile();
+        let schema = schema_snapshot::SchemaSnapshot::new(&self.project, &result);
         let template_index = self.project.template_index_with_content(&result);
         let wiki = worldline_core::wiki::KeywordIndex::new(&result);
         let map_index =
@@ -182,6 +192,7 @@ impl WorldeditApp {
             worldline_core::collaboration::build_comment_index(&self.project, &result, &map_index);
         let proposal_index = worldline_core::collaboration::build_proposal_index(&self.project);
         self.snapshot = Some(Snapshot {
+            schema,
             graph_index,
             template_index,
             preset_index,
@@ -218,6 +229,7 @@ impl WorldeditApp {
             worldline_core::collaboration::build_comment_index(&self.project, content, &map_index);
         let proposal_index = worldline_core::collaboration::build_proposal_index(&self.project);
         if let Some(snapshot) = self.snapshot.as_mut() {
+            snapshot.schema.rebase(&self.project, &snapshot.result);
             snapshot.graph_index = graph_index;
             snapshot.preset_index = preset_index;
             snapshot.comment_index = comment_index;
@@ -366,6 +378,7 @@ impl WorldeditApp {
         self.review = collaboration_ui::ReviewState::default();
         self.manuscript = manuscript::WorkbenchState::default();
         self.schema_ui = schema_ui::SchemaUiState::default();
+        self.schema_authoring = schema_authoring::SchemaAuthoringState::default();
         self.checkpoint_history = checkpoint_history::HistoryState::default();
         self.localization_ui = localization_ui::LocalizationUiState::default();
         self.reader_publish = reader_publish::ReaderPublishState::default();

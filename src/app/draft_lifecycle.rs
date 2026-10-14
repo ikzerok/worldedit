@@ -240,6 +240,9 @@ impl WorldeditApp {
         {
             names.push("地图草稿");
         }
+        if self.schema_authoring.has_unsubmitted_work() {
+            names.push(schema_authoring::DRAFT_KIND);
+        }
         if self.schema_ui.has_unsubmitted_work() {
             names.push("持续资料约束草稿");
         }
@@ -313,6 +316,7 @@ impl WorldeditApp {
         self.discard_all_writing_draft_history();
         self.manuscript = manuscript::WorkbenchState::default();
         self.schema_ui = schema_ui::SchemaUiState::default();
+        self.clear_schema_authoring();
         self.localization_ui = localization_ui::LocalizationUiState::default();
         self.catalog_import.discard();
         self.template_manager.discard();
@@ -364,6 +368,9 @@ impl WorldeditApp {
                 }
             });
         if let Some(name) = return_to {
+            if name == schema_authoring::DRAFT_KIND {
+                self.schema_authoring.resume();
+            }
             #[cfg(not(target_arch = "wasm32"))]
             if name == conflicts::DRAFT_KIND {
                 self.conflict_view.resume_draft();

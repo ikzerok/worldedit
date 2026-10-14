@@ -260,9 +260,12 @@ pub fn resize_edges(ctx: &Context) {
     for (index, (rect, direction, cursor)) in regions.into_iter().enumerate() {
         egui::Area::new(egui::Id::new(("resize-edge", index)))
             .order(egui::Order::Foreground)
+            .sense(Sense::hover())
             .fixed_pos(rect.min)
             .show(ctx, |ui| {
-                let (_, response) = ui.allocate_exact_size(rect.size(), Sense::drag());
+                // 原生边缘只有鼠标拖动含义，不能抢走浮窗的 Tab 焦点。
+                let mouse_drag = Sense::drag().difference(Sense::focusable_noninteractive());
+                let (_, response) = ui.allocate_exact_size(rect.size(), mouse_drag);
                 if response.drag_started_by(egui::PointerButton::Primary) {
                     ctx.send_viewport_cmd(ViewportCommand::BeginResize(direction));
                 }
@@ -298,6 +301,76 @@ pub fn title_frame(ctx: &Context) -> egui::Frame {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn resize_edges_are_mouse_only_and_keep_all_eight_drag_directions() {
+        use egui::ResizeDirection::*;
+        let positions = [
+            (Pos2::new(150.0, 2.0), North, CursorIcon::ResizeVertical),
+            (Pos2::new(150.0, 198.0), South, CursorIcon::ResizeVertical),
+            (Pos2::new(2.0, 100.0), West, CursorIcon::ResizeHorizontal),
+            (Pos2::new(298.0, 100.0), East, CursorIcon::ResizeHorizontal),
+            (Pos2::new(6.0, 6.0), NorthWest, CursorIcon::ResizeNwSe),
+            (Pos2::new(294.0, 6.0), NorthEast, CursorIcon::ResizeNeSw),
+            (Pos2::new(6.0, 194.0), SouthWest, CursorIcon::ResizeNeSw),
+            (Pos2::new(294.0, 194.0), SouthEast, CursorIcon::ResizeNwSe),
+        ];
+        for (index, (pos, direction, cursor)) in positions.into_iter().enumerate() {
+            let ctx = Context::default();
+            let layer = egui::LayerId::new(
+                egui::Order::Foreground,
+                egui::Id::new(("resize-edge", index)),
+            );
+            eprintln!("resize-edge {index}: {layer:?}");
+            let frame = |events| {
+                ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(300.0, 200.0))),
+                        events,
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            let _ = ui.button("唯一键盘动作");
+                        });
+                        resize_edges(ctx);
+                    },
+                )
+            };
+            for _ in 0..3 {
+                frame(vec![]);
+            }
+            for _ in 0..24 {
+                for pressed in [true, false] {
+                    frame(vec![egui::Event::Key {
+                        key: egui::Key::Tab,
+                        physical_key: Some(egui::Key::Tab),
+                        pressed,
+                        repeat: false,
+                        modifiers: egui::Modifiers::NONE,
+                    }]);
+                }
+                if let Some(id) = ctx.memory(|memory| memory.focused()) {
+                    assert_eq!(
+                        ctx.read_response(id).unwrap().layer_id.order,
+                        egui::Order::Background
+                    );
+                }
+            }
+            let hover = frame(vec![egui::Event::PointerMoved(pos)]);
+            assert_eq!(hover.platform_output.cursor_icon, cursor);
+            let down = frame(vec![egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            let drag = frame(vec![egui::Event::PointerMoved(pos + Vec2::splat(2.0))]);
+            assert!([down, drag].iter().any(|output| output.viewport_output[&egui::ViewportId::ROOT]
+                .commands.iter().any(|command| matches!(command, ViewportCommand::BeginResize(value) if *value == direction))));
+        }
+    }
 
     #[test]
     fn right_controls_preserve_window_actions_and_delegate_close() {

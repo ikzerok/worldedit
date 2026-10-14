@@ -49,6 +49,7 @@ impl WorldeditApp {
             ("reader", self.reader_publish.open),
             ("playthrough-report", self.playthrough_report.open),
             ("schema", self.schema_ui.open),
+            ("schema-authoring", self.schema_authoring.open),
             ("guard-export", self.export_confirmation.is_some()),
             ("guard-play", self.play_confirmation.is_some()),
             ("guard-capabilities", self.capability_ui.is_some()),
@@ -92,6 +93,7 @@ impl WorldeditApp {
                 "source-jump" => self.source_jump.return_focus,
                 "commands" => self.command_palette.previous_focus,
                 "schema" => self.schema_ui.return_focus,
+                "schema-authoring" => self.schema_authoring.return_focus,
                 "temporal-issues" => self.temporal_issues.return_focus,
                 "problems" => self
                     .problems

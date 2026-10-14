@@ -52,6 +52,8 @@ mod reading;
 mod reading_state;
 mod refactor_ui;
 mod relation_editor;
+mod schema_authoring;
+mod schema_snapshot;
 mod schema_ui;
 mod search;
 mod source_jump;
@@ -134,6 +136,7 @@ impl Tab {
 }
 struct Snapshot {
     result: CompileResult,
+    schema: schema_snapshot::SchemaSnapshot,
     template_index: worldline_core::project_templates::ProjectTemplateIndex,
     wiki: worldline_core::wiki::KeywordIndex,
     map_index: worldline_core::presentation::MapIndex,
@@ -298,6 +301,8 @@ pub struct WorldeditApp {
     browser_pending_save: bool,
     version: u64,
     snapshot: Option<Snapshot>,
+    #[cfg(test)]
+    semantic_compile_count: u64,
     io_error: Option<String>,
     #[cfg(not(target_arch = "wasm32"))]
     conflict_view: conflicts::ConflictView,
@@ -405,6 +410,7 @@ pub struct WorldeditApp {
     localization_ui: localization_ui::LocalizationUiState,
     template_manager: template_manager::ManagerState,
     schema_ui: schema_ui::SchemaUiState,
+    schema_authoring: schema_authoring::SchemaAuthoringState,
     checkpoint_history: checkpoint_history::HistoryState,
     reader_publish: reader_publish::ReaderPublishState,
 }

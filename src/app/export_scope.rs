@@ -100,6 +100,9 @@ impl WorldeditApp {
         if kind == "共享查询定义" {
             self.catalog_workbench.open = true;
         }
+        if kind == super::schema_authoring::DRAFT_KIND {
+            self.schema_authoring.resume();
+        }
         if kind == "持续资料约束草稿" {
             self.schema_ui.open = true;
         }

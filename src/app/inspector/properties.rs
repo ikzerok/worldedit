@@ -5,7 +5,7 @@ use worldline_core::CompileOptions;
 
 #[cfg(test)]
 pub(in crate::app) fn properties(ui: &mut egui::Ui, values: &mut Vec<(String, PropertyValue)>) {
-    render(ui, values, None);
+    render(ui, values, None, None);
 }
 
 pub(in crate::app) fn properties_with_references(
@@ -14,17 +14,50 @@ pub(in crate::app) fn properties_with_references(
     catalog: &Catalog,
     options: CompileOptions,
 ) {
-    render(ui, values, Some((catalog, options)));
+    render(ui, values, Some((catalog, options)), None);
+}
+
+pub(in crate::app) fn properties_excluding(
+    ui: &mut egui::Ui,
+    values: &mut Vec<(String, PropertyValue)>,
+    catalog: &Catalog,
+    options: CompileOptions,
+    coverage: &super::super::schema_authoring::SchemaCoverage,
+) {
+    render(ui, values, Some((catalog, options)), Some(coverage));
 }
 
 fn render(
     ui: &mut egui::Ui,
     values: &mut Vec<(String, PropertyValue)>,
     references: Option<(&Catalog, CompileOptions)>,
+    coverage: Option<&super::super::schema_authoring::SchemaCoverage>,
 ) {
     let mut remove = None;
+    let mut covered = std::collections::BTreeSet::new();
     for (i, (name, value)) in values.iter_mut().enumerate() {
+        let schema_key = coverage.is_some_and(|coverage| coverage.keys.contains(name));
+        let applied_row = coverage
+            .and_then(|coverage| coverage.projection.as_ref())
+            .is_some_and(|projection| {
+                projection
+                    .fields
+                    .iter()
+                    .any(|field| field.key == *name && field.value.as_ref() == Some(value))
+            });
+        if schema_key && applied_row && covered.insert(name.clone()) {
+            ui.label(crate::theme::muted(format!(
+                "{name} · 在“约束与属性”中填写"
+            )));
+            continue;
+        }
         ui.push_id(i, |ui| {
+            if schema_key {
+                ui.colored_label(
+                    crate::theme::WARNING(),
+                    "此键由 schema 管理；新增或重复输入已保留，可改名或移除，不会自动合并。",
+                );
+            }
             ui.label(super::super::reading::property_label(name));
             ui.allocate_ui_with_layout(
                 egui::vec2(ui.available_width(), ui.spacing().interact_size.y),

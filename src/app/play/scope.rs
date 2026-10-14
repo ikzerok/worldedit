@@ -208,6 +208,9 @@ impl WorldeditApp {
                     .map(|f| serde_json::json!([f.target, f.new_id]).to_string()),
                 "Wiki词条" => self.wiki_editor.as_ref().map(|f| f.play_draft_signature()),
                 "持续资料约束草稿" => Some(self.schema_ui.play_draft_signature()),
+                super::super::schema_authoring::DRAFT_KIND => {
+                    Some(self.schema_authoring.signature())
+                }
                 "正文替换预览" => Some(self.play_search_signature()),
                 "Markdown 导入草稿" => self
                     .markdown_import_wizard

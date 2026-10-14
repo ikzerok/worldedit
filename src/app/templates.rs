@@ -12,7 +12,14 @@ fn add_optional_text(
     values: &mut Vec<(String, PropertyValue)>,
     key: &str,
     label: &str,
+    excluded: &[String],
 ) {
+    if excluded.iter().any(|candidate| candidate == key) {
+        ui.label(theme::muted(format!(
+            "{label} · {key} · 使用约束字段的同一值入口"
+        )));
+        return;
+    }
     if let Some((_, value)) = values.iter_mut().find(|(name, _)| name == key) {
         ui.label(RichText::new(label).strong());
         match value {
@@ -31,13 +38,14 @@ fn add_optional_text(
         values.push((key.into(), PropertyValue::Str(String::new())));
     }
 }
-pub(super) fn template_panel(
+pub(super) fn template_panel_excluding(
     ui: &mut egui::Ui,
     kind: &str,
     entity_type: Option<&str>,
     project_templates: &ProjectTemplateIndex,
     catalog: &Catalog,
     values: &mut Vec<(String, PropertyValue)>,
+    excluded: &[String],
 ) -> Option<String> {
     let template = worldline_core::content_templates::matching_template(kind, entity_type);
     if template.is_none()
@@ -79,7 +87,7 @@ pub(super) fn template_panel(
                 });
                 ui.separator();
                 for field in &template.fields {
-                    add_optional_text(ui, values, &field.key, &field.label);
+                    add_optional_text(ui, values, &field.key, &field.label, excluded);
                 }
             });
     }
@@ -88,18 +96,20 @@ pub(super) fn template_panel(
         ui.label(theme::muted(
             "这些是作者资料，不把“已接受”自动解释为“客观事实”。",
         ));
-        add_optional_text(ui, values, "source_note", "来源 / 依据");
+        add_optional_text(ui, values, "source_note", "来源 / 依据", excluded);
         add_optional_text(
             ui,
             values,
             "statement_nature",
             "陈述性质（事实 / 传闻 / 观点等）",
+            excluded,
         );
         add_optional_text(
             ui,
             values,
             "authoring_status",
             "创作状态（草稿 / 已接受等）",
+            excluded,
         );
     });
     for (id, document) in &project_templates.projects {
@@ -158,6 +168,7 @@ pub(super) fn template_panel(
                     &project_template.fields,
                     catalog,
                     values,
+                    excluded,
                 );
             });
     }
@@ -171,7 +182,7 @@ pub(super) fn project_template_preview(
     catalog: &Catalog,
     values: &mut Vec<(String, PropertyValue)>,
 ) {
-    render_project_fields(ui, template, &template.fields, catalog, values);
+    render_project_fields(ui, template, &template.fields, catalog, values, &[]);
 }
 
 fn render_project_fields(
@@ -180,6 +191,7 @@ fn render_project_fields(
     fields: &[ProjectTemplateField],
     catalog: &Catalog,
     values: &mut Vec<(String, PropertyValue)>,
+    excluded: &[String],
 ) {
     for field in fields {
         ui.push_id(("project-template-field", &template.id, &field.id), |ui| {
@@ -187,7 +199,14 @@ fn render_project_fields(
                 egui::CollapsingHeader::new(&field.label)
                     .default_open(true)
                     .show(ui, |ui| {
-                        render_project_fields(ui, template, &field.fields, catalog, values);
+                        render_project_fields(
+                            ui,
+                            template,
+                            &field.fields,
+                            catalog,
+                            values,
+                            excluded,
+                        );
                     });
                 return;
             }
@@ -198,6 +217,16 @@ fn render_project_fields(
                 );
                 return;
             };
+            if excluded.iter().any(|candidate| candidate == key) {
+                ui.label(theme::muted(format!(
+                    "{} · {key} · 使用约束字段的同一值入口",
+                    field.label
+                )));
+                ui.label(theme::muted(
+                    "模板仅提供填写提示，不改变持续约束，也不自动采用默认值。",
+                ));
+                return;
+            }
             let label = format!(
                 "{}{} · {}",
                 if field.required { "* " } else { "" },

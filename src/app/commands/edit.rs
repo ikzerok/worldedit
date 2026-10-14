@@ -130,6 +130,10 @@ impl WorldeditApp {
                     self.temporal_issues.open = false;
                     true
                 }
+                Some("schema-authoring") => {
+                    self.schema_authoring.close(ctx);
+                    true
+                }
                 Some("schema") => {
                     self.schema_ui.close(ctx);
                     true

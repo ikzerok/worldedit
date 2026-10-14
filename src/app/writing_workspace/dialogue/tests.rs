@@ -1,18 +1,21 @@
 use super::*;
 pub(super) fn fixture() -> (Project, WritingBuffer, TargetRef) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
     let root = std::env::temp_dir().join(format!(
-        "dialogue-ui-{}-{}",
+        "dialogue-ui-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    std::fs::create_dir(&root).expect("对话测试必须独占新建工作区");
     let mut project = Project::new(&root);
     let path = project.entry.clone();
     project.set_text(&path, "character a as \"同名\"\ncharacter b as \"同名\"\nevent start\n  say a \"原话\" direction \"私密备注\"\n  -> END\n".into()).unwrap();
     project.create_authoring_document(&project.root.join(".world/project.json"), br#"{"schema_version":1,"language_version":"1.11","required_features":[],"maps":{},"graph_views":{}}"#.to_vec()).unwrap();
-    std::fs::create_dir_all(&project.root).unwrap();
     project.save().unwrap();
     let target = TargetRef::new("event", "start");
     let buffer = project.open_writing_buffer(&target).unwrap();
