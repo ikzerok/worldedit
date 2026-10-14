@@ -1,4 +1,28 @@
 use super::*;
+use std::sync::atomic::AtomicU64;
+
+fn profile_fixture_root(
+    parent: &std::path::Path,
+    nonce: u128,
+    next: &AtomicU64,
+) -> std::io::Result<std::path::PathBuf> {
+    for _ in 0..64 {
+        let sequence = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let root = parent.join(format!(
+            "reader-profile-ui-{}-{nonce}-{sequence}",
+            std::process::id()
+        ));
+        match std::fs::create_dir(&root) {
+            Ok(()) => return Ok(root),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "无法在 64 次尝试内创建独占发布配置夹具目录",
+    ))
+}
 
 fn app() -> crate::app::WorldeditApp {
     let ctx = egui::Context::default();
@@ -8,9 +32,9 @@ fn app() -> crate::app::WorldeditApp {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    app.project = Project::new(
-        &std::env::temp_dir().join(format!("reader-profile-ui-{}-{nonce}", std::process::id())),
-    );
+    static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
+    let root = profile_fixture_root(&std::env::temp_dir(), nonce, &NEXT_ROOT).unwrap();
+    app.project = Project::new(&root);
     let entry = app.project.entry.clone();
     app.project.documents.retain(|path, _| path == &entry);
     app.project
@@ -27,6 +51,63 @@ fn app() -> crate::app::WorldeditApp {
     app.reader_publish.profile_id = "public".into();
     app.reader_publish.profile_title = "公开配置".into();
     app
+}
+
+#[test]
+fn profile_fixture_roots_are_unique_for_concurrent_identical_nonces() {
+    const WORKERS: usize = 8;
+    const NONCE: u128 = 42;
+    let parent = app().project.root.clone();
+    let next = AtomicU64::new(0);
+    let barrier = std::sync::Barrier::new(WORKERS);
+    let roots = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..WORKERS)
+            .map(|_| {
+                scope.spawn(|| {
+                    barrier.wait();
+                    profile_fixture_root(&parent, NONCE, &next).unwrap()
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(
+        roots
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        WORKERS,
+        "相同 nonce 的并发夹具必须分配不同目录"
+    );
+    for root in roots {
+        assert_eq!(root.parent(), Some(parent.as_path()));
+        assert!(root.is_dir(), "分配成功前必须独占创建夹具目录");
+        assert!(std::fs::read_dir(root).unwrap().next().is_none());
+    }
+}
+
+#[test]
+fn profile_fixture_root_does_not_reuse_an_existing_directory_or_sentinel() {
+    const NONCE: u128 = 42;
+    let parent = app().project.root.clone();
+    let initial_sequence = AtomicU64::new(0);
+    let existing = profile_fixture_root(&parent, NONCE, &initial_sequence).unwrap();
+    std::fs::create_dir_all(&existing).unwrap();
+    let sentinel = existing.join("sentinel.txt");
+    std::fs::write(&sentinel, b"existing fixture must remain untouched").unwrap();
+    let repeated_sequence = AtomicU64::new(0);
+    let allocated = profile_fixture_root(&parent, NONCE, &repeated_sequence).unwrap();
+    assert_eq!(
+        std::fs::read(&sentinel).unwrap(),
+        b"existing fixture must remain untouched"
+    );
+    assert_ne!(allocated, existing, "已有目录不得被新的夹具复用");
+    assert_eq!(allocated.parent(), Some(parent.as_path()));
+    assert!(allocated.is_dir(), "新目录必须在返回前完成独占创建");
+    assert!(std::fs::read_dir(allocated).unwrap().next().is_none());
 }
 
 #[test]
