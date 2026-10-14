@@ -96,6 +96,8 @@ fn switching_writing_mode_requires_a_new_visible_selection_before_commenting() {
         frame(&ctx, &mut app, vec![], 13);
     }
     click(&ctx, &mut app, 13, "源码");
+    // 切换在旧接收者绘制后生效；下一真实可见帧才创建新源码控件。
+    frame(&ctx, &mut app, vec![], 13);
     let (target, path) = app.manuscript.active_writing_target().unwrap();
     let id = egui::Id::new(("writing-source", &path, &target.kind, &target.id));
     let mut state = egui::TextEdit::load_state(&ctx, id).unwrap();

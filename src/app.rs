@@ -33,6 +33,8 @@ mod manuscript;
 mod map_creation;
 mod maps;
 mod markdown_import_ui;
+#[cfg(not(target_arch = "wasm32"))]
+mod native_title;
 mod network;
 mod network_state;
 mod object_picker;

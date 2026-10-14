@@ -8,7 +8,18 @@ fn native_budget_frame(
     app: &mut WorldeditApp,
     events: Vec<Event>,
 ) -> egui::FullOutput {
+    let modifiers = events
+        .iter()
+        .rev()
+        .find_map(|event| match event {
+            Event::Key { modifiers, .. }
+            | Event::PointerButton { modifiers, .. }
+            | Event::MouseWheel { modifiers, .. } => Some(*modifiers),
+            _ => None,
+        })
+        .unwrap_or(egui::Modifiers::NONE);
     let mut input = RawInput {
+        modifiers,
         screen_rect: Some(Rect::from_min_size(
             pos2(0.0, 0.0),
             PHYSICAL / ctx.pixels_per_point(),

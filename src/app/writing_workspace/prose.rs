@@ -24,18 +24,22 @@ pub(super) struct RetainedInput {
 
 impl ViewState {
     pub(in crate::app) fn has_retained_input(&self) -> bool {
-        self.retained_inputs
-            .values()
-            .any(|input| !input.text.is_empty())
+        self.has_dialogue_input()
+            || self
+                .retained_inputs
+                .values()
+                .any(|input| !input.text.is_empty())
             || self
                 .composing_inputs
                 .values()
                 .any(|input| !input.text.is_empty())
     }
     pub(in crate::app) fn has_retained_for(&self, path: &std::path::Path) -> bool {
-        self.retained_inputs
-            .iter()
-            .any(|(key, input)| key.path == path && !input.text.is_empty())
+        self.dialogue_retained_for(path)
+            || self
+                .retained_inputs
+                .iter()
+                .any(|(key, input)| key.path == path && !input.text.is_empty())
             || self
                 .composing_inputs
                 .iter()
@@ -69,12 +73,15 @@ impl ViewState {
                         .to_string(),
                 )
             })
+            .chain(self.dialogue_runtime_drafts(root))
             .collect()
     }
     pub(in crate::app) fn draw_retained_input(&mut self, ui: &mut egui::Ui) {
         super::editors::retained_notice(ui, self);
+        super::dialogue::retained::notices(ui, self);
     }
     pub(in crate::app) fn discard_retained_for(&mut self, path: &std::path::Path) {
+        self.discard_dialogue_for(path);
         self.retained_inputs.retain(|key, _| key.path != path);
         self.composing_inputs.retain(|key, _| key.path != path);
         if self

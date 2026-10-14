@@ -5,6 +5,8 @@ CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令
 | 功能 | wl | wl-agent | 编辑器 / AI 可行方式 |
 |---|---|---|---|
 | 编译、诊断、统计 | check | compile | 同一 core 分析 |
+| 正式对白 typed 计划 | dialogue query/preview/apply；apply 显式 --save | dialogue.query / dialogue.edit.preview / dialogue.edit.apply | 同 core 单语句、明确迁移与完整基线；只修改自己的 Project，不读取 GUI 草稿 |
+| 同稿角色/locale 制作台本 | production-script query/export；--output 只写新文件 | production.script.query / production.script.export | 静态定义范围、精确分页与三格式字节；默认排除备注，不自动发送第三方 |
 | 当前工程问题、范围筛选、主/关联来源 | problems | project.problems | 同一 core 只读报告；CLI/RPC使用自己的工程/会话，不能读取运行中编辑器的未应用草稿；不改既有运行/发布门禁 |
 | 执行图与条件上下文 | graph | analyze / export | 共享结构数据；Mermaid 是文本输出 |
 | 时段与先后关系 | timeline | analyze | 同一 timeline 数据 |
@@ -65,7 +67,7 @@ RPC 的 `scene.preview/apply/export` 必须且只能提供 `path` 或 `project_i
 
 持续schema诊断随check/workspace check/发布前检查生效；schema-index、schema-preview、schema-apply及RPC同名语义可独立使用。锁定choice通过CLI `--choice-presentation`与RPC session capability协商，旧choices索引不变。
 
-编辑器尚未应用的WritingBuffer属于当前桌面会话；独立CLI不能读取其窗口内草稿。Find/Replace、焦点、专注布局与当前稿预览由编辑器调用同一core API，不宣称外部CLI遥控全部UI。本地化只交换显式白名单；runtime 默认源文，0.33 仅在明确选择 locale 后使用验证过的译文快照。
+编辑器尚未应用的WritingBuffer属于当前桌面会话；独立CLI不能读取其窗口内草稿。Find/Replace、焦点、专注布局与当前稿预览由编辑器调用同一core API，不宣称外部CLI遥控全部UI。本地化只交换显式白名单；runtime 默认源文，0.33 起仅在明确选择 locale 后使用验证过的译文快照。
 
 ## 0.18 工程问题与源码视图
 

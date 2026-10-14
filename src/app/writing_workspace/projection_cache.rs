@@ -13,6 +13,7 @@ pub(super) struct ProjectionCache {
 
 impl ViewState {
     pub(in crate::app) fn invalidate_projection(&mut self) {
+        self.dialogue.invalidate();
         self.projection_cache.key.clear();
         self.projection_cache.projection = None;
     }

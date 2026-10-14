@@ -1,10 +1,17 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.33 连接译文制作与状态巡检、同一运行时的真实译文体验，以及正文中的正式人物和实体关联创作。Studio 默认，五种结构与十组十七套配色继续独立组合。语言语义、来源与保护由 core/runtime 统一提供。
+worldline 的 Rust / egui 作者工作台。0.34 连接连续正式对白创作、同一当前稿的角色/locale 制作台本与显式私密交付。Studio 默认，五种结构与十组十七套配色继续独立组合。语言语义、来源与保护由 core/runtime 统一提供。
 
-本版功能与验证范围见[0.33版本说明](docs/releases/v0.33.0.md)，公开发行状态以对应 GitHub Release 为准。默认语言 1.9、最高既有显式版本 1.13 保持，不新增 DSL，也不自动升级作品。
+本版功能与验证范围见[0.34版本说明](docs/releases/v0.34.0.md)，公开发行状态以对应 GitHub Release 为准。默认语言 1.9、最高既有显式版本 1.13 保持，不新增 DSL，也不自动升级作品。
 
-升级边界：运行轨迹与运行检查点（ReplayTrace / ReplayCheckpoint）继续精确匹配 runtime_version；0.32 及更早记录不能在 0.33 重放、比较或生成已验证审阅，应重新录制。合法旧轨迹可只读导入查看，读取成功不代表可执行。普通 Story Save 继续按格式、能力和指纹独立校验；locale 记录还需匹配其展示身份。升级前保留完整工程和原记录。
+升级边界：运行轨迹与运行检查点（ReplayTrace / ReplayCheckpoint）继续精确匹配 runtime_version；0.33 及更早记录不能在 0.34 重放、比较或生成已验证审阅，应重新录制。合法旧轨迹可只读导入查看，读取成功不代表可执行。普通 Story Save 继续按格式、能力和指纹独立校验；locale 记录还需匹配其展示身份。升级前保留完整工程和原记录。
+
+## 0.34 正式对白与同稿角色台本
+
+- 连续正文中直接编辑正式角色、typed 台词和作者备注；预览后纳入同一源稿，应用与保存保持独立
+- 同一当前稿按正式 speaker、locale、章节/目标筛选；静态片段定义去重，条件与调用标明未求值
+- 从同一完整预览复制或生成私密 JSON、Markdown、CSV；默认排除备注，不自动发送第三方，不扩大读者公开白名单
+- [完整用法与限制](docs/releases/v0.34.0.md)、[core 作者契约](https://github.com/ikzerok/worldline/blob/main/spec/dialogue-authoring.md)
 
 ## 0.33 译文与正文关联
 

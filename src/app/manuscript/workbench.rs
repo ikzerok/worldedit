@@ -22,7 +22,19 @@ impl super::super::WorldeditApp {
     pub(in crate::app) fn manuscript_tab(&mut self, ctx: &egui::Context) {
         let _navigation_composition = self.manuscript.navigation.input.begin(ctx);
         let _composition = self.manuscript.writing_view.begin_input(ctx);
-        self.manuscript_tab_content(ctx);
+        if let Some(open) = self
+            .manuscript
+            .pending_session
+            .as_mut()
+            .and_then(|session| session.production_open.take())
+        {
+            self.manuscript.production.open = open;
+        }
+        if self.manuscript.production.open {
+            self.production_tab(ctx);
+        } else {
+            self.manuscript_tab_content(ctx);
+        }
         self.draw_manuscript_world_links(ctx);
     }
 
@@ -229,6 +241,9 @@ impl super::super::WorldeditApp {
                     self.manuscript.narrow_preview = session.preview_tab.unwrap_or(false);
                     self.manuscript.review_focus = self.manuscript.narrow_preview;
                     self.manuscript.writing_view.restore_mode(session.mode);
+                    self.manuscript
+                        .writing_view
+                        .restore_dialogue_mode(session.dialogue_mode.unwrap_or(false));
                     self.manuscript.writing_view.restore_cursor(session.cursor);
                 } else {
                     local.selected_entry = None;
@@ -524,20 +539,7 @@ impl super::super::WorldeditApp {
         }
         self.manuscript.books.insert(book_id.clone(), local);
         if let Some((path, action)) = body_action {
-            if action.world_link {
-                self.begin_manuscript_world_links(ctx);
-            }
-            if action.comment {
-                self.comment_current_selection(ctx);
-            }
-            if let Some(error) = action.error {
-                self.io_error = Some(error);
-            }
-            if action.discard {
-                self.discard_manuscript_body(&path);
-            } else if action.apply {
-                self.apply_manuscript_body(&path, action.source_mode);
-            }
+            self.finish_writing_action(ctx, &path, action);
         }
         if apply_book {
             self.apply_manuscript_book(&book_id);

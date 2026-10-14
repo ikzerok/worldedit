@@ -1,6 +1,11 @@
 # worldedit 使用文档
 
-本文对应 0.33；本版功能与验证范围见 [0.33 版本说明](releases/v0.33.0.md)，版本历史见 [CHANGELOG](../CHANGELOG.md)，公开发行状态以对应 GitHub Release 为准。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+本文对应 0.34；本版功能与验证范围见 [0.34 版本说明](releases/v0.34.0.md)，版本历史见 [CHANGELOG](../CHANGELOG.md)，公开发行状态以对应 GitHub Release 为准。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+
+## 0.34 正式对白与同稿台本
+
+- [对白与制作工作区](dialogue-production-workbench.md)：连续创作、正式角色、当前稿目录、明确私密三格式与输入保护
+- [core 作者与机器契约](https://github.com/ikzerok/worldline/blob/main/spec/dialogue-machine.md)：同一 typed 计划、真实范围与保存分层
 
 ## 0.33 译文与正文关联
 
@@ -70,4 +75,4 @@ v3 对象包含其别名与受限类型结构；属性、地图图元、章节�
 - [配对构建](paired-ci.md)、[发布流程](release.md)、[性能目标与探针](performance.md)
 - [worldline 规范索引](../../worldline/spec/README.md)：语言、地图、机器协议和公开选择的共同真源
 
-0.32 的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。
+本版的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。

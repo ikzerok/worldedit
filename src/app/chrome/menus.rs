@@ -12,6 +12,11 @@ impl WorldeditApp {
                 self.tab = Tab::Templates;
                 ui.close();
             }
+            if ui.button("角色制作台本").clicked() {
+                self.open_production_script();
+                self.tab = Tab::Manuscript;
+                ui.close();
+            }
             if ui.button("本地化工作台").clicked() {
                 self.tab = Tab::Localization;
                 ui.close();

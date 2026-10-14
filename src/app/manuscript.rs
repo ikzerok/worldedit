@@ -4,14 +4,18 @@ mod creation_form;
 mod creation_plan;
 #[cfg(test)]
 mod creation_tests;
+mod dialogue_actions;
 mod editing;
 mod focus_controls;
 mod layout;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod migration_keyboard_tests;
 mod navigation;
 mod navigation_input;
 mod outline;
 mod outline_rows;
 mod preview;
+mod production;
 mod query_cache;
 mod recovery;
 mod review_navigation;
@@ -86,6 +90,7 @@ pub(super) struct WorkbenchState {
     creation_dismissed: bool,
     orphan_discard_confirm: Option<PathBuf>,
     world_links: Option<world_links::State>,
+    production: production::State,
 }
 
 impl Default for WorkbenchState {
@@ -118,6 +123,7 @@ impl Default for WorkbenchState {
             creation_dismissed: false,
             orphan_discard_confirm: None,
             world_links: None,
+            production: Default::default(),
         }
     }
 }
@@ -128,6 +134,12 @@ impl WorkbenchState {
         self.navigation.invalidate();
         self.preview_cache.key.clear();
         self.writing_view.invalidate_projection();
+    }
+    pub(in crate::app) fn has_dialogue_input(&self) -> bool {
+        self.writing_view.has_dialogue_input()
+    }
+    pub(in crate::app) fn close_dialogue_on_escape(&mut self, ctx: &egui::Context) -> bool {
+        self.writing_view.close_dialogue_on_escape(ctx)
     }
     pub(in crate::app) fn writing_buffers(&self) -> Vec<WritingBuffer> {
         self.writing_buffers.values().cloned().collect()

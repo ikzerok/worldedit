@@ -41,6 +41,7 @@ impl WorldeditApp {
                 "world-links",
                 self.tab == Tab::Manuscript && self.manuscript.world_links_open(),
             ),
+            ("object-reading", self.reading_target.is_some()),
             ("commands", self.command_palette.open),
             ("compact-references", self.compact_reference_open(ctx)),
             ("navigation-drawer", self.navigation_drawer_open(ctx)),
@@ -64,7 +65,7 @@ impl WorldeditApp {
             .command_palette
             .focus_stack
             .last()
-            .filter(|(kind, _)| !active.contains(kind))
+            .filter(|(kind, _)| *kind != "object-reading" && !active.contains(kind))
             .and_then(|(_, focus)| *focus);
         self.command_palette
             .focus_stack
