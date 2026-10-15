@@ -1,5 +1,7 @@
 # worldedit 系统架构设计
 
+本页保留 2026-09-19 的早期设计基线；“当前”“新增”和待评审状态均指当时。现行能力与实际验证见[使用文档](../README.md)，配对与历史引用的区别见[设计索引](README.md)。
+
 版本0.2，待评审（0.2修订：矢量画布与栅格图层管线，预算指向契约阈值登记）；基线`b0955adcccd740d9b3b46cee1d0f503ad25f5257`。本设计保留Rust/egui作者工作台，新增地图展示和跨类型关联，不构建世界模拟引擎。
 
 需求依据见[PRD](PRD.md)及[需求清单](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/docs/design/shared/REQUIREMENTS.md)；持久字段以[共同契约](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/spec/presentation.md)为准。事实来源R/E编号见[研究记录](https://github.com/ikzerok/worldline/blob/3f2255ef65a1da76dc34fed818f760cf9e8a8edc/docs/design/shared/RESEARCH.md)。

@@ -32,6 +32,10 @@ jobs:
           python-version: '3.12'
       - name: 离线门禁回归
         run: python scripts/release-test.py -v
+      - name: Windows 产物核验器离线测试
+        run: python -X warn_default_encoding -W error::EncodingWarning -m unittest discover -s scripts -p 'test*windows*.py' -v
+      - name: 桌面发行文档链接映射测试
+        run: python -X warn_default_encoding -W error::EncodingWarning -m unittest discover -s scripts -p 'test_package_doc_links.py' -v
       - name: 检查版本、双仓 main、CI 和所有工单
         id: gate
         env:

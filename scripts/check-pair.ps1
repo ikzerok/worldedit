@@ -60,6 +60,9 @@ try {
     Invoke-Recorded 'worldedit-test' 'cargo' @('test', '--manifest-path', $editorManifest, '--locked')
     Invoke-Recorded 'worldedit-clippy' 'cargo' @('clippy', '--manifest-path', $editorManifest, '--all-targets', '--locked', '--', '-D', 'warnings')
     Invoke-Recorded 'worldedit-build' 'cargo' @('build', '--manifest-path', $editorManifest, '--locked')
+    $editorTarget = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $editorRoot 'target' }
+    $languageTarget = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $languageRoot 'target' }
+    Invoke-Recorded 'worldedit-windows-identity' 'python' @((Join-Path $editorRoot 'scripts/verify-windows-app.py'), (Join-Path $editorTarget 'debug/worldedit.exe'), '--icon', (Join-Path $editorRoot 'assets/worldedit.ico'), '--cli', (Join-Path $languageTarget 'debug/wl.exe'))
     Invoke-Recorded 'worldedit-wasm-clippy' 'cargo' @('clippy', '--manifest-path', $editorManifest, '--target', 'wasm32-unknown-unknown', '--locked', '--', '-D', 'warnings')
     Invoke-Recorded 'worldedit-wasm-build' 'cargo' @('build', '--manifest-path', $editorManifest, '--target', 'wasm32-unknown-unknown', '--locked')
     Invoke-Recorded 'worldedit-prototype-test' 'cargo' @('test', '--manifest-path', $editorManifest, '--features', 'eds11_prototype', '--locked')

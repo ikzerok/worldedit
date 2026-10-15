@@ -1,4 +1,5 @@
 //! worldedit —— worldline 作者工作台(egui)。
+#![cfg_attr(all(target_os = "windows", not(test)), windows_subsystem = "windows")]
 
 mod app;
 mod archive;
@@ -11,6 +12,8 @@ mod highlight;
 mod json_budget;
 mod localization_job;
 mod media;
+#[cfg(not(target_arch = "wasm32"))]
+mod native_diagnostics;
 mod reader_zip;
 #[cfg(any(target_arch = "wasm32", test))]
 mod save_flow;
@@ -30,7 +33,19 @@ mod worker_protocol;
 use std::path::PathBuf;
 
 #[cfg(not(target_arch = "wasm32"))]
-fn main() -> eframe::Result<()> {
+fn main() -> std::process::ExitCode {
+    native_diagnostics::install();
+    match run_native() {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(error) => {
+            native_diagnostics::report_eframe_error(&error);
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn run_native() -> eframe::Result<()> {
     #[cfg(feature = "eds11_prototype")]
     if eds11_prototype::requested_native(std::env::args().skip(1)) {
         return eframe::run_native(

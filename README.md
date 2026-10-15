@@ -1,12 +1,19 @@
 # worldedit（世界编辑系统）
 
-worldline 的 Rust / egui 作者工作台。0.36 连接已有条件的有类型修改、预览和保存，以及对象的真实运行状态旁查。Studio 默认，五种结构与十组十七套配色继续独立组合。语言语义、来源与保护由 core/runtime 统一提供。
+worldline 的 Rust / egui 作者工作台。0.36.1 修复桌面启动、新建作品和 Windows 应用身份；0.36 的条件作者器与对象真实运行状态旁查继续保留。Studio 默认，五种布局、十个主题家族与十七套有效明暗配色独立组合。语言语义、来源与保护由 core/runtime 统一提供。
 
-本版功能与验证范围见[0.36版本说明](docs/releases/v0.36.0.md)，公开发行状态以对应 GitHub Release 为准。默认语言 1.9、最高既有显式版本 1.13 保持，不新增 DSL，也不自动升级作品。
+当前文档对应 worldedit 0.36.1，配对 worldline/core/runtime 仍为 0.36.0；修复与验证范围见[0.36.1 版本说明](docs/releases/v0.36.1.md)。已发布的 [0.36.0](https://github.com/ikzerok/worldedit/releases/tag/v0.36.0) 及其历史验证另见[0.36 说明](docs/releases/v0.36.0.md)。默认语言 1.9、最高既有显式版本 1.13 保持，不新增 DSL，也不自动升级作品。
 
-升级边界：运行轨迹与运行检查点（ReplayTrace / ReplayCheckpoint）继续精确匹配 runtime_version；0.35 及更早记录不能在 0.36 重放、比较或生成已验证审阅，应重新录制。合法旧轨迹可只读导入查看，读取成功不代表可执行。普通 Story Save 继续按格式、能力和语义指纹独立校验；locale 记录还需匹配其展示身份。升级前保留完整工程和原记录。
+升级边界：0.36.1 沿用 runtime 0.36.0，不因编辑器补丁号使 0.36.0 的运行轨迹或运行检查点失效。ReplayTrace / ReplayCheckpoint 仍须匹配 runtime_version、语义指纹等原有条件；0.35 及更早记录不能在 runtime 0.36.0 重放、比较或生成已验证审阅，应重新录制。合法旧轨迹可只读导入查看，读取成功不代表可执行。普通 Story Save 继续按格式、能力和语义指纹独立校验；locale 记录还需匹配其展示身份。升级前保留完整工程和原记录。
 
 资料填写沿用既有指纹规则：schema/绑定本身不改变运行指纹；世界和人物的标量属性可能改变。预览显示 core 实算的前后指纹及是否变化；普通 Story Save 仍按实际指纹等既有规则验证，不因版本号一概宣布失效。
+
+## 0.36.1 桌面启动修复
+
+- 无参数且没有可恢复的最近工程时进入欢迎页，可新建或打开作品；有效最近工程仍可恢复
+- 新建与打开分开：明确创建后才写入空白作品，打开空目录或失败不会自动生成文件
+- Windows 可执行文件使用既有多尺寸图标和 GUI 子系统；异常通过可见错误与本机诊断日志报告
+- [完整启动与故障恢复说明](docs/desktop-startup.md)
 
 ## 0.36 条件与对象真实状态
 
@@ -107,11 +114,20 @@ worldline 的 Rust / egui 作者工作台。0.36 连接已有条件的有类型�
 
 ## 安装与启动
 
-下载发行包并解压，运行 worldedit.exe，选择作品目录。空目录自动建立只有 `world.wl` 的空白作品；已有作品需要根目录 `world.wl`。也可以传目录：
+下载发行包并解压，直接运行 `worldedit.exe`，无需预先准备作品。没有有效最近工程时显示欢迎页：
+
+- “新建作品”：输入新文件夹的完整路径，或选一个已有空目录，再点“创建作品”。成功后仅建立空白 `world.wl`，不带演示内容
+- “打开工程”：选择已有作品目录；根目录应有 `world.wl`，也兼容显式选择根入口 `.wl` 文件。取消或失败保留入口，可改路径重试
+- 之前打开的有效工程可自动恢复；路径失效时返回欢迎页，不创建替代工程
+
+也可从命令行直接启动或打开已有作品：
 
 ```powershell
+./worldedit.exe
 ./worldedit.exe "D:/作品/我的世界"
 ```
+
+显式路径优先于最近工程，只用于打开；空目录、缺失路径和无效入口会显示错误，不隐式新建。Windows 应用不弹出终端；命令行分析仍使用随包的 `wl.exe` 与 `wl-agent.exe`。详细步骤与诊断见[桌面启动与新建作品](docs/desktop-startup.md)。
 
 工作区递归索引全部 `.wl`，允许子目录分区；桌面自动刷新外部文件变化，同文件未保存冲突会提示。附件须先放入工作区再引用。导出保留完整目录文件，包含未引用素材、README 与隐藏的 `.agent`。规则见 [工作区说明](docs/workspace.md)。
 
@@ -147,7 +163,7 @@ Ctrl/Cmd+S 保存全部，Ctrl/Cmd+O 选择工作区，Ctrl/Cmd+Shift+E 打开�
 
 版本选择与复测请先阅读[配对构建与回归基线](docs/paired-ci.md)；worldline 必须检出本仓库 `compatibility.json` 指定的完整 SHA。
 
-把两个 GitHub 仓库克隆到同级目录，名称保持如下；worldline 的实际 GitHub 地址由仓库所有者提供：
+把 [worldedit](https://github.com/ikzerok/worldedit) 与 [worldline](https://github.com/ikzerok/worldline) 克隆到同级目录，并按兼容记录检出 worldline 的完整 SHA，目录名称保持如下：
 
 ```text
 父目录/
@@ -163,12 +179,15 @@ cargo build --release --locked
 cargo test --locked
 cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
-cargo run -- /path/to/your/workspace
+cargo run --locked
+cargo run --locked -- /path/to/your/existing/workspace
 ```
 
 Rust 源码按职责拆分；`check-source-lines.py` 对纳入 Git 的源码和测试执行单文件 600 物理行上限，配对检查也会对 worldline 执行同一规则。
 
 本仓库通过 `../worldline/core` 和 `../worldline/runtime` 路径依赖语言仓库，无需父目录 Cargo.toml。分开上传时保留各自 Cargo.lock、工具链、许可证、源码和测试，排除 target/dist/releases。发行包内附语言工具，无需用户安装 Rust。
+
+普通 `cargo build`、`cargo test` 和 `cargo run` 不要求 Git 元数据或手动提交 SHA。若使用双仓 Source ZIP 再运行 `package.ps1` 制作发行包，须额外按同次发行的 `release-pair.json` 提供 `-EditorSha` 与 `-WorldlineSha`；完整命令见[打包说明](docs/release.md#windows-和-web-包)。
 
 ## 浏览器版
 
@@ -185,16 +204,16 @@ trunk build --release --locked
 
 ## 发布与边界
 
-运行 [scripts/package.ps1](scripts/package.ps1) 完成 Windows 与 Web 打包；细节见 [发布说明](docs/release.md)。静态结构检查不判断自然语言设定真假，时段不计算历法，协作采用文件/Git 合并，尚无云端实时共同编辑。许可证见 [LICENSE](LICENSE)。
+运行 [scripts/package.ps1](scripts/package.ps1) 完成 Windows 与 Web 打包；细节见 [发布说明](docs/release.md)。Windows 包内文档链接按实际目录重映射；未随应用分发的源码和历史材料标为需要联网的固定提交链接。静态结构检查不判断自然语言设定真假，时段不计算历法，协作采用文件/Git 合并，尚无云端实时共同编辑。许可证见 [LICENSE](LICENSE)。
 
 
-## 0.8.0 作者工作区
+## 0.8 引入的作者工作区
 
-本版配对显式语言1.11，新增纯规则、可返回共享片段、类型化state集合和角色台词，默认1.9及旧1.10作品不自动升级。正文/结构/源码共用core源缓冲，书稿直接进入章节正文，编排删除不删除来源。个人布局、阅读宽度/字号/行距、明暗主题、双参考和最近位置留在设备，资料列仅改变显示。
+0.8 引入显式语言1.11的纯规则、可返回共享片段、类型化state集合和角色台词，默认1.9及旧1.10作品不自动升级。正文/结构/源码共用core源缓冲，书稿直接进入章节正文，编排删除不删除来源。个人布局、阅读宽度/字号/行距、明暗主题、双参考和最近位置留在设备，资料列仅改变显示。
 
 阅读发布逐项显示实际页面文本与空页提示，property字段默认未选，引用不会自动公开目标。详见[作者工作区](docs/author-workspace.md)、[正文与书稿](docs/manuscript-workspace.md)及配对worldline的[语言1.11规范](https://github.com/ikzerok/worldline/blob/a13cdef2dc04ca4ce97bf38d0fb00aad100611f5/spec/language-1.11.md)。
 
-**兼容提醒：** 负数rnd的旧错误结果在本版按规范纠正，不保证旧错误轨迹跨版本重放相同；保存的既有值与RNG状态不重算，合法非负seed序列保持。CI构建不等于各平台原生交互已经验收，具体交互范围以独立验收报告为准。
+**兼容提醒：** 负数rnd的旧错误结果自0.8起按规范纠正，不保证旧错误轨迹跨版本重放相同；保存的既有值与RNG状态不重算，合法非负seed序列保持。CI构建不等于各平台原生交互已经验收，具体交互范围以独立验收报告为准。
 
 作者工作区的个人布局、停靠参考、快速命令与草稿退出保护见 [作者工作区说明](docs/author-workspace.md)；正文中心编辑与书稿重组见 [书稿写作工作区](docs/manuscript-workspace.md)。
 

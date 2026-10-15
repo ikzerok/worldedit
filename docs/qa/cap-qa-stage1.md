@@ -1,6 +1,6 @@
 # CAP-QA 第一阶段验收记录
 
-本记录跟踪 worldedit #30 第一阶段，覆盖 CAP-01、03、04、05、06 的当前源码、跨仓配对、测试入口和自动化边界。验收以隔离工作树的提交为准；后续补丁必须重跑受影响的项目。此记录不关闭任何功能票。
+本页为 2026-09-26 的历史记录，跟踪 worldedit #30 第一阶段，覆盖 CAP-01、03、04、05、06 在下列冻结提交中的源码、跨仓配对、测试入口和自动化边界。验收以隔离工作树的提交为准；后续补丁必须重跑受影响的项目。此记录不关闭任何功能票；下文“当前”“最新”和未闭环状态均指该次检查，不代表今天的代码、工单或发行状态。历史原始证据未随仓库分发，以下文件名用于辨认当时记录，不是可下载附件。
 
 ## 冻结输入
 
@@ -10,8 +10,8 @@
 | worldline 配对 | `c64a7899a3887b07ad6a68cdd8cfc67541c59e0e`，tree `0a83be095fe4699c4cc7f2a8af9cf81d407c181c`；包含 WASM 时钟修复 |
 | `compatibility.json` | 本次 QA 工作树临时指向上述完整 core SHA；manifest 与依赖更新后的 editor `Cargo.lock` 不包含在本报告提交中。主线已另行 cherry-pick 同一修复为 `6398e03` |
 | Cargo.lock SHA-256 | QA 配对 editor `C8AD8E9D8D6A463F61FFF4ABBAB1A84F5E18DC9D1CA882A7FA005ED067562313`；worldline `4366B4C126FBECBEC79B614BF8A2C8C45CF75CDB3E574AFD7A52FCBC342CE524` |
-| 环境快照 | [`environment.txt`](../../../qa-capqa-stage1/evidence/environment.txt)；Windows 11 x64 MSVC，Rust/Cargo 1.98.0，WASM target、Trunk 与 headless Edge 已安装 |
-| issue 输入 | [`evidence/`](../../../qa-capqa-stage1/evidence/) 下保存 worldedit #13/#14/#16/#17/#18/#19/#20/#30 和 worldline #13/#15/#16/#17/#18/#19 的原始 JSON；各文件 SHA 在 `ticket-snapshots.sha256` |
+| 环境快照 | 本地外部 `environment.txt`（未随仓库分发）；Windows 11 x64 MSVC，Rust/Cargo 1.98.0，WASM target、Trunk 与 headless Edge 已安装 |
+| issue 输入 | 本地外部 `evidence/`（未随仓库分发） 下保存 worldedit #13/#14/#16/#17/#18/#19/#20/#30 和 worldline #13/#15/#16/#17/#18/#19 的原始 JSON；各文件 SHA 在 `ticket-snapshots.sha256` |
 
 ## 覆盖矩阵
 
@@ -39,9 +39,9 @@
 | #19 CAP-05B | `ece8c22a571c13b2a68622105eb358e1ef5acdd9` | CAP-05A templates/object refs `aeeab1b6aa6ce4e297010effdf81076888faa3d6`, follow-ups `2ab7b94c3e742459ad8f13bd47f9443c3442b553` / `4195a15641f5bf98dcb30dc7213e3d33f74b0951` | `c03016be02cdb6716fe6eacb2bdc8a27759fad91` |
 | #20 CAP-06B | `3e02fa7edd11159dd787984aa0246ac4dac7c6b7` | CAP-06A replay `55c7018d9c8989e9857f193c1e67fe39e438bd17`, CLI/RPC `cb0a7811d484c8d3a1cda38b4386b1e725634507`, boundary fix `661ca3953c6edd249007fd85e5a70ade0de2a731` | `c03016be02cdb6716fe6eacb2bdc8a27759fad91` |
 
-## 当前命令与证据
+## 当时命令与证据
 
-成对检查使用仓库脚本：`worldedit/scripts/check-pair.ps1`。它在执行前核对 `compatibility.json`，分别对两仓运行 fmt、locked 全量测试、严格 Clippy 和 native build，再对 editor 运行 WASM Clippy/build。原始进程输出与脚本逐项日志保存在 [`evidence/`](../../../qa-capqa-stage1/evidence/)。发布包另用 `worldedit/scripts/package.ps1 -OutputDirectory <evidence>/packages`，包含 Windows 与 Web release 包；构建包不等同人工桌面/Web 验收。
+成对检查使用仓库脚本：`worldedit/scripts/check-pair.ps1`。它在执行前核对 `compatibility.json`，分别对两仓运行 fmt、locked 全量测试、严格 Clippy 和 native build，再对 editor 运行 WASM Clippy/build。原始进程输出与脚本逐项日志保存在 本地外部 `evidence/`（未随仓库分发）。发布包另用 `worldedit/scripts/package.ps1 -OutputDirectory <evidence>/packages`，包含 Windows 与 Web release 包；构建包不等同人工桌面/Web 验收。
 
 | 检查 | 状态 | 原始证据 |
 |---|---|---|

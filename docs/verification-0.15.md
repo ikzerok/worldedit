@@ -1,6 +1,6 @@
 # worldedit 0.15 验证事实摘要（开发候选）
 
-核对时间：2026-10-02 17:40 UTC。本文区分自动回归、headless 测量与真实平台交互。本轮 Linux 自动检查、对应源码的 Windows 配对 CI、21 分钟原生功能会话及修补构建的局部验证已完成。真实浏览器验收受阻，产品仍为未正式发行的开发候选，不能据此宣布 0.15 整体验收完成。功能见 [CHANGELOG](../CHANGELOG.md)，边界见[矢量作者](vector-authoring-0.15.md)、[读者发布](reader-publishing-0.15.md)和[后台计算](web-worker.md)。
+核对时间：2026-10-02 17:40 UTC。本文为该日期的历史验证记录，区分自动回归、headless 测量与真实平台交互。本轮 Linux 自动检查、对应源码的 Windows 配对 CI、21 分钟原生功能会话及修补构建的局部验证已完成。真实浏览器验收受阻，产品当时仍为开发候选，不能据此宣布 0.15 整体验收完成。功能见 [CHANGELOG](../CHANGELOG.md)，边界见[矢量作者](vector-authoring-0.15.md)、[读者发布](reader-publishing-0.15.md)和[后台计算](web-worker.md)。
 
 本文指向 worldline 的跨仓相对链接仅用于 `worldline` / `worldedit` 同级检出；Windows CI 链接为对应 GitHub 运行。
 

@@ -4,6 +4,8 @@
 
 此流程合并到 main 后，由维护者在**当前已验收且 CI 成功的 main 完整 SHA**创建普通分支 `release/vX.Y.Z` 触发 GitHub `create` 事件。它不是 tag，也不使用 push、PR 或 dispatch 触发。版本必须与 editor 的 Cargo.toml 完全一致；core 保持真实版本，不为配对强制升级。
 
+worldedit 0.36.1 配对的 worldline/core/runtime 仍为 0.36.0；编辑器补丁不要求同步改运行时版本，实际配对由完整 SHA 固定。
+
 产品版本按 `0.x.y` 递增；当前发行版本必须读取已验收的 Cargo.toml，不使用历史建议值。先合并产品修复、版本与本流程，等待两仓最终 main 的 `ci.yml` push CI 成功并关闭已验收工单，再创建发行分支。普通分支的 create 事件会跳过全部 job。
 
 流程仅使用官方 GitHub Actions、GitHub CLI 与临时 GITHUB_TOKEN。全局/build 为 contents:read；gate 增加 actions:read/issues:read；只有最终 publish job 有 contents:write，另保留门禁必需的只读权限。所有 checkout 禁止持久化凭据。不新增 PAT、OAuth、密钥、环境 secret、id-token、packages 或 actions 写权限。
@@ -18,13 +20,19 @@
 - Windows runner 安装仓库固定 Rust 工具链与固定 Trunk 0.21.14，执行原有 package.ps1
 - 从两仓指定 commit 的 git archive 快照构建，源码 ZIP 保留隐藏文件，只含已提交公开文件，并逐字节保留原始 Git 归档。提交中的 export-ignore 排除 worldline 根 examples/、spec/examples/ 和独立 eds10-visual-sample.html；不重写源码 ZIP 或打包本地目录。源快照提取前及所有最终 ZIP 使用同一安全检查：禁止分发这些样例路径；docs/qa 只接受 UTF-8 文字/结构化证据，拒绝媒体、改后缀二进制与常见编码媒体；拒绝 .tooling/.aws/.ssh/.env/凭据/密钥路径、链接及非规范路径。保留公开应用图标、spec/templates.catalog.json 产品字段模板、必要回归夹具及 core/examples/relations_profile.rs 开发性能工具，不能按任意 examples/fixtures 名称删除可构建、可测试源码。不使用编码容器搬运私有截图
 - 附件固定为 Windows ZIP、Web ZIP、双仓源码 ZIP、release-pair.json、SHA256SUMS.txt；校验文件覆盖其余五个附件
-- 从最终 Windows ZIP 重新提取 wl.exe，在发行目录之外的临时目录生成仅含 `event start` 与缩进 `-> END` 的最小 smoke.wl，运行 `wl.exe check <temporary>/smoke.wl --json`。要求 exit 0、ok:true、read_only:false、零诊断、一个事件及无 stderr，结果写入 release-pair.json 的 build.cli_smoke；临时输入和解压目录随后删除，不进入附件。另检查 Windows 可执行文件以及 Web index/JS/WASM 产物。此步骤不声称执行 Windows GUI 或完整 Web 交互验收
+- 从最终 Windows ZIP 重新提取 wl.exe，在发行目录之外的临时目录生成仅含 `event start` 与缩进 `-> END` 的最小 smoke.wl，运行 `wl.exe check <temporary>/smoke.wl --json`。要求 exit 0、ok:true、read_only:false、零诊断、一个事件及无 stderr，结果写入 release-pair.json 的 build.cli_smoke；临时输入和解压目录随后删除，不进入附件。另外从最终 Windows ZIP 回读 `worldedit.exe`、`wl.exe` 与 ICO，核验图标和 PE 子系统并写入 `build.windows_pe`；Web 继续检查 index/JS/WASM 产物。此步骤不声称执行 Windows GUI 或完整 Web 交互验收
 - publish 校验全部附件、配对 SHA/版本/根目录和校验清单，重查全部远端门禁，然后创建精确 SHA 的 tag 及 draft Release
 - 上传后重新下载六个资产，逐字节比对、再次核对 manifest 与 ZIP；公开前重查全部门禁、tag、draft 唯一 ID 与资产身份，再公开并回读确认。资产上传下载始终由官方 gh 对固定仓库执行，不直接请求 API 返回的 URL
 
 ZIP 中的 commit comment 只是来源标记，不是签名或独立真实性证明；来源约束依靠只读 build 检出精确 SHA、git archive、同一次 workflow 的 artifact 传递及最终回读校验。
 
 本地 package.ps1 需要 Python 3.11+（CI 使用 3.12），复用 release-package.py 的筛选与审计。Git 检出在构建前及源码归档前检查已暂存、未暂存及未忽略的未跟踪更改，有更改即停止，避免工作树二进制与旧 HEAD 源码不匹配。从已导出的源码构建时没有 .git，源码辅助 ZIP 按相同策略复制，保留 worldline/worldedit 同级根目录；正式 build 最终使用的双仓源码 ZIP 仍是起初固定提交的原始 git archive。复制遇到符号链接、Windows junction 或任何 reparse point 都停止，不沿其读取工作区外内容。
+
+`package.ps1` 在完整 Git 检出读取实际 HEAD；无 `.git` 的 Source ZIP 必须按同次 `release-pair.json` 显式提供 `-EditorSha` 和 `-WorldlineSha`，两者均为完整 40 位 SHA。官方 `release-build.py` 从已验证配对记录传入，不能以实时 `main` 猜测。普通 Cargo 构建和运行无需这些参数或 Git 元数据。
+
+Windows 包复制两仓 README、CHANGELOG、语言规范、使用指南及图标说明后，运行 `package-doc-links.py`。仅发行 Markdown 副本按实际嵌套目录重映射，未分发的源码和历史材料改成需要联网的固定提交链接；已有历史固定提交保留。仅 `export-ignore` 明确移除的历史样例允许在源码快照中不存在，其他缺失目标停止打包。重映射不改源码归档，不为修链复制样例、测试工程或整仓内容。
+
+Windows 应用身份须另核对实际 `worldedit.exe` 的 GUI 子系统、RT_GROUP_ICON 与七份 RT_ICON 原始图像，同时确认 `wl.exe` 保持控制台子系统。独立核验命令为 `python scripts/verify-windows-app.py <worldedit.exe> --icon assets/worldedit.ico --cli <wl.exe>`；该静态结果不证明 Windows 真实桌面无闪窗或任务栏图标已验收。
 
 源码归档排除样例后仍须作为验收输入：解压到同一父目录，再执行原有配对构建和测试。样例排除或 ZIP 审计通过不等于已通过编译、回归或原生交互验收。
 
@@ -41,11 +49,15 @@ GitHub 没有将跨仓 main/issue/CI 检查与 Release PATCH 合并为原子事�
 ```sh
 python -X utf8 -X warn_default_encoding -W error scripts/release-test.py -v
 python -X utf8 -X warn_default_encoding -W error -m unittest discover -s scripts -p 'test_check_pair.py' -v
-python -m py_compile scripts/release.py scripts/release-build.py scripts/release-package.py scripts/release-test.py
+python -X utf8 -X warn_default_encoding -W error -m unittest discover -s scripts -p 'test_package_doc_links.py' -v
+python -X utf8 -X warn_default_encoding -W error -m unittest discover -s scripts -p 'test*windows*.py' -v
+python -m py_compile scripts/release.py scripts/release-build.py scripts/release-package.py scripts/release-test.py scripts/package-doc-links.py
 ```
 
-PR/main CI 已设置 Python 3.12，独立运行 pair/release 两组离线测试；每组均立即传播非零退出码。
+PR/main CI 已设置 Python 3.12，独立运行配对、发行门禁、Windows 产物核验及发行文档链接测试；每组均立即传播非零退出码。
 
 离线测试使用模拟 API 和临时文件，不联网、不访问凭据、不创建 tag/release。通过不代表 Windows runner 已完成实际构建，更不代表已经线上发行。
+
+现行启动与诊断见[桌面入口](../docs/desktop-startup.md)，产品修复与实际验证见[0.36.1 说明](../docs/releases/v0.36.1.md)。仓库版本说明修订不自动更新已经发布的 GitHub Release 正文；不要为文案同步重建或覆盖既有 tag 与附件。
 
 官方参考：[create 事件](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#create)、[Git refs API](https://docs.github.com/en/rest/git/refs#create-a-reference)、[Releases API](https://docs.github.com/en/rest/releases/releases#create-a-release)。

@@ -7,7 +7,7 @@ description: 使用 worldedit 工作区与 worldline 工具创建、修改、检
 
 ## 确认作品与工具
 
-先确定用户正在创作的工作区绝对目录和根入口 `world.wl`。已有目录沿用，不把编辑器安装目录或 worldline 源码仓库当作作品目录。目录内递归索引全部 `.wl`，用子目录分区；参考笔记用 Markdown，附件放入目录再引用。对尚未确定的工作区，先询问作品位置再写入。
+先确定用户正在创作的工作区绝对目录和根入口 `world.wl`。已有目录沿用，不把编辑器安装目录或 worldline 源码仓库当作作品目录。目录内递归索引全部 `.wl`，用子目录分区；参考笔记用 Markdown，附件放入目录再引用。对尚未确定的工作区，先询问作品位置再写入。桌面编辑器可无参数启动；没有有效最近工程时显示欢迎页。新作品通过“新建作品”明确目标与创建，打开工程或传入 CLI 路径不再隐式初始化空目录。
 
 查找已安装的 `wl`、`wl-agent`、`worldedit`；源码环境中可用 `cargo run --manifest-path <worldline>/Cargo.toml -p wl -- ...`。查看 [CLI 能力表](../../../docs/cli-coverage.md) 区分文件创作与窗口操作。仓库布局下语言规范在同级 worldline 的 [规范索引](../../../../worldline/spec/README.md)，首次写作阅读 [创作手册](../../../../worldline/docs/handbook.md)；发行包从随包的 worldline/spec 与 worldline/docs 读取。复制本技能到作品后，应按实际安装目录定位这些文档，不假设复制后的相对链接仍成立。
 

@@ -1,6 +1,6 @@
 # 当前源码行列定位
 
-0.26 在普通“源文件”页提供物理行与字符列定位。当前实现和实际验收状态见[0.26版本说明](https://github.com/ikzerok/worldedit/blob/main/docs/releases/v0.26.0.md)；核心规则以[坐标契约](https://github.com/ikzerok/worldline/blob/main/spec/source-coordinates.md)为准。
+0.26 在普通“源文件”页提供物理行与字符列定位。0.26 引入时的实现与验收状态见[0.26版本说明](https://github.com/ikzerok/worldedit/blob/main/docs/releases/v0.26.0.md)；核心规则以[坐标契约](https://github.com/ikzerok/worldline/blob/main/spec/source-coordinates.md)为准。
 
 ## 从位置提示到准确原文
 

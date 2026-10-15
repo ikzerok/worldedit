@@ -1,17 +1,25 @@
-# 配对构建与回归基线（WP-00 / worldedit #1）
+# 配对构建与回归基线
 
 ## 固定版本与工具链
 
 `compatibility.json` 是编辑器的 worldline 兼容记录。CI 读取仓库名和完整 SHA，检出该版本后实际构建桌面及 WASM；不跟随 worldline 的 main。编辑器版本由当前 CI 检出的提交确定（PR 时为 GitHub 的合并测试提交），日志登记完整 SHA。
 
-设计冻结基线：worldline `dcb6479873f86b08354ba92b098dc260aa976624`，worldedit `b0955adcccd740d9b3b46cee1d0f503ad25f5257`。WP-00 实施起点：worldline `5443226192b424edb01c6d5644694188c3a8ef4c`，worldedit `700597d3c383080dedd262ef389df4d6051db7e5`。两起点相对冻结基线的源码、测试、样例、Cargo.toml、Cargo.lock 与工具链均未改变，因此本次复跑的就是原回归套件；不声称在历史日期执行过测试。
+工具链以当前两仓 `rust-toolchain.toml` 为准，依赖以各自 `Cargo.lock` 为准。编辑器与 core/runtime 可有不同补丁版本；worldedit 0.36.1 配对 core/runtime 0.36.0，精确 SHA 仍须匹配兼容记录。
 
-两仓库各自的 `rust-toolchain.toml` 固定 Rust 1.98.0，包含 rustfmt/clippy。Cargo 1.98.0；本次主机为 Windows x86_64 MSVC，profile 为 dev/test。锁文件使用 SHA-256：
+### WP-00 历史冻结记录（2026-09-19）
+
+设计冻结基线：worldline `dcb6479873f86b08354ba92b098dc260aa976624`，worldedit `b0955adcccd740d9b3b46cee1d0f503ad25f5257`。WP-00 实施起点：worldline `5443226192b424edb01c6d5644694188c3a8ef4c`，worldedit `700597d3c383080dedd262ef389df4d6051db7e5`。两起点相对冻结基线的源码、测试、样例、Cargo.toml、Cargo.lock 与工具链均未改变，因此该次复跑的是原回归套件；不声称在历史日期执行过测试。
+
+该次两仓的 `rust-toolchain.toml` 固定 Rust 1.98.0，包含 rustfmt/clippy。Cargo 1.98.0；当时主机为 Windows x86_64 MSVC，profile 为 dev/test。锁文件使用 SHA-256：
 
 | 仓库 | Cargo.lock SHA-256 |
 | --- | --- |
 | worldline | `31e3bbba6686e4cd48945e46d418062718927ff8c6ed96d90a1a23d839540023` |
 | worldedit | `67b14b4b3d16004d98d23cd68a12427d147cd376dfa598bbf4482c989bab06eb` |
+
+以上 SHA-256 仅对应历史冻结输入，不是当前锁文件校验值。
+
+## 当前检查要求
 
 锁文件随各仓库提交保留；所有测试、检查和构建使用 `--locked`。CI 的操作系统镜像仍为 windows-latest，本项保证源码/依赖配对可复测，不保证二进制逐字节相同。
 
@@ -31,7 +39,7 @@ rustup target add wasm32-unknown-unknown
 ./scripts/check-pair.ps1
 ```
 
-脚本校验 worldline HEAD，分别指定两个 Cargo.toml，先对两仓库的 Rust 源文件（包括测试）执行单文件 600 物理行检查，再执行格式、完整测试、严格 clippy、原生实际构建及编辑器 WASM 检查和实际构建，任一步失败立即失败。`target/paired-check/` 保存操作系统、CPU、内存、GPU 清单、两仓 SHA、工作区修改状态、锁文件摘要及逐项日志；有工作区修改时只能视为开发验证，正式配对证据必须来自干净检出。此脚本用于 Windows 自动检查，不启动 GUI 或浏览器，浏览器版本与 DPI 明确记为未测；它们须在后续实际 GUI/浏览器验收时另行记录。
+脚本校验 worldline HEAD，分别指定两个 Cargo.toml，先对两仓库的 Rust 源文件（包括测试）执行单文件 600 物理行检查，再执行格式、完整测试、严格 clippy、原生实际构建及编辑器 WASM 检查和实际构建，任一步失败立即失败。`target/paired-check/` 保存操作系统、CPU、内存、GPU 清单、两仓 SHA、工作区修改状态、锁文件摘要及逐项日志；有工作区修改时只能视为开发验证，正式配对证据必须来自干净检出。此脚本用于 Windows 自动检查，并静态核验生成的 PE 图标与子系统；不启动 GUI 或浏览器，浏览器版本与 DPI 明确记为未测；它们须在后续实际 GUI/浏览器验收时另行记录。
 
 CI 只运行必要检查并保留平台自身的运行状态与日志，不再额外上传配对验收 artifact。原始本机记录只留 target，不上传源码仓库；没有执行到的检查不能视作成功。正式发行工作流的 release-gate/release-assets 是发行必需制品，不是配对验收包。
 
@@ -43,22 +51,22 @@ CI 只运行必要检查并保留平台自身的运行状态与日志，不再�
 python3 scripts/check-pair.py
 ```
 
-跨平台入口与 Windows 脚本保留相同的 19 个检查步骤（包含 5 项显式开启 eds11_prototype 的测试、native/WASM 严格 Clippy 与构建）及失败即停语义，不自动安装依赖、不切换分支、不更新锁文件。原生构建仍需要对应平台的系统开发库。脚本先校验兼容仓库名、完整 SHA 和实际 worldline HEAD，然后记录两仓提交、未提交变更、锁文件摘要及平台信息；硬件或 GUI 信息未测时明确记为未测。
+跨平台入口与 Windows 脚本保留共同的源码行数、格式、测试、严格 Clippy 和构建步骤，包含 5 项显式开启 eds11_prototype 的测试、native/WASM 严格 Clippy 与构建，并保持失败即停语义。Windows 另核验实际生成的 `worldedit.exe` 的图标/GUI 子系统及 `wl.exe` 的控制台子系统。脚本不自动安装依赖、不切换分支、不更新锁文件。原生构建仍需要对应平台的系统开发库。脚本先校验兼容仓库名、完整 SHA 和实际 worldline HEAD，然后记录两仓提交、未提交变更、锁文件摘要及平台信息；硬件或 GUI 信息未测时明确记为未测。
 
 证据保存在 `target/paired-check/<UTC>/`：`environment.json`、`compatibility.json`、`locks.json`、逐步骤日志和 `summary.json`。汇总区分 `passed`、`failed`、`not_run`，工具缺失或失败后的步骤不会被计为通过。脏工作区的结果仅为开发检查，不作为干净提交的正式配对证据。此入口不证明 Windows、GUI、物理 IME 或真人作者验收；Windows CI 保留现有 PowerShell 入口。
 
 检查入口本身的回归不需要 Rust：`python3 -m unittest discover -s scripts -p 'test_*.py' -v`，覆盖固定版本拒绝、与 Windows 步骤一致、严格锁文件/Clippy/WASM 参数、缺失工具、失败即停及证据边界。
 
-## 验收口径
+## WP-00 历史验收口径
 
-2026-09-19 本地验证结果：worldline 156 项（含 1 项文档测试）、worldedit 6 项测试通过，失败 0；两仓格式与严格 clippy、两仓原生构建、编辑器 WASM clippy 与实际构建全部通过。原始日志保存在上述本地证据目录；尚未推送本次变更，因此此处不声称 GitHub Actions 已运行通过。
+2026-09-19 本地验证结果：worldline 156 项（含 1 项文档测试）、worldedit 6 项测试通过，失败 0；两仓格式与严格 clippy、两仓原生构建、编辑器 WASM clippy 与实际构建全部通过。原始日志保存在上述本地证据目录；该记录形成时尚未推送变更，因此这段历史结果不声称当时 GitHub Actions 已运行通过。
 
 - **Q-001 / T-Q-001**：冻结上述提交，以及 worldline 基线提交内的 `examples/harbor-world` 与既有测试夹具。原有 `.wl`、状态、链接、存档相关回归套件全部通过，零新增失败；测试日志与环境信息归档。本项不替代 M1 的桌面 GUI 手势、浏览器交互、性能和新地图用例验收。
 - **Q-007 / T-Q-007**：编辑器 CI 从兼容记录读取 worldline 的完整 SHA，校验实际 HEAD，分别执行两仓测试并真正构建编辑器原生/WASM 目标。缺失提交、版本不匹配或检查失败必须阻断；浮动 main 不能作兼容版本。
 
 ## 成对升级与回滚
 
-本次是首次兼容配对登记：worldline 固定到 `5443226192b424edb01c6d5644694188c3a8ef4c`，worldedit 为包含此记录并通过 CI 的提交（当时完整 SHA 写入配对环境记录）。之前的 CI 没有固定配对记录，本次未执行版本升级或回滚演练。WP-00 交付升级/回滚验收口径；后续每次实际操作必须记录旧、新两组成对 SHA、工具链/锁变更、CI 结果与本地配对记录，不能只记录操作意图。
+WP-00 当时的首次兼容配对登记为：worldline 固定到 `5443226192b424edb01c6d5644694188c3a8ef4c`，worldedit 为包含此记录并通过 CI 的提交（当时完整 SHA 写入配对环境记录）。此前的 CI 没有固定配对记录，该次未执行版本升级或回滚演练。WP-00 交付升级/回滚验收口径；后续每次实际操作必须记录旧、新两组成对 SHA、工具链/锁变更、CI 结果与本地配对记录，不能只记录操作意图。
 
 升级时先选择已经提交的 worldline SHA，再在 worldedit 修改兼容记录；如果 Rust 或依赖有变化，同时提交相应工具链/锁文件和验收文档。运行配对检查，记录新的编辑器提交及 worldline SHA，并确认精确提交的 CI 通过后才将该组合视为已验证。
 
