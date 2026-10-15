@@ -7,6 +7,8 @@ use crate::{
 use worldline_core::project::Project;
 #[path = "layout_tests.rs"]
 mod layout;
+#[path = "object_inspection_tests.rs"]
+mod object_inspection;
 #[path = "shortcut_tests.rs"]
 mod shortcuts;
 

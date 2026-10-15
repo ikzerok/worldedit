@@ -22,10 +22,10 @@ impl WorldeditApp {
     }
     pub(in crate::app) fn compact_navigation_menu(&mut self, ui: &mut egui::Ui) {
         if self.focus_style() {
-            if crate::chrome::quiet_button(ui, "导航")
-                .on_hover_text("导航与文件 · Ctrl/Cmd+Shift+E；关闭临时窗口返回正文")
-                .clicked()
-            {
+            let navigation = crate::chrome::quiet_button(ui, "导航")
+                .on_hover_text("导航与文件 · Ctrl/Cmd+Shift+E；关闭临时窗口返回正文");
+            crate::chrome::action_layout::record(ui, "global/navigation", &navigation);
+            if navigation.clicked() {
                 self.open_navigation_drawer(ui.ctx());
             }
             return;
@@ -36,7 +36,7 @@ impl WorldeditApp {
         {
             return;
         }
-        crate::chrome::quiet_menu(ui, "导航", |ui| {
+        let navigation = crate::chrome::quiet_menu(ui, "导航", |ui| {
             ui.label("工作区导航 · 保留当前内容的可用空间");
             for tab in [
                 Tab::Manuscript,
@@ -63,10 +63,11 @@ impl WorldeditApp {
                 }
             }
         });
+        crate::chrome::action_layout::record(ui, "global/navigation", &navigation.response);
     }
 
     pub(in crate::app) fn workspace_view_menu(&mut self, ui: &mut egui::Ui) {
-        crate::chrome::quiet_menu(ui, "视图", |ui| {
+        let menu = crate::chrome::quiet_menu(ui, "视图", |ui| {
             if ui.button("快速切换 · Ctrl/Cmd+P").clicked() {
                 self.open_commands(ui.ctx(), false);
                 ui.close();
@@ -111,5 +112,6 @@ impl WorldeditApp {
                 ui.close();
             }
         });
+        crate::chrome::action_layout::record(ui, "global/view", &menu.response);
     }
 }

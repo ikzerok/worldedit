@@ -208,7 +208,309 @@ try {
   assert.equal(result.view.inspection.stamp.run_id, stamp.run_id);
   assert.equal(result.view.ended, false);
 } finally { await worker.terminate(); }
+// Default-language source: no manifest upgrade, extra compiler, mocked catalog, or
+// host-side state filtering. The owner selector is interpreted inside final WASM.
+const ownerDraft = `world shared as "同名"
+character shared as "同名"
+character other as "同名"
+character empty as "无状态人物"
+tag calm as "平静"
+tag alert as "警觉"
+tag proved as "已验证"
+state person_mood on character shared with calm as "状态"
+state person_empty on character shared with [] as "状态"
+state other_mood on character other with calm as "状态"
+state world_mood on world shared with [] as "状态"
+let shared_score = 3
+let shared_mood = false
+event start with shared
+  effect on enter
+    become person_mood with alert
+  choice "继续 {rnd(1, 9)}" if has(person_mood, alert)
+    become person_mood with alert
+    become person_empty with proved
+    choice "结束"
+      -> END
+`;
+const sharedOwner = { kind: 'character', id: 'shared' };
+const ownerQuery = (owner = sharedOwner, extra = {}) => ({ owner, group: 'state', ...extra });
+const row = (page, name) => {
+  const item = page.items.find(item => item.key.name === name);
+  assert(item, `Missing real state row: ${name}`);
+  return item;
+};
+function assertTags(cell, expected) {
+  assert.equal(cell.status, 'present');
+  assert.deepEqual(cell.value, { TagSet: expected });
+  assert.equal(cell.truncated, false);
+}
+function persistentRun(view) {
+  // outputs is the per-command delivery batch, which commands intentionally clear.
+  // Raw save/trace/RNG internals are not exposed by this Worker View protocol.
+  const { outputs, inspection, ...persistent } = view;
+  return persistent;
+}
+function observedRun(view) {
+  return { ...persistentRun(view), stamp: view.inspection.stamp };
+}
+function assertUnscopedMain(page) {
+  assert(!Object.hasOwn(page, 'owner'), 'Main inspection cannot inherit a hidden side owner');
+  assert(page.items.every(item => !Object.hasOwn(item, 'state_definition')));
+  for (const [group, name] of [['global', 'shared_score'], ['global', 'shared_mood'],
+    ['state', 'person_mood'], ['state', 'person_empty'], ['state', 'other_mood'], ['state', 'world_mood']]) {
+    assert(page.items.some(item => item.key.group === group && item.key.name === name),
+      `Main inspection must still include ${group}:${name}`);
+  }
+}
+function assertReadOnly(result, before) {
+  assert.deepEqual(observedRun(result.view), before,
+    'Inspection must preserve the exposed run identity, choices/conditions, turns, and wait');
+}
+worker = await createWorker();
+try {
+  const session = 'owner-frozen-final-wasm';
+  const payload = prepareFor(session, ownerDraft);
+  let result = resultFor(await ask(worker, {
+    kind: 'prepare', json: JSON.stringify(payload), files, retained: []
+  }), session, 0);
+  assert(!result.error, result.error);
+  let request = 1;
+  const issue = async action => {
+    const id = request++;
+    return resultFor(await ask(worker, command(id, action, session)), session, id);
+  };
+  result = await issue({ action: 'start', seed: 9, budget });
+  assert(!result.error, result.error);
+  assert.equal(result.view.outcome, 'choice');
+  const before = observedRun(result.view);
+  const mainPage = result.view.inspection;
+  assertUnscopedMain(mainPage);
+  const firstStamp = before.stamp;
+  for (const field of ['run_id', 'compiled_snapshot', 'fingerprint', 'trace_generation', 'revision']) {
+    assert.match(firstStamp[field], /^\d+$/, `${field} must keep its decimal-string wire identity`);
+  }
+  assert(!Object.hasOwn(result.view.inspection, 'owner'), 'Legacy query omits owner metadata');
+  assert(result.view.inspection.items.every(item => !Object.hasOwn(item, 'state_definition')),
+    'Legacy query does not invent owner definitions for ordinary variables');
+  const inspect = async query => {
+    const response = await issue({ action: 'inspect_object', query });
+    assert(!response.error, response.error);
+    assertReadOnly(response, before);
+    return response;
+  };
+  for (const [owner, expected] of [
+    [sharedOwner, ['person_empty', 'person_mood']],
+    [{ kind: 'character', id: 'other' }, ['other_mood']],
+    [{ kind: 'world', id: 'shared' }, ['world_mood']]
+  ]) {
+    result = await inspect(ownerQuery(owner, { expected_stamp: firstStamp }));
+    const page = result.view.inspection;
+    assert.deepEqual(page.owner, { target: owner, display: '同名' });
+    assert.equal(page.total_items, expected.length);
+    assert.equal(page.total_matches, expected.length);
+    assert.deepEqual(page.items.map(item => item.key.name), expected);
+    for (const item of page.items) {
+      assert.equal(item.key.group, 'state');
+      assert.deepEqual(item.state_definition.owner, owner);
+      assert.equal(item.state_definition.display, '状态');
+      assert(item.source, 'Real owner state must retain its declaration source');
+    }
+  }
+  result = await inspect(ownerQuery(sharedOwner, { expected_stamp: firstStamp }));
+  const frozenPage = result.view.inspection;
+  assert.equal(frozenPage.first_observation, 1);
+  assert.equal(frozenPage.previous_observation, null);
+  assert.equal(frozenPage.current_observation, 1);
+  const mood = row(frozenPage, 'person_mood');
+  assertTags(mood.state_definition.initial, ['calm']);
+  assertTags(mood.first, ['alert']);
+  assertTags(mood.current, ['alert']);
+  assert.equal(mood.previous.status, 'unrecorded');
+  assert.equal(mood.previous.value, null);
+  assert.notDeepEqual(mood.first, mood.state_definition.initial,
+    'First real observation follows enter effects; it is not the declaration initial value');
+  assertTags(row(frozenPage, 'person_empty').state_definition.initial, []);
+  assertTags(row(frozenPage, 'person_empty').current, []);
+  // The old generic inspect owner API remains compatible, but it is not the UI
+  // side-channel. Explicitly restore the ordinary query before checking isolation.
+  result = await issue({ action: 'inspect', query: ownerQuery(sharedOwner, { expected_stamp: firstStamp }) });
+  assert(!result.error, result.error);
+  assert.deepEqual(result.view.inspection, frozenPage);
+  result = await issue({ action: 'inspect', query: { owner: null, expected_stamp: firstStamp } });
+  assert(!result.error, result.error);
+  assertReadOnly(result, before);
+  assertUnscopedMain(result.view.inspection);
+  assert.deepEqual(result.view.inspection, mainPage);
+  for (let repeat = 0; repeat < 3; repeat++) {
+    result = await inspect(ownerQuery(sharedOwner, { expected_stamp: firstStamp }));
+    assert.deepEqual(result.view.inspection, frozenPage, 'A read cannot manufacture another observation');
+  }
+  const firstPage = (await inspect(ownerQuery(sharedOwner,
+    { expected_stamp: firstStamp, limit: 1 }))).view.inspection;
+  const secondPage = (await inspect(ownerQuery(sharedOwner,
+    { expected_stamp: firstStamp, offset: 1, limit: 1 }))).view.inspection;
+  assert.equal(firstPage.next_offset, 1);
+  assert.equal(secondPage.next_offset, null);
+  assert.equal(firstPage.total_matches, 2);
+  assert.equal(secondPage.total_matches, 2);
+  assert.deepEqual([...firstPage.items, ...secondPage.items], frozenPage.items);
+  result = await inspect(ownerQuery(sharedOwner, { expected_stamp: firstStamp, text: 'PERSON_MOOD' }));
+  assert.deepEqual(result.view.inspection.items.map(item => item.key.name), ['person_mood']);
+  result = await inspect(ownerQuery(sharedOwner, { expected_stamp: firstStamp, text: '状态' }));
+  assert.deepEqual(result.view.inspection.items, frozenPage.items);
+  const emptyOwner = { kind: 'character', id: 'empty' };
+  result = await inspect(ownerQuery(emptyOwner, { expected_stamp: firstStamp }));
+  assert.deepEqual(result.view.inspection.owner, { target: emptyOwner, display: '无状态人物' });
+  assert.equal(result.view.inspection.total_items, 0);
+  assert.equal(result.view.inspection.total_matches, 0);
+  assert.deepEqual(result.view.inspection.items, []);
+  const emptyView = result.view;
+  for (const query of [{}, { owner: null }]) {
+    result = await issue({ action: 'inspect_object', query });
+    assert.match(result.error ?? '', /必须提供完整 owner/);
+    assert.deepEqual(result.view, emptyView, 'Missing side owner retains the last valid side page');
+  }
+  for (const owner of [{ kind: 'entity', id: 'shared' }, { kind: 'character', id: 'missing' }]) {
+    result = await issue({ action: 'inspect_object', query: ownerQuery(owner, { expected_stamp: firstStamp }) });
+    assert.match(result.error ?? '', /冻结目录/, 'A wrong full identity is an error, not an empty object');
+    assert.deepEqual(result.view, emptyView, 'Rejected owner must retain the last valid query and run');
+  }
+  for (const query of [
+    ownerQuery({ kind: 'character', id: '' }),
+    ownerQuery({ kind: 'unknown-kind', id: 'shared' }),
+    ownerQuery(sharedOwner, { group: 'global' })
+  ]) {
+    result = await issue({ action: 'inspect_object', query });
+    assert.match(result.error ?? '', /完整已知种类/, 'Invalid owner/group must not silently fall back');
+    assert.deepEqual(result.view, emptyView);
+  }
+  for (const owner of [{ id: 'shared' }, { kind: 'character' },
+    { ...sharedOwner, display: '同名' }, { kind: 'character', id: 7 }]) {
+    const rejected = await ask(worker, command(request, { action: 'inspect_object', query: { owner } }, session));
+    assert(rejected.error, 'Malformed owner must fail strict wire decoding');
+    assert(!rejected.result, 'Malformed owner must not become a fabricated successful response');
+    // Decode failures never entered Engine::execute: the same request identity is still usable.
+    result = await inspect(ownerQuery(emptyOwner, { expected_stamp: firstStamp }));
+    assert.deepEqual(result.view, emptyView);
+  }
+
+  // A separately prepared newer draft changes owner display, ownership, and static
+  // initial tags. It must not backfill the still-live old Worker's frozen catalog.
+  const changedDraft = ownerDraft
+    .replace('character shared as "同名"', 'character shared as "新稿人物"')
+    .replace('state person_mood on character shared with calm',
+      'state person_mood on character other with proved');
+  payload.input.drafts[0].source = changedDraft;
+  const newer = await createWorker();
+  try {
+    const newerSession = 'owner-newer-final-wasm';
+    let nextResult = resultFor(await ask(newer, {
+      kind: 'prepare', json: JSON.stringify({ ...payload, session_id: newerSession }), files, retained: []
+    }), newerSession, 0);
+    assert(!nextResult.error, nextResult.error);
+    nextResult = resultFor(await ask(newer,
+      command(1, { action: 'start', seed: 9, budget }, newerSession)), newerSession, 1);
+    assert(!nextResult.error, nextResult.error);
+    const newerBefore = observedRun(nextResult.view);
+    nextResult = resultFor(await ask(newer,
+      command(2, { action: 'inspect_object', query: ownerQuery() }, newerSession)), newerSession, 2);
+    assert(!nextResult.error, nextResult.error);
+    assertReadOnly(nextResult, newerBefore);
+    assert.equal(nextResult.view.inspection.owner.display, '新稿人物');
+    assert.deepEqual(nextResult.view.inspection.items.map(item => item.key.name), ['person_empty']);
+    const newerView = nextResult.view;
+    assert.notDeepEqual(newerView.inspection.stamp, firstStamp);
+    nextResult = resultFor(await ask(newer, command(3, {
+      action: 'inspect_object', query: ownerQuery(sharedOwner, { expected_stamp: firstStamp })
+    }, newerSession)), newerSession, 3);
+    assert.match(nextResult.error ?? '', /运行或观察位置已变化/);
+    assert.deepEqual(nextResult.view, newerView, 'Foreign snapshot stamp must not replace a valid page');
+    nextResult = resultFor(await ask(newer, command(4, {
+      action: 'inspect_object', query: ownerQuery({ kind: 'character', id: 'other' })
+    }, newerSession)), newerSession, 4);
+    assert(!nextResult.error, nextResult.error);
+    assertReadOnly(nextResult, newerBefore);
+    assertTags(row(nextResult.view.inspection, 'person_mood').state_definition.initial, ['proved']);
+    result = await inspect(ownerQuery(sharedOwner, { expected_stamp: firstStamp }));
+    assert.deepEqual(result.view.inspection, frozenPage, 'Newer draft cannot rewrite old owner/source/initial');
+    result = await issue({ action: 'declaration_source', source: mood.source });
+    assert(!result.error, result.error);
+    assertReadOnly(result, before);
+    assert.equal(result.source.path, 'world.wl');
+    assert.equal(result.source.draft, true);
+    assert.equal(result.source.preview, 'state person_mood on character shared with calm as "状态"');
+    assertUnscopedMain(result.view.inspection);
+    assert.deepEqual(result.view.inspection, mainPage,
+      'Side-source navigation returns the unchanged ordinary inspection, not the owner page');
+    result = await issue({ action: 'inspect', query: { group: 'global', expected_stamp: firstStamp } });
+    assert(!result.error, result.error);
+    assertReadOnly(result, before);
+    assert.deepEqual(result.view.inspection.items.map(item => item.key.name), ['shared_mood', 'shared_score']);
+    result = await issue({ action: 'inspect', query: { owner: null, expected_stamp: firstStamp } });
+    assert(!result.error, result.error);
+    assert.deepEqual(result.view.inspection, mainPage);
+  } finally { await newer.terminate(); }
+
+  const choice = result.view.choices[0].id;
+  result = await issue({ action: 'choose', id: choice, budget });
+  assert(!result.error, result.error);
+  assert.equal(result.view.outcome, 'choice');
+  const advanced = observedRun(result.view);
+  const advancedView = result.view;
+  assertUnscopedMain(advancedView.inspection);
+  assert.equal(advanced.stamp.run_id, firstStamp.run_id);
+  assert.notDeepEqual(advanced.stamp, firstStamp);
+  assert.equal(advancedView.inspection.previous_observation, 1);
+  assert.equal(advancedView.inspection.current_observation, 2);
+  assertTags(row(advancedView.inspection, 'person_empty').current, ['proved']);
+  assert.equal(row(advancedView.inspection, 'person_empty').previous_change, 'changed');
+  assert.equal(row(advancedView.inspection, 'person_mood').previous_change, 'unchanged');
+  for (const owner of [sharedOwner, { kind: 'character', id: 'missing' }]) {
+    result = await issue({ action: 'inspect_object', query: ownerQuery(owner, { expected_stamp: firstStamp }) });
+    assert.match(result.error ?? '', /运行或观察位置已变化/,
+      'Old observation stamp must fail before a different missing-owner lookup');
+    assert.deepEqual(persistentRun(result.view), persistentRun(advancedView));
+    assert.deepEqual(result.view.inspection, frozenPage,
+      'A failed stale side request keeps its old side page, never the fresh main page');
+  }
+  result = await issue({ action: 'inspect_object', query: ownerQuery(sharedOwner,
+    { expected_stamp: advanced.stamp, changed_only: true, compare_to: 'previous' }) });
+  assert(!result.error, result.error);
+  assertReadOnly(result, advanced);
+  assert.equal(result.view.inspection.total_items, 2);
+  assert.deepEqual(result.view.inspection.items.map(item => item.key.name), ['person_empty']);
+  assertTags(result.view.inspection.items[0].state_definition.initial, []);
+  assertTags(result.view.inspection.items[0].first, []);
+  assertTags(result.view.inspection.items[0].previous, []);
+  assertTags(result.view.inspection.items[0].current, ['proved']);
+  const sideSource = result.view.inspection.items[0].source;
+  result = await issue({ action: 'continue', budget });
+  assert(!result.error, result.error);
+  assertUnscopedMain(result.view.inspection);
+  const endChoice = result.view.choices[0].id;
+  result = await issue({ action: 'choose', id: endChoice, budget });
+  assert(!result.error, result.error);
+  assert.equal(result.view.ended, true);
+  assertUnscopedMain(result.view.inspection);
+  const ended = observedRun(result.view);
+  // Restrict the main query explicitly, so only the now-stale side cache could
+  // authorize this source. A stale side page must not grant a fresh source jump.
+  result = await issue({ action: 'inspect', query: { group: 'global', expected_stamp: ended.stamp } });
+  assert(!result.error, result.error);
+  const endedMain = result.view;
+  result = await issue({ action: 'declaration_source', source: sideSource });
+  assert.match(result.error ?? '', /运行或观察位置已变化/);
+  assert.equal(result.source, null);
+  assert.deepEqual(result.view, endedMain);
+  result = await issue({ action: 'inspect', query: { owner: null, expected_stamp: ended.stamp } });
+  assert(!result.error, result.error);
+  assertReadOnly(result, ended);
+  assertUnscopedMain(result.view.inspection);
+} finally { await worker.terminate(); }
 console.log('PASS: final WASM prepare/start/actual output/choose/state/source/identity rejection/terminate/reopen');
 console.log('PASS: real Worker queued prepare -> terminate/join -> fresh session; no late old result or old-session advancement');
 console.log('PASS: final WASM unknown choice retains wait; actual choice -> division-by-zero clears outcome and reports failed inspection');
-console.log('NOT COVERED: browser host/HTTP loader, browser interaction/physical IME, CORS/CSP, browser host response callbacks, or interruption inside Rust compilation');
+console.log('PASS: final WASM owner full kind/id, same display names, multiple states/empty owner, strict malformed/wrong-owner rejection, legacy query compatibility');
+console.log('PASS: final WASM frozen draft catalog/source, static initial differs from first observation, read-only exposed run fields and same-stamp pagination/filtering, stale snapshot/observation rejection');
+console.log('PASS: independent inspect_object side pages preserve generic inspect globals/other owners and continue/choose/source main responses; stale side sources rejected');
+console.log('NOT COVERED: browser host/HTTP loader, browser interaction/physical IME, CORS/CSP, browser host response callbacks, interruption inside Rust compilation, or direct raw save/trace/RNG memory assertions');

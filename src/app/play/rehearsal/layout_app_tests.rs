@@ -153,9 +153,20 @@ fn full_app_studio_200_percent_keeps_real_draft_text_choice_and_all_panes_reacha
         .save()
         .unwrap();
     let output = settle(&ctx, &mut app);
-    // 必须包含真实外层 chrome，不能退回直接绘制 play_tab 的大视口。
+    // Responsive labels vary with measured width; the same real command control
+    // must remain fully visible, enabled, and hit-sized in the complete App.
+    let commands = crate::chrome::action_layout::trace(&ctx)
+        .into_iter()
+        .find(|response| response.role == "global/commands")
+        .expect("full App must contain global commands");
+    assert!(
+        commands.enabled
+            && ctx.screen_rect().contains_rect(commands.rect)
+            && commands.clip.contains_rect(commands.rect)
+            && commands.rect.width() >= 20.0
+            && commands.rect.height() >= 20.0
+    );
     for label in [
-        "worldedit",
         "保存全部",
         "重做",
         "草稿隔离试演",

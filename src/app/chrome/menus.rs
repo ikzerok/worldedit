@@ -3,7 +3,7 @@ use super::*;
 impl WorldeditApp {
     pub(super) fn project_menu(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
-        crate::chrome::quiet_menu(ui, "工程", |ui| {
+        let menu = crate::chrome::quiet_menu(ui, "工程", |ui| {
             if ui.button("语言与资料能力…").clicked() {
                 self.open_capabilities();
                 ui.close();
@@ -59,5 +59,6 @@ impl WorldeditApp {
                 ui.close();
             }
         });
+        crate::chrome::action_layout::record(ui, "global/project", &menu.response);
     }
 }

@@ -40,7 +40,11 @@ impl WorldeditApp {
         }
     }
 
-    pub(super) fn return_rehearsal_source(&mut self, ctx: &egui::Context, source: SourceHit) {
+    pub(in crate::app::play) fn return_rehearsal_source(
+        &mut self,
+        ctx: &egui::Context,
+        source: SourceHit,
+    ) -> bool {
         let result = (|| {
             let running = self.draft_rehearsal.running.as_ref().ok_or("试演已关闭")?;
             self.rehearsal_guard(&running.input, &running.key, true)?;
@@ -94,8 +98,12 @@ impl WorldeditApp {
                 self.message = Some(
                     "已定位本次草稿试演的真实声明头；未应用或保存正文。Alt+Left 返回试演".into(),
                 );
+                true
             }
-            Err(error) => self.draft_rehearsal.notice = Some(error),
+            Err(error) => {
+                self.draft_rehearsal.notice = Some(error);
+                false
+            }
         }
     }
 }

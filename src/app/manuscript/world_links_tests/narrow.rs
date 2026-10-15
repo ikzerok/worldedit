@@ -60,7 +60,9 @@ fn narrow_fixture(kind: Kind) -> (egui::Context, WorldeditApp) {
 }
 
 fn visible_label(ctx: &egui::Context, output: &egui::FullOutput, label: &str) -> Option<Rect> {
-    for shape in &output.shapes {
+    // Inspect the last painted matching control first: the foreground author form
+    // may share "更多" with the now-folded background global action bar.
+    for shape in output.shapes.iter().rev() {
         let mut texts = Vec::new();
         text_shapes(&shape.shape, &mut texts);
         for text in texts.into_iter().filter(|text| text.galley.text() == label) {

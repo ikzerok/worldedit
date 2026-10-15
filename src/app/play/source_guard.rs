@@ -7,6 +7,27 @@ use worldline_core::search_replace::SearchMatch;
 
 impl WorldeditApp {
     pub(super) fn play_source_guard(&self, scope: &AppliedPlayScope) -> Result<(), String> {
+        self.play_source_snapshot_guard(scope)?;
+        if self.ime_composing || self.command_palette.ime || self.command_palette.ime_frame {
+            return Err("请先完成输入法组合；当前输入已保留".into());
+        }
+        self.play_source_input_guard()
+    }
+
+    // 对象窗只替换本宿主的 IME 判断；原运行、稿源、未应用稿与恢复冲突保护完全共用。
+    pub(super) fn play_object_source_guard(
+        &self,
+        ctx: &egui::Context,
+        scope: &AppliedPlayScope,
+    ) -> Result<(), String> {
+        self.play_source_snapshot_guard(scope)?;
+        if self.object_inspection_composing(ctx) {
+            return Err("请先完成输入法组合；当前输入已保留".into());
+        }
+        self.play_source_input_guard()
+    }
+
+    fn play_source_snapshot_guard(&self, scope: &AppliedPlayScope) -> Result<(), String> {
         if !scope.matches_project(&self.project, self.version) {
             return Err("实际运行快照已过期或来源内容已变化，请重新运行后定位".into());
         }
@@ -20,9 +41,10 @@ impl WorldeditApp {
         if snapshot.result.sources != scope.sources {
             return Err("当前编译来源不再是此次实际运行的源码集合".into());
         }
-        if self.ime_composing || self.command_palette.ime || self.command_palette.ime_frame {
-            return Err("请先完成输入法组合；当前输入已保留".into());
-        }
+        Ok(())
+    }
+
+    fn play_source_input_guard(&self) -> Result<(), String> {
         if !self.unapplied_play_inputs().is_empty() {
             return Err("存在未应用执行草稿；请先应用或撤销这些输入，再重新运行后定位".into());
         }
@@ -38,6 +60,19 @@ impl WorldeditApp {
         scope: &AppliedPlayScope,
     ) -> Result<(), String> {
         self.play_source_guard(scope)?;
+        self.play_source_disk_guard()
+    }
+
+    pub(super) fn play_object_source_navigation_guard(
+        &self,
+        ctx: &egui::Context,
+        scope: &AppliedPlayScope,
+    ) -> Result<(), String> {
+        self.play_object_source_guard(ctx, scope)?;
+        self.play_source_disk_guard()
+    }
+
+    fn play_source_disk_guard(&self) -> Result<(), String> {
         self.project.verify_review_navigation().map_err(|reason| {
             reason
                 .replace("审稿来源需要刷新", "运行证据的外部来源需要刷新")

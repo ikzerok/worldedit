@@ -110,7 +110,7 @@ impl WorldeditApp {
         &mut self,
         ctx: &egui::Context,
         request: &EvidenceNavigationRequest,
-    ) {
+    ) -> bool {
         let result: Result<SearchMatch, String> = (|| {
             let play = self.play.as_ref().ok_or("当前没有可定位的运行")?;
             self.play_source_navigation_guard(&play.scope)?;
@@ -132,15 +132,19 @@ impl WorldeditApp {
             Ok(hit) => {
                 if let Err(reason) = self.go_author_source_position(ctx, &hit, true) {
                     self.replay_debugger.notice = Some(reason);
-                    return;
+                    return false;
                 }
                 self.replay_debugger.notice = None;
                 let fallback = self.message.take().unwrap_or_default();
                 self.message = Some(format!(
                     "已定位本次证据的声明头（不是子表达式精确范围）；Alt+Left 返回。{fallback}"
                 ));
+                true
             }
-            Err(reason) => self.replay_debugger.notice = Some(reason),
+            Err(reason) => {
+                self.replay_debugger.notice = Some(reason);
+                false
+            }
         }
     }
 }

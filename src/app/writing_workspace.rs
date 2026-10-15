@@ -102,7 +102,7 @@ pub(super) fn draw_controls(
     let input_busy = view.ime_active;
     let mut action = Action::default();
     let previous_mode = view.mode;
-    let compact_title = typography.compact && theme::style_preset() != theme::StylePreset::Ledger;
+    let compact_title = typography.compact;
     let heading_width = toolbar_layout::heading_width(ui, title, compact_title);
     let layout = toolbar_layout::choose(ui, heading_width, view.mode);
     let narrow = matches!(
@@ -337,7 +337,7 @@ pub(super) fn draw_document(
     } else {
         ui.available_width()
     };
-    theme::document_surface_titled(ui, title, width, |ui| {
+    theme::document_surface_with_title_placement(ui, title, width, typography.compact, |ui| {
         // max_rect follows the content origin, whereas clip_rect stays on screen.
         // A saved offset must never add the same distance to the page's height.
         ui.set_min_height(ui.available_height());

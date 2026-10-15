@@ -4,6 +4,8 @@ CLI **不能遥控运行中 worldedit 的全部功能**。worldedit 启动命令
 
 | 功能 | wl | wl-agent | 编辑器 / AI 可行方式 |
 |---|---|---|---|
+| 既有分支条件安全往返 | condition-authoring query/preview/apply；apply 显式 --save | condition.authoring.query / condition.authoring.preview / condition.authoring.apply | 同一 core 有类型投影和精确补丁；仅操作自己的 Project，不能遥控 GUI 条件草稿 |
+| 完整对象身份的真实所属状态 | play 暂停时 inspect JSON 的 owner | session.inspect 的 owner | 查询各自已存在运行的冻结目录与 stamp；无运行不暗启动，不猜变量归属 |
 | schema 绑定与约束字段填写 | schema-authoring query/preview/apply；apply 显式 --save | schema.authoring.query / schema.authoring.preview / schema.authoring.apply | 四类资料共用 core 投影与原子计划；仅自己的 Project，不访问 GUI 未提交输入 |
 | 编译、诊断、统计 | check | compile | 同一 core 分析 |
 | 正式对白 typed 计划 | dialogue query/preview/apply；apply 显式 --save | dialogue.query / dialogue.edit.preview / dialogue.edit.apply | 同 core 单语句、明确迁移与完整基线；只修改自己的 Project，不读取 GUI 草稿 |

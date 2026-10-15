@@ -1,23 +1,48 @@
 //! 选择卡片只编辑核心草稿，源码定位与重写由 core 完成。
 use crate::theme;
-use worldline_core::{
-    authoring::{ChoiceDraft, EventDraft},
-    RelationGraph,
-};
+use worldline_core::authoring::{ChoiceDraft, EventDraft};
 
 pub(super) fn choice_cards(
     ui: &mut egui::Ui,
     draft: &mut EventDraft,
-    graph: Option<&RelationGraph>,
-    catalog: Option<&worldline_core::catalog::Catalog>,
-    symbols: Option<&worldline_core::Symbols>,
-    locked_choices: bool,
+    context: &super::condition_authoring::Context<'_>,
+    forms: &mut super::condition_authoring::ConditionForms,
 ) -> Result<(), String> {
-    let cache_key = ui.id().with(("choice-forms", &draft.id));
-    let choices = ui
-        .data_mut(|data| data.get_temp::<(String, Vec<ChoiceDraft>)>(cache_key))
+    let graph = Some(&context.compiled.analysis.graph);
+    let catalog = Some(&context.compiled.analysis.catalog);
+    let symbols = Some(&context.compiled.analysis.symbols);
+    let locked_choices = context
+        .project
+        .language_version_kind()
+        .supports_language_112();
+    if forms.choice_error.is_some()
+        && forms
+            .choice_cache
+            .as_ref()
+            .is_some_and(|(source, _)| source != &draft.body)
+    {
+        ui.colored_label(
+            theme::WARNING(),
+            "未完成分支输入的正文已变化；输入保留，不能套到新行号",
+        );
+        if theme::add_enabled(
+            ui,
+            !context.composing,
+            egui::Button::new("取消未完成分支输入"),
+        )
+        .clicked()
+        {
+            forms.choice_cache = None;
+            forms.choice_error = None;
+        } else {
+            return Err("请取消旧分支输入后重新读取当前正文".into());
+        }
+    }
+    let choices = forms
+        .choice_cache
+        .as_ref()
         .filter(|(source, _)| source == &draft.body)
-        .map(|(_, choices)| choices)
+        .map(|(_, choices)| choices.clone())
         .unwrap_or_else(|| draft.choices());
     let unchanged_choices = choices.clone();
     let original_body = draft.body.clone();
@@ -26,7 +51,7 @@ pub(super) fn choice_cards(
     let add = ui
         .horizontal(|ui| {
             ui.heading("分支决策");
-            ui.button("＋ 添加选项").clicked()
+            theme::add_enabled(ui, !context.composing, egui::Button::new("＋ 添加选项")).clicked()
         })
         .inner;
     ui.label(theme::muted(
@@ -42,8 +67,8 @@ pub(super) fn choice_cards(
                     } else {
                         "嵌套选项"
                     });
-                    ui.checkbox(&mut choice.once, "只能选择一次");
-                    if ui.small_button("删除分支").clicked() {
+                    theme::add_enabled(ui, !context.composing, egui::Checkbox::new(&mut choice.once, "只能选择一次"));
+                    if theme::add_enabled(ui, !context.composing, egui::Button::new("删除分支").small()).clicked() {
                         remove = Some(choice.line);
                     }
                 });
@@ -52,23 +77,19 @@ pub(super) fn choice_cards(
                         .hint_text("玩家看到的选择文案")
                         .desired_width(f32::INFINITY),
                 );
-                ui.label(theme::muted("显示条件（可留空）"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut choice.condition)
-                        .hint_text("例如 has(mood, calm)")
-                        .desired_width(f32::INFINITY),
-                );
-                if let Some(catalog) = catalog {
-                    super::tags::condition(ui, catalog, &mut choice.condition);
-                }
+                super::condition_authoring::show(ui, context, forms,
+                    super::condition_authoring::owner(&draft.id, Some(choice.line)),
+                    worldline_core::condition_authoring::ConditionSlot::ChoiceDisplay,
+                    &mut choice.condition);
                 egui::CollapsingHeader::new("可见但禁用（语言 1.12）")
                     .default_open(!choice.enable_condition.is_empty())
                     .show(ui, |ui| {
                         if !locked_choices { ui.label(theme::muted("需显式语言 1.12；旧工程不会自动升级。")); }
                         crate::theme::add_enabled_ui(ui, locked_choices, |ui| {
-                            ui.label("可选条件（空值不锁定）");
-                            ui.add(egui::TextEdit::singleline(&mut choice.enable_condition)
-                                .hint_text("例如 has(inventory, silver_key)").desired_width(f32::INFINITY));
+                            super::condition_authoring::show(ui, context, forms,
+                                super::condition_authoring::owner(&draft.id, Some(choice.line)),
+                                worldline_core::condition_authoring::ConditionSlot::ChoiceEnable,
+                                &mut choice.enable_condition);
                             ui.label("禁用说明（读者可见的静态文字）");
                             ui.add(egui::TextEdit::singleline(&mut choice.disabled_reason)
                                 .hint_text("例如：还需要银钥匙").desired_width(f32::INFINITY));
@@ -88,7 +109,7 @@ pub(super) fn choice_cards(
                 };
                 ui.label(theme::muted("分支末尾去向"));
                 if let Some(catalog) = catalog {
-                    ui.horizontal_wrapped(|ui| {
+                    theme::add_enabled_ui(ui, !context.composing, |ui| { ui.horizontal_wrapped(|ui| {
                         if ui
                             .selectable_label(choice.target.is_none(), "继续执行后文")
                             .clicked()
@@ -101,7 +122,7 @@ pub(super) fn choice_cards(
                         {
                             choice.target = Some("END".into());
                         }
-                    });
+                    }); });
                     let mut target = choice
                         .target
                         .as_deref()
@@ -114,11 +135,11 @@ pub(super) fn choice_cards(
                         &mut target,
                         catalog,
                         &["event", "scene"],
-                    ) {
+                    ) && !context.composing {
                         choice.target = target.map(|target| target.id);
                     }
                 } else {
-                    egui::ComboBox::from_id_salt("target")
+                    theme::add_enabled_ui(ui, !context.composing, |ui| { egui::ComboBox::from_id_salt("target")
                         .selected_text(caption)
                         .width(ui.available_width() - 20.0)
                         .show_ui(ui, |ui| {
@@ -141,7 +162,7 @@ pub(super) fn choice_cards(
                                     );
                                 }
                             }
-                        });
+                        }); });
                 }
                 if choice.target != previous_target {
                     choice.drift = choice
@@ -151,7 +172,7 @@ pub(super) fn choice_cards(
                         .is_some_and(|n| n.storyline != draft.storyline);
                 }
                 if choice.target.as_deref().is_some_and(|t| t != "END") {
-                    ui.checkbox(&mut choice.drift, "跨故事线漂流");
+                    theme::add_enabled(ui, !context.composing, egui::Checkbox::new(&mut choice.drift, "跨故事线漂流"));
                 }
                 if let Some(target) = choice
                     .target
@@ -180,7 +201,10 @@ pub(super) fn choice_cards(
                 );
                 if let Some(catalog) = catalog {
                     egui::CollapsingHeader::new("＋ 选后改变状态").show(ui, |ui| {
-                        super::tags::actions(ui, catalog, &mut choice.body);
+                        // 保留标签搜索框的 IME 接收身份；组合期间不把结构动作写入正文。
+                        let mut candidate = choice.body.clone();
+                        super::tags::actions(ui, catalog, &mut candidate);
+                        if !context.composing { choice.body = candidate; }
                     });
                 }
             });
@@ -190,20 +214,21 @@ pub(super) fn choice_cards(
         }
         ui.add_space(6.0);
     }
+    let mut result = forms.choice_error.clone().map_or(Ok(()), Err);
     if let Some(line) = remove {
-        draft.remove_choice(line)?;
+        result = draft.remove_choice(line);
     } else if let Some(choice) = &changed {
-        draft.write_choice(Some(choice.line), choice)?;
+        result = draft.write_choice(Some(choice.line), choice);
     }
-    if add {
-        draft.write_choice(
+    if add && result.is_ok() {
+        result = draft.write_choice(
             None,
             &ChoiceDraft {
                 label: "新的选择".into(),
                 target: Some("END".into()),
                 ..Default::default()
             },
-        )?;
+        );
     }
     let mut updated = if draft.body == original_body {
         unchanged_choices
@@ -215,11 +240,18 @@ pub(super) fn choice_cards(
             *form = choice;
         }
     }
-    ui.data_mut(|data| data.insert_temp(cache_key, (draft.body.clone(), updated)));
+    forms.choice_cache = Some((draft.body.clone(), updated));
+    forms.choice_error = result.as_ref().err().cloned();
+    if let Some(error) = &forms.choice_error {
+        ui.colored_label(
+            theme::WARNING(),
+            format!("分支输入尚未应用，完整保留：{error}"),
+        );
+    }
     ui.label(theme::muted(
         "同组选择只执行选中的一项；无可用选项时继续组后内容。复杂分支仍可在完整正文中编辑。",
     ));
-    Ok(())
+    result
 }
 
 fn resolved_choice_target(

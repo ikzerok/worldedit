@@ -44,6 +44,7 @@ impl WorldeditApp {
                 let d = &f.draft;
                 json!([
                     f.path,
+                    f.condition_forms.signature(),
                     d.id,
                     d.summary,
                     d.storyline,

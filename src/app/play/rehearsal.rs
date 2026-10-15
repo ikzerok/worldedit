@@ -1,6 +1,7 @@
 //! 当前正文的独立试演；不持有/替换普通 PlayState，不应用或保存作者输入。
 mod job;
 mod navigation;
+mod object_inspection;
 mod shortcuts;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
@@ -39,6 +40,11 @@ struct Running {
     localized_outputs: Vec<crate::draft_rehearsal_worker::DisplayOutput>,
     query: StateInspectionQuery,
     submitted_query: StateInspectionQuery,
+    object_source: Option<super::object_inspection::PendingObjectSource>,
+    object_query: StateInspectionQuery,
+    object_page: Option<worldline_runtime::StateInspectionPage>,
+    object_query_error: Option<String>,
+    object_query_pending: bool,
     stale: bool,
     paused: bool,
     stopped: bool,

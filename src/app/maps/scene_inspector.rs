@@ -20,6 +20,9 @@ impl super::super::WorldeditApp {
         crate::theme::technical_value(ui, "稳定 ID", &node.id);
         if let Some(target) = &node.target_ref {
             ui.label(format!("绑定：{}:{}", target.kind, target.id));
+            if ui.button("查看对象运行状态…").clicked() {
+                self.open_object_inspection(ui.ctx(), target.clone());
+            }
             if ui.button("打开资料").clicked() {
                 self.open_reading(target.clone());
             }

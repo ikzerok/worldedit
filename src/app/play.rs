@@ -7,6 +7,7 @@ mod evidence_navigation;
 pub(in crate::app) mod inspection;
 pub(in crate::app) mod keyboard;
 pub(in crate::app) mod localization;
+pub(in crate::app) mod object_inspection;
 pub(in crate::app) mod rehearsal;
 mod replay;
 mod replay_location;

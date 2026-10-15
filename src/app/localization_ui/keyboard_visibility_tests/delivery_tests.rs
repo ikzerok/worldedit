@@ -98,6 +98,20 @@ fn localization_short_keyboard_new_ime_cancels_pending_reverse_reveal() {
     tab(&mut h, "添加文字段", false);
     tab(&mut h, "保留此译文并待复核", false);
     let add = tab(&mut h, "添加文字段", true);
+    // More compact chrome can leave the former destination fully visible. Establish
+    // the same real off-screen precondition by pointer scroll before testing IME.
+    for _ in 0..8 {
+        let field = current_widget(&h, field);
+        if !field.interact_rect.contains_rect(field.rect) {
+            break;
+        }
+        h.wheel(h.scroll_point(), -24.0);
+    }
+    complete(
+        &h,
+        add,
+        "visible reverse-navigation origin after pointer setup",
+    );
     let before = current_widget(&h, field);
     assert!(
         !before.interact_rect.contains_rect(before.rect),

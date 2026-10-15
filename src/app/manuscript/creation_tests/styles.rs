@@ -118,7 +118,9 @@ fn focus_is_single_area_and_recalls_chapters_management_creation_and_preview() {
     );
     click(&ctx, &mut app, "编辑");
     click(&ctx, &mut app, "书稿管理");
+    click(&ctx, &mut app, "编排");
     assert!(labels(&settle(&ctx, &mut app)).contains("插入分节"));
+    key(&ctx, &mut app, egui::Key::Escape);
     click(&ctx, &mut app, "新建章节");
     assert_eq!(
         app.manuscript

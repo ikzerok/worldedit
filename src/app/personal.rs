@@ -41,6 +41,8 @@ pub(super) struct Location {
     pub reading: Option<reading_position::ReadingPosition>,
     #[serde(skip)]
     pub comparison: Option<super::play::comparison::ComparisonLocation>,
+    #[serde(skip)]
+    pub object_inspection: Option<super::play::object_inspection::ObjectInspectionPosition>,
 }
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -192,6 +194,7 @@ impl WorldeditApp {
             event: self.focus_event.clone(),
             manuscript: serde_json::to_value(self.manuscript_session()).unwrap_or_default(),
             comparison: self.comparison_location(ctx),
+            object_inspection: self.object_inspection_position(),
             map: self.capture_map_position(),
             reading: self.capture_reading_position(),
         }
@@ -427,6 +430,7 @@ impl WorldeditApp {
             }
         }
         self.restore_comparison_location(ctx, location.comparison);
+        self.restore_object_inspection_position(ctx, location.object_inspection);
         self.restore_problem_source(location.source_problem);
         if let Some(tab) = location.tab {
             self.tab = tab;
@@ -458,6 +462,7 @@ impl WorldeditApp {
                             // 恢复读取 core 草稿，不调用可能迁移旧权限的 select_event。
                             if let Ok((path, draft)) = self.project.event_draft(&target.id) {
                                 self.event_editor = Some(super::EventEditor {
+                                    condition_forms: Default::default(),
                                     baseline: self.project.content_baseline(),
                                     predecessor_query: String::new(),
                                     temporal_cache: None,

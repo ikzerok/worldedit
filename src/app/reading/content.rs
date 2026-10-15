@@ -78,6 +78,9 @@ impl WorldeditApp {
                     self.tab = crate::app::Tab::Wiki;
                     self.close_transient_reading();
                 }
+                if ui.button("查看真实运行状态…").clicked() {
+                    self.open_object_inspection(ui.ctx(), target.clone());
+                }
                 if ui.button("查看关联").clicked() {
                     self.open_network(target.clone());
                     self.close_transient_reading();

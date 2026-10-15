@@ -7,19 +7,38 @@ impl WorldeditApp {
         &self,
         request: &SourceRequest,
     ) -> Result<SearchMatch, String> {
-        let play = self.play.as_ref().ok_or("当前没有真实运行")?;
-        self.play_source_navigation_guard(&play.scope)?;
-        let story = play.story.as_ref().ok_or("当前没有真实Story")?;
-        if story.inspection_stamp() != request.stamp {
-            return Err("运行观察已变化，请重新查询".into());
-        }
         let page = self
             .replay_debugger
             .inspection
             .page
             .as_ref()
-            .filter(|page| page.stamp == request.stamp)
             .ok_or("检查页已失效，请重新查询")?;
+        self.inspection_source_hit_from(request, page)
+    }
+    pub(in crate::app::play) fn inspection_source_hit_from(
+        &self,
+        request: &SourceRequest,
+        page: &worldline_runtime::StateInspectionPage,
+    ) -> Result<SearchMatch, String> {
+        let play = self.play.as_ref().ok_or("当前没有真实运行")?;
+        self.play_source_navigation_guard(&play.scope)?;
+        self.inspection_source_hit_from_after_source_navigation_guard(request, page)
+    }
+
+    // 调用者先通过同一运行的来源导航守卫；此主体仍逐项核对 stamp/key/owner 来源及磁盘文字。
+    pub(in crate::app::play) fn inspection_source_hit_from_after_source_navigation_guard(
+        &self,
+        request: &SourceRequest,
+        page: &worldline_runtime::StateInspectionPage,
+    ) -> Result<SearchMatch, String> {
+        let play = self.play.as_ref().ok_or("当前没有真实运行")?;
+        let story = play.story.as_ref().ok_or("当前没有真实Story")?;
+        if story.inspection_stamp() != request.stamp {
+            return Err("运行观察已变化，请重新查询".into());
+        }
+        if page.stamp != request.stamp {
+            return Err("检查页已失效，请重新查询".into());
+        }
         // Exact key and source membership, including local call identity; no textual stand-in.
         let actual = page
             .items

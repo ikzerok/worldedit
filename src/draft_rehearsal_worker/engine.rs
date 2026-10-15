@@ -10,6 +10,7 @@ pub(super) struct Engine {
     session_id: String,
     next_request: u64,
     query: StateInspectionQuery,
+    object_page: Option<worldline_runtime::StateInspectionPage>,
     view: View,
     presentation: Option<worldline_core::localization::LocalizationPresentationSnapshot>,
     observed_sources: std::collections::BTreeSet<(String, u32, String)>,
@@ -65,6 +66,7 @@ impl Engine {
             session_id: prepare.session_id.clone(),
             next_request: 1,
             query: StateInspectionQuery::default(),
+            object_page: None,
             view,
             presentation,
             observed_sources: Default::default(),
@@ -77,6 +79,7 @@ impl Engine {
 
     pub(super) fn execute(&mut self, command: Command, token: &ReplayCancellation) -> Response {
         let id = command.request_id.clone();
+        let object_query = matches!(&command.action, Action::InspectObject { .. });
         let result = (|| {
             command.validate()?;
             if command.session_id != self.session_id || id != self.next_request.to_string() {
@@ -121,6 +124,18 @@ impl Engine {
                         .map_err(|e| e.message)?;
                     self.query = query;
                 }
+                Action::InspectObject { query } => {
+                    if query.owner.is_none() {
+                        return Err("对象旁查必须提供完整 owner 身份".into());
+                    }
+                    self.object_page = Some(
+                        self.session
+                            .as_ref()
+                            .ok_or("试演尚未启动")?
+                            .inspect_state(&query)
+                            .map_err(|error| error.message)?,
+                    );
+                }
                 Action::LocalizationSource { source } => {
                     if !self.observed_sources.contains(&(
                         source.file.clone(),
@@ -156,13 +171,27 @@ impl Engine {
                     return self.relative_hit(hit).map(Some);
                 }
                 Action::DeclarationSource { source } => {
-                    if !self.view.inspection.as_ref().is_some_and(|page| {
-                        page.items
-                            .iter()
-                            .any(|item| item.source.as_ref() == Some(&source))
-                    }) {
-                        return Err("声明已不属于当前真实状态查询页".into());
-                    }
+                    let page = self
+                        .view
+                        .inspection
+                        .iter()
+                        .chain(self.object_page.iter())
+                        .find(|page| {
+                            page.items
+                                .iter()
+                                .any(|item| item.source.as_ref() == Some(&source))
+                        })
+                        .ok_or("声明已不属于当前真实状态查询页")?;
+                    // 旁查页独立缓存；推进后不得用旧页授权来源返回。
+                    self.session
+                        .as_ref()
+                        .ok_or("试演尚未启动")?
+                        .inspect_state(&StateInspectionQuery {
+                            expected_stamp: Some(page.stamp),
+                            limit: 1,
+                            ..Default::default()
+                        })
+                        .map_err(|error| error.message)?;
                     let hit = self
                         .session
                         .as_ref()
@@ -175,10 +204,16 @@ impl Engine {
             Ok(None)
         })();
         self.refresh_view();
-        match result {
+        let mut response = match result {
             Ok(source) => self.response(id, source, None),
             Err(error) => self.response(id, None, Some(error)),
+        };
+        if object_query {
+            if let Some(view) = &mut response.view {
+                view.inspection = self.object_page.clone();
+            }
         }
+        response
     }
 
     fn advance(

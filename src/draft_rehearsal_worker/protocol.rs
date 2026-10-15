@@ -54,6 +54,10 @@ pub(crate) enum Action {
     Inspect {
         query: StateInspectionQuery,
     },
+    /// 对象旁查独立查询，不改变主状态检查的筛选与页面。
+    InspectObject {
+        query: StateInspectionQuery,
+    },
     EvidenceSource {
         source: EvidenceSource,
     },
@@ -147,7 +151,7 @@ impl Command {
                 Some(budget)
             }
             Action::Continue { budget } => Some(budget),
-            Action::Inspect { query }
+            Action::Inspect { query } | Action::InspectObject { query }
                 if query.limit == 0 || query.limit > 100 || query.text.chars().count() > 256 =>
             {
                 return Err("状态查询超过预算".into())

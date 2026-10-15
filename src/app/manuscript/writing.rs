@@ -55,7 +55,12 @@ impl super::super::WorldeditApp {
             return None;
         }
         self.draw_world_link_return(ui);
-        let compact = self.manuscript_focus_layout() || layout::compact_workspace(ui.ctx());
+        // 前置编排控件也占用正文高度；大字时不能仅凭整个窗口判断是否宽敞。
+        // 收束重复页头和说明，给真实编辑区保留数行，不改变用户字号或布局偏好。
+        let appearance = self.personal.appearance();
+        let compact = self.manuscript_focus_layout()
+            || layout::compact_workspace(ui.ctx())
+            || ui.available_height() < appearance.body_size.max(appearance.source_size) * 8.0;
         let Some(buffer) = self.manuscript.writing_buffers.get_mut(&path) else {
             self.manuscript.pending_scroll = None;
             self.manuscript.scroll_y = 0.0;

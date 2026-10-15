@@ -1,5 +1,6 @@
 //! 一体化窗口控制,保留原生拖动、最大化和八方向缩放。
 use crate::theme::{self, ERROR, MUTED, TEXT};
+pub(crate) mod action_layout;
 #[cfg(not(target_arch = "wasm32"))]
 use egui::CursorIcon;
 use egui::{Context, Pos2, Rect, Sense, Stroke, Vec2, ViewportCommand};
@@ -66,6 +67,7 @@ pub fn controls(ui: &mut egui::Ui) -> bool {
             Sense::click(),
         );
         response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+        action_layout::record(ui, &format!("window-control/{index}"), &response);
         let center = rect.center();
         let highlighted = response.hovered() || response.has_focus();
         if highlighted {

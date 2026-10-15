@@ -43,7 +43,17 @@ pub fn document_surface_titled<R>(
     max_width: f32,
     contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<R> {
-    surfaces::document_surface_titled(ui, label, max_width, contents)
+    document_surface_with_title_placement(ui, label, max_width, false, contents)
+}
+/// 紧凑编辑区可在固定工具行显示同一标题，避免 Ledger 再堆叠一行重复题签。
+pub(crate) fn document_surface_with_title_placement<R>(
+    ui: &mut egui::Ui,
+    label: &str,
+    max_width: f32,
+    title_in_toolbar: bool,
+    contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    surfaces::document_surface_titled(ui, label, max_width, title_in_toolbar, contents)
 }
 
 pub const SPACE_XS: f32 = 4.0;

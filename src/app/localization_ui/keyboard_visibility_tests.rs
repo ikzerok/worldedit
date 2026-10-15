@@ -376,7 +376,19 @@ fn click_control(h: &mut Harness, label: &str, coalesced: bool, settle_open: boo
         };
         h.wheel(h.scroll_point(), delta.clamp(-38.0, 38.0));
     }
-    let before = origin.expect("the complete real control must be visible before clicking");
+    let mut before = origin.expect("the complete real control must be visible before clicking");
+    if !settle_open {
+        // Begin away from the top scroll limit. The cancellation case needs room
+        // for a newer upward wheel intent even after coalesced opening momentum.
+        let top = h.workbench_viewport().top() + 4.0;
+        h.wheel(h.scroll_point(), top - before.top());
+        let positioned = current_widget(h, id);
+        assert!(
+            h.ctx.screen_rect().contains_rect(positioned.rect)
+                && positioned.interact_rect.contains_rect(positioned.rect)
+        );
+        before = positioned.rect;
+    }
     let point = before.center();
     // Both native delivery schedules are legal: separate movement, or move+press in one frame.
     if !coalesced {
