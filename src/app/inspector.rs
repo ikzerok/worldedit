@@ -14,7 +14,7 @@ mod temporal_constraints;
 mod temporal_tests;
 #[cfg(test)]
 use properties::properties;
-pub(super) use properties::properties_with_references;
+pub(super) use properties::{properties_excluding, properties_with_references};
 
 pub(super) fn field(ui: &mut egui::Ui, label: &str, value: &mut String) {
     ui.vertical(|ui| {
@@ -341,6 +341,7 @@ impl WorldeditApp {
     }
 
     pub(super) fn world_tab(&mut self, ctx: &egui::Context) {
+        let protected = self.world_draft_dirty();
         let template_index = self
             .snapshot
             .as_ref()
@@ -386,14 +387,18 @@ impl WorldeditApp {
                 ui.add_space(12.0);
                 theme::card().show(ui, |ui| {
                     ui.label(RichText::new("共同属性").strong().size(16.0));
-                    properties_with_references(ui, &mut draft.properties, &catalog, self.project.compile_options());
-                    if let Some(suggestion) = super::templates::template_panel(
+                    let schema_keys = world.as_ref().map(|world| {
+                        self.schema_authoring_entry(ui, &worldline_core::TargetRef::new("world", &world.id), protected)
+                    }).unwrap_or_default();
+                    properties_excluding(ui, &mut draft.properties, &catalog, self.project.compile_options(), &schema_keys);
+                    if let Some(suggestion) = super::templates::template_panel_excluding(
                         ui,
                         "world",
                         None,
                         &template_index,
                         &catalog,
                         &mut draft.properties,
+                        &schema_keys.keys,
                     )
                     {
                         if let Some(world) = &world {

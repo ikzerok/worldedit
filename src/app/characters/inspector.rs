@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::inspector::{field, properties_with_references};
+use crate::app::inspector::{field, properties_excluding};
 
 impl WorldeditApp {
     pub(super) fn character_inspector_content(&mut self, ui: &mut egui::Ui) {
@@ -51,6 +51,17 @@ impl WorldeditApp {
                     });
                 ui.separator();
                 ui.label(RichText::new("人物属性").strong());
+                let schema_keys = editor
+                    .original
+                    .as_ref()
+                    .map(|id| {
+                        self.schema_authoring_entry(
+                            ui,
+                            &worldline_core::TargetRef::new("character", id),
+                            protected,
+                        )
+                    })
+                    .unwrap_or_default();
                 ui.menu_button("＋ 常用资料栏目", |ui| {
                     for (key, label) in [
                         ("appearance", "外貌与识别特征"),
@@ -61,7 +72,8 @@ impl WorldeditApp {
                         ("voice", "说话方式"),
                         ("dialogue_examples", "口吻例句"),
                     ] {
-                        let exists = editor.draft.properties.iter().any(|(name, _)| name == key);
+                        let exists = editor.draft.properties.iter().any(|(name, _)| name == key)
+                            || schema_keys.keys.iter().any(|covered| covered == key);
                         if crate::theme::add_enabled(ui, !exists, egui::Button::new(label))
                             .clicked()
                         {
@@ -76,19 +88,21 @@ impl WorldeditApp {
                 ui.label(theme::muted(
                     "栏目可留空；例句是创作参考，不会成为发生过的事件。",
                 ));
-                properties_with_references(
+                properties_excluding(
                     ui,
                     &mut editor.draft.properties,
                     &catalog,
                     self.project.compile_options(),
+                    &schema_keys,
                 );
-                if let Some(suggestion) = crate::app::templates::template_panel(
+                if let Some(suggestion) = crate::app::templates::template_panel_excluding(
                     ui,
                     "character",
                     None,
                     &template_index,
                     &catalog,
                     &mut editor.draft.properties,
+                    &schema_keys.keys,
                 ) {
                     if let Some(id) = editor.original.clone() {
                         self.edit_relation(

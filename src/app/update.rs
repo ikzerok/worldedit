@@ -308,6 +308,7 @@ impl eframe::App for WorldeditApp {
         self.reader_publish_window(ctx);
         self.preset_editor_window(ctx);
         self.schema_editor_window(ctx);
+        self.schema_authoring_window(ctx);
         self.export_scope_dialog(ctx);
         self.play_scope_dialog(ctx);
         self.draft_rehearsal_dialog(ctx);

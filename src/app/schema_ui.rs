@@ -82,7 +82,7 @@ impl WorldeditApp {
                     .unwrap_or_else(|| self.active_file.clone()),
             );
         }
-        let index = self.project.schema_index();
+        let index = self.current_schema_index();
         let writable = self.project.language_version_kind().supports_language_112()
             && self.project.authoring_diagnostics().is_empty();
         let files: Vec<_> = self
@@ -158,7 +158,8 @@ impl WorldeditApp {
                                 ui.label(theme::muted("未应用草稿；切换文件前先应用或明确丢弃"));
                             }
                         });
-                        egui::CollapsingHeader::new(format!(
+                        if let Ok(index) = &index {
+                            egui::CollapsingHeader::new(format!(
                             "当前约束索引 · {} schema / {} 绑定",
                             index.schemas.len(),
                             index.bindings.len()
@@ -196,7 +197,10 @@ impl WorldeditApp {
                                     binding.target.kind, binding.target.id, binding.schema_id
                                 ));
                             }
-                        });
+                            });
+                        } else if let Err(error) = &index {
+                            ui.colored_label(theme::WARNING(), error);
+                        }
                         ui.label(
                             "完整源码草稿（稳定 schema / field ID 由作者保留；变更后先预览影响）",
                         );
@@ -281,7 +285,7 @@ impl WorldeditApp {
                         }
                         ui.separator();
                         ui.label("当前工程诊断");
-                        for diagnostic in &index.diagnostics {
+                        for diagnostic in index.iter().flat_map(|index| &index.diagnostics) {
                             ui.colored_label(
                                 theme::ERROR(),
                                 format!(

@@ -34,6 +34,12 @@ impl WorldeditApp {
             let source = match kind {
                 // 模板在下方用其稳定身份独立枚举，避免产生第二条泛称记录。
                 "工程模板草稿" => continue,
+                super::super::schema_authoring::DRAFT_KIND => {
+                    for source in self.schema_authoring.draft_sources() {
+                        add(kind, source);
+                    }
+                    continue;
+                }
                 "世界资料导入" => self.catalog_import.source_name.clone(),
                 "正在输入的源码 / 输入法" => self.export_source_path(
                     self.ime_source_draft

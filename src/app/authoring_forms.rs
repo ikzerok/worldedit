@@ -87,7 +87,7 @@ impl EntityForm {
             draft,
             guard: FormGuard::capture(project, version),
             source_selection: None,
-            _focus_name_on_open: false,
+            _focus_name_on_open: true,
         })
     }
     pub fn apply(&self, project: &mut Project, version: u64) -> Result<(), String> {
@@ -117,6 +117,7 @@ pub(super) struct RelationForm {
     pub guard: FormGuard,
     pub from_search: String,
     pub to_search: String,
+    pub _focus_on_open: bool,
 }
 impl RelationForm {
     pub fn open(
@@ -151,6 +152,7 @@ impl RelationForm {
             guard: FormGuard::capture(project, version),
             from_search: String::new(),
             to_search: String::new(),
+            _focus_on_open: true,
         })
     }
     pub fn apply(&self, project: &mut Project, version: u64) -> Result<(), String> {

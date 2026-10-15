@@ -1,6 +1,6 @@
 //! 通用实体创作页；所有类型使用相同的 core EntityDraft。
 use super::authoring_forms::EntityForm;
-use super::inspector::properties_with_references;
+use super::inspector::properties_excluding;
 use super::WorldeditApp;
 use crate::theme;
 use std::path::Path;
@@ -56,6 +56,10 @@ impl WorldeditApp {
                     self.catalog_target = Some(worldline_core::TargetRef::new("entity", id));
                 }
                 self.entity_editor = Some(form);
+                // 显式重开下层旧窗也属于新一轮进入，让既有层级跟踪重新登记。
+                self.command_palette
+                    .focus_stack
+                    .retain(|(kind, _)| *kind != "guard-entity");
             }
             Err(error) => self.io_error = Some(error),
         }
@@ -63,6 +67,16 @@ impl WorldeditApp {
     }
     pub(super) fn entity_editor_window(&mut self, ctx: &egui::Context) {
         self.capture_new_draft_baselines();
+        let protected = self.dirty_draft_names().contains(&"实体资料");
+        let focus_allowed = !self.auxiliary_ime_active(ctx)
+            && !self.command_palette.open
+            && !self.schema_authoring.open
+            && (self.edit_layer_is_top("guard-entity")
+                || !self
+                    .command_palette
+                    .focus_stack
+                    .iter()
+                    .any(|(kind, _)| *kind == "guard-entity"));
         let Some(mut form) = self.entity_editor.take() else {
             return;
         };
@@ -170,7 +184,8 @@ impl WorldeditApp {
                             .id(egui::Id::new("entity-editor-name"))
                             .desired_width(f32::INFINITY),
                     );
-                    if form._focus_name_on_open {
+                    if form._focus_name_on_open && focus_allowed && name_response.enabled() {
+                        ctx.move_to_top(ui.layer_id());
                         name_response.request_focus();
                         form._focus_name_on_open = false;
                     }
@@ -204,13 +219,17 @@ impl WorldeditApp {
                             .desired_rows(12)
                             .desired_width(f32::INFINITY),
                     );
-                    if let Some(suggestion) = super::templates::template_panel(
+                    let schema_keys = form.original.as_ref().map(|id| {
+                        self.schema_authoring_entry(ui, &TargetRef::new("entity", id), protected)
+                    }).unwrap_or_default();
+                    if let Some(suggestion) = super::templates::template_panel_excluding(
                         ui,
                         "entity",
                         Some(&form.draft.entity_type),
                         &template_index,
                         &catalog,
                         &mut form.draft.properties,
+                        &schema_keys.keys,
                     ) {
                         if let Some(id) = form.original.clone() {
                             self.edit_relation(None, Some(TargetRef::new("entity", &id)));
@@ -222,11 +241,12 @@ impl WorldeditApp {
                         }
                     }
                     egui::CollapsingHeader::new("自定义属性").show(ui, |ui| {
-                        properties_with_references(
+                        properties_excluding(
                             ui,
                             &mut form.draft.properties,
                             &catalog,
                             self.project.compile_options(),
+                            &schema_keys,
                         )
                     });
                     egui::CollapsingHeader::new("稳定身份与来源文件").show(ui, |ui| {

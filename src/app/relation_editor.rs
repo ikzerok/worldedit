@@ -1,7 +1,7 @@
 //! 显式关系和关系类型编辑；选择器只读取 core 目录。
 use super::authoring_forms::{RelationForm, RelationTypeForm};
 use super::catalog::kind_label;
-use super::inspector::{field, properties_with_references};
+use super::inspector::{field, properties_excluding};
 use super::WorldeditApp;
 use crate::theme;
 use worldline_core::catalog::{Catalog, TargetRef, TARGET_KINDS};
@@ -96,7 +96,12 @@ impl WorldeditApp {
             id,
             from,
         ) {
-            Ok(form) => self.relation_editor = Some(form),
+            Ok(form) => {
+                self.relation_editor = Some(form);
+                self.command_palette
+                    .focus_stack
+                    .retain(|(kind, _)| *kind != "guard-relation");
+            }
             Err(error) => self.io_error = Some(error),
         }
         self.reset_new_draft_baseline("语义关系");
@@ -127,6 +132,16 @@ impl WorldeditApp {
     }
     pub(super) fn relation_editor_window(&mut self, ctx: &egui::Context) {
         self.capture_new_draft_baselines();
+        let protected = self.dirty_draft_names().contains(&"语义关系");
+        let focus_allowed = !self.auxiliary_ime_active(ctx)
+            && !self.command_palette.open
+            && !self.schema_authoring.open
+            && (self.edit_layer_is_top("guard-relation")
+                || !self
+                    .command_palette
+                    .focus_stack
+                    .iter()
+                    .any(|(kind, _)| *kind == "guard-relation"));
         let Some(mut form) = self.relation_editor.take() else {
             return;
         };
@@ -149,7 +164,7 @@ impl WorldeditApp {
         .resizable(true)
         .vscroll(true)
         .show(ctx, |ui| {
-            egui::ComboBox::from_id_salt("relation-type")
+            let type_response = egui::ComboBox::from_id_salt("relation-type")
                 .selected_text(
                     catalog
                         .relation_types
@@ -165,7 +180,13 @@ impl WorldeditApp {
                             format!("{} · {}", kind.display, kind.id),
                         );
                     }
-                });
+                })
+                .response;
+            if form._focus_on_open && focus_allowed && type_response.enabled() {
+                ctx.move_to_top(ui.layer_id());
+                type_response.request_focus();
+                form._focus_on_open = false;
+            }
             if catalog.relation_types.is_empty() {
                 ui.label(theme::muted(
                     "尚无关系类型。请先关闭此表单，在资料与状态页创建关系类型，再选择两端对象。",
@@ -234,12 +255,20 @@ impl WorldeditApp {
                     "范围是作者资料筛选，不表示关系会自动产生、终止或演化。",
                 ));
             });
+            let schema_keys = form
+                .original
+                .as_ref()
+                .map(|id| {
+                    self.schema_authoring_entry(ui, &TargetRef::new("relation", id), protected)
+                })
+                .unwrap_or_default();
             egui::CollapsingHeader::new("自定义属性").show(ui, |ui| {
-                properties_with_references(
+                properties_excluding(
                     ui,
                     &mut form.draft.properties,
                     &catalog,
                     self.project.compile_options(),
+                    &schema_keys,
                 )
             });
             ui.label(theme::muted(
