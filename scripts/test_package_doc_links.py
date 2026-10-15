@@ -459,7 +459,8 @@ class PackageDocLinksTests(unittest.TestCase):
         output = self.root / "不可创建的发行目录"
         cases = (
             ("release.py", missing_pair, ["verify", "--pair", str(missing_pair)]),
-            ("release-build.py", missing_pair,
+            # The build CLI resolves paths, including Windows short-name aliases.
+            ("release-build.py", missing_pair.resolve(),
              ["--editor", str(self.editor), "--core", str(self.core),
               "--pair", str(missing_pair), "--output", str(output)]),
             ("release-package.py", missing_zip, ["audit", str(missing_zip)]),
