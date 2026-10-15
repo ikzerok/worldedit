@@ -39,6 +39,12 @@ pub(crate) fn open_reference(root: &std::path::Path, path: &std::path::Path) -> 
     let mut command = std::process::Command::new("open");
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     let mut command = std::process::Command::new("xdg-open");
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // Do not create a console for a helper launched from the GUI application.
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
     command
         .arg(path)
         .spawn()

@@ -22,6 +22,8 @@ impl WorldeditApp {
             active_file: project.entry.clone(),
             project,
             personal,
+            #[cfg(not(target_arch = "wasm32"))]
+            native_startup: startup::StartupState::default(),
             command_palette: commands::CommandPalette::default(),
             source_outline: source_outline::OutlineState::default(),
             source_jump: source_jump::JumpState::default(),
@@ -272,6 +274,11 @@ impl WorldeditApp {
     pub(super) fn load_project(&mut self, path: PathBuf) {
         match Project::open(&path) {
             Ok(project) => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    self.native_startup.welcome = false;
+                    self.native_startup.dialog = None;
+                }
                 self.active_file = project.entry.clone();
                 self.project = project;
                 self.saved_location = true;

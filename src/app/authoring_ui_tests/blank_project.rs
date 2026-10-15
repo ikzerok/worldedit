@@ -1,4 +1,4 @@
-//! 空目录启动、实际保存与重开后的试玩；离屏 egui 不替代原生交互验收。
+//! 明确新建空目录作品、实际保存与重开后的试玩；离屏 egui 不替代原生交互验收。
 use super::*;
 use std::path::PathBuf;
 
@@ -11,7 +11,9 @@ fn blank_editor() -> (egui::Context, WorldeditApp, PathBuf) {
     std::fs::create_dir(&root).unwrap();
     let ctx = egui::Context::default();
     let creation = eframe::CreationContext::_new_kittest(ctx.clone());
-    let app = WorldeditApp::start_native(&creation, Some(root.clone()));
+    let mut app = WorldeditApp::start_native(&creation, None);
+    assert!(app.native_startup.welcome);
+    assert!(app.create_native_project(&root), "{:?}", app.io_error);
     assert!(app.io_error.is_none(), "{:?}", app.io_error);
     assert!(app.saved_location);
     (ctx, app, root)
@@ -30,7 +32,7 @@ fn assert_only_entry(root: &std::path::Path, expected: &str) {
 }
 
 #[test]
-fn empty_directory_start_save_reopen_and_play_keeps_a_blank_work() {
+fn explicit_blank_creation_save_reopen_and_play_keeps_a_blank_work() {
     let (ctx, mut app, root) = blank_editor();
     assert_eq!(app.project.documents.len(), 1);
     assert!(!app.snapshot.as_ref().unwrap().result.has_errors());

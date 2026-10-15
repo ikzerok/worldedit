@@ -43,7 +43,10 @@ class PairTests(unittest.TestCase):
         steps = pair.checks(Path("/tmp/a path/worldedit"), Path("/tmp/a path/worldline"))
         windows = Path(__file__).with_name("check-pair.ps1").read_text(encoding="utf-8")
         import re
-        self.assertEqual([name for name, _ in steps], re.findall(r"Invoke-Recorded '([^']+)'", windows))
+        windows_steps = re.findall(r"Invoke-Recorded '([^']+)'", windows)
+        if pair.os.name != "nt":
+            windows_steps.remove("worldedit-windows-identity")
+        self.assertEqual([name for name, _ in steps], windows_steps)
         invocations = {name: arguments for name, program, arguments in re.findall(
             r"Invoke-Recorded '([^']+)' '([^']+)' @\(([^\n]+)\)", windows) if program == "cargo"}
         manifests = {"editorManifest": str(Path("/tmp/a path/worldedit/Cargo.toml")),
@@ -61,6 +64,19 @@ class PairTests(unittest.TestCase):
                 self.assertEqual(command[-3:], ["--", "-D", "warnings"])
             if "wasm" in name:
                 self.assertIn("wasm32-unknown-unknown", command)
+
+    def test_windows_identity_targets_respect_shared_or_per_repo_target(self):
+        editor, language = Path("/a/worldedit"), Path("/a/worldline")
+        with patch.dict(pair.os.environ, {}, clear=True):
+            name, command = pair.windows_identity_check(editor, language)
+        self.assertEqual(name, "worldedit-windows-identity")
+        self.assertIn(str(editor / "target/debug/worldedit.exe"), command)
+        self.assertIn(str(language / "target/debug/wl.exe"), command)
+        self.assertEqual(command[3:5], ["--icon", str(editor / "assets/worldedit.ico")])
+        with patch.dict(pair.os.environ, {"CARGO_TARGET_DIR": "/shared/target"}):
+            _, command = pair.windows_identity_check(editor, language)
+        self.assertIn(str(Path("/shared/target/debug/worldedit.exe")), command)
+        self.assertIn(str(Path("/shared/target/debug/wl.exe")), command)
 
     def test_recorded_captures_failure_and_missing_executable(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -145,7 +161,7 @@ class PairTests(unittest.TestCase):
         code, summary, environment, invoked = self.exercise_run()
         self.assertEqual(code, 0)
         self.assertEqual(summary["status"], "passed")
-        self.assertEqual(len(invoked), 19)
+        self.assertEqual(len(invoked), len(pair.checks(Path("worldedit"), Path("worldline"))))
         self.assertIn("not performed", environment["gui_acceptance"])
         self.assertEqual(environment["worldedit_working_tree"], " M example.rs")
 

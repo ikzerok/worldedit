@@ -88,6 +88,15 @@ impl eframe::App for WorldeditApp {
             }
             return;
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.native_startup.welcome {
+            self.welcome_frame(ctx);
+            return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let workspace_dialog_open = self.native_startup.dialog.is_some();
+        #[cfg(target_arch = "wasm32")]
+        let workspace_dialog_open = false;
         self.capture_new_draft_baselines();
         self.frame_dirty_drafts = self.dirty_draft_names();
         if self.personal.pending_restore {
@@ -99,7 +108,7 @@ impl eframe::App for WorldeditApp {
         let reconciliation_open = self.conflict_view.is_open();
         #[cfg(target_arch = "wasm32")]
         let reconciliation_open = false;
-        if !reconciliation_open {
+        if !reconciliation_open && !workspace_dialog_open {
             self.author_shortcuts(ctx);
             self.prepare_play_keyboard(ctx);
         }
@@ -199,6 +208,10 @@ impl eframe::App for WorldeditApp {
         #[cfg(target_arch = "wasm32")]
         self.browser_events(ctx);
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.native_startup.dialog = None;
+            }
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.request_action(Pending::Close, ctx);
             if self.reader_app_close_pending() {
@@ -206,6 +219,7 @@ impl eframe::App for WorldeditApp {
             }
         }
         if !reconciliation_open
+            && !workspace_dialog_open
             && !rehearsal_preparation
             && !self.ime_composing
             && !self.command_palette.ime
@@ -215,6 +229,7 @@ impl eframe::App for WorldeditApp {
             self.save();
         }
         if !reconciliation_open
+            && !workspace_dialog_open
             && !rehearsal_preparation
             && !self.ime_composing
             && !self.command_palette.ime
@@ -292,6 +307,8 @@ impl eframe::App for WorldeditApp {
             Tab::CheckpointHistory => self.checkpoint_history_tab(ctx),
         }
         self.dialogs(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.workspace_dialog(ctx);
         object_picker::set_workspace_snapshot(ctx, &self.project.root, self.version);
         self.source_outline_window(ctx);
         self.source_jump_window(ctx);

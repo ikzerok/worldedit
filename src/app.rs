@@ -288,6 +288,8 @@ pub struct WorldeditApp {
     problems: problems::ProblemsState,
     project: Project,
     personal: personal::PersonalState,
+    #[cfg(not(target_arch = "wasm32"))]
+    native_startup: startup::StartupState,
     command_palette: commands::CommandPalette,
     source_outline: source_outline::OutlineState,
     source_jump: source_jump::JumpState,

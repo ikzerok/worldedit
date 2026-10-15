@@ -3,6 +3,11 @@ use std::path::Path;
 
 impl WorldeditApp {
     pub(super) fn request_action(&mut self, action: Pending, ctx: &egui::Context) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.native_startup.welcome {
+            self.perform_action(action, ctx);
+            return;
+        }
         if self.template_manager.composition_blocks_actions(ctx) {
             self.message = Some("模板定义仍在输入法组合中；请先完成输入，原字段已保留。".into());
             return;
@@ -27,35 +32,18 @@ impl WorldeditApp {
             Pending::New => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    let Some(root) = rfd::FileDialog::new()
-                        .set_title("选择新工作区目录（须为空）")
-                        .pick_folder()
-                    else {
-                        return;
-                    };
-                    if std::fs::read_dir(&root).map_or(true, |mut entries| entries.next().is_some())
-                    {
-                        self.io_error = Some("新建工作区请选择空目录".into());
-                        return;
-                    }
-                    let mut project = Project::new(&root);
-                    if let Err(e) = project.save() {
-                        self.io_error = Some(e);
-                        return;
-                    }
-                    self.project = project;
+                    self.begin_workspace_dialog(startup::WorkspaceOperation::New);
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
                     self.project = Project::new(&super::init::draft_root());
+                    crate::web::mount(Default::default());
+                    self.active_file = self.project.entry.clone();
+                    self.saved_location = false;
+                    self.reset_views();
+                    self.recompile();
+                    self.tab = Tab::Manuscript;
                 }
-                #[cfg(target_arch = "wasm32")]
-                crate::web::mount(Default::default());
-                self.active_file = self.project.entry.clone();
-                self.saved_location = cfg!(not(target_arch = "wasm32"));
-                self.reset_views();
-                self.recompile();
-                self.tab = Tab::Manuscript;
             }
             Pending::Close => {
                 self.map_canvas.discard_local_work();

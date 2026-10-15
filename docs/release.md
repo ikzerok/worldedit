@@ -1,8 +1,12 @@
 # 构建与发布
 
+## 当前版本与配对
+
+当前文档对应 worldedit 0.36.1，worldline/core/runtime 保持 0.36.0。版本不同并不表示错配；精确 worldline SHA 由 `compatibility.json` 固定，发行时再写入 `release-pair.json`。已发行的 [v0.36.0](https://github.com/ikzerok/worldedit/releases/tag/v0.36.0) 与本版[修复和验证范围](releases/v0.36.1.md)分开记录，不将旧测试数字转记为本次通过。
+
 ## 发行说明链接（自 0.31.0）
 
-正式 Release 的正文直接采用当前版本 `docs/releases/v版本.md`。其中的产品用法和规范链接必须使用完整 HTTPS 地址；GitHub Release 页面不会把仓库相对路径解释成对应文档。离线发行回归会拒绝当前版本说明中的相对 Markdown 链接。公开前还须实际核对目标提交的文档地址可访问；离线格式检查不能替代联网验证，也不修改历史 Release 或 tag。
+正式 Release 的正文直接采用当前版本 `docs/releases/v版本.md`。其中的产品用法和规范链接必须使用完整 HTTPS 地址；GitHub Release 页面不会把仓库相对路径解释成对应文档。离线发行回归会拒绝当前版本说明中的相对 Markdown 链接。公开前还须实际核对目标提交的文档地址可访问；离线格式检查不能替代联网验证，也不修改历史 Release 或 tag。GitHub Release 正文是发布时的独立副本；仓库修正文档不会自动更新既有 Release 正文，历史发行状态应核对对应 Release 与资产清单。
 
 ## 长期无样例分发（自 0.29.0）
 
@@ -10,22 +14,26 @@ Windows、Web 和双仓源码发行 ZIP 不包含 worldline 根 `examples/`、`s
 
 从源码 ZIP 重建和运行测试仍是配对验收要求；仅通过文件排除审计不能宣称已完成构建或运行验收。将两个 ZIP 解压到同一父目录后，在 worldline 运行 `cargo test --workspace --locked`，在 worldedit 运行 `cargo test --locked` 和 `cargo test --locked --features eds11_prototype`；两边均可用 `cargo build --release --locked` 重建。源码 ZIP 不包含 Git 元数据，`check-pair.ps1` 的精确 HEAD 检查用于完整 Git 检出，归档的提交身份由 ZIP commit comment 和发行配对清单核对。新建世界为空白工程，不预置演示作品。此节说明分发策略，不代表当前候选已构建或已经发布。
 
-## 0.14.0 更新
+## 历史更新记录
+
+以下 0.14 及更早小节保留当时功能与验证范围，不作为当前工具链配对或发布结果。现行流程继续见后面的“门禁”“Windows 和 Web 包”及[正式发行工作流](../scripts/release-readme.md)。
+
+### 0.14.0 更新
 
 试玩/重放显式稿件范围、语义主题色、真实条件证据来源导航和既有语言能力启用作为同一版本交付。启用能力采用 core 全稿预览与精确计划校验，默认语言仍1.9，最高1.13；不开新DSL、不自动迁移或保存。作者说明见[0.14使用与兼容边界](explicit-authoring-0.14.md)。
 
-## 0.10.0 更新
+### 0.10.0 更新
 
 完整交付机器Schema支持集合一致性、顶层临时层无损Esc、目录/ZIP导出范围决定点，以及显式DSL1.13的跨period偏序与静态character引用。默认语言与旧作品不自动迁移，原直接时段rank含义不变，静态改动不扩大运行或读者发布范围。作者用法及边界见[0.10说明](static-authoring-0.10.md)。
 
 
-## 0.7.0 更新
+### 0.7.0 更新
 
 资料查询增加名称/对象类型单字段升降序与恢复默认顺序。宽窗使用名称、对象类型、来源的可扫描表头；窄窗保留明确排序菜单，命中原因按对象展开，导航继续绑定完整 TargetRef。排序改变从第一页重新查询，不能把当前页重排冒充全局排序。
 
 名称按 ASCII 不区分大小写的 Unicode 顺序，非拼音或数字自然排序；缺值始终置后，降序只反转主键。显式排序查询使用 v2，默认查询保持 v1，page/cursor 版本不变。共享文档级能力保护旧版，恢复默认并保存只清除本功能字段和声明。浏览、分页、菜单关闭与取消不写作品；本版不含分组或任意属性排序。
 
-### 条件求值证据
+#### 条件求值证据
 
 复合选择条件提供作者侧真实求值证据，保留括号与运算层级，分别显示已满足、未满足、
 求值错误和因前序错误未求值的项。证据记录有界，超限明确省略，不改变实际执行。
@@ -41,13 +49,13 @@ RPC `session.explain_choices` 默认维持原字段，显式 `include_evidence:t
 大小和条目，运行精确版本检查后再写入 PATH，后续步骤再次核对路径与版本。下载或验证失败
 即停止，不回退为未验证安装。Windows CI 与正式发行共用同一入口；不新增权限或凭据。
 
-## 0.3.0 更新
+### 0.3.0 更新
 
 完成 M2–M4 作者工作台：通用实体与独立关系、局部关联网络和共享布局、跨视图重构保护、16 类可选模板、长文保真与性能门、作者范围/源码集、展示预设、批注与修改提案，以及 65 项最终验收。地图/网络浏览继续保持零语义副作用，旧 1.9 工程不自动升级。
 
 本版本固定配对 worldline 0.3.0；最终双仓 SHA、Windows/Web 烟测、性能数据和发布包校验值写入发行目录 `release-pair.json`。完整验收见 [WP-17 全量验收](wp17-acceptance.md) 与 [0.2→0.3 兼容/迁移说明](migration-0.2.md)。
 
-## 0.2.0 更新
+### 0.2.0 更新
 
 Wiki 已集成到编辑器：可按关键词、ID 和别名查找资料，创建或修改独立词条、释义与别名。正文、资料、源码预览和演练中的关键词自动链接；同名词条提供候选，显式链接保留指定目标。注释索引显示全部出现位置并可跳回源码，查阅演练词条不会推进回合。
 
@@ -72,7 +80,30 @@ target、dist、releases、日志和临时文件不是源码，不上传。父�
 ./scripts/package.ps1 -OutputDirectory D:/发行包 -SkipWeb
 ```
 
+完整 Git 检出会读取两仓实际 HEAD；显式传入的 SHA 若与检出不符即停止。从双仓 Source ZIP 手动打包时没有 `.git`，必须使用同次发行清单中的两仓完整 SHA，不能猜测 `main` 或只填版本号：
+
+```powershell
+$pair = Get-Content "D:/发行文件/release-pair.json" -Raw | ConvertFrom-Json
+./scripts/package.ps1 -EditorSha $pair.worldedit.sha -WorldlineSha $pair.worldline.sha
+```
+
+这里的 SHA 用于确定发行文档的在线源码目标；普通 `cargo build`、`cargo test` 和 `cargo run` 不需要 Git 元数据或这些打包参数。官方 `release-build.py` 从已验证配对清单显式传入两仓 SHA。
+
 脚本使用 --release --locked，输出独立带时间的目录，包含 Windows ZIP、可选 Web ZIP、两个源码 ZIP 与 SHA256SUMS.txt。Windows 包包含 worldedit.exe、wl.exe、wl-agent.exe、图标、项目及字体许可证、运行依赖许可、创作技能、使用说明和语言规范；不复制演示工程或规范样例。Web 包为静态 HTTP 文件，附字体与运行依赖许可；不能双击 HTML 运行。
+
+Windows 文档同时附两仓 CHANGELOG 和图标说明。`package-doc-links.py` 只处理已复制到 `windows/` 的 Markdown：跨仓目标按嵌套的 `worldline/` 目录重映射，已附许可证和图标使用包内路径；未入应用包的源码、测试输入及历史演示转为对应固定提交的 GitHub 链接，并标注需要联网。历史链接原有固定 SHA 保留；缺失的普通文档目标直接报错。此步骤不复制整仓、样例或媒体，不修改源码文档或原始源码 ZIP 的字节。
+
+worldedit 的 Windows debug/release 构建均为 GUI 子系统，并将既有 ICO 七尺寸嵌入 EXE；`wl.exe` 与 `wl-agent.exe` 仍为控制台程序。MSVC 构建直接链接标准 `.res`，不新增构建 crate；GNU 构建需 `windres`，可用 `WORLDEDIT_WINDRES` 指定程序。无参欢迎页、新建/打开与异常日志见[桌面启动说明](desktop-startup.md)。
+
+对实际 Windows 产物做独立静态核验：
+
+```powershell
+python scripts/verify-windows-app.py target/release/worldedit.exe --icon assets/worldedit.ico --cli ../worldline/target/release/wl.exe
+```
+
+Windows 配对检查在原生构建后运行该核验；`package.ps1` 在复制到发行目录后再次检查；`release-build.py` 还从最终 Windows ZIP 回读 EXE、CLI 与 ICO，结果写入 `release-pair.json` 的 `build.windows_pe`。任一步失败即停止。
+
+结果核对 PE 子系统、图标组、七尺寸和图像原字节。它不启动应用，不能代替无项目启动、任务栏图标、文件选择、取消、错误恢复或真实 Windows GUI 验收。
 
 当前脚本适用于 Windows x64 主机，未构建 macOS/Linux 安装器，也不签名或上传。GitHub 上传和 Release 发布由用户决定；本地打包成功不表示线上已发布。两个源码 ZIP 解压到同一目录即可得到同级 worldline 与 worldedit 目录；脚本不另外保留 source/ 工作目录。Git 检出在构建前与归档前要求没有已暂存、未暂存或未忽略的未跟踪更改，源码使用原始 HEAD 归档，避免二进制与源码版本错配。无 .git 的已导出源码采用同一精确样例筛选策略，并排除缓存、本机配置、凭据扩展名和日志。复制拒绝符号链接、Windows junction 和所有 reparse point，不沿其读取目录外内容；所有 ZIP 在计算校验值前再次审计。
 
@@ -86,7 +117,7 @@ Windows/Web ZIP 与 SHA256SUMS.txt 作为 GitHub Release 附件；不提交到�
 
 ## WP-17 配对验收（2026-09-26）
 
-以下为当时版本的历史记录，不是 0.29 候选的构建、测试或交互验收结果。
+以下为 2026-09-26 当时版本的历史记录，不是当前候选的构建、测试或交互验收结果。
 
 M0–M4 的最终需求状态见 [WP-17 全量验收](wp17-acceptance.md)，升级/回退边界见 [0.2 格式升级说明](migration-0.2.md)。最终 core 文档基线为 `fe88d7f1447995e49bb4b54a20a53be0ad0b2db6`，编辑器 `compatibility.json` 固定该 SHA；最终 editor SHA 在源码提交后写入发行目录 `release-pair.json` 与配对 tag，不使用自引用占位符。
 

@@ -1,6 +1,20 @@
 # worldedit 使用文档
 
-本文对应 0.34；本版功能与验证范围见 [0.34 版本说明](releases/v0.34.0.md)，版本历史见 [CHANGELOG](../CHANGELOG.md)，公开发行状态以对应 GitHub Release 为准。语言与资料解释来自配对 worldline core；默认语言仍为 1.9，最高 1.13。
+本文对应 worldedit 0.36.1及配对 worldline/core/runtime 0.36.0。桌面修复与验证范围见[0.36.1 版本说明](releases/v0.36.1.md)，上一正式版本见[0.36.0 说明](releases/v0.36.0.md)，版本历史见[CHANGELOG](../CHANGELOG.md)。公开发行状态以对应 GitHub Release 为准。语言与资料解释来自 core；默认语言仍为 1.9，最高 1.13。
+
+## 0.36.1 桌面入口
+
+- [桌面启动与新建作品](desktop-startup.md)：欢迎页、新建/打开、取消与错误恢复、Windows 图标和诊断
+
+## 0.36 条件与对象真实状态
+
+- [条件作者器](condition-authoring.md)：已有条件的 typed 修改、预览、事件草稿、应用与保存
+- [对象真实状态旁查](object-state-inspection.md)：选定普通或草稿运行，完整对象身份、冻结状态和真实证据
+
+## 0.35 约束与属性
+
+- [约束工作表用法](../README.md#035-约束与属性)：四类对象、显式绑定、字段填写与独立保存
+- [快照复用与性能边界](schema-authoring-snapshots.md)、[core 作者契约](../../worldline/spec/schema-authoring.md)
 
 ## 0.34 正式对白与同稿台本
 
@@ -27,7 +41,7 @@
 
 ## 开始创作
 
-- [安装与启动](../README.md#安装与启动)、[工作区](workspace.md)：目录、素材、保存、冲突与完整备份
+- [安装与启动](../README.md#安装与启动)、[桌面入口](desktop-startup.md)、[工作区](workspace.md)：无项目启动、目录、素材、保存、冲突与完整备份
 - [从空白作品开始写作](start-writing-0.30.md)：书名、章名、正文来源、创建计划和直接起笔
 - [作者工作区](author-workspace.md)、[正文与书稿](manuscript-workspace.md)：写作、结构、源码、布局和草稿保护
 - [显式创作与能力](explicit-authoring-0.14.md)：已应用稿、未应用稿、试玩与能力确认
@@ -73,6 +87,7 @@ v3 对象包含其别名与受限类型结构；属性、地图图元、章节�
 - [一致对象检索](object-navigation-0.30.md)：共同 core 候选、筛选分页、完整身份和过期保护
 - [CLI/RPC 覆盖表](cli-coverage.md)：哪些功能可独立调用，哪些仍属于运行中编辑器
 - [配对构建](paired-ci.md)、[发布流程](release.md)、[性能目标与探针](performance.md)
+- [历史设计与验收记录](design/README.md)：保留当时基线，不代替当前版本验证
 - [worldline 规范索引](../../worldline/spec/README.md)：语言、地图、机器协议和公开选择的共同真源
 
 本版的完整门禁、性能与真实平台覆盖以版本说明为准；旧版结果不自动算作本版通过。自动测试、WASM/Worker 协议、offscreen 与真实原生/浏览器交互分别记录，不能替代系统 IME、读屏、高 DPI 或其他平台 GUI 验证。

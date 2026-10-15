@@ -54,6 +54,8 @@ def checks(editor, language):
             (name + "-clippy", ["cargo", "clippy", *manifest, *workspace, "--all-targets", "--locked", "--", "-D", "warnings"]),
             (name + "-build", ["cargo", "build", *manifest, *workspace, "--locked"]),
         ])
+    if os.name == "nt":
+        steps.append(windows_identity_check(editor, language))
     manifest = ["--manifest-path", str(editor / "Cargo.toml")]
     target = ["--target", "wasm32-unknown-unknown", "--locked"]
     steps.extend([
@@ -70,6 +72,17 @@ def checks(editor, language):
         ("worldedit-prototype-wasm-build", ["cargo", "build", *manifest, *feature_target]),
     ])
     return steps
+
+
+def windows_identity_check(editor, language):
+    editor_target = Path(os.environ.get("CARGO_TARGET_DIR", editor / "target"))
+    language_target = Path(os.environ.get("CARGO_TARGET_DIR", language / "target"))
+    return ("worldedit-windows-identity", [
+        sys.executable, str(editor / "scripts/verify-windows-app.py"),
+        str(editor_target / "debug/worldedit.exe"),
+        "--icon", str(editor / "assets/worldedit.ico"),
+        "--cli", str(language_target / "debug/wl.exe"),
+    ])
 
 
 def isolated_environment():

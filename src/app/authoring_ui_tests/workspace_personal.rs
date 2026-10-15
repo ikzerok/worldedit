@@ -276,7 +276,7 @@ fn v080_system_theme_follows_reported_os_theme_without_project_edits() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
-fn v080_startup_recent_uses_one_profile_and_rejects_missing_project_without_creating() {
+fn v080_startup_recent_uses_one_profile_and_reports_missing_project_without_creating() {
     let (ctx, mut app) = app();
     app.project.save().unwrap();
     app.saved_location = true;
@@ -286,7 +286,16 @@ fn v080_startup_recent_uses_one_profile_and_rejects_missing_project_without_crea
     let path = crate::app::startup::recent_project(Some(&storage)).unwrap();
     assert_eq!(path, app.project.entry);
     std::fs::remove_dir_all(&app.project.root).unwrap();
-    assert!(crate::app::startup::recent_project(Some(&storage)).is_none());
+    assert_eq!(
+        crate::app::startup::recent_project(Some(&storage)),
+        Some(path)
+    );
+    let mut creation = eframe::CreationContext::_new_kittest(ctx.clone());
+    creation.storage = Some(&storage);
+    let unavailable = WorldeditApp::start_native(&creation, None);
+    assert!(unavailable.native_startup.welcome);
+    assert!(unavailable.io_error.is_some());
+    assert!(!unavailable.allow_close);
     assert!(!app.project.root.exists());
     assert!(crate::app::startup::recent_project(Some(&Storage::default())).is_none());
 }

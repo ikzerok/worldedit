@@ -1,5 +1,5 @@
 #[cfg(not(target_arch = "wasm32"))]
-use super::super::{DirectoryDialog, DirectoryOperation, Pending};
+use super::super::{DirectoryDialog, DirectoryOperation};
 use super::super::{Tab, WorldeditApp};
 use crate::theme;
 use std::path::Path;
@@ -8,15 +8,15 @@ use std::path::PathBuf;
 
 impl WorldeditApp {
     #[cfg(not(target_arch = "wasm32"))]
-    pub(in crate::app) fn open_dialog(&mut self, ctx: &egui::Context, _folder: bool) {
-        let dialog = rfd::FileDialog::new().set_directory(&self.project.root);
-        let path = dialog.pick_folder();
-        if let Some(path) = path {
-            self.request_action(Pending::Open(path), ctx);
-        }
+    pub(in crate::app) fn open_dialog(&mut self, _ctx: &egui::Context, _folder: bool) {
+        self.begin_workspace_dialog(super::super::startup::WorkspaceOperation::Open);
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub(in crate::app) fn save(&mut self) -> bool {
+        if self.native_startup.welcome {
+            self.io_error = Some("请先新建作品或打开工程".into());
+            return false;
+        }
         if self.ime_composing || self.ime_source_draft.is_some() {
             self.io_error = Some("正文仍有未提交的输入法草稿，请先完成输入或恢复外部版本。".into());
             return false;
@@ -40,6 +40,10 @@ impl WorldeditApp {
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub(in crate::app) fn directory_dialog(&mut self, export: bool) {
+        if self.native_startup.welcome {
+            self.io_error = Some("请先新建作品或打开工程".into());
+            return;
+        }
         if !export && (self.ime_composing || self.ime_source_draft.is_some()) {
             self.io_error = Some("正文仍有未提交的输入法草稿，请先完成输入或恢复外部版本。".into());
             return;
