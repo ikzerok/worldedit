@@ -183,12 +183,14 @@ fn manuscript_delete_arrangement_requires_confirmation_and_keeps_source() {
 fn new_chapter_never_implicitly_selects_first_source() {
     let (ctx, mut app) = manuscript_app();
     let baseline = app.project.content_baseline();
+    click(&ctx, &mut app, 13, "编排");
     click(&ctx, &mut app, 13, "插入章节");
     let text = rendered(&frame(&ctx, &mut app, Vec::new(), 13));
     assert!(text.contains("请选择"), "{text}");
     assert!(text.contains("尚未选择来源"), "{text}");
     click(&ctx, &mut app, 13, "应用书稿");
     assert_eq!(app.project.content_baseline(), baseline);
+    click(&ctx, &mut app, 13, "编排");
     click(&ctx, &mut app, 13, "恢复书稿草稿");
     assert_eq!(app.project.content_baseline(), baseline);
 }
@@ -196,6 +198,7 @@ fn new_chapter_never_implicitly_selects_first_source() {
 #[test]
 fn manuscript_explicit_source_selection_applies_saves_and_reopens() {
     let (ctx, mut app) = manuscript_app();
+    click(&ctx, &mut app, 13, "编排");
     click(&ctx, &mut app, 13, "插入章节");
     click(&ctx, &mut app, 13, "请选择");
     enter_text_at_placeholder(&ctx, &mut app, "搜索名称、类型、ID或来源", "arrival");
@@ -243,6 +246,7 @@ fn manuscript_deep_source_path_keeps_move_section_control_clickable() {
 fn assert_chapter_moves_without_source_changes(ctx: egui::Context, mut app: WorldeditApp) {
     let source = app.project.document(&app.active_file).unwrap().to_owned();
     let fingerprint = app.snapshot.as_ref().unwrap().result.analysis.fingerprint;
+    click(&ctx, &mut app, 13, "编排");
     click(&ctx, &mut app, 13, "插入分节");
     click(&ctx, &mut app, 13, "应用书稿");
     click(&ctx, &mut app, 13, "抵达");
@@ -316,20 +320,21 @@ fn narrow_manuscript_keeps_body_and_metadata_reachable() {
         geometry::text_geometry(&output)
     );
     assert!(visible_text_position(&output, "编排与来源").is_some());
-    assert!(visible_text_position(&output, "试演").is_some());
-    click_without_settling(&ctx, &mut app, 32, "试演");
+    assert!(visible_text_position(&output, "编排").is_some());
+    click_without_settling(&ctx, &mut app, 32, "编排");
     let output = frame(&ctx, &mut app, Vec::new(), 32);
     assert!(
         geometry::label_fully_visible(&output, "试演当前正文草稿…"),
         "{}",
         geometry::text_geometry(&output)
     );
-    click_without_settling(&ctx, &mut app, 32, "试演");
+    click_without_settling(&ctx, &mut app, 32, "编排");
     let output = frame(&ctx, &mut app, Vec::new(), 32);
     assert!(visible_text_position(&output, "试演当前正文草稿…").is_none());
     assert!(geometry::first_line_fully_visible(&output, "甲乙"));
     assert!(visible_text_position(&output, "编排与来源").is_some());
     click(&ctx, &mut app, 32, "编排与来源");
+    let metadata_clip = geometry::settle_scroll_clip(&ctx, &mut app, 32, "摘要");
     let mut output = frame(&ctx, &mut app, Vec::new(), 32);
     for _ in 0..16 {
         if visible_text_position(&output, "字数目标").is_some() {
@@ -339,7 +344,7 @@ fn narrow_manuscript_keeps_body_and_metadata_reachable() {
             &ctx,
             &mut app,
             vec![
-                Event::PointerMoved(pos2(700.0, 450.0)),
+                Event::PointerMoved(metadata_clip.center()),
                 Event::MouseWheel {
                     unit: egui::MouseWheelUnit::Point,
                     delta: vec2(0.0, -60.0),

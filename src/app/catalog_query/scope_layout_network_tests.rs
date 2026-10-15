@@ -6,8 +6,8 @@ fn full_app_scope_network_200_percent_keeps_graph_materials_context_and_controls
     let (ctx, mut app) = ready(true);
     let baseline = app.project.content_baseline();
     let output = settle(&ctx, &mut app);
+    assert_global_commands(&ctx);
     for label in [
-        "worldedit",
         "保存全部",
         "范围操作",
         "关系图",

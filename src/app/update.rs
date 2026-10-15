@@ -25,6 +25,12 @@ impl eframe::App for WorldeditApp {
         self.template_manager
             .filter_raw_input(ctx, raw, self.tab == Tab::Templates);
         self.manuscript_raw_input_hook(ctx, raw);
+        super::condition_authoring::input::filter_raw(
+            ctx,
+            raw,
+            &self.project.root,
+            self.event_editor.is_some() && matches!(self.tab, Tab::Timeline | Tab::Graph),
+        );
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -295,6 +301,7 @@ impl eframe::App for WorldeditApp {
         self.preferences_window(ctx);
         self.draft_exit_dialog(ctx);
         self.reading_window(ctx);
+        self.object_inspection_window(ctx);
         self.navigation_drawer_window(ctx);
         self.wiki_editor_window(ctx);
         self.entity_editor_window(ctx);

@@ -23,6 +23,9 @@ fn same_event(a: &EventDraft, b: &EventDraft) -> bool {
 }
 impl WorldeditApp {
     fn event_draft_dirty(&self, form: &EventEditor) -> bool {
+        if form.condition_forms.has_pending() {
+            return true;
+        }
         let Some(id) = form.original.as_ref() else {
             return true;
         };

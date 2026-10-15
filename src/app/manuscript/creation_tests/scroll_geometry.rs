@@ -306,6 +306,7 @@ fn long_body_scroll_and_restore_keep_tools_fixed_across_style_preview_cancel() {
         "Technical 工具台",
         "Ledger 档案",
     ] {
+        app_click(&ctx, &mut app, size, "更多");
         app_click(&ctx, &mut app, size, "外观");
         app_click(&ctx, &mut app, size, label);
         assert_ne!(app.personal.appearance().style, StylePreset::Focus);
@@ -336,6 +337,7 @@ fn returning_to_section_does_not_send_its_empty_offset_to_a_long_chapter() {
     for missing_source in [false, true] {
         let (ctx, mut app) = blank();
         create_start(&ctx, &mut app);
+        click(&ctx, &mut app, "编排");
         click(&ctx, &mut app, "插入分节");
         click(&ctx, &mut app, "应用书稿");
         click(&ctx, &mut app, "潮汐初起");

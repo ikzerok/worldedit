@@ -8,6 +8,7 @@ mod dialogue_actions;
 mod editing;
 mod focus_controls;
 mod layout;
+mod management;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod migration_keyboard_tests;
 mod navigation;

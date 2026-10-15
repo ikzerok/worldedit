@@ -42,6 +42,10 @@ impl WorldeditApp {
                 self.tab == Tab::Manuscript && self.manuscript.world_links_open(),
             ),
             ("object-reading", self.reading_target.is_some()),
+            (
+                "object-inspection",
+                self.replay_debugger.object_inspection.open,
+            ),
             ("commands", self.command_palette.open),
             ("compact-references", self.compact_reference_open(ctx)),
             ("navigation-drawer", self.navigation_drawer_open(ctx)),

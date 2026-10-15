@@ -42,6 +42,7 @@ impl WorldeditApp {
             }
         }
         let mut source = None;
+        let mut object_source = None;
         if let Some(running) = &mut self.draft_rehearsal.running {
             let mut running_key = key.clone();
             running_key.presentation = running.key.presentation.clone();
@@ -54,7 +55,16 @@ impl WorldeditApp {
                         error,
                         ..
                     }) => {
+                        object_source = running.object_source.take();
+                        let object_query = std::mem::take(&mut running.object_query_pending);
+                        if object_query {
+                            running.object_query_error = error.clone();
+                        }
                         if let Some(mut view) = view {
+                            if object_query {
+                                running.object_page = view.inspection.take();
+                                view.inspection = running.view.inspection.clone();
+                            }
                             for output in &view.outputs {
                                 if output.new_line && !running.transcript.is_empty() {
                                     running.transcript.push('\n');
@@ -77,11 +87,22 @@ impl WorldeditApp {
                             running.view = view;
                         }
                         if let Some(error) = error {
-                            self.draft_rehearsal.notice = Some(error);
+                            if object_source.is_some() {
+                                self.replay_debugger.object_inspection.error = Some(error.clone());
+                            }
+                            if !object_query {
+                                self.draft_rehearsal.notice = Some(error);
+                            }
                         }
                         source = hit;
                     }
                     Err(error) => {
+                        if std::mem::take(&mut running.object_query_pending) {
+                            running.object_query_error = Some(error.clone());
+                        }
+                        if running.object_source.take().is_some() {
+                            self.replay_debugger.object_inspection.error = Some(error.clone());
+                        }
                         running.stopped = true;
                         running.worker = None;
                         self.draft_rehearsal.notice = Some(error);
@@ -93,6 +114,10 @@ impl WorldeditApp {
             }
         }
         if let Some(source) = source {
+            if let Some(pending) = object_source {
+                self.receive_object_rehearsal_source(ctx, pending, source);
+                return;
+            }
             if self.tab == crate::app::Tab::Play && self.draft_rehearsal.active {
                 self.return_rehearsal_source(ctx, source);
             } else {
@@ -138,6 +163,11 @@ impl WorldeditApp {
             localized_outputs: Vec::new(),
             query: StateInspectionQuery::default(),
             submitted_query: StateInspectionQuery::default(),
+            object_source: None,
+            object_query: StateInspectionQuery::default(),
+            object_page: None,
+            object_query_error: None,
+            object_query_pending: false,
             stale: false,
             paused: false,
             stopped: false,
@@ -162,7 +192,10 @@ impl WorldeditApp {
                 | Action::DeclarationSource { .. }
                 | Action::LocalizationSource { .. }
         );
-        let readonly = matches!(action, Action::Inspect { .. });
+        let readonly = matches!(
+            action,
+            Action::Inspect { .. } | Action::InspectObject { .. }
+        );
         if !readonly {
             if let Err(error) = self.rehearsal_guard(&running.input, &running.key, navigation) {
                 self.draft_rehearsal.notice = Some(error);

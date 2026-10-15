@@ -63,15 +63,31 @@ fn point(output: &egui::FullOutput, label: &str) -> Option<Pos2> {
         .find(|(rect, clip)| screen.contains_rect(*rect) && clip.contains_rect(*rect))
         .map(|(rect, _)| rect.center())
 }
+#[track_caller]
 fn visible(output: &egui::FullOutput, label: &str) -> Pos2 {
+    let caller = std::panic::Location::caller();
     point(output, label).unwrap_or_else(|| {
         let mut geometry = Vec::new();
         for shape in &output.shapes {
             text_rects(&shape.shape, label, shape.clip_rect, &mut geometry);
         }
-        panic!("完整窗口中 {label:?} 必须完全位于屏幕和其真实 clip 内：{geometry:?}");
+        panic!("{caller}: 完整窗口中 {label:?} 必须完全位于屏幕和其真实 clip 内：{geometry:?}");
     })
 }
+fn assert_global_commands(ctx: &egui::Context) {
+    let response = crate::chrome::action_layout::trace(ctx)
+        .into_iter()
+        .find(|response| response.role == "global/commands")
+        .expect("full App must contain the real global command control");
+    assert!(
+        response.enabled
+            && ctx.screen_rect().contains_rect(response.rect)
+            && response.clip.contains_rect(response.rect)
+            && response.rect.width() >= 20.0
+            && response.rect.height() >= 20.0
+    );
+}
+
 fn exact_visible(output: &egui::FullOutput, label: &str) {
     fn visit(shape: &egui::Shape, label: &str, clip: Rect) -> bool {
         match shape {
@@ -109,14 +125,22 @@ fn press(ctx: &egui::Context, app: &mut WorldeditApp, pos: Pos2) {
         );
     }
 }
+#[track_caller]
 fn click(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) {
     let output = settle(ctx, app);
     press(ctx, app, visible(&output, label));
 }
+#[track_caller]
 fn click_material(ctx: &egui::Context, app: &mut WorldeditApp, label: &str) {
     settle(ctx, app);
     let pointer = clip(ctx, "catalog-scope-material-clip").center();
     let position = scroll_find(ctx, app, label, pointer);
+    eprintln!(
+        "material-click {label:?}: point={position:?}; layer={:?}; depth={}; popup={}",
+        ctx.layer_id_at(position),
+        app.network_state.filters.depth,
+        egui::Popup::is_any_open(ctx)
+    );
     press(ctx, app, position);
 }
 fn operations_page(ctx: &egui::Context, app: &mut WorldeditApp) {
@@ -174,8 +198,21 @@ fn dismiss_outside(ctx: &egui::Context, app: &mut WorldeditApp) {
         app.project.is_dirty(),
         app.history.len(),
     );
-    // chrome.rs 的 worldedit 是普通 Label，无按钮动作；仍核真实 clip、菜单边界和命中层。
-    let pos = visible(&output, "worldedit");
+    // At narrow widths the brand folds away. The actual work title remains an inert
+    // Label: still verify full paint, popup boundaries, hit layer, and one real click.
+    let title = app
+        .snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.result.analysis.world.as_ref())
+        .map(|world| world.display.clone())
+        .or_else(|| {
+            app.project
+                .root
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| "未命名作品".into());
+    let pos = visible(&output, &title);
     assert!(
         before
             .iter()
@@ -254,24 +291,29 @@ fn clip(ctx: &egui::Context, name: &str) -> Rect {
     );
     rect
 }
+#[track_caller]
 fn scroll_find(ctx: &egui::Context, app: &mut WorldeditApp, label: &str, pointer: Pos2) -> Pos2 {
-    for _ in 0..40 {
-        let output = settle(ctx, app);
-        if let Some(pos) = point(&output, label) {
-            return pos;
+    // 关闭下拉框后仍保留材料页的真实滚动位置，目标可能在当前位置上方。
+    // 双向使用真实滚轮找完整可见控件，不重置滚动状态或放宽 clip 判定。
+    for delta in [20.0, -20.0] {
+        for _ in 0..40 {
+            let output = settle(ctx, app);
+            if let Some(pos) = point(&output, label) {
+                return pos;
+            }
+            frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(pointer),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: vec2(0.0, delta),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+            );
         }
-        frame(
-            ctx,
-            app,
-            vec![
-                Event::PointerMoved(pointer),
-                Event::MouseWheel {
-                    unit: egui::MouseWheelUnit::Point,
-                    delta: vec2(0.0, -20.0),
-                    modifiers: egui::Modifiers::NONE,
-                },
-            ],
-        );
     }
     visible(&settle(ctx, app), label)
 }
@@ -390,7 +432,8 @@ fn full_app_scope_map_200_percent_keeps_canvas_and_return_clear_menus_reachable(
     let baseline = app.project.content_baseline();
     let snapshot = app.catalog_workbench.snapshot.clone().unwrap();
     let output = settle(&ctx, &mut app);
-    for label in ["worldedit", "保存全部", "范围 · 1", "范围操作", "地图操作"] {
+    assert_global_commands(&ctx);
+    for label in ["保存全部", "范围 · 1", "范围操作", "地图操作"] {
         visible(&output, label);
     }
     clip(&ctx, "catalog-scope-map-clip");

@@ -327,6 +327,7 @@ impl WorldeditApp {
         self.playthrough_report = play::report::PlaythroughReportState::default();
         self.replay_debugger.explanations = None;
         self.replay_debugger.inspection = Default::default();
+        self.replay_debugger.object_inspection = Default::default();
         self.event_editor = None;
         self.character_editor = None;
         self.world_editor = None;

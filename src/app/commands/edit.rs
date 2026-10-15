@@ -69,6 +69,21 @@ impl WorldeditApp {
             }
 
             let top = self.command_palette.focus_stack.last().map(|entry| entry.0);
+            if top == Some("object-inspection") {
+                if !self.auxiliary_ime_active(ctx)
+                    && ctx.memory(|memory| memory.top_modal_layer().is_none())
+                    && ctx.input_mut(|input| {
+                        input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)
+                    })
+                {
+                    self.replay_debugger.object_inspection.open = false;
+                    self.replay_debugger.object_inspection.return_focus_pending = true;
+                    if let Some((_, Some(id))) = self.command_palette.focus_stack.pop() {
+                        ctx.memory_mut(|memory| memory.request_focus(id));
+                    }
+                }
+                return;
+            }
             if top == Some("object-reading") {
                 if ctx.memory(|memory| memory.top_modal_layer().is_some()) {
                     return;
@@ -200,7 +215,7 @@ impl WorldeditApp {
         let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
         let command = if mac { "⌘" } else { "Ctrl+" };
         let (_, _, replace_label) = replacement_shortcut(ui.ctx().os());
-        crate::chrome::quiet_menu(ui, "编辑", |ui| {
+        let menu = crate::chrome::quiet_menu(ui, "编辑", |ui| {
             if crate::theme::add_enabled(
                 ui,
                 self.active_file != self.project.entry
@@ -260,6 +275,7 @@ impl WorldeditApp {
                 ui.close();
             }
         });
+        crate::chrome::action_layout::record(ui, "global/edit", &menu.response);
     }
 }
 

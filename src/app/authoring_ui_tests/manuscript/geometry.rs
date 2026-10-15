@@ -11,6 +11,31 @@ fn label_rect(shape: &egui::Shape, label: &str) -> Option<egui::Rect> {
     }
 }
 
+/// 从实际绘制的元数据标签取滚动区，避免工具条收拢后沿用旧屏幕坐标。
+pub(super) fn label_clip(output: &egui::FullOutput, label: &str) -> Option<egui::Rect> {
+    output.shapes.iter().find_map(|shape| {
+        label_rect(&shape.shape, label)
+            .filter(|rect| shape.clip_rect.contains_rect(*rect))
+            .map(|_| shape.clip_rect)
+    })
+}
+
+pub(super) fn settle_scroll_clip(
+    ctx: &egui::Context,
+    app: &mut WorldeditApp,
+    window: u8,
+    label: &str,
+) -> egui::Rect {
+    for _ in 0..16 {
+        let output = frame(ctx, app, Vec::new(), window);
+        if let Some(clip) = label_clip(&output, label) {
+            assert!(ctx.screen_rect().contains_rect(clip));
+            return clip;
+        }
+    }
+    panic!("元数据滚动区必须真实可见：{label}");
+}
+
 pub(super) fn label_fully_visible(output: &egui::FullOutput, label: &str) -> bool {
     output.shapes.iter().any(|shape| {
         label_rect(&shape.shape, label).is_some_and(|rect| shape.clip_rect.contains_rect(rect))

@@ -100,6 +100,16 @@ impl WorldeditApp {
         if self.ime_composing || self.command_palette.ime || self.command_palette.ime_frame {
             return Err("输入法组合尚未完成，未离开当前位置".into());
         }
+        self.go_author_source_position_after_local_ime_guard(ctx, hit, prefer_writing)
+    }
+
+    // 调用者必须已完成其输入宿主的真实组合保护；其余来源、草稿及返回校验保持同一路径。
+    pub(in crate::app) fn go_author_source_position_after_local_ime_guard(
+        &mut self,
+        ctx: &egui::Context,
+        hit: &SearchMatch,
+        prefer_writing: bool,
+    ) -> Result<(), String> {
         let drafts = self.manuscript.writing_buffers();
         let source = drafts
             .iter()

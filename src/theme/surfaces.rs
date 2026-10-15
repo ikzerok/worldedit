@@ -49,6 +49,7 @@ pub(super) fn document_surface_titled<R>(
     ui: &mut egui::Ui,
     label: &str,
     max_width: f32,
+    title_in_toolbar: bool,
     contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<R> {
     let theme = resolved(ui.ctx());
@@ -92,7 +93,7 @@ pub(super) fn document_surface_titled<R>(
             .inner_margin(margin)
             .show(ui, |ui| {
                 ui.set_width((geometry.outer_width - margin.sum().x).max(1.0));
-                if theme.preferences.style == StylePreset::Ledger {
+                if theme.preferences.style == StylePreset::Ledger && !title_in_toolbar {
                     ledger_content(ui, label, &theme, &geometry, contents)
                 } else {
                     if theme.preferences.style == StylePreset::Technical {

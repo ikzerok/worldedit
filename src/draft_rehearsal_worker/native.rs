@@ -26,6 +26,21 @@ pub(crate) struct SessionWorker {
 }
 
 impl SessionWorker {
+    #[cfg(test)]
+    pub(crate) fn disconnected_for_test() -> Self {
+        let (sender, receiver) = mpsc::channel();
+        drop(sender);
+        Self {
+            sender: None,
+            receiver,
+            cancellation: ReplayCancellation::new(),
+            session_id: "disconnected-test".into(),
+            next: 1,
+            expected: "0".into(),
+            busy: true,
+        }
+    }
+
     pub(crate) fn available() -> bool {
         !COMPILING.load(Ordering::Acquire)
     }

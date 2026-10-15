@@ -223,7 +223,14 @@ fn full_app_small_review_reaches_real_body_batch_and_source_return_with_wheel() 
         assert!(report.scope().writing_inputs.is_empty());
         let output = settle(&ctx, &mut app);
         assert!(
-            visible(&output, "查找对象").is_some(),
+            crate::chrome::action_layout::trace(&ctx)
+                .iter()
+                .any(|response| {
+                    response.role == "global/commands"
+                        && ctx.screen_rect().contains_rect(response.rect)
+                        && response.clip.contains_rect(response.rect)
+                        && response.enabled
+                }),
             "必须包含真实外层chrome"
         );
         if scale == 2.0 {

@@ -149,6 +149,7 @@ impl WorldeditApp {
                         f.path,
                         f.original,
                         f.baseline,
+                        f.condition_forms.signature(),
                         d.id,
                         d.summary,
                         d.storyline,

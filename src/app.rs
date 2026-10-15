@@ -16,6 +16,7 @@ mod choices;
 mod chrome;
 mod collaboration_ui;
 mod commands;
+mod condition_authoring;
 #[cfg(not(target_arch = "wasm32"))]
 mod conflicts;
 mod deletion;
@@ -208,6 +209,7 @@ struct ReplayDebugger {
     live_time_budget_ms: u64,
     pane: PlayPane,
     inspection: play::inspection::InspectionUi,
+    object_inspection: play::object_inspection::ObjectInspectionUi,
     notice: Option<String>,
 }
 impl Default for ReplayDebugger {
@@ -232,12 +234,14 @@ impl Default for ReplayDebugger {
             live_time_budget_ms: 250,
             pane: PlayPane::Story,
             inspection: Default::default(),
+            object_inspection: Default::default(),
             notice: None,
         }
     }
 }
 #[derive(Clone)]
 struct EventEditor {
+    condition_forms: condition_authoring::ConditionForms,
     baseline: String,
     predecessor_query: String,
     temporal_cache: Option<(String, worldline_core::authoring::EventPredecessorOptions)>,

@@ -348,128 +348,22 @@ impl super::super::WorldeditApp {
             if !focus_layout || self.manuscript.focus_management {
                 let mut management = |ui: &mut egui::Ui| {
                     crate::theme::add_enabled_ui(ui, !input_locked, |ui| {
-                        ui.horizontal_wrapped(|ui| {
-                            let title = index.title.as_deref().unwrap_or(&book_id);
-                            ui.add_sized(
-                                [
-                                    ui.available_width().min(180.0),
-                                    ui.spacing().interact_size.y,
-                                ],
-                                egui::Label::new(egui::RichText::new(title).heading()).truncate(),
-                            )
-                            .on_hover_text(title);
-                            egui::ComboBox::from_id_salt("manuscript-book-picker")
-                                .selected_text(index.title.as_deref().unwrap_or(&book_id))
-                                .show_ui(ui, |ui| {
-                                    for (id, book) in indices {
-                                        ui.selectable_value(
-                                            &mut self.manuscript.selected_book,
-                                            Some(id.clone()),
-                                            format!(
-                                                "{} · {id}",
-                                                book.title.as_deref().unwrap_or(id)
-                                            ),
-                                        );
-                                    }
-                                });
-                            if ui.button("新建书稿").clicked() {
-                                create_book = true;
-                            }
-                            ui.selectable_value(
-                                &mut self.manuscript.layout,
-                                Layout::Tree,
-                                "章节树",
-                            );
-                            ui.selectable_value(&mut self.manuscript.layout, Layout::List, "列表");
-                            ui.selectable_value(&mut self.manuscript.layout, Layout::Cards, "卡片");
-                            ui.checkbox(&mut self.manuscript.reader_open, "阅读预览");
-                        });
-                        ui.label(theme::muted(
-                            "书稿只决定阅读顺序，独立于世界时间与事件控制流；正文编辑另行应用。",
-                        ));
-                        if !index.diagnostics.is_empty() {
-                            ui.colored_label(
-                                theme::WARNING(),
-                                format!(
-                                    "编排有 {} 项诊断；在章节导航的快照问题中逐页查看。",
-                                    index.diagnostics.len()
-                                ),
-                            );
-                        }
-                        if let Some(error) = &error {
-                            ui.colored_label(theme::ERROR(), format!("书稿草稿：{error}"));
-                        }
-                        ui.horizontal_wrapped(|ui| {
-                            if !focus_layout
-                                && crate::theme::add_enabled(
-                                    ui,
-                                    !index.read_only,
-                                    theme::primary("新建章节"),
-                                )
-                                .clicked()
-                            {
-                                create_chapter = true;
-                            }
-                            if crate::theme::add_enabled(
-                                ui,
-                                !index.read_only,
-                                egui::Button::new("插入分节"),
-                            )
-                            .clicked()
-                            {
-                                insert_entry(&mut local, ManuscriptEntryKind::Section);
-                            }
-                            if crate::theme::add_enabled(
-                                ui,
-                                !index.read_only,
-                                egui::Button::new("插入章节"),
-                            )
-                            .clicked()
-                            {
-                                insert_entry(&mut local, ManuscriptEntryKind::Chapter);
-                            }
-                            if crate::theme::add_enabled(
-                                ui,
-                                !index.read_only && local.changed && error.is_none(),
-                                egui::Button::new("应用书稿"),
-                            )
-                            .clicked()
-                            {
-                                apply_book = true;
-                            }
-                            if crate::theme::add_enabled(
-                                ui,
-                                local.changed,
-                                egui::Button::new("恢复书稿草稿"),
-                            )
-                            .on_hover_text("丢弃未应用编排，保留正文文件草稿")
-                            .clicked()
-                            {
-                                discard_book = true;
-                            }
-                            if !focus_layout {
-                                // Share the existing action row: a fixed rehearsal row
-                                // can push the first prose line outside a short viewport.
-                                ui.menu_button("试演", |ui| {
-                                    rehearse_draft = crate::theme::add_enabled(
-                                        ui,
-                                        can_rehearse,
-                                        egui::Button::new("试演当前正文草稿…"),
-                                    )
-                                    .on_hover_text(
-                                        "明确核对范围后独立运行；不应用、保存或替换普通试玩",
-                                    )
-                                    .clicked();
-                                    if rehearse_draft {
-                                        ui.close();
-                                    }
-                                });
-                            }
-                            if local.changed {
-                                ui.label(theme::muted("编排尚未应用"));
-                            }
-                        });
-                        ui.separator();
+                        let actions = super::management::draw(
+                            ui,
+                            &mut self.manuscript,
+                            &mut local,
+                            indices,
+                            index,
+                            &book_id,
+                            error.as_ref().map(|error| error.as_str()),
+                            focus_layout,
+                            can_rehearse,
+                        );
+                        create_book = actions.create_book;
+                        create_chapter |= actions.create_chapter;
+                        apply_book = actions.apply;
+                        discard_book = actions.discard;
+                        rehearse_draft |= actions.rehearse;
                     });
                 };
                 if compact_workspace {
@@ -552,7 +446,7 @@ impl super::super::WorldeditApp {
     }
 }
 
-fn insert_entry(local: &mut LocalBook, kind: ManuscriptEntryKind) {
+pub(super) fn insert_entry(local: &mut LocalBook, kind: ManuscriptEntryKind) {
     let parent_id = editing::selected_section(local);
     let id = unique_id(
         &local.draft.entries,

@@ -178,6 +178,10 @@ impl Harness {
         panic!("763×541 physical / 200% cannot reach {label}: {last}; viewport={:?}, remaining scroll={:?}", self.viewport, self.scroll_delta);
     }
 
+    pub(super) fn workbench_viewport(&self) -> Rect {
+        self.viewport
+    }
+
     pub(super) fn scroll_point(&self) -> Pos2 {
         if self.app.capability_ui.is_some() {
             self.ctx

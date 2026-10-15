@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn exact_version_and_unopened_state_do_not_depend_on_a_nonempty_draft_root() {
-        assert_eq!(window_title(None), "worldedit v0.35.0 · 未打开工程");
+        assert_eq!(window_title(None), "worldedit v0.36.0 · 未打开工程");
         let (ctx, app) = app();
         assert!(!app.saved_location);
         assert!(!app.project.root.as_os_str().is_empty());
@@ -164,7 +164,7 @@ mod tests {
         let title = window_title(Some(a));
         assert_eq!(title, window_title(Some(a)));
         assert_ne!(title, window_title(Some(b)));
-        assert!(title.starts_with("worldedit v0.35.0 · 同名作品 ["));
+        assert!(title.starts_with("worldedit v0.36.0 · 同名作品 ["));
         assert!(!title.contains("private"));
         assert!(!title.contains("first"));
         assert!(!title.contains('/'));

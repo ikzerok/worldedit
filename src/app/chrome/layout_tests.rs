@@ -164,12 +164,7 @@ fn every_workspace_renders_in_all_new_palette_style_pairs_without_old_skin_color
                         render(&ctx, &mut app, 1280.0, 800.0, Vec::new());
                     }
                     let output = render(&ctx, &mut app, 1280.0, 800.0, Vec::new());
-                    for label in ["保存全部", "工程", "视图", "编辑", "外观"] {
-                        assert!(
-                            text_position(&output, label).is_some(),
-                            "{palette:?}/{mode:?}/{style:?}/{tab:?}: {label}"
-                        );
-                    }
+                    reachable::global_actions(&ctx, &mut app, 1280.0, 800.0, &output);
                     let mut actual = Vec::new();
                     for shape in &output.shapes {
                         colors(&shape.shape, &mut actual);
@@ -203,11 +198,7 @@ fn narrow_shell_keeps_all_global_decision_points_reachable_and_does_not_change_l
             render(&ctx, &mut app, width, height, Vec::new());
         }
         let output = render(&ctx, &mut app, width, height, Vec::new());
-        for label in ["保存全部", "导出与发布", "工程", "视图", "编辑", "外观"] {
-            let point = text_position(&output, label)
-                .unwrap_or_else(|| panic!("{width}/{scale}: missing {label}"));
-            assert!(point.x >= 0.0 && point.x < width && point.y >= 0.0 && point.y < height);
-        }
+        reachable::global_actions(&ctx, &mut app, width, height, &output);
         if width == 400.0 {
             assert!(text_position(&output, "导航").is_some());
         }
@@ -271,3 +262,7 @@ fn compact_reference_drawer_cancel_keeps_pins_docking_width_and_project() {
 }
 
 mod focus;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod authoring;
+mod reachable;

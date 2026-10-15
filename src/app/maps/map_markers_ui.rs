@@ -235,6 +235,9 @@ impl super::super::WorldeditApp {
                             placement.label_override.clone().unwrap_or_default();
                     }
                 }
+                if ui.small_button("查看对象运行状态…").clicked() {
+                    self.open_object_inspection(ui.ctx(), target.clone());
+                }
                 if ui.small_button("打开资料").clicked() {
                     self.open_reading(target);
                 }
