@@ -71,6 +71,10 @@ target、dist、releases、日志和临时文件不是源码，不上传。父�
 
 在 worldedit 目录执行 `./scripts/check-pair.ps1`，分别检查两仓 fmt、test、clippy 并实际构建原生及编辑器 WASM 目标。工具链由各自 rust-toolchain 固定。CI 从 `compatibility.json` 读取 worldline 仓库及完整 SHA；变更托管位置时同步更新兼容记录和 workflow 的仓库校验。版本升级、回滚及日志归档见[配对构建与回归基线](paired-ci.md)。
 
+首次正式发行仍由创建 `release/vX.Y.Z` 分支的 `create` 事件启动。若构建失败且同版本 tag/Release 尚未创建，先将修复合并到 main，等待双仓精确 main CI 成功，再将**已有** `release/v0.x.y` 分支非强制快进到当前 editor main，以 `push` 受控重试；初次创建分支的 push 不运行发行 job，避免与 create 双触发。
+
+重试要求事件明确 `created/deleted/forced=false`，完整非零 before SHA，以及 ref、after、事件 SHA、发行分支当前 SHA 和 editor main 完全一致；GitHub compare 还独立验证 before 是 after 的祖先且实际前进。版本、worldline main 配对、双仓最新精确 main push CI、零 open issue、同名 tag/Release 不存在和公开前重查仍全部生效，写权限仍只在 publish。分支移动、非快进、过期事件、已有 tag/draft/Release 均停止，不删除、不覆盖、不复用失败发布留下的目标。
+
 ## Windows 和 Web 包
 
 在已安装 Rust、WebAssembly 编译目标、Trunk 和 Python 3.11+（CI 为 3.12）的 Windows x64 机器运行：

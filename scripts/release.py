@@ -10,6 +10,7 @@ import re
 import stat
 import unicodedata
 import subprocess
+import sys
 import tempfile
 import time
 import tomllib
@@ -125,21 +126,60 @@ def ci(repo, sha):
 
 def context():
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-    require(os.environ.get("GITHUB_EVENT_NAME") == "create", "仅接受 create 事件")
+    event_name = os.environ.get("GITHUB_EVENT_NAME")
+    require(event_name in {"create", "push"}, "仅接受 create 或受控发行分支 push 事件")
     require(os.environ.get("GITHUB_REPOSITORY") == EDITOR
             and event.get("repository", {}).get("full_name") == EDITOR, "仅接受正式仓库")
-    require(event.get("ref_type") == "branch", "仅接受创建发行分支")
-    branch = event.get("ref", "")
+    ref = event.get("ref", "")
+    require(isinstance(ref, str), "事件 ref 格式错误")
+    if event_name == "create":
+        require(event.get("ref_type") == "branch", "仅接受创建发行分支")
+        branch = ref
+    else:
+        require(all(event.get(field) is False for field in ("created", "deleted", "forced")),
+                "重试仅接受已有发行分支的非创建、非删除、非强制 push")
+        require(ref.startswith("refs/heads/release/v0."), "重试分支必须为 release/v0.x.y")
+        branch = ref.removeprefix("refs/heads/")
     match = BRANCH.fullmatch(branch)
     require(match is not None, "分支必须为 release/vX.Y.Z，无前导零或预发行后缀")
     sha = os.environ.get("GITHUB_SHA", "")
     require(SHA.fullmatch(sha), "事件 SHA 格式错误")
     require(os.environ.get("GITHUB_REF") == "refs/heads/" + branch, "事件 ref 不一致")
-    return branch, match[1], sha
+    trigger = {"event": event_name, "branch": branch, "ref": "refs/heads/" + branch,
+               "before": None, "after": sha, "created": None, "deleted": None, "forced": None,
+               "fast_forward": {"verified": False}}
+    if event_name == "push":
+        before = event.get("before", "")
+        require(isinstance(before, str) and SHA.fullmatch(before) and before != "0" * 40,
+                "重试 before 必须为完整非零提交 SHA")
+        require(event.get("after") == sha and sha != "0" * 40 and before != sha,
+                "重试 after 必须等于事件 SHA 且不同于 before")
+        path = f"repos/{EDITOR}/compare/{before}...{sha}"
+        comparison = api(path)
+        commits = comparison.get("commits")
+        require(comparison.get("status") == "ahead"
+                and comparison.get("url") == "https://api.github.com/" + path
+                and comparison.get("base_commit", {}).get("sha") == before
+                and comparison.get("merge_base_commit", {}).get("sha") == before
+                and type(comparison.get("ahead_by")) is int and comparison["ahead_by"] > 0
+                and type(comparison.get("behind_by")) is int and comparison["behind_by"] == 0
+                and type(comparison.get("total_commits")) is int
+                and comparison["total_commits"] == comparison["ahead_by"]
+                and isinstance(commits, list) and len(commits) == comparison["total_commits"]
+                and all(isinstance(commit, dict) and isinstance(commit.get("sha"), str)
+                        and SHA.fullmatch(commit["sha"]) and commit["sha"] != "0" * 40 for commit in commits)
+                and len({commit["sha"] for commit in commits}) == len(commits)
+                and commits[-1]["sha"] == sha,
+                "重试必须由 GitHub compare 独立确认 before→after 为真实快进")
+        trigger.update(before=before, created=False, deleted=False, forced=False, fast_forward={
+            "verified": True, "status": "ahead", "base_sha": before, "merge_base_sha": before,
+            "ahead_by": comparison["ahead_by"], "behind_by": 0,
+            "total_commits": comparison["total_commits"], "head_sha": sha})
+    return branch, match[1], sha, trigger
 
 
-def gate(existing=False):
-    branch, tag, editor_sha = context()
+def gate(existing=False, report_trigger=False):
+    branch, tag, editor_sha, trigger = context()
     require(main_sha(EDITOR) == editor_sha, "发行 SHA 不再是 editor main")
     require(api(f"repos/{EDITOR}/git/ref/heads/{branch}")["object"]["sha"] == editor_sha,
             "发行分支已移动")
@@ -163,6 +203,10 @@ def gate(existing=False):
         require(ref.get("type") == "commit" and ref.get("sha") == editor_sha, "新标签配对不符")
     # Catch main changes during the API inspection too; the final PATCH is not atomic with refs.
     require(main_sha(EDITOR) == editor_sha and main_sha(CORE) == core_sha, "门禁查询期间 main 已变动")
+    require(api(f"repos/{EDITOR}/git/ref/heads/{branch}")["object"]["sha"] == editor_sha,
+            "门禁查询期间发行分支已移动")
+    if report_trigger:
+        print("RELEASE_TRIGGER " + json.dumps(trigger, ensure_ascii=True, sort_keys=True))
     return {"schema_version": 1, "tag": tag, "worldedit": {"repository": EDITOR, "sha": editor_sha, "version": editor_version},
             "worldline": {"repository": CORE, "sha": core_sha, "version": core_version}, "ci": evidence,
             "acceptance": "两仓 open issues 为零；自动校验见本记录 ci 字段中的精确 main push CI 链接。人工与 AI 验收结论通过独立版本更新报告提供，原始验收记录不随源码发布。"}
@@ -329,13 +373,16 @@ def publish(root):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["gate", "verify", "publish"])
     parser.add_argument("--directory", type=Path, default=Path("release-assets"))
     parser.add_argument("--pair", type=Path, default=Path("release-pair.json"))
     args = parser.parse_args()
     if args.command == "gate":
-        pair = gate()
+        pair = gate(report_trigger=True)
         args.pair.write_text(json.dumps(pair, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if os.environ.get("GITHUB_OUTPUT"):
             with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:

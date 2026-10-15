@@ -1,4 +1,5 @@
 """发行Markdown只改副本，跨仓链接离线可用，源码引用固定提交。"""
+import ast
 import importlib.util
 import json
 import os
@@ -47,6 +48,21 @@ class PackageDocLinksTests(unittest.TestCase):
     def run_map(self, check=False, **kwargs):
         return helper.remap(self.desktop, self.editor, self.core,
                             kwargs.get("editor_sha", EDITOR_SHA), CORE_SHA, check)
+
+    def run_script_cli(self, script, encoding, *arguments):
+        environment = os.environ.copy()
+        environment.update(PYTHONIOENCODING=f"{encoding}:strict", PYTHONUTF8="0")
+        return subprocess.run(
+            [sys.executable, str(Path(helper.__file__).with_name(script)), *arguments],
+            capture_output=True, env=environment, check=False, timeout=30,
+        )
+
+    def run_cli(self, encoding, *arguments):
+        return self.run_script_cli(
+            "package-doc-links.py", encoding, "--desktop-root", str(self.desktop),
+            "--editor-source", str(self.editor), "--worldline-source", str(self.core),
+            "--editor-sha", EDITOR_SHA, "--worldline-sha", CORE_SHA, *arguments,
+        )
 
     def test_cross_repository_links_follow_nested_desktop_layout(self):
         editor = self.staged("worldedit", "docs/start.md", "[契约](../../worldline/spec/workspace.md#边界)\n")
@@ -313,6 +329,156 @@ class PackageDocLinksTests(unittest.TestCase):
                                 capture_output=True, text=True, encoding="utf-8", check=True)
         self.assertEqual(json.loads(result.stdout)["markdown_files"], 1)
         self.assertEqual(page.read_bytes(), b"text\n")
+
+    def test_cli_unicode_reports_round_trip_with_legacy_stdout(self):
+        page = self.staged(
+            "worldedit", "docs/中文指南.md",
+            '\ufeff---\r\n标题: 中文指南\r\n---\r\n# 中文指南\r\n'
+            '[本地](本地目标.md#中文锚点🌟)\r\n'
+            '[源码](../src/实现.rs#源码锚点)\r\n'
+            '[契约](../../worldline/spec/契约.md#边界)\r\n'
+            '[本节](#中文锚点)\r\n',
+        )
+        self.staged("worldedit", "docs/本地目标.md", "# 中文锚点\n[返回](中文指南.md#中文指南)\n")
+        self.staged("worldline", "spec/契约.md", "# 边界\n")
+        self.source("worldedit", "src/实现.rs", "// 源码锚点\n")
+        (self.desktop / "非文档.bin").write_bytes(b"\x00\xff unchanged")
+        source_bytes = {p: p.read_bytes() for root in (self.editor, self.core)
+                        for p in root.rglob("*") if p.is_file()}
+        staged_bytes = {p: p.read_bytes() for p in self.desktop.rglob("*") if p.is_file()}
+        mapper = helper.Remapper(self.desktop, self.editor, self.core, EDITOR_SHA, CORE_SHA)
+        pending, report = mapper.plan()
+        expected_bytes = {**staged_bytes, **dict(pending)}
+        self.assertEqual(report["local_rewrites"], 3)
+        self.assertEqual(report["online_rewrites"], 1)
+        self.assertIn({"file": "docs/中文指南.md", "line": 5,
+                       "before": "本地目标.md#中文锚点🌟",
+                       "after": "%E6%9C%AC%E5%9C%B0%E7%9B%AE%E6%A0%87.md#中文锚点🌟",
+                       "kind": "local"}, report["changes"])
+        for encoding in ("cp1252", "ascii", "utf-8"):
+            with self.subTest(encoding=encoding):
+                for path, data in staged_bytes.items():
+                    path.write_bytes(data)
+                for mode, arguments in (("check", ("--check",)), ("apply", ())):
+                    with self.subTest(mode=mode):
+                        result = self.run_cli(encoding, *arguments)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stderr, b"")
+                        # ASCII JSON escapes are lossless, independent of the pipe's encoding.
+                        output = result.stdout.decode("ascii")
+                        self.assertIn("\\u4e2d", output)
+                        self.assertIn("\\ud83c\\udf1f", output)
+                        self.assertEqual(json.loads(output), {"ok": True, "mode": mode, **report})
+                        self.assertEqual({p: p.read_bytes() for p in staged_bytes},
+                                         staged_bytes if mode == "check" else expected_bytes)
+                        self.assertEqual({p: p.read_bytes() for p in source_bytes}, source_bytes)
+                body = page.read_bytes().decode("utf-8")
+                self.assertTrue(body.startswith('\ufeff---\r\n标题: 中文指南\r\n---\r\n<!--'))
+                self.assertIn("#中文锚点)", body)
+                self.assertIn("需要联网", body)
+                self.assertNotIn("\n", body.replace("\r\n", ""))
+                for arguments in (("--check",), ()):
+                    result = self.run_cli(encoding, *arguments)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stderr, b"")
+                    checked = json.loads(result.stdout.decode("ascii"))
+                    self.assertEqual(checked["already_mapped"], 3)
+                    self.assertEqual(checked["rewritten_files"], 0)
+                    self.assertEqual(checked["changes"], [])
+                    self.assertEqual({p: p.read_bytes() for p in staged_bytes}, expected_bytes)
+
+    def test_cli_unicode_errors_keep_original_stderr_diagnostics(self):
+        self.staged("worldedit", "A.md", "先验证全部文件，再修改发行副本\n")
+        self.staged("worldedit", "docs/错误路径.md", "[不存在](缺失目标.md#中文锚点)\n")
+        before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        diagnostic = f"ValueError: 源码文档链接目标缺失：worldedit/{Path('docs') / '缺失目标.md'}"
+        for encoding in ("cp1252", "ascii", "utf-8"):
+            for arguments in (("--check",), ()):
+                with self.subTest(encoding=encoding, arguments=arguments):
+                    result = self.run_cli(encoding, *arguments)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, b"")
+                    # Python's stderr keeps backslashreplace even with PYTHONIOENCODING=:strict.
+                    error = result.stderr.decode(encoding)
+                    self.assertIn(diagnostic.encode(encoding, "backslashreplace").decode(encoding), error)
+                    self.assertIn("Traceback (most recent call last):", error)
+                    self.assertNotIn("UnicodeEncodeError", error)
+                    self.assertNotIn("lost sys.stderr", error)
+                    self.assertEqual({p: p.read_bytes() for p in before}, before)
+
+    def test_cli_unicode_argument_errors_remain_visible(self):
+        for encoding in ("cp1252", "ascii", "utf-8"):
+            with self.subTest(encoding=encoding):
+                result = self.run_cli(encoding, "--未知选项")
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, b"")
+                error = result.stderr.decode(encoding)
+                self.assertIn("--未知选项".encode(encoding, "backslashreplace").decode(encoding), error)
+                self.assertNotIn("UnicodeEncodeError", error)
+
+    def test_cli_help_supports_legacy_stdout(self):
+        for encoding in ("cp1252", "ascii", "utf-8"):
+            with self.subTest(encoding=encoding):
+                result = self.run_cli(encoding, "--help")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, b"")
+                output = result.stdout.decode(encoding)
+                self.assertIn("usage:", output)
+                self.assertIn(helper.__doc__.encode(encoding, "backslashreplace").decode(encoding), output)
+                self.assertIn("--check", output)
+
+    def test_cli_invalid_utf8_document_is_not_swallowed(self):
+        page = self.staged("worldedit", "错误字节.md", b"\xff invalid UTF-8")
+        for encoding in ("cp1252", "ascii", "utf-8"):
+            for arguments in (("--check",), ()):
+                with self.subTest(encoding=encoding, arguments=arguments):
+                    result = self.run_cli(encoding, *arguments)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, b"")
+                    error = result.stderr.decode(encoding)
+                    self.assertIn("UnicodeDecodeError", error)
+                    self.assertNotIn("UnicodeEncodeError", error)
+                    self.assertEqual(page.read_bytes(), b"\xff invalid UTF-8")
+
+    def test_distribution_cli_help_supports_legacy_stdout(self):
+        for script in ("release.py", "release-build.py", "release-package.py"):
+            source = Path(helper.__file__).with_name(script).read_text(encoding="utf-8")
+            description = ast.get_docstring(ast.parse(source))
+            for encoding in ("cp1252", "ascii", "utf-8"):
+                with self.subTest(script=script, encoding=encoding):
+                    result = self.run_script_cli(script, encoding, "--help")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stderr, b"")
+                    output = result.stdout.decode(encoding)
+                    self.assertIn("usage:", output)
+                    self.assertIn(description.encode(encoding, "backslashreplace").decode(encoding), output)
+
+    def test_distribution_cli_unicode_file_errors_remain_visible(self):
+        missing_pair = self.root / "缺失配对.json"
+        missing_zip = self.root / "缺失发行包.zip"
+        output = self.root / "不可创建的发行目录"
+        cases = (
+            ("release.py", missing_pair, ["verify", "--pair", str(missing_pair)]),
+            # The build CLI resolves paths, including Windows short-name aliases.
+            ("release-build.py", missing_pair.resolve(),
+             ["--editor", str(self.editor), "--core", str(self.core),
+              "--pair", str(missing_pair), "--output", str(output)]),
+            ("release-package.py", missing_zip, ["audit", str(missing_zip)]),
+        )
+        for script, missing, arguments in cases:
+            for encoding in ("cp1252", "ascii", "utf-8"):
+                with self.subTest(script=script, encoding=encoding):
+                    # These paths fail on local reads, before build/gate/publish actions.
+                    result = self.run_script_cli(script, encoding, *arguments)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, b"")
+                    error = result.stderr.decode(encoding)
+                    diagnostic = repr(str(missing)).encode(encoding, "backslashreplace").decode(encoding)
+                    self.assertIn(diagnostic, error)
+                    self.assertIn("FileNotFoundError", error)
+                    self.assertNotIn("UnicodeEncodeError", error)
+                    self.assertNotIn("lost sys.stderr", error)
+                    self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

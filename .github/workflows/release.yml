@@ -1,7 +1,9 @@
 name: 正式发行
-# GitHub create 覆盖 API 创建分支。普通 push/PR 不触发此工作流。
+# 首次创建走 create；已有发行分支的非强制快进 push 仅用于未发布失败的受控重试。
 on:
   create:
+  push:
+    branches: ['release/v0.*.*']
 permissions:
   contents: read
 concurrency:
@@ -11,8 +13,12 @@ jobs:
   gate:
     if: >-
       github.repository == 'ikzerok/worldedit' &&
-      github.event.ref_type == 'branch' &&
-      startsWith(github.event.ref, 'release/v')
+      ((github.event_name == 'create' && github.event.ref_type == 'branch' &&
+        startsWith(github.event.ref, 'release/v')) ||
+       (github.event_name == 'push' && github.event.created == false &&
+        github.event.deleted == false && github.event.forced == false &&
+        startsWith(github.ref, 'refs/heads/release/v0.') &&
+        github.event.ref == github.ref && github.event.after == github.sha))
     runs-on: ubuntu-latest
     permissions:
       contents: read

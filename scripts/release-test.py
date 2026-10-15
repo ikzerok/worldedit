@@ -22,7 +22,7 @@ import zipfile
 spec = importlib.util.spec_from_file_location("release", Path(__file__).with_name("release.py"))
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
-E, C = "a" * 40, "b" * 40
+E, C, BEFORE = "a" * 40, "b" * 40, "c" * 40
 
 
 class GateTests(unittest.TestCase):
@@ -38,6 +38,11 @@ class GateTests(unittest.TestCase):
         self.addCleanup(self.env.stop)
         self.version = "0.3.1"
         self.editor_main, self.core_main = E, C
+        self.branch_sha = E
+        self.comparison = {"url": f"https://api.github.com/repos/{release.EDITOR}/compare/{BEFORE}...{E}",
+                           "status": "ahead", "base_commit": {"sha": BEFORE},
+                           "merge_base_commit": {"sha": BEFORE}, "ahead_by": 1, "behind_by": 0,
+                           "total_commits": 1, "commits": [{"sha": E, "parents": [{"sha": BEFORE}]}]}
         self.issue_list = [{"number": 1, "pull_request": {}}]
         self.status, self.conclusion = "completed", "success"
         self.api_mock = patch.object(release, "api", side_effect=self.api).start()
@@ -45,18 +50,30 @@ class GateTests(unittest.TestCase):
         def mock_pages(path, collection=None):
             if collection == "workflow_runs": return self.api_mock(path)["workflow_runs"]
             return self.issue_list
-        patch.object(release, "pages", side_effect=mock_pages).start()
+        self.pages_mock = patch.object(release, "pages", side_effect=mock_pages).start()
         self.absent = patch.object(release, "absent").start()
 
     def save_event(self):
         self.event_path.write_text(json.dumps(self.event), encoding="utf-8")
 
+    def use_push(self):
+        # GitHub push uses a full ref and boolean flags; it has no create.ref_type.
+        self.event = {"ref": "refs/heads/release/v0.3.1", "before": BEFORE, "after": E,
+                      "created": False, "deleted": False, "forced": False,
+                      "repository": {"full_name": release.EDITOR}, "head_commit": {"id": E},
+                      "commits": [{"id": E, "distinct": True}]}
+        self.save_event()
+        os.environ["GITHUB_EVENT_NAME"] = "push"
+
     def api(self, path, method="GET", payload=None):
         self.assertEqual(method, "GET", "gate 必须只读")
+        if "/compare/" in path:
+            self.assertEqual(path, f"repos/{release.EDITOR}/compare/{BEFORE}...{E}")
+            return copy.deepcopy(self.comparison)
         if path.endswith("/git/ref/heads/main"):
             return {"object": {"sha": self.core_main if release.CORE in path else self.editor_main}}
         if "/git/ref/heads/release/" in path:
-            return {"object": {"sha": E}}
+            return {"object": {"sha": self.branch_sha}}
         if "/git/ref/tags/" in path:
             return {"object": {"sha": E, "type": "commit"}}
         if "/contents/" in path:
@@ -94,7 +111,7 @@ class GateTests(unittest.TestCase):
         self.save_event()
         with self.assertRaises(RuntimeError): release.gate()
 
-    def test_non_create_event(self):
+    def test_unsupported_or_mismatched_event(self):
         for event in ["push", "pull_request", "workflow_dispatch"]:
             with self.subTest(event=event), patch.dict(os.environ, {"GITHUB_EVENT_NAME": event}):
                 with self.assertRaises(RuntimeError): release.gate()
@@ -165,6 +182,276 @@ class GateTests(unittest.TestCase):
             return result
         self.api_mock.side_effect = api
         with self.assertRaises(RuntimeError): release.gate()
+
+    def test_push_fast_forward_retains_pair_and_checks_exact_compare(self):
+        self.use_push()
+        with patch("sys.stdout", new_callable=io.StringIO) as output:
+            result = release.gate(report_trigger=True)
+        self.assertEqual(result["worldedit"]["sha"], E)
+        self.assertEqual(result["worldline"]["sha"], C)
+        self.assertEqual(self.absent.call_count, 2)
+        self.api_mock.assert_any_call(f"repos/{release.EDITOR}/compare/{BEFORE}...{E}")
+        marker, payload = output.getvalue().strip().split(" ", 1)
+        self.assertEqual(marker, "RELEASE_TRIGGER")
+        self.assertTrue(output.getvalue().isascii())
+        self.assertEqual(json.loads(payload), {
+            "event": "push", "branch": "release/v0.3.1", "ref": self.event["ref"],
+            "before": BEFORE, "after": E, "created": False, "deleted": False, "forced": False,
+            "fast_forward": {"verified": True, "status": "ahead", "base_sha": BEFORE,
+                             "merge_base_sha": BEFORE, "ahead_by": 1, "behind_by": 0,
+                             "total_commits": 1, "head_sha": E}})
+
+    def test_create_semantics_retained_without_compare(self):
+        for version in ("0.3.1", "1.2.3"):
+            self.version = version
+            self.event["ref"] = "release/v" + version
+            self.save_event()
+            with self.subTest(version=version), patch.dict(os.environ, {"GITHUB_REF": "refs/heads/" + self.event["ref"]}):
+                result = release.gate()
+                self.assertEqual(result["tag"], "v" + version)
+        self.assertFalse(any("/compare/" in call.args[0] for call in self.api_mock.call_args_list))
+
+    def test_push_requires_all_three_flags_to_be_explicit_false(self):
+        self.use_push()
+        for field in ("created", "deleted", "forced"):
+            for value in (True, None, 0, "false", "", []):
+                with self.subTest(field=field, value=value):
+                    self.event[field] = value
+                    self.save_event()
+                    with self.assertRaises(RuntimeError): release.gate()
+            del self.event[field]
+            self.save_event()
+            with self.assertRaises(RuntimeError): release.gate()
+            self.event[field] = False
+        self.api_mock.assert_not_called()
+
+    def test_push_requires_exact_canonical_v0_branch_and_context(self):
+        self.use_push()
+        for ref in ("release/v0.3.1", "refs/tags/release/v0.3.1", "refs/heads/main",
+                    "refs/heads/release/v1.3.1", "refs/heads/release/v00.3.1", "refs/heads/release/v0.03.1",
+                    "refs/heads/release/v0.3.1-rc1", "refs/heads/release/v0.3.1/extra",
+                    "refs/heads/release/v0.3.1\n", "refs/heads/release/v0.3.2", None):
+            with self.subTest(ref=ref):
+                self.event["ref"] = ref
+                self.save_event()
+                with self.assertRaises(RuntimeError): release.gate()
+        self.use_push()
+        for variable, value in (("GITHUB_REF", "refs/heads/release/v0.3.2"), ("GITHUB_SHA", C),
+                                ("GITHUB_SHA", "0" * 40), ("GITHUB_SHA", E[:-1]),
+                                ("GITHUB_REPOSITORY", "other/worldedit")):
+            with self.subTest(variable=variable), patch.dict(os.environ, {variable: value}):
+                with self.assertRaises(RuntimeError): release.gate()
+        self.event["repository"]["full_name"] = "other/worldedit"
+        self.save_event()
+        with self.assertRaises(RuntimeError): release.gate()
+        self.api_mock.assert_not_called()
+
+    def test_push_rejects_invalid_before_after_and_noop(self):
+        self.use_push()
+        for value in (None, 0, "", "0" * 40, BEFORE[:-1], BEFORE.upper(), BEFORE + "\n", "z" * 40, E):
+            with self.subTest(before=value):
+                self.event["before"] = value
+                self.save_event()
+                with self.assertRaises(RuntimeError): release.gate()
+        self.use_push()
+        for value in (None, 0, "", "0" * 40, C, E[:-1], E.upper(), E + "\n"):
+            with self.subTest(after=value):
+                self.event["after"] = value
+                self.save_event()
+                with self.assertRaises(RuntimeError): release.gate()
+        self.api_mock.assert_not_called()
+
+    def test_push_does_not_trust_forced_false_without_complete_compare(self):
+        self.use_push()
+        original = copy.deepcopy(self.comparison)
+        for change in ({"status": "behind"}, {"status": "diverged"}, {"status": "identical"},
+                       {"base_commit": {"sha": C}}, {"merge_base_commit": {"sha": C}},
+                       {"url": original["url"].replace(BEFORE, C)}, {"behind_by": 1},
+                       {"behind_by": False}, {"ahead_by": 0}, {"ahead_by": True}, {"ahead_by": "1"},
+                       {"total_commits": 2}, {"total_commits": True}, {"commits": []},
+                       {"commits": [{"sha": C}]}, {"commits": [{"sha": "0" * 40}]},
+                       {"commits": [{"sha": E[:-1]}]}, {"commits": [{"sha": None}]},
+                       {"ahead_by": 2, "total_commits": 2, "commits": [{"sha": E}, {"sha": E}]},
+                       {"ahead_by": 251, "total_commits": 251}):
+            self.comparison = dict(original, **change)
+            with self.subTest(change=change), self.assertRaisesRegex(RuntimeError, "compare"):
+                release.gate()
+        for field in original:
+            self.comparison = {key: value for key, value in original.items() if key != field}
+            with self.subTest(missing=field), self.assertRaises(RuntimeError): release.gate()
+        self.absent.assert_not_called()
+
+    def test_push_compare_api_failure_is_not_accepted(self):
+        self.use_push()
+        self.api_mock.side_effect = RuntimeError("comparison unavailable")
+        with self.assertRaises(RuntimeError): release.gate()
+        self.absent.assert_not_called()
+
+    def test_push_accepts_complete_merged_history_not_only_linear_commits(self):
+        self.use_push()
+        side = "d" * 40
+        self.comparison.update(ahead_by=2, total_commits=2, commits=[
+            {"sha": side, "parents": [{"sha": BEFORE}]},
+            {"sha": E, "parents": [{"sha": BEFORE}, {"sha": side}]}])
+        self.assertEqual(release.gate()["worldedit"]["sha"], E)
+
+    def test_push_preserves_version_main_issue_and_ci_gates(self):
+        self.use_push()
+        for field, invalid in (("version", "0.3.0"), ("editor_main", C), ("core_main", E),
+                               ("branch_sha", C), ("issue_list", [{"number": 2}]),
+                               ("status", "in_progress"), ("conclusion", "failure")):
+            original = getattr(self, field)
+            setattr(self, field, invalid)
+            with self.subTest(field=field), self.assertRaises(RuntimeError): release.gate()
+            setattr(self, field, original)
+        original_api = self.api
+        for field, invalid in (("head_sha", C), ("head_branch", "release/v0.3.1"), ("event", "pull_request"),
+                               ("head_repository", {"full_name": "other/worldedit"})):
+            for repo in (release.EDITOR, release.CORE):
+                def api(path, *args, **kwargs):
+                    result = original_api(path, *args, **kwargs)
+                    if "/actions/workflows/" in path and f"repos/{repo}/" in path:
+                        result["workflow_runs"][0][field] = E if repo == release.CORE and field == "head_sha" else invalid
+                    return result
+                self.api_mock.side_effect = api
+                with self.subTest(field=field, repo=repo), self.assertRaises(RuntimeError): release.gate()
+
+    def test_push_rejects_each_existing_target(self):
+        self.use_push()
+        for suffix in ("git/ref/tags/v0.3.1", "releases/tags/v0.3.1"):
+            def absent(path):
+                if path.endswith(suffix): raise RuntimeError("existing target")
+            self.absent.side_effect = absent
+            with self.subTest(target=suffix), self.assertRaises(RuntimeError): release.gate()
+
+    def test_push_rechecks_issues_and_latest_ci_for_each_repository(self):
+        self.use_push()
+        original_pages = self.pages_mock.side_effect
+        for repo in (release.EDITOR, release.CORE):
+            for failure in ("issue", "latest_ci_attempt"):
+                def pages(path, collection=None):
+                    result = original_pages(path, collection)
+                    if f"repos/{repo}/" in path:
+                        if failure == "issue" and "/issues?" in path:
+                            result = [{"number": 5}]
+                        if failure == "latest_ci_attempt" and collection == "workflow_runs":
+                            latest = dict(result[0], run_attempt=2, conclusion="failure")
+                            result.append(latest)
+                    return result
+                self.pages_mock.side_effect = pages
+                with self.subTest(repo=repo, failure=failure), self.assertRaises(RuntimeError): release.gate()
+
+    def test_push_detects_branch_or_either_main_moving_during_gate(self):
+        self.use_push()
+        for field in ("branch_sha", "editor_main", "core_main"):
+            self.branch_sha, self.editor_main, self.core_main = E, E, C
+            original_api = self.api
+            def api(path, *args, **kwargs):
+                result = original_api(path, *args, **kwargs)
+                if "/actions/workflows/" in path: setattr(self, field, "d" * 40)
+                return result
+            self.api_mock.side_effect = api
+            with self.subTest(field=field), self.assertRaises(RuntimeError): release.gate()
+
+    def test_failed_gate_never_emits_success_trigger(self):
+        self.use_push()
+        self.issue_list = [{"number": 3}]
+        with patch("sys.stdout", new_callable=io.StringIO) as output:
+            with self.assertRaises(RuntimeError): release.gate(report_trigger=True)
+        self.assertEqual(output.getvalue(), "")
+
+    def test_gate_cli_emits_one_ascii_trigger_and_keeps_utf8_pair_file(self):
+        self.use_push()
+        pair_path, outputs = Path(self.temp.name) / "配对.json", Path(self.temp.name) / "outputs.txt"
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="cp1252", errors="strict")
+        with patch("sys.stdout", stream), patch("sys.stderr", stream), \
+             patch("sys.argv", ["release.py", "gate", "--pair", str(pair_path)]), \
+             patch.dict(os.environ, {"GITHUB_OUTPUT": str(outputs), "GH_TOKEN": "do-not-log-fixture"}):
+            release.main()
+            stream.flush()
+            log = raw.getvalue().decode("ascii")
+        self.assertEqual(log.count("RELEASE_TRIGGER "), 1)
+        self.assertNotIn("do-not-log-fixture", log)
+        self.assertNotIn("head_commit", log)
+        self.assertEqual(json.loads(log.removeprefix("RELEASE_TRIGGER "))["before"], BEFORE)
+        self.assertEqual(json.loads(pair_path.read_text(encoding="utf-8"))["worldedit"]["sha"], E)
+        self.assertIn("独立版本更新报告", pair_path.read_text(encoding="utf-8"))
+        self.assertEqual(outputs.read_text(encoding="utf-8"), f"editor_sha={E}\ncore_sha={C}\ntag=v0.3.1\n")
+        stream.close()
+
+    def test_push_publication_rechecks_real_event_and_gate_before_each_write_stage(self):
+        self.use_push()
+        fixture = AssetTests(methodName="test_valid_assets")
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        assets = [{"id": index, "name": name, "state": "uploaded", "size": (fixture.root / name).stat().st_size,
+                   "digest": "sha256:" + hashlib.sha256((fixture.root / name).read_bytes()).hexdigest()}
+                  for index, name in enumerate(sorted(release.ASSETS))]
+        original_pages = self.pages_mock.side_effect
+        for failure in (None, "existing_tag", "existing_release", "hidden_draft", "stale_event",
+                        "before_tag", "before_publish", "compare_before_publish", "duplicate_draft"):
+            with self.subTest(failure=failure):
+                self.branch_sha = C if failure == "stale_event" else E
+                self.comparison["status"] = "ahead"
+                state = {"id": 12, "draft": True, "tag_name": "v0.3.1", "target_commitish": E,
+                         "assets": assets, "html_url": "https://example.invalid/mock-release"}
+                present = {"tag": failure == "existing_tag",
+                           "release": failure in {"existing_release", "hidden_draft"}}
+                writes, uploads = [], []
+                def api(path, method="GET", payload=None):
+                    if method != "GET": writes.append((path, method, payload))
+                    if method == "POST" and path.endswith("/git/refs"):
+                        present["tag"] = True
+                        return {"object": {"sha": E, "type": "commit"}}
+                    if method == "POST" and path.endswith("/releases"):
+                        present["release"] = True
+                        return copy.deepcopy(state)
+                    if method == "PATCH": state["draft"] = False
+                    if "/releases/12" in path: return copy.deepcopy(state)
+                    return self.api(path, method, payload)
+                def pages(path, collection=None):
+                    if path.endswith("/releases?per_page=100"):
+                        result = [copy.deepcopy(state)] if present["release"] else []
+                        if failure == "duplicate_draft" and writes and present["release"]:
+                            result.append(dict(state, id=13))
+                        return result
+                    if path.endswith("/releases/12/assets?per_page=100"): return assets
+                    return original_pages(path, collection)
+                def absent(path):
+                    if ("/git/ref/tags/" in path and present["tag"]
+                            or "/releases/tags/" in path and present["release"] and failure != "hidden_draft"):
+                        raise RuntimeError("existing target")
+                def gh(*args, **kwargs):
+                    if args[:2] == ("release", "upload"): uploads.append(args)
+                    if args[:2] == ("release", "download"):
+                        destination = Path(args[args.index("--dir") + 1])
+                        for name in release.ASSETS: shutil.copyfile(fixture.root / name, destination / name)
+                        if failure == "before_publish": self.branch_sha = C
+                        if failure == "compare_before_publish": self.comparison["status"] = "diverged"
+                    return ""
+                original_verify = release.verify_assets
+                def verify(*args):
+                    result = original_verify(*args)
+                    if failure == "before_tag": self.branch_sha = C
+                    return result
+                self.api_mock.side_effect = api
+                self.pages_mock.side_effect = pages
+                self.absent.side_effect = absent
+                with patch.object(release, "gh", side_effect=gh), patch.object(release, "verify_assets", side_effect=verify), \
+                     patch("sys.stdout", new_callable=io.StringIO):
+                    if failure is None:
+                        release.publish(fixture.root)
+                        self.assertEqual([method for _, method, _ in writes], ["POST", "POST", "PATCH"])
+                        # A repeated delivery cannot publish over the tag/release just created.
+                        with self.assertRaises(RuntimeError): release.publish(fixture.root)
+                        self.assertEqual(len(writes), 3)
+                    else:
+                        with self.assertRaises(RuntimeError): release.publish(fixture.root)
+                        self.assertFalse(any(method == "PATCH" for _, method, _ in writes))
+                        if failure not in {"before_publish", "compare_before_publish", "duplicate_draft"}:
+                            self.assertEqual(writes, [], "首次写入前必须完整重查且拒绝已有目标/过期事件")
+                        if failure == "duplicate_draft": self.assertEqual(uploads, [])
 
 
 class AssetTests(unittest.TestCase):
@@ -792,15 +1079,20 @@ class PaginationTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_minimum_permissions_and_no_push_pr_trigger(self):
+    def test_minimum_permissions_and_only_create_or_release_retry_trigger(self):
         text = Path(__file__).parents[1].joinpath(".github/workflows/release.yml").read_text(encoding="utf-8")
-        self.assertIn("on:\n  create:\n", text)
+        self.assertIn("on:\n  create:\n  push:\n    branches: ['release/v0.*.*']\npermissions:\n", text)
         self.assertEqual(text.count("contents: write"), 1)
         self.assertEqual(text.count("persist-credentials: false"), text.count("uses: actions/checkout@"))
         self.assertNotIn("id-token:", text)
         self.assertNotIn("packages:", text)
         self.assertNotIn("actions: write", text)
         self.assertNotIn("pull_request_target", text)
+        self.assertNotIn("workflow_dispatch", text)
+        self.assertNotIn("pull_request:", text)
+        self.assertEqual(re.findall(r"^\s+\S+: write$", text, re.M), ["      contents: write"])
+        self.assertIn("  publish:\n    needs: [gate, build]\n    runs-on: ubuntu-latest\n    permissions:\n"
+                      "      contents: write\n      actions: read\n      issues: read\n", text)
         ci = Path(__file__).parents[1].joinpath(".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("on: [push, pull_request]", ci)
         self.assertNotIn("contents: write", ci)
@@ -810,6 +1102,31 @@ class WorkflowTests(unittest.TestCase):
         for command in ["python -X warn_default_encoding -W error::EncodingWarning -m unittest discover -s scripts -p 'test_check_pair.py' -v", "python -X warn_default_encoding -W error::EncodingWarning scripts/release-test.py -v"]:
             self.assertIn(command + "\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", ci)
         self.assertNotIn("--clobber", Path(__file__).with_name("release.py").read_text(encoding="utf-8"))
+
+    def test_gate_job_skips_first_push_delete_force_and_other_refs(self):
+        text = Path(__file__).parents[1].joinpath(".github/workflows/release.yml").read_text(encoding="utf-8")
+        expression = re.search(r"    if: >-\n(.*?)    runs-on:", text, re.S)[1]
+        expression = " ".join(expression.split()).replace("&&", " and ").replace("||", " or ")
+        def accepted(event_name, event, ref="refs/heads/release/v0.3.1", sha=E, repo=release.EDITOR):
+            github = SimpleNamespace(event_name=event_name, repository=repo, ref=ref, sha=sha,
+                                     event=SimpleNamespace(**event))
+            return eval(expression, {"__builtins__": {}, "false": False,
+                                     "startsWith": lambda value, prefix: value.startswith(prefix)}, {"github": github})
+        create = {"ref_type": "branch", "ref": "release/v0.3.1"}
+        push = {"ref": "refs/heads/release/v0.3.1", "after": E, "created": False, "deleted": False, "forced": False}
+        self.assertTrue(accepted("create", create))
+        self.assertTrue(accepted("create", dict(create, ref="release/v1.2.3"), ref="refs/heads/release/v1.2.3"))
+        self.assertTrue(accepted("push", push))
+        self.assertFalse(accepted("push", dict(push, created=True)), "首次 push 不能与 create 双触发")
+        for changes in ({"deleted": True}, {"forced": True}, {"after": C}, {"ref": "refs/heads/release/v0.3.2"}):
+            self.assertFalse(accepted("push", dict(push, **changes)))
+        for ref in ("refs/heads/main", "refs/heads/work/fix", "refs/tags/release/v0.3.1", "refs/heads/release/v1.2.3"):
+            self.assertFalse(accepted("push", dict(push, ref=ref), ref=ref))
+        self.assertFalse(accepted("create", dict(create, ref_type="tag")))
+        self.assertFalse(accepted("create", dict(create, ref="work/fix")))
+        self.assertFalse(accepted("push", push, repo="other/worldedit"))
+        for event in ("workflow_dispatch", "pull_request", "delete"):
+            self.assertFalse(accepted(event, {}))
 
     def test_ci_and_release_share_pinned_trunk_installer(self):
         root = Path(__file__).parents[1]
