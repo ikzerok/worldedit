@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import sys
 import tempfile
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
@@ -326,6 +327,10 @@ def remap(desktop, editor, core, editor_sha, core_sha, check=False):
 
 
 def main():
+    # Keep the host encoding; escape undisplayable help/diagnostic characters.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--desktop-root", type=Path, required=True)
     parser.add_argument("--editor-source", type=Path, required=True)
@@ -336,7 +341,8 @@ def main():
     args = parser.parse_args()
     result = remap(args.desktop_root, args.editor_source, args.worldline_source,
                    args.editor_sha, args.worldline_sha, args.check)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    # JSON's Unicode escapes round-trip even non-BMP characters on legacy pipes.
+    print(json.dumps(result, ensure_ascii=True, indent=2))
 
 
 if __name__ == "__main__":

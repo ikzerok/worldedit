@@ -2,17 +2,18 @@
 
 ## 操作边界
 
-此流程合并到 main 后，由维护者在**当前已验收且 CI 成功的 main 完整 SHA**创建普通分支 `release/vX.Y.Z` 触发 GitHub `create` 事件。它不是 tag，也不使用 push、PR 或 dispatch 触发。版本必须与 editor 的 Cargo.toml 完全一致；core 保持真实版本，不为配对强制升级。
+此流程合并到 main 后，由维护者在**当前已验收且 CI 成功的 main 完整 SHA**创建普通分支 `release/vX.Y.Z` 触发 GitHub `create` 事件。它不是 tag；已有 `release/v0.x.y` 分支只允许下述受控失败重试的非强制快进 push，不接受 PR 或 dispatch。版本必须与 editor 的 Cargo.toml 完全一致；core 保持真实版本，不为配对强制升级。
 
 worldedit 0.36.1 配对的 worldline/core/runtime 仍为 0.36.0；编辑器补丁不要求同步改运行时版本，实际配对由完整 SHA 固定。
 
-产品版本按 `0.x.y` 递增；当前发行版本必须读取已验收的 Cargo.toml，不使用历史建议值。先合并产品修复、版本与本流程，等待两仓最终 main 的 `ci.yml` push CI 成功并关闭已验收工单，再创建发行分支。普通分支的 create 事件会跳过全部 job。
+产品版本按 `0.x.y` 递增；当前发行版本必须读取已验收的 Cargo.toml，不使用历史建议值。先合并产品修复、版本与本流程，等待两仓最终 main 的 `ci.yml` push CI 成功并关闭已验收工单，再创建发行分支。普通分支的 create 事件会跳过全部 job；初次创建发行分支的 push 也跳过，避免 create/push 双触发。
 
 流程仅使用官方 GitHub Actions、GitHub CLI 与临时 GITHUB_TOKEN。全局/build 为 contents:read；gate 增加 actions:read/issues:read；只有最终 publish job 有 contents:write，另保留门禁必需的只读权限。所有 checkout 禁止持久化凭据。不新增 PAT、OAuth、密钥、环境 secret、id-token、packages 或 actions 写权限。
 
 ## 门禁与产物
 
-- 验证事件仓库、branch 类型、严格 `release/vX.Y.Z` 格式与事件 SHA
+- 验证事件仓库、create 的 branch 类型与严格 `release/vX.Y.Z` 格式；push 仅限已有 `release/v0.x.y`，created/deleted/forced 必须全部明确为 false，ref/after/事件 SHA 必须一致，before 必须是完整非零且不同于 after 的 SHA
+- push 独立查询固定 before...after 的 GitHub compare，核对响应 URL、base/merge-base=before、ahead 状态、behind_by=0、正数 ahead_by，以及完整唯一 commits 数量和末项 after；截断或不一致即停止，不只相信 forced=false
 - editor 的事件 SHA、发行分支 SHA、实时 main SHA 必须一致；兼容记录的 worldline SHA 必须等于其 main
 - 分页读取两仓 open issues，剔除 PR 后必须为零
 - 两仓 ci.yml 分页读取全部匹配运行；最新精确 SHA/main/push 运行必须 completed/success，不能用旧成功掩盖新失败。分页错误、重复或数量不完整均停止
@@ -41,6 +42,8 @@ GitHub 没有将跨仓 main/issue/CI 检查与 Release PATCH 合并为原子事�
 ## 失败处理
 
 任何门禁/构建失败都不发布。发布中途失败可能留下新 tag 与 draft；不自动删除、不覆盖、不重新使用，也不把失败状态伪装为成功。维护者应检查 Actions 日志、tag SHA、draft 附件与 SHA256SUMS，决定人工恢复或使用新版本；直接 rerun 只会因目标存在而安全失败。
+
+若失败尚未创建同名 tag/Release，可先将修复合并到 main 并等双仓精确 main CI 成功，再将已有 `release/v0.x.y` 分支以旧 SHA 为预期值、非强制快进到当前 editor main，触发同一官方流程的受控重试。仍完整执行版本、双 main、精确 CI、零 open issue、目标不存在及发布前全部门禁；每次门禁首尾重查发行分支，过期/错位事件立即停止。成功的 gate 命令在日志输出单行 ASCII `RELEASE_TRIGGER` JSON，记录 event、branch、ref、before/after、三个事件标志及快进核验结果，不含凭据或完整事件。已有 tag/draft/公开 Release 必须停下人工处理，不能靠分支更新绕过，也不添加任何权限或凭据。
 
 只能对 worldedit 创建发行；GITHUB_TOKEN 不获得跨仓写权限，不创建 worldline tag。配对记录用不可变 worldline 完整 SHA 及其真实 Cargo 版本。
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import zipfile
 
@@ -89,6 +90,10 @@ def source_archive(source, destination, name):
 
 
 def main():
+    # Keep the host encoding; escape undisplayable help/diagnostic characters.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     copy = subparsers.add_parser("copy")

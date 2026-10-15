@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 
@@ -103,6 +104,10 @@ def build(editor, core, pair_file, output):
 
 
 if __name__ == "__main__":
+    # Keep the host encoding; escape undisplayable help/diagnostic characters.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--editor", type=Path, required=True)
     parser.add_argument("--core", type=Path, required=True)
